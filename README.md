@@ -154,3 +154,25 @@ Kubernetes resource data is not persisted to disk. The current backend resource 
 ### Watch/WebSocket live refresh
 
 KubeDeck can now use `kubectl watch` events to invalidate resource-list cache and publish lightweight WebSocket events. The active table auto-starts/reuses a watch for the current cluster/resource/namespace and performs a debounced silent refresh when matching events arrive. Regular HTTP polling remains enabled as a fallback.
+
+## Build From Fresh Clone
+
+```powershell
+git clone https://github.com/maksimvpronin-byte/kubedeck.git
+cd kubedeck
+
+npm.cmd install
+py -3 -m pip install -r .\apps\backend\requirements.txt
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.3.ps1 -Package
+```
+
+The portable build will be created in:
+
+```text
+apps\desktop\release
+```
+
+KubeDeck portable does not bundle `kubectl.exe`. Install `kubectl` separately and make it available in `PATH`, or configure the kubectl path in KubeDeck Settings.
+
+Do not commit local build artifacts such as `node_modules`, `.build-venv`, `apps/desktop/release`, `apps/desktop/dist`, backup folders, archives, logs, or local `kubectl.exe` binaries.
