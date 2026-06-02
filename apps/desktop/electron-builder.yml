@@ -1,0 +1,30 @@
+appId: dev.kubedeck.app
+productName: KubeDeck
+artifactName: ${productName}-${version}-${arch}.${ext}
+
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+
+directories:
+  output: release
+
+files:
+  - dist/**/*
+  - package.json
+
+extraResources:
+  - from: build/backend
+    to: backend
+    filter:
+      - "**/*"
+win:
+  signAndEditExecutable: false
+  signDlls: false
+  target:
+    - target: portable
+      arch:
+        - x64
+
+portable:
+  artifactName: ${productName}-Portable-${version}-${arch}.${ext}
