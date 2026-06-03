@@ -1,142 +1,239 @@
 # KubeDeck
 
-KubeDeck is a Windows desktop Kubernetes IDE foundation build. It uses Electron + React for the desktop shell and a local FastAPI backend that talks to Kubernetes through `kubectl`.
+KubeDeck — Windows desktop Kubernetes IDE.
 
-Current working version: **1.0.3**.
+Проект предназначен для удобной работы с Kubernetes-кластерами из Windows-приложения без необходимости вручную запускать длинные `kubectl`-команды.
 
-## Current Features
+Текущая версия проекта: **1.0.3**.
 
-- Electron desktop app with React + TypeScript renderer.
-- Python FastAPI backend started as an Electron child process.
-- Backend binds to `127.0.0.1` only and is protected by a per-session local token.
-- AppData storage under `%APPDATA%\KubeDeck\`.
-- Logs under `%APPDATA%\KubeDeck\logs\`.
-- Kubeconfig import, rename, remove and last-opened cluster state.
-- `kubectl` health/status check and configurable kubectl path.
-- Namespace selector with stable namespace selection during pod restart/delete refreshes.
-- Resource tables for Pods, Deployments, Services, Events and multiple extended resource groups.
-- Resource drawer with Summary, Related, YAML, Describe, Events, Logs, Terminal and resource-specific tabs.
-- Related tab shows owner, selector, storage, config, RBAC and network topology links with relation summary chips and Copy map.
-- Pod logs with current/previous/timestamps/follow/search/copy/download.
-- Deployment logs aggregated across all pods selected by one Deployment, with pod/container filters.
-- Pod terminal through `kubectl exec` without typed pod-name confirmation.
-- Port-forward modal and port-forward sessions panel.
-- Secrets viewer with reveal/copy/auto-hide and audit metadata without storing secret values.
-- CRD definitions are view-only; CRD instances can be inspected, edited via YAML and deleted when RBAC allows it.
-- Bulk delete with full preview, copy list, fast background execution, result panel and Copy result summary.
-- YAML editing with dry-run/apply, modified-draft indicator, Reset and Reload actions.
-- Command preview blocks with copy action and redaction for kubeconfig/token/password-like arguments.
-- Backend resource cache diagnostics and short-lived cached silent-refresh support for resource lists.
-- Resource watch diagnostics for starting, stopping and inspecting kubectl watch processes; active watches invalidate affected resource-list cache entries and drive WebSocket silent refresh for the active table.
-- Problems dashboard with severity/category grouping, priority diagnostic cards, affected-resource navigation and Copy diagnostics.
-- Related-resource topology includes Pod config refs, owner chains, Service EndpointSlices, Endpoint/EndpointSlice target Pods and ServiceAccount secrets.
-- RU/EN i18n base and dark/light/system theme setting.
+---
 
-## Confirmation Model
+## Основная идея
 
-Current 1.0.3 UX intentionally avoids typed resource-name confirmation in the UI:
+KubeDeck состоит из двух частей:
 
-- Delete pod/resource: standard confirmation dialog.
-- Restart pod: confirmation dialog without typing the name.
-- Redeploy: confirmation dialog without typing the name.
-- Scale: confirmation dialog without typing the name, but replicas are still required.
-- YAML Apply: confirmation dialog without typing the name.
-- Terminal tab: opens without typed pod-name confirmation.
+| Часть | Технологии | Назначение |
+|---|---|---|
+| Desktop UI | Electron, React, TypeScript | Окно приложения, интерфейс, таблицы ресурсов, drawer, YAML, логи |
+| Backend | Python, FastAPI | Нормализация данных Kubernetes, health-check, локальные API |
+| Kubernetes CLI | kubectl | Реальное взаимодействие с Kubernetes-кластерами |
 
-The backend still receives confirmation metadata for mutating operations and keeps API-side safety checks such as payload limits, YAML single-object validation and `kubectl auth can-i` where implemented.
+Backend запускается локально вместе с desktop-приложением и слушает только `127.0.0.1`.
 
-## Prerequisites
+---
 
-- Windows
-- Node.js 20+
-- Python 3.11+
-- `kubectl.exe` in PATH, or a configured full path in Settings
+## Что умеет приложение
 
-PowerShell script execution policy may block `npm.ps1`. Use `cmd /c npm ...` or `npm.cmd ...` if that happens.
+На текущем этапе KubeDeck умеет:
 
-## Development
+- импортировать kubeconfig через UI;
+- хранить kubeconfig-файлы в `%APPDATA%\KubeDeck\kubeconfigs`;
+- показывать список кластеров/контекстов;
+- переименовывать кластеры в UI;
+- открывать последний выбранный кластер;
+- выбирать namespace;
+- показывать Kubernetes-ресурсы:
+  - Pods;
+  - Deployments;
+  - Services;
+  - ConfigMaps;
+  - Secrets;
+  - Ingresses;
+  - Jobs;
+  - CronJobs;
+  - StatefulSets;
+  - DaemonSets;
+  - PersistentVolumes;
+  - PersistentVolumeClaims;
+  - StorageClasses;
+  - Nodes;
+  - Namespaces;
+  - ServiceAccounts;
+  - RBAC resources;
+  - Events;
+  - CRD definitions;
+  - CRD instances;
+- открывать detail drawer ресурса;
+- смотреть YAML ресурса;
+- редактировать YAML с dry-run/apply;
+- смотреть `kubectl describe`;
+- смотреть Events по ресурсу;
+- смотреть Related resources;
+- смотреть Pod logs;
+- смотреть Deployment logs сразу по всем Pod выбранного Deployment;
+- выполнять Pod terminal через `kubectl exec`;
+- запускать port-forward;
+- смотреть Problems dashboard;
+- смотреть Secrets с reveal/copy/auto-hide;
+- выполнять опасные действия с подтверждениями;
+- выполнять bulk delete;
+- использовать RU/EN интерфейс;
+- использовать dark/light/system theme.
 
-Install frontend dependencies only when the existing `node_modules` is missing or intentionally refreshed:
+---
 
-```powershell
-npm.cmd install
-```
+# Быстрый старт для Windows
 
-Install backend dependencies for development:
+Этот вариант предназначен для чистой Windows-машины.
 
-```powershell
-py -3 -m pip install -r .\apps\backend\requirements.txt
-```
+Скрипт сам поставит нужные зависимости, скачает проект и соберёт portable `.exe`.
 
-Run the app:
+## 1. Открой PowerShell от имени администратора
 
-```powershell
-npm.cmd run dev
-```
-
-Build TypeScript and renderer assets:
-
-```powershell
-npm.cmd run build
-```
-
-## Portable Windows Build
-
-Build the portable Windows executable from the repository root:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\package-windows.ps1
-```
-
-Equivalent npm command:
-
-```powershell
-npm.cmd run package:win
-```
-
-The current packaging script:
-
-- stops running KubeDeck processes that can lock the release directory;
-- verifies that required npm build executables already exist;
-- does **not** automatically repair or reinstall `node_modules`;
-- prepares an isolated backend build venv;
-- installs backend packaging dependencies into that isolated venv;
-- packages the Python backend with PyInstaller;
-- builds the Electron portable executable.
-
-If npm build tools are missing, run dependency installation explicitly from the project root before packaging. Do not run `npm ci` or dependency cleanup as part of normal feature patching unless dependency maintenance is the actual task.
-
-Portable packaging does not bundle `kubectl.exe`. Runtime Kubernetes access uses the kubectl path configured in Settings, or `kubectl` from PATH when no explicit path is configured.
-
-Output:
+Нажми:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-1.0.3-x64.exe
+Start → PowerShell → Run as administrator
 ```
 
-Run the portable build by double-clicking that `.exe`. Settings, kubeconfigs, logs, and UI state are stored under `%APPDATA%\KubeDeck\`.
-
-## 1.0.3 Stabilization Validation
-
-Before starting the next refactor/feature stage, validate the current 1.0.3 line from the repository root:
+## 2. Выполни одну команду
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.3.ps1 -Package
+Set-ExecutionPolicy -Scope Process Bypass -Force
+$Script = "$env:TEMP\kubedeck-setup.ps1"
+Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/maksimvpronin-byte/kubedeck/main/scripts/setup-windows.ps1" -OutFile $Script
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -Clone -Build
 ```
 
-The script runs backend validation, the desktop build, optional portable packaging and a release-output check that no `kubectl.exe` is bundled.
+## 3. Что сделает скрипт
 
-## kubectl Path
+Скрипт выполнит полный bootstrap:
 
-The default setting is `kubectl`. The portable build does not include `kubectl.exe`. If kubectl is not in PATH, open Settings and set the full path, for example:
+1. Проверит, что запуск идёт на Windows.
+2. Проверит наличие `winget`.
+3. Установит недостающие программы:
+   - Git;
+   - Node.js LTS;
+   - Python 3.11;
+   - kubectl.
+4. Склонирует репозиторий в:
+
+   ```text
+   %USERPROFILE%\KubeDeck
+   ```
+
+5. Установит npm-зависимости.
+6. Установит Python-зависимости backend.
+7. Запустит проверку проекта.
+8. Соберёт portable-версию.
+
+## 4. Где будет готовый файл
+
+После успешной сборки portable-файл будет здесь:
+
+```text
+%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.0.3-x64.exe
+```
+
+Запусти его двойным кликом.
+
+---
+
+# Если проект уже скачан
+
+Если репозиторий уже есть на диске, например:
+
+```text
+C:\Users\Fidel\Kubedeck-agent 1.0.3
+```
+
+Открой PowerShell в этой папке и выполни:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -Build
+```
+
+Скрипт не будет заново клонировать проект. Он использует текущую папку.
+
+---
+
+# Требования
+
+Минимально нужны:
+
+| Компонент | Версия | Зачем |
+|---|---:|---|
+| Windows | 10/11 x64 | целевая ОС |
+| PowerShell | 5.1+ | запуск скриптов |
+| winget | актуальный | автоматическая установка зависимостей |
+| Git | актуальный | клонирование репозитория |
+| Node.js | 20+ / LTS | сборка desktop-части |
+| npm | вместе с Node.js | установка JS-зависимостей |
+| Python | 3.11+ | backend |
+| Python Launcher | `py` | запуск Python из скриптов |
+| kubectl | актуальный | доступ к Kubernetes |
+
+Проверка вручную:
+
+```powershell
+git --version
+node --version
+npm --version
+py -3 --version
+kubectl version --client
+```
+
+---
+
+# Важное про kubectl
+
+KubeDeck **не кладёт `kubectl.exe` внутрь portable-сборки**.
+
+Это сделано специально.
+
+Приложение использует:
+
+1. `kubectl` из системного `PATH`; или
+2. путь до `kubectl.exe`, указанный в Settings приложения.
+
+Установить kubectl вручную можно так:
+
+```powershell
+winget install -e --id Kubernetes.kubectl
+```
+
+Проверить:
+
+```powershell
+kubectl version --client
+```
+
+Если `kubectl` лежит не в `PATH`, укажи полный путь в настройках KubeDeck, например:
 
 ```text
 C:\Tools\kubectl\kubectl.exe
 ```
 
-The packaged app uses only PATH/configured kubectl resolution.
+---
 
-## Local Data
+# Первый запуск
+
+После запуска portable `.exe`:
+
+1. Открой Settings.
+2. Проверь путь до `kubectl`.
+3. Импортируй kubeconfig.
+4. Выбери кластер/context.
+5. Выбери namespace.
+6. Проверь основные разделы:
+   - Pods;
+   - Deployments;
+   - Services;
+   - Events;
+   - Problems.
+
+---
+
+# Где лежат настройки и логи
+
+KubeDeck хранит пользовательские данные здесь:
+
+```text
+%APPDATA%\KubeDeck
+```
+
+Основные файлы и папки:
 
 ```text
 %APPDATA%\KubeDeck\
@@ -148,31 +245,332 @@ The packaged app uses only PATH/configured kubectl resolution.
     kubectl.log
 ```
 
-Kubernetes resource data is not persisted to disk. The current backend resource cache is in-memory only; silent refresh can reuse fresh cached snapshots while manual refresh still forces fresh kubectl data.
+Назначение:
 
+| Путь | Назначение |
+|---|---|
+| `config.json` | настройки приложения |
+| `kubeconfigs\` | импортированные kubeconfig-файлы |
+| `logs\desktop.log` | логи Electron/Desktop |
+| `logs\backend.log` | логи Python backend |
+| `logs\kubectl.log` | диагностические логи kubectl-вызовов |
 
-### Watch/WebSocket live refresh
+---
 
-KubeDeck can now use `kubectl watch` events to invalidate resource-list cache and publish lightweight WebSocket events. The active table auto-starts/reuses a watch for the current cluster/resource/namespace and performs a debounced silent refresh when matching events arrive. Regular HTTP polling remains enabled as a fallback.
+# Сборка portable вручную
 
-## Build From Fresh Clone
+Из корня проекта:
 
 ```powershell
-git clone https://github.com/maksimvpronin-byte/kubedeck.git
-cd kubedeck
-
-npm.cmd install
-py -3 -m pip install -r .\apps\backend\requirements.txt
-
+npm.cmd ci --no-audit --no-fund
+py -3 -m pip install --user -r .\apps\backend\requirements.txt
+py -3 -m pip install --user pytest
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.3.ps1 -Package
 ```
 
-The portable build will be created in:
+Результат:
 
 ```text
-apps\desktop\release
+apps\desktop\release\KubeDeck-Portable-1.0.3-x64.exe
 ```
 
-KubeDeck portable does not bundle `kubectl.exe`. Install `kubectl` separately and make it available in `PATH`, or configure the kubectl path in KubeDeck Settings.
+---
 
-Do not commit local build artifacts such as `node_modules`, `.build-venv`, `apps/desktop/release`, `apps/desktop/dist`, backup folders, archives, logs, or local `kubectl.exe` binaries.
+# Запуск в dev-режиме
+
+Из корня проекта:
+
+```powershell
+npm.cmd ci --no-audit --no-fund
+py -3 -m pip install --user -r .\apps\backend\requirements.txt
+npm.cmd run dev
+```
+
+Dev-режим запускает:
+
+- Vite dev server;
+- TypeScript watch;
+- Electron desktop shell;
+- локальный Python backend.
+
+---
+
+# Проверка проекта
+
+Проверка без сборки portable:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.3.ps1
+```
+
+Проверка со сборкой portable:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.3.ps1 -Package
+```
+
+Проверка включает:
+
+- проверку структуры проекта;
+- проверку backend Python-кода;
+- backend tests;
+- desktop TypeScript/Vite build;
+- проверку, что portable-сборка не содержит `kubectl.exe`;
+- optional packaging.
+
+---
+
+# Структура проекта
+
+```text
+kubedeck/
+  apps/
+    backend/
+      app/
+      tests/
+      requirements.txt
+    desktop/
+      src/
+      electron/
+      release/
+  packages/
+    shared-types/
+    ui/
+  scripts/
+    setup-windows.ps1
+    package-windows.ps1
+    validate-1.0.3.ps1
+    repair-7zip-bin.ps1
+  docs/
+  README.md
+  package.json
+  package-lock.json
+```
+
+---
+
+# Частые ошибки и решения
+
+## PowerShell запрещает запуск скрипта
+
+Ошибка:
+
+```text
+running scripts is disabled on this system
+```
+
+Решение:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -Build
+```
+
+Эта команда меняет policy только для текущего процесса PowerShell.
+
+---
+
+## `npm.ps1 cannot be loaded`
+
+На Windows может блокироваться `npm.ps1`.
+
+Используй `npm.cmd`:
+
+```powershell
+npm.cmd ci --no-audit --no-fund
+npm.cmd run build
+npm.cmd run dev
+```
+
+---
+
+## `winget` не найден
+
+Проверь:
+
+```powershell
+winget --version
+```
+
+Если команды нет, обнови **App Installer** через Microsoft Store.
+
+После установки заново открой PowerShell.
+
+---
+
+## `py` не найден
+
+Проверь:
+
+```powershell
+py -3 --version
+```
+
+Если команды нет:
+
+```powershell
+winget install -e --id Python.Python.3.11
+```
+
+После установки заново открой PowerShell.
+
+---
+
+## `kubectl executable not found`
+
+KubeDeck не содержит встроенный `kubectl.exe`.
+
+Решение:
+
+```powershell
+winget install -e --id Kubernetes.kubectl
+kubectl version --client
+```
+
+Или укажи путь к `kubectl.exe` в Settings приложения.
+
+---
+
+## `kubectl timed out after 30s`
+
+Проверь эту же команду напрямую в PowerShell:
+
+```powershell
+kubectl get pods -A -o json
+```
+
+Если в консоли команда работает быстро, проверь:
+
+1. какой kubeconfig импортирован в KubeDeck;
+2. какой context выбран;
+3. какой `kubectl.exe` использует приложение;
+4. нет ли старого пути до `kubectl` в Settings;
+5. нет ли проблем с VPN/DNS/Proxy;
+6. нет ли зависших процессов KubeDeck.
+
+---
+
+## Ошибка 7zip / electron-builder
+
+Если сборка падает на `7za.exe` или `7zip-bin`, выполни:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\repair-7zip-bin.ps1
+```
+
+Если Defender удалил `7za.exe`, проверь карантин или добавь временное исключение для папки проекта.
+
+---
+
+## Release-директория занята
+
+Закрой KubeDeck и Electron-процессы.
+
+Потом повтори сборку:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.3.ps1 -Package
+```
+
+---
+
+# Обновление проекта
+
+Если проект уже склонирован:
+
+```powershell
+cd "$env:USERPROFILE\KubeDeck"
+git pull --ff-only
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -Build
+```
+
+---
+
+# Что нельзя коммитить
+
+Не добавляй в git:
+
+```text
+node_modules/
+.build-venv/
+build/
+apps/desktop/dist/
+apps/desktop/release/
+*.zip
+*.7z
+*.log
+kubectl.exe
+```
+
+---
+
+# Безопасность
+
+В проекте приняты следующие правила:
+
+- backend слушает только `127.0.0.1`;
+- desktop и backend используют локальный session token;
+- доступ к Kubernetes выполняется через локальный `kubectl`;
+- kubeconfig-файлы копируются в `%APPDATA%\KubeDeck\kubeconfigs`;
+- Secrets не должны сохраняться в логах;
+- portable-сборка не должна содержать `kubectl.exe`;
+- опасные действия требуют подтверждения в UI.
+
+---
+
+# Smoke test после сборки
+
+После сборки проверь:
+
+1. Запускается portable `.exe`.
+2. Settings открываются.
+3. Путь до `kubectl` корректный.
+4. kubeconfig импортируется.
+5. Кластер открывается.
+6. Namespace выбирается.
+7. Pods/Deployments/Services/Events отображаются.
+8. Pod drawer открывается.
+9. YAML отображается.
+10. Describe работает.
+11. Logs работают.
+12. Deployment logs работают.
+13. Problems dashboard открывается.
+14. В release-директории нет `kubectl.exe`.
+
+---
+
+# Команды для разработчика
+
+## Установка зависимостей
+
+```powershell
+npm.cmd ci --no-audit --no-fund
+py -3 -m pip install --user -r .\apps\backend\requirements.txt
+```
+
+## Dev mode
+
+```powershell
+npm.cmd run dev
+```
+
+## Desktop build
+
+```powershell
+npm.cmd run build
+```
+
+## Portable package
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.3.ps1 -Package
+```
+
+## Git commit после изменения README
+
+```powershell
+git status
+git add README.md scripts/setup-windows.ps1
+git commit -m "docs: add full Windows setup guide"
+git push
+```
