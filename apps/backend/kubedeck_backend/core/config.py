@@ -37,6 +37,7 @@ class ConfigStore:
 
     def update_settings(self, settings: Settings) -> AppConfig:
         validate_kubectl_path(settings.kubectlPath)
+        normalize_ssh_settings(settings)
         config = self.load()
         config.settings = settings
         return self.save(config)
@@ -126,3 +127,14 @@ def validate_kubectl_path(value: str) -> None:
         raise ValueError("kubectlPath must point to kubectl or kubectl.exe")
     if not path.exists() or not path.is_file():
         raise FileNotFoundError(f"kubectlPath does not exist: {text}")
+
+
+def normalize_ssh_settings(settings: Settings) -> None:
+    ssh = settings.ssh
+    if ssh.defaultPort < 1 or ssh.defaultPort > 65535:
+        raise ValueError("SSH default port must be between 1 and 65535")
+    if ssh.jumpPort < 1 or ssh.jumpPort > 65535:
+        raise ValueError("SSH jump port must be between 1 and 65535")
+    ssh.defaultUsername = (ssh.defaultUsername or "").strip()
+    ssh.jumpHost = (ssh.jumpHost or "").strip()
+    ssh.jumpUsername = (ssh.jumpUsername or "").strip()

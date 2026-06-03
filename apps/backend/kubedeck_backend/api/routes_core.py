@@ -35,6 +35,7 @@ def app_info() -> dict[str, Any]:
             "logsTailLines": config.settings.logsTailLines,
             "language": config.settings.language,
             "theme": config.settings.theme,
+            "ssh": config.settings.ssh.model_dump(),
         },
         "clusters": len(config.clusters),
     }

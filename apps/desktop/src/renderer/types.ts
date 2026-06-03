@@ -9,6 +9,19 @@ export interface LlmSettings {
   apiKeyRef: string;
 }
 
+export type SshAuthMethod = "agent" | "password" | "privateKey";
+
+export interface SshSettings {
+  defaultUsername: string;
+  defaultPort: number;
+  defaultAuthMethod: SshAuthMethod;
+  useJumpHost: boolean;
+  jumpHost: string;
+  jumpPort: number;
+  jumpUsername: string;
+  jumpAuthMethod: SshAuthMethod;
+}
+
 export interface Settings {
   kubectlPath: string;
   language: Language;
@@ -20,6 +33,7 @@ export interface Settings {
   terminalFontSize: number;
   logsSince: string;
   llm: LlmSettings;
+  ssh: SshSettings;
 }
 
 export interface Cluster {
@@ -61,6 +75,7 @@ export interface BackendInfo {
     logsTailLines: number;
     language: string;
     theme: string;
+    ssh?: SshSettings;
   };
   clusters: number;
 }

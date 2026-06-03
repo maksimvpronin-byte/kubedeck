@@ -22,6 +22,7 @@ import type { AppConfig, Cluster, ErrorInfo, GlobalSearchItem, ResourceDefinitio
 import { loadUiState } from "./uiState";
 import { asErrorInfo, isAbortError } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
+import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -34,10 +35,20 @@ const initialSelectedNamespaces = initialSection === "nodes"
 
 const RESOURCE_LOAD_TIMEOUT_MS = 30000;
 
+function normalizeConfigSsh(config: AppConfig): AppConfig {
+  return {
+    ...config,
+    settings: normalizeSettingsSsh(config.settings),
+  };
+}
+
 type BulkDeleteFailure = {
   row: ResourceRow;
   message: string;
 };
+type NodeActionKind = "cordon" | "uncordon" | "drain";
+type NodeActionConfirmation = { action: NodeActionKind; rows: ResourceRow[]; commandPreview: string; affectedPods?: ResourceRow[]; previewLoading?: boolean; previewError?: string; };
+
 
 export function App() {
   const [api, setApi] = useState<ApiClient | null>(null);
@@ -56,7 +67,7 @@ export function App() {
   const [selectedPod, setSelectedPod] = useState<ResourceRow | null>(null);
   const [selectedResource, setSelectedResource] = useState("pods");
   const [drawerWidth, setDrawerWidth] = useState(initialUiState.drawerWidth ?? 520);
-  const [bulkDelete, setBulkDelete] = useState<{ resource: string; rows: ResourceRow[] } | null>(null);
+  const [bulkDelete, setBulkDelete] = useState<{ resource: string; rows: ResourceRow[] } | null>(null); const [nodeActionConfirmation, setNodeActionConfirmation] = useState<NodeActionConfirmation | null>(null); 
   const [bulkActionMessage, setBulkActionMessage] = useState("");
   const [renameTarget, setRenameTarget] = useState<Cluster | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -109,7 +120,7 @@ export function App() {
         .catch((err) => setError(asErrorInfo(err)));
       client
         .config()
-        .then(setConfig)
+        .then((next) => setConfig(normalizeConfigSsh(next)))
         .catch((err) => setError(asErrorInfo(err)));
       client
         .kubectlStatus()
@@ -164,7 +175,7 @@ export function App() {
 
   async function reloadConfig() {
     if (!api) return;
-    setConfig(await api.config());
+    setConfig(normalizeConfigSsh(await api.config()));
   }
 
   async function importKubeconfig() {
@@ -462,9 +473,112 @@ export function App() {
       setBulkActionMessage(t("bulkDelete.failedMessage"));
       setError(asErrorInfo(err));
     }
+  }  async function runBulkNodeAction(action: NodeActionKind, selectedRows: ResourceRow[]) {
+    if (!api || !activeCluster || selectedRows.length === 0) return;
+
+    const commandPreview = selectedRows
+      .map((row) =>
+        action === "drain"
+          ? `kubectl drain ${row.name} --ignore-daemonsets --delete-emptydir-data --timeout=300s`
+          : `kubectl ${action} ${row.name}`,
+      )
+      .join("\n");
+
+    if (action !== "drain") {
+      setNodeActionConfirmation({ action, rows: selectedRows, commandPreview });
+      return;
+    }
+
+    const nodeNames = new Set(selectedRows.map((row) => String(row.name)));
+    setNodeActionConfirmation({ action, rows: selectedRows, commandPreview, affectedPods: [], previewLoading: true });
+
+    try {
+      const response = await api.resources(activeCluster.id, "pods", "all", undefined, { useCache: false, forceRefresh: true });
+      const affectedPods = response.items
+        .filter((pod) => nodeNames.has(String(pod.node ?? "")))
+        .sort((a, b) => `${a.namespace ?? ""}/${a.name}`.localeCompare(`${b.namespace ?? ""}/${b.name}`, undefined, { numeric: true }));
+      setNodeActionConfirmation({ action, rows: selectedRows, commandPreview, affectedPods, previewLoading: false });
+    } catch (err) {
+      const info = asErrorInfo(err);
+      setNodeActionConfirmation({
+        action,
+        rows: selectedRows,
+        commandPreview,
+        affectedPods: [],
+        previewLoading: false,
+        previewError: info.message || info.code || "Failed to load affected pods preview",
+      });
+    }
   }
 
-  async function copyBulkDeleteList() {
+
+
+  async function confirmBulkNodeAction() {
+    if (!api || !activeCluster || !nodeActionConfirmation) return;
+
+    const target = nodeActionConfirmation;
+    const action = target.action;
+    const actionLabel = nodeActionLabel(action);
+    const commandPreview = target.commandPreview;
+
+    setNodeActionConfirmation(null);
+    setBulkActionMessage(`${actionLabel} requested: ${target.rows.length} node(s)`);
+    setError(null);
+
+    const completedRows: ResourceRow[] = [];
+    const failures: BulkDeleteFailure[] = [];
+
+    for (const row of target.rows) {
+      try {
+        await api.resourceAction(activeCluster.id, "nodes", "_cluster", row.name, action);
+        completedRows.push(row);
+      } catch (err) {
+        const info = asErrorInfo(err);
+        failures.push({ row, message: info.message || info.code || `${actionLabel} failed` });
+      }
+    }
+
+    try {
+      await loadResources(activeCluster.id, "nodes", ["_cluster"]);
+    } catch (err) {
+      setError(asErrorInfo(err));
+    }
+
+    if (failures.length > 0) {
+      const message = `${actionLabel} partial result. Completed: ${completedRows.length}. Failed: ${failures.length}.`;
+      setBulkActionMessage(message);
+      setError({
+        code: "PARTIAL_RESULT",
+        message,
+        rawStderr: failures.map((item) => `nodes ${resourceIdentityLabel(item.row)} - ${item.message}`).join("\n"),
+        commandPreview,
+      });
+      return;
+    }
+
+    setBulkActionMessage(`${actionLabel} completed. Nodes: ${completedRows.length}.`);
+    setError(null);
+  }
+
+  function closeNodeActionConfirmation() {
+    setNodeActionConfirmation(null);
+  }
+
+  function nodeActionLabel(action: NodeActionKind) {
+    if (action === "cordon") return "Cordon";
+    if (action === "uncordon") return "Uncordon";
+    return "Drain";
+  }
+
+  function nodeActionTitle(action: NodeActionKind) {
+    if (action === "cordon") return "Cordon selected nodes";
+    if (action === "uncordon") return "Uncordon selected nodes";
+    return "Drain selected nodes";
+  }
+
+
+
+async function copyBulkDeleteList() {
     if (!bulkDelete || typeof navigator === "undefined" || !navigator.clipboard) return;
     try {
       await navigator.clipboard.writeText(bulkDeleteListText(bulkDelete.resource, bulkDelete.rows));
@@ -485,8 +599,14 @@ export function App() {
 
   async function saveSettings(next: Settings) {
     if (!api) return;
-    setConfig(await api.updateSettings(next));
-    setError(null);
+    try {
+      const normalized = normalizeSettingsSsh(next);
+      saveStoredSshDefaults(normalized.ssh);
+      setConfig(normalizeConfigSsh(await api.updateSettings(normalized)));
+      setError(null);
+    } catch (err) {
+      setError(asErrorInfo(err));
+    }
   }
 
   function selectSection(next: Section) {
@@ -991,7 +1111,7 @@ export function App() {
                     rows={activeRows}
                     columns={columns}
                     loading={loading}
-                    onRefresh={() => loadResources()}
+                    onRefresh={() => loadResources()} onBulkCordon={resourceTab === "nodes" ? (selectedRows) => { void runBulkNodeAction("cordon", selectedRows); } : undefined} onBulkUncordon={resourceTab === "nodes" ? (selectedRows) => { void runBulkNodeAction("uncordon", selectedRows); } : undefined} onBulkDrain={resourceTab === "nodes" ? (selectedRows) => { void runBulkNodeAction("drain", selectedRows); } : undefined}
                     onOpen={(row) => {
                       if (resourceTab === "events") {
                         const involved = eventInvolvedLocator(row);
@@ -1048,6 +1168,7 @@ export function App() {
               }}
               onClose={() => setSelectedPod(null)}
               copyLabel={t("error.copy")}
+              settings={settings}
               labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
             />
           ) : null}
@@ -1101,7 +1222,90 @@ export function App() {
           }}
         />
       ) : null}
-      {bulkDelete ? (
+      {nodeActionConfirmation ? (
+        <div
+          className="node-action-confirm-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeNodeActionConfirmation();
+          }}
+        >
+          <div
+            className="node-action-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="node-action-confirm-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="node-action-confirm-header">
+              <div>
+                <div className="node-action-confirm-kicker">Node action</div>
+                <h2 id="node-action-confirm-title">
+                  {nodeActionTitle(nodeActionConfirmation.action)}
+                </h2>
+                <p>
+                  {nodeActionConfirmation.rows.length} node(s) selected. Review the command preview before confirming.
+                </p>
+              </div>
+              <button className="icon-button" type="button" aria-label="Close" onClick={closeNodeActionConfirmation}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="node-action-confirm-section">
+              <div className="node-action-confirm-label">Affected nodes</div>
+              <div className="node-action-confirm-node-list">
+                {nodeActionConfirmation.rows.map((row) => (
+                  <code key={resourceIdentityLabel(row)}>{String(row.name)}</code>
+                ))}
+              </div>
+            </div>
+
+            {nodeActionConfirmation.action === "drain" ? (
+              <div className="node-action-confirm-section">
+                <div className="node-action-confirm-label">Affected pods preview</div>
+                {nodeActionConfirmation.previewLoading ? (
+                  <p className="node-drain-preview-muted">Loading pods on selected nodes...</p>
+                ) : nodeActionConfirmation.previewError ? (
+                  <pre className="node-action-confirm-command node-drain-preview-error">{nodeActionConfirmation.previewError}</pre>
+                ) : nodeActionConfirmation.affectedPods && nodeActionConfirmation.affectedPods.length > 0 ? (
+                  <div className="node-drain-pod-list">
+                    {nodeActionConfirmation.affectedPods.map((pod) => (
+                      <div className="node-drain-pod-row" key={resourceIdentityLabel(pod)}>
+                        <code>{String(pod.namespace ?? "_cluster")}/{String(pod.name)}</code>
+                        <span>{String(pod.node ?? "")}</span>
+                        <span>{String(pod.status ?? pod.phase ?? "")}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="node-drain-preview-muted">No pods were found on the selected node(s).</p>
+                )}
+              </div>
+            ) : null}
+
+            <div className="node-action-confirm-section">
+              <div className="node-action-confirm-label">Command preview</div>
+              <pre className="node-action-confirm-command">{nodeActionConfirmation.commandPreview}</pre>
+            </div>
+
+            <div className="node-action-confirm-actions">
+              <button className="secondary" type="button" onClick={closeNodeActionConfirmation}>
+                Cancel
+              </button>
+              <button
+                className="primary"
+                type="button"
+                onClick={() => {
+                  void confirmBulkNodeAction();
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null} {bulkDelete ? (
         <div className="modal-backdrop" role="presentation">
           <section className="confirm-modal bulk-delete-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-delete-title">
             <header>

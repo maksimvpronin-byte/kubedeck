@@ -297,6 +297,14 @@ export class ApiClient {
     }
   }
 
+  nodeSshUrl(clusterId: string, name: string) {
+    const url = new URL(this.baseUrl);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.pathname = `/clusters/${clusterId}/nodes/${encodeURIComponent(name)}/ssh`;
+    url.searchParams.set("token", this.token);
+    return url.toString();
+  }
+
   podTerminalUrl(clusterId: string, namespace: string, name: string, container?: string, shell = "auto") {
     const url = new URL(this.baseUrl);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";

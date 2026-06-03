@@ -72,3 +72,6 @@ node_modules/
 # Local kubectl binaries should not be committed
 kubectl.exe
 kubectl.exe.sha256
+
+# Local patch staging created by ChatGPT/KubeDeck patch scripts
+.kubedeck-patches/

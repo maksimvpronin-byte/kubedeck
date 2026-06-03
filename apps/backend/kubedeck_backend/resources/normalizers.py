@@ -234,9 +234,12 @@ def event_summary(item: dict[str, Any]) -> dict[str, Any]:
 
 def node_summary(item: dict[str, Any]) -> dict[str, Any]:
     status = item.get("status") or {}
+    spec = item.get("spec") or {}
     capacity = status.get("capacity") or {}
     allocatable = status.get("allocatable") or {}
     node_info = status.get("nodeInfo") or {}
+    addresses = status.get("addresses") or []
+    address_by_type = {str(address.get("type") or ""): str(address.get("address") or "") for address in addresses if address.get("address")}
     conditions = status.get("conditions") or []
     ready = next((condition for condition in conditions if condition.get("type") == "Ready"), {})
     pressure = [
@@ -246,7 +249,12 @@ def node_summary(item: dict[str, Any]) -> dict[str, Any]:
     ]
     base = meta(item)
     base.update({
-        "status": "Ready" if ready.get("status") == "True" else "NotReady",
+        "status": ("Ready" if ready.get("status") == "True" else "NotReady") + (", SchedulingDisabled" if spec.get("unschedulable") else ""),
+        "unschedulable": bool(spec.get("unschedulable")),
+        "internalIp": address_by_type.get("InternalIP", ""),
+        "externalIp": address_by_type.get("ExternalIP", ""),
+        "hostname": address_by_type.get("Hostname", ""),
+        "addresses": addresses,
         "os": node_info.get("operatingSystem", ""),
         "osImage": node_info.get("osImage", ""),
         "kernelVersion": node_info.get("kernelVersion", ""),

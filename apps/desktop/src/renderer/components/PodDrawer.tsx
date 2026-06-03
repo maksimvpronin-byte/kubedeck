@@ -1,9 +1,10 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiClient, ApiError } from "../api";
-import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, RelatedLink, ResourceRow } from "../types";
+import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, RelatedLink, ResourceRow, Settings } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
 import { TerminalTab } from "./TerminalTab";
+import { NodeSshTab } from "./NodeSshTab";
 import { LogsTab } from "./LogsTab";
 import { YamlTab } from "./YamlTab";
 import { DescribeTab } from "./DescribeTab";
@@ -30,6 +31,7 @@ interface Props {
   onPortForwardStarted?: (session: PortForwardSession) => void;
   onClose: () => void;
   copyLabel: string;
+  settings?: Settings;
   labels: {
     summary: string;
     yaml: string;
@@ -38,7 +40,7 @@ interface Props {
   };
 }
 
-export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onClose, copyLabel, labels }: Props) {
+export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onClose, copyLabel, labels, settings }: Props) {
   const [tab, setTab] = useState<DrawerTab>("summary");
   const [content, setContent] = useState("");
   const [yamlBaseline, setYamlBaseline] = useState("");
@@ -86,11 +88,12 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   const yamlChanged = yamlDraft !== yamlBaseline;
   const now = useUiClock(Boolean(pod), 1000);
   const isDeploymentResource = resource === "deployments" || resource === "deployments.apps" || resource === "deployment";
+  const isNodeResource = resource === "nodes" || resource === "node";
 
 
   useEffect(() => {
-    if (!canLogs && (tab === "logs" || tab === "terminal")) setTab("summary");
-  }, [canLogs, tab]);
+    if (!canLogs && !(resource === "nodes" || resource === "node") && (tab === "logs" || tab === "terminal")) setTab("summary");
+  }, [canLogs, tab, resource]);
 
   useEffect(() => {
     if (resource === "events" && (tab === "events" || tab === "related")) setTab("summary");
@@ -517,7 +520,8 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     "yaml",
     "describe",
     ...(resource === "events" ? [] : ["events"]),
-    ...(canLogs ? ["logs"] : []),
+    ...(canLogs && !isNodeResource ? ["logs"] : []),
+    ...(isNodeResource ? ["terminal"] : []),
   ] as DrawerTab[];
   return (
     <aside className="drawer" style={{ width }}>
@@ -550,7 +554,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       <nav className="drawer-tabs">
         {drawerTabs.map((item) => (
           <button className={tab === item ? "active" : ""} onClick={() => setTab(item)} key={item}>
-            {item === "events" ? "Events" : item === "related" ? "Related" : item === "terminal" ? "Terminal" : item === "secret" ? "Secret" : labels[item]}
+            {item === "events" ? "Events" : item === "related" ? "Related" : item === "terminal" ? (isNodeResource ? "SSH" : "Terminal") : item === "secret" ? "Secret" : labels[item]}
           </button>
         ))}
       </nav>
@@ -634,15 +638,19 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
             copyLabel={copyLabel}
           />
         ) : tab === "terminal" ? (
-          <TerminalTab
-            api={api}
-            clusterId={clusterId}
-            pod={pod}
-            containers={containerNames(pod)}
-            container={terminalContainer}
-            setContainer={setTerminalContainer}
-            autoConnectToken={terminalConnectToken}
-          />
+          isNodeResource ? (
+            <NodeSshTab api={api} clusterId={clusterId} node={pod} settings={settings} />
+          ) : (
+            <TerminalTab
+              api={api}
+              clusterId={clusterId}
+              pod={pod}
+              containers={containerNames(pod)}
+              container={terminalContainer}
+              setContainer={setTerminalContainer}
+              autoConnectToken={terminalConnectToken}
+            />
+          )
         ) : (
           <>
             {loading ? <div className="muted">Loading...</div> : null}

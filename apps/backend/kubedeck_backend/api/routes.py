@@ -12,6 +12,7 @@ from .routes_resources import router as resources_router
 from .routes_search import router as search_router
 from .routes_yaml import router as yaml_router
 from .routes_watch import router as watch_router
+from .routes_node_ssh import router as node_ssh_router
 
 
 router = APIRouter()
@@ -29,6 +30,7 @@ for subrouter in (
     search_router,
     yaml_router,
     watch_router,
+    node_ssh_router,
     pods_router,
 ):
     router.include_router(subrouter)

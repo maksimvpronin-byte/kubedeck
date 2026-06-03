@@ -224,13 +224,23 @@ def resource_action(cluster_id: str, resource: str, namespace: str, name: str, r
         args = ["scale", f"{normalized_resource}/{name}", f"--replicas={request.replicas}"]
         if namespaced:
             args.extend(["-n", namespace])
+    elif action in {"cordon", "uncordon", "drain"}:
+        if normalized_resource not in {"node", "nodes"}:
+            raise HTTPException(status_code=400, detail={"code": "UNSUPPORTED_ACTION", "message": f"{action} is not supported for {resource}", "rawStderr": "", "commandPreview": ""})
+        namespace = "_cluster"
+        namespaced = False
+        if action == "drain":
+            args = ["drain", name, "--ignore-daemonsets", "--delete-emptydir-data", "--timeout=300s"]
+        else:
+            args = [action, name]
+
     else:
         raise HTTPException(status_code=400, detail={"code": "UNSUPPORTED_ACTION", "message": f"Unsupported action: {request.action}", "rawStderr": "", "commandPreview": ""})
     # Delete keeps the original 1-click confirmation dialog: the backend still
     # verifies cluster/action/resource/namespace/name metadata, but does not
     # require typing the resource name. More destructive YAML apply and pod exec
     # keep typed confirmation.
-    expected_typed_name = None if action == "delete" else name
+    expected_typed_name = None if action in {"delete", "cordon", "uncordon", "drain"} else name
     require_confirmation(request.confirmation, cluster_id, action, normalized_resource, namespace, name, expected_typed_name)
     auth_check_for_action(cluster_id, action, normalized_resource, namespace)
     command = cluster_command(cluster_id, args, timeout=45, max_output_bytes=TEXT_MAX_OUTPUT_BYTES)

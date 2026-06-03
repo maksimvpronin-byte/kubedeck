@@ -21,6 +21,20 @@ class LlmSettings(BaseModel):
     apiKeyRef: str = ""
 
 
+SshAuthMethod = Literal["agent", "password", "privateKey"]
+
+
+class SshSettings(BaseModel):
+    defaultUsername: str = ""
+    defaultPort: int = 22
+    defaultAuthMethod: SshAuthMethod = "agent"
+    useJumpHost: bool = False
+    jumpHost: str = ""
+    jumpPort: int = 22
+    jumpUsername: str = ""
+    jumpAuthMethod: SshAuthMethod = "agent"
+
+
 class Settings(BaseModel):
     kubectlPath: str = "kubectl"
     language: Language = "system"
@@ -32,6 +46,7 @@ class Settings(BaseModel):
     terminalFontSize: int = 13
     logsSince: str = ""
     llm: LlmSettings = Field(default_factory=LlmSettings)
+    ssh: SshSettings = Field(default_factory=SshSettings)
 
 
 class Cluster(BaseModel):

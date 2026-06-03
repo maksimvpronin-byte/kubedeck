@@ -44,7 +44,7 @@ interface Props {
   onRefresh: () => void;
   onOpen?: (row: ResourceRow) => void;
   onNamespaceClick?: (namespace: string) => void;
-  onBulkDelete?: (rows: ResourceRow[]) => void;
+  onBulkDelete?: (rows: ResourceRow[]) => void; onBulkCordon?: (rows: ResourceRow[]) => void; onBulkUncordon?: (rows: ResourceRow[]) => void; onBulkDrain?: (rows: ResourceRow[]) => void;
   selectedRow?: ResourceRow | null;
   filterLabel: string;
   refreshLabel: string;
@@ -52,7 +52,7 @@ interface Props {
   labels?: Partial<{
     shownOf: string;
     page: string;
-    deleteSelected: string;
+    deleteSelected: string; cordonSelected: string; uncordonSelected: string; drainSelected: string;
     rows: string;
     of: string;
     pageSize: string;
@@ -68,11 +68,11 @@ interface Props {
   }>;
 }
 
-export function ResourceTable({ title, rows, columns, loading, onRefresh, onOpen, onNamespaceClick, onBulkDelete, selectedRow, filterLabel, refreshLabel, stateKey, labels }: Props) {
+export function ResourceTable({ title, rows, columns, loading, onRefresh, onOpen, onNamespaceClick, onBulkDelete, onBulkCordon, onBulkUncordon, onBulkDrain, selectedRow, filterLabel, refreshLabel, stateKey, labels }: Props) {
   const ui = {
     shownOf: labels?.shownOf ?? "shown of",
     page: labels?.page ?? "page",
-    deleteSelected: labels?.deleteSelected ?? "Delete selected",
+    deleteSelected: labels?.deleteSelected ?? "Delete selected", cordonSelected: labels?.cordonSelected ?? "Cordon selected", uncordonSelected: labels?.uncordonSelected ?? "Uncordon selected", drainSelected: labels?.drainSelected ?? "Drain selected",
     rows: labels?.rows ?? "Rows",
     of: labels?.of ?? "of",
     pageSize: labels?.pageSize ?? "Page size",
@@ -237,7 +237,26 @@ export function ResourceTable({ title, rows, columns, loading, onRefresh, onOpen
               {ui.deleteSelected} ({selectedRows.length})
             </button>
           ) : null}
-          <label className="search-box">
+
+      {onBulkCordon && selectedRows.length > 0 ? (
+        <button className="icon-text" onClick={() => onBulkCordon(selectedRows)} disabled={loading}>
+          {ui.cordonSelected} ({selectedRows.length})
+        </button>
+      ) : null}
+
+      {onBulkUncordon && selectedRows.length > 0 ? (
+        <button className="icon-text" onClick={() => onBulkUncordon(selectedRows)} disabled={loading}>
+          {ui.uncordonSelected} ({selectedRows.length})
+        </button>
+      ) : null}
+
+      {onBulkDrain && selectedRows.length > 0 ? (
+        <button className="icon-text danger" onClick={() => onBulkDrain(selectedRows)} disabled={loading}>
+          {ui.drainSelected} ({selectedRows.length})
+        </button>
+      ) : null}
+
+      <label className="search-box">
             <Search size={15} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={filterLabel} />
           </label>

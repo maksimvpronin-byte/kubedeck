@@ -365,5 +365,20 @@
   "problems.copy.reason": "Reason",
   "problems.copy.message": "Message",
   "problems.copy.nextCheck": "Next check",
-  "problems.copy.source": "Source diagnostic"
+  "problems.copy.source": "Source diagnostic",
+  "settings.ssh.title": "SSH defaults",
+  "settings.ssh.description": "Prefills the Node SSH tab. KubeDeck never saves SSH passwords, passphrases or private key paths.",
+  "settings.ssh.defaultUsername": "Default username",
+  "settings.ssh.defaultPort": "Default port",
+  "settings.ssh.defaultAuthMethod": "Default auth",
+  "settings.ssh.auth.agent": "Agent/default keys",
+  "settings.ssh.auth.password": "Password",
+  "settings.ssh.auth.privateKey": "Private key path",
+  "settings.ssh.useJumpHost": "Use jump host by default",
+  "settings.ssh.jumpHost": "Jump host",
+  "settings.ssh.jumpPort": "Jump port",
+  "settings.ssh.jumpUsername": "Jump username",
+  "settings.ssh.jumpAuthMethod": "Jump auth",
+  "settings.ssh.sameAsTarget": "same as target",
+  "settings.ssh.noSecrets": "Stored fields: username, port, auth mode and jump host metadata only. Secrets and private key paths stay session-only."
 }

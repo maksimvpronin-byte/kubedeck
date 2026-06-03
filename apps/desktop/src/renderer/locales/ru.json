@@ -365,5 +365,20 @@
   "problems.copy.reason": "Причина",
   "problems.copy.message": "Сообщение",
   "problems.copy.nextCheck": "Что проверить",
-  "problems.copy.source": "Исходная диагностика"
+  "problems.copy.source": "Исходная диагностика",
+  "settings.ssh.title": "SSH по умолчанию",
+  "settings.ssh.description": "Предзаполняет вкладку SSH у Node. KubeDeck не сохраняет SSH-пароли, passphrase и пути к приватным ключам.",
+  "settings.ssh.defaultUsername": "Логин по умолчанию",
+  "settings.ssh.defaultPort": "Порт по умолчанию",
+  "settings.ssh.defaultAuthMethod": "Авторизация по умолчанию",
+  "settings.ssh.auth.agent": "Agent/default keys",
+  "settings.ssh.auth.password": "Password",
+  "settings.ssh.auth.privateKey": "Private key path",
+  "settings.ssh.useJumpHost": "Использовать jump host по умолчанию",
+  "settings.ssh.jumpHost": "Jump host",
+  "settings.ssh.jumpPort": "Jump port",
+  "settings.ssh.jumpUsername": "Jump login",
+  "settings.ssh.jumpAuthMethod": "Jump auth",
+  "settings.ssh.sameAsTarget": "как у целевой ноды",
+  "settings.ssh.noSecrets": "Хранятся только логин, порт, режим авторизации и metadata jump host. Секреты и пути к приватным ключам остаются только на время сессии."
 }
