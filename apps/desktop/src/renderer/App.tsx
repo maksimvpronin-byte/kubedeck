@@ -50,6 +50,28 @@ type NodeActionKind = "cordon" | "uncordon" | "drain";
 type NodeActionConfirmation = { action: NodeActionKind; rows: ResourceRow[]; commandPreview: string; affectedPods?: ResourceRow[]; previewLoading?: boolean; previewError?: string; };
 
 
+function isClusterUnavailableErrorInfo(info: ErrorInfo) {
+  const text = `${info.code ?? ""} ${info.message ?? ""} ${info.rawStderr ?? ""}`.toLowerCase();
+  return [
+    "connection refused",
+    "connectex",
+    "i/o timeout",
+    "context deadline exceeded",
+    "no route to host",
+    "network is unreachable",
+    "host is unreachable",
+    "unable to connect to the server",
+    "the connection to the server",
+    "tls handshake timeout",
+    "dial tcp",
+    "temporary failure in name resolution",
+    "no such host",
+    "server has asked for the client to provide credentials",
+    "forbidden: user",
+    "unauthorized",
+    "certificate signed by unknown authority",
+  ].some((needle) => text.includes(needle));
+}
 export function App() {
   const [api, setApi] = useState<ApiClient | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -194,8 +216,7 @@ export function App() {
   async function openCluster(cluster: Cluster) {
     if (!api) return;
     setLoading(true);
-    setOpeningClusterId(cluster.id);
-    try {
+    setOpeningClusterId(cluster.id); try { await api.clearResourceCache(cluster.id).catch(() => undefined);
       const result = await api.openCluster(cluster.id);
       setActiveCluster(result.cluster);
       setUnavailableCluster(null);
@@ -268,13 +289,9 @@ export function App() {
       if (!silent) setLoading(true);
       try {
         const namespacesToLoad = normalizeNamespaceSelection(ns);
-        const responses = await loadNamespaceResourceBatches(api, clusterId, resource, namespacesToLoad, controller.signal, {
-          useCache: silent,
-          forceRefresh: !silent,
-        });
+        const responses = await loadNamespaceResourceBatches(api, clusterId, resource, namespacesToLoad, controller.signal, { useCache: false, forceRefresh: true });
         if (resourceLoadSeqRef.current !== requestId) return;
-        setRows((current) => ({ ...current, [resource]: responses.flatMap((response) => response.items) }));
-        setError(null);
+        setRows((current) => ({ ...current, [resource]: responses.flatMap((response) => response.items) })); setError(null); setUnavailableCluster((current) => current?.id === clusterId ? null : current);
       } catch (err) {
         if (resourceLoadSeqRef.current !== requestId) return;
         if (isAbortError(err)) {
@@ -288,7 +305,24 @@ export function App() {
           }
           return;
         }
-        setError(asErrorInfo(err));
+        const info = asErrorInfo(err);
+      // KubeDeck 1.0.5 unavailable-cache guard:
+      // a failed live refresh means currently rendered rows are no longer safe
+      // to present as current cluster state. Clear them immediately instead of
+      // leaving cached/stale data on screen.
+      if (isClusterUnavailableErrorInfo(info)) {
+        void api.clearResourceCache(clusterId).catch(() => undefined);
+        setRows({});
+        setNamespaces([]);
+        setUnavailableCluster((current) => current ?? activeCluster ?? null);
+        setActiveCluster((current) => current?.id === clusterId ? null : current);
+      } else {
+        setRows((current) => ({ ...current, [resource]: [] }));
+      }
+      setSelectedPod(null);
+      setBulkDelete(null);
+      setNodeActionConfirmation(null);
+      setError(info);
       } finally {
         window.clearTimeout(timeoutId);
         if (resourceLoadSeqRef.current === requestId) {
@@ -300,7 +334,20 @@ export function App() {
     [api, activeCluster?.id, resourceTab, selectedNamespaces]
   );
 
-  const debouncedLoadResources = useCallback(
+    // KubeDeck 1.0.5 loading guard: if data is already visible, do not let a stale
+  // global loading flag keep table actions and Refresh disabled after startup or
+  // temporary cluster unavailability.
+  useEffect(() => {
+    if (!loading) return undefined;
+    if (isPlaceholderSection(section) || section === "settings" || section === "help" || section === "port-forwards" || section === "problems") return undefined;
+    const currentRows = rows[resourceTab] ?? [];
+    if (currentRows.length === 0) return undefined;
+    const timer = window.setTimeout(() => {
+      setLoading(false);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [loading, rows, resourceTab, section]);
+const debouncedLoadResources = useCallback(
     (clusterId = activeCluster?.id, resource = resourceTab, ns: string | string[] = selectedNamespaces, silent = false) => {
       if (loadResourcesRef.current !== null) window.clearTimeout(loadResourcesRef.current);
       loadResourcesRef.current = window.setTimeout(() => {
@@ -310,7 +357,39 @@ export function App() {
     [loadResources, activeCluster?.id, resourceTab, selectedNamespaces]
   );
 
-  useEffect(() => {
+    useEffect(() => {
+    if (!api || !unavailableCluster || openingClusterId) return;
+    let cancelled = false;
+    let running = false;
+    const retryUnavailableCluster = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const result = await api.openCluster(unavailableCluster.id);
+        if (cancelled) return;
+        setActiveCluster(result.cluster);
+        setUnavailableCluster(null);
+        setNamespaces((result.namespaces ?? []).map((item) => item.metadata.name));
+        setError(null);
+        api.resourceDefinitions(result.cluster.id)
+          .then((defs) => setResourceDefinitions(defs.items))
+          .catch(() => setResourceDefinitions([]));
+        await loadResources(result.cluster.id, resourceTab, selectedNamespaces, true);
+        void reloadConfig();
+      } catch {
+        // The cluster is still unavailable. Keep the retry screen visible and retry later.
+      } finally {
+        running = false;
+      }
+    };
+    const timer = window.setInterval(() => { void retryUnavailableCluster(); }, 10000);
+    void retryUnavailableCluster();
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [api, unavailableCluster?.id, openingClusterId, resourceTab, selectedNamespaces, loadResources]);
+useEffect(() => {
     if (activeCluster) debouncedLoadResources(activeCluster.id, resourceTab, selectedNamespaces);
     if (keepDrawerSelection.current) {
       keepDrawerSelection.current = false;

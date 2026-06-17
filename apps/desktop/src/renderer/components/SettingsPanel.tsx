@@ -40,24 +40,41 @@ export function SettingsPanel({
 }) {
   const [draft, setDraft] = useState<Settings>(() => normalizeSettingsSsh(settings));
   useEffect(() => setDraft(normalizeSettingsSsh(settings)), [settings]);
-  const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshIntervalSeconds);
+    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    if (saveStatus !== "saved") return undefined;
+    const timer = window.setTimeout(() => setSaveStatus("idle"), 2500);
+    return () => window.clearTimeout(timer);
+  }, [saveStatus]);
+const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshIntervalSeconds);
   const sshSettings = normalizeSshSettings(draft.ssh);
   const setSshSettings = (patch: Partial<Settings["ssh"]>) => setDraft({ ...draft, ssh: normalizeSshSettings({ ...sshSettings, ...patch }) });
   const saveDraft = () => {
-    const normalizedSsh = normalizeSshSettings({
-      ...sshSettings,
-      defaultUsername: sshSettings.defaultUsername.trim(),
-      defaultPort: normalizeSshPort(sshSettings.defaultPort),
-      jumpHost: sshSettings.jumpHost.trim(),
-      jumpPort: normalizeSshPort(sshSettings.jumpPort),
-      jumpUsername: sshSettings.jumpUsername.trim(),
-    });
-    saveStoredSshDefaults(normalizedSsh);
-    save({
-      ...draft,
-      refreshIntervalSeconds: selectedRefreshInterval,
-      ssh: normalizedSsh,
-    });
+    setSaveStatus("saving");
+    setSaveError("");
+    try {
+      const normalizedSsh = normalizeSshSettings({
+        ...sshSettings,
+        defaultUsername: sshSettings.defaultUsername.trim(),
+        defaultPort: normalizeSshPort(sshSettings.defaultPort),
+        jumpHost: sshSettings.jumpHost.trim(),
+        jumpPort: normalizeSshPort(sshSettings.jumpPort),
+        jumpUsername: sshSettings.jumpUsername.trim(),
+      });
+      saveStoredSshDefaults(normalizedSsh);
+      save({
+        ...draft,
+        refreshIntervalSeconds: selectedRefreshInterval,
+        ssh: normalizedSsh,
+      });
+      setSaveStatus("saved");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSaveError(message);
+      setSaveStatus("error");
+    }
   };
   return (
     <section className="settings-panel">
@@ -145,7 +162,12 @@ export function SettingsPanel({
         <p className="settings-warning">{t("settings.ssh.noSecrets")}</p>
       </div>
       <div className="settings-actions">
-        <button className="primary" onClick={saveDraft}>{t("settings.save")}</button>
+        <button className="primary" onClick={saveDraft} disabled={saveStatus === "saving"}>{saveStatus === "saving" ? t("settings.saving") : t("settings.save")}</button>
+        {saveStatus !== "idle" ? (
+          <span className={`settings-save-feedback ${saveStatus === "error" ? "error" : "success"}`}>
+            {saveStatus === "error" ? `${t("settings.saveFailed")}: ${saveError}` : t("settings.saved")}
+          </span>
+        ) : null}
         <button onClick={() => window.kubedeck.openLogsFolder()}>{t("settings.logs")}</button>
       </div>
       <ResourceCacheDiagnostics api={api} activeCluster={activeCluster} t={t} onError={onError} />

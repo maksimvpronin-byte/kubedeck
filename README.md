@@ -4,7 +4,7 @@ KubeDeck — Windows desktop Kubernetes IDE.
 
 Проект предназначен для удобной работы с Kubernetes-кластерами из Windows-приложения без необходимости вручную запускать длинные `kubectl`-команды.
 
-Текущая версия проекта: **1.0.4**.
+Текущая версия проекта: **1.0.5**.
 
 ---
 
@@ -122,7 +122,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -Clone -Build
 После успешной сборки portable-файл будет здесь:
 
 ```text
-%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.0.4-x64.exe
+%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.0.5-x64.exe
 ```
 
 Запусти его двойным кликом.
@@ -134,7 +134,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -Clone -Build
 Если репозиторий уже есть на диске, например:
 
 ```text
-C:\Users\Fidel\Kubedeck-agent 1.0.4
+C:\Users\Fidel\Kubedeck-agent 1.0.5
 ```
 
 Открой PowerShell в этой папке и выполни:
@@ -265,13 +265,13 @@ KubeDeck хранит пользовательские данные здесь:
 npm.cmd ci --no-audit --no-fund
 py -3 -m pip install --user -r .\apps\backend\requirements.txt
 py -3 -m pip install --user pytest
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.4.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package
 ```
 
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-1.0.4-x64.exe
+apps\desktop\release\KubeDeck-Portable-1.0.5-x64.exe
 ```
 
 ---
@@ -300,13 +300,13 @@ Dev-режим запускает:
 Проверка без сборки portable:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.4.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1
 ```
 
 Проверка со сборкой portable:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.4.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package
 ```
 
 Проверка включает:
@@ -339,7 +339,7 @@ kubedeck/
   scripts/
     setup-windows.ps1
     package-windows.ps1
-    validate-1.0.4.ps1
+    validate-1.0.5.ps1
     repair-7zip-bin.ps1
   docs/
   README.md
@@ -469,7 +469,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\repair-7zip-bi
 Потом повтори сборку:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.4.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package
 ```
 
 ---
@@ -563,7 +563,7 @@ npm.cmd run build
 ## Portable package
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.4.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package
 ```
 
 ## Git commit после изменения README

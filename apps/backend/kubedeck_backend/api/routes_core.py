@@ -19,7 +19,7 @@ def app_info() -> dict[str, Any]:
     config = get_cached_config()
     return {
         "service": "kubedeck-backend",
-        "backendVersion": "1.0.3",
+        "backendVersion": "1.0.5",
         "pythonVersion": sys.version.split()[0],
         "platform": platform.platform(),
         "processId": os.getpid(),

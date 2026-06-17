@@ -1,0 +1,19 @@
+{
+  "name": "kubedeck",
+  "version": "1.0.4",
+  "private": true,
+  "workspaces": [
+    "apps/desktop",
+    "packages/shared-types",
+    "packages/ui"
+  ],
+  "scripts": {
+    "dev": "npm --workspace apps/desktop run dev",
+    "build": "npm --workspace apps/desktop run build",
+    "typecheck": "npm --workspace apps/desktop run typecheck",
+    "package:win": "powershell -ExecutionPolicy Bypass -File .\\scripts\\package-windows.ps1"
+  },
+  "devDependencies": {
+    "7zip-bin": "^5.2.0"
+  }
+}

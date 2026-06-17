@@ -66,14 +66,18 @@ export async function loadNamespaceResourceBatches(
   options: { useCache?: boolean; forceRefresh?: boolean } = {},
 ) {
   const normalized = normalizeNamespaceSelection(namespaces);
+  // KubeDeck 1.0.5 unavailable-cache hotfix:
+  // main resource tables must be live. Silent auto-refresh must still hit
+  // kubectl, otherwise a disconnected cluster keeps showing stale rows.
+  const liveOptions = { ...options, useCache: false, forceRefresh: true };
   if (normalized.length <= 1) {
-    return [await api.resources(clusterId, resource, normalized[0] ?? "all", signal, options)];
+    return [await api.resources(clusterId, resource, normalized[0] ?? "all", signal, liveOptions)];
   }
 
   const responses: Array<{ items: ResourceRow[]; rawCount: number; cached?: boolean; cacheTtlSeconds?: number }> = [];
   for (let index = 0; index < normalized.length; index += MAX_NAMESPACE_PARALLEL_REQUESTS) {
     const batch = normalized.slice(index, index + MAX_NAMESPACE_PARALLEL_REQUESTS);
-    responses.push(...await Promise.all(batch.map((item) => api.resources(clusterId, resource, item, signal, options))));
+    responses.push(...await Promise.all(batch.map((item) => api.resources(clusterId, resource, item, signal, liveOptions))));
   }
   return responses;
 }

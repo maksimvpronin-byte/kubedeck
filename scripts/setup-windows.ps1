@@ -256,7 +256,7 @@ function Build-Portable {
   Set-Location $Root
 
   Write-Section "Building portable package"
-  Invoke-Native powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\validate-1.0.3.ps1" -Package
+  Invoke-Native powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\validate-1.0.5.ps1" -Package
 
   $releaseDir = Join-Path $Root "apps\desktop\release"
 
@@ -322,7 +322,7 @@ try {
   Write-Host ""
   Write-Host "Useful commands:" -ForegroundColor Green
   Write-Host "  npm.cmd run dev" -ForegroundColor Green
-  Write-Host "  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.3.ps1 -Package" -ForegroundColor Green
+  Write-Host "  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package" -ForegroundColor Green
 }
 catch {
   Write-Host ""

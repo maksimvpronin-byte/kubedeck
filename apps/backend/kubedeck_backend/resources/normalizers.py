@@ -22,6 +22,7 @@ def pod_summary(item: dict[str, Any]) -> dict[str, Any]:
     containers = status.get("containerStatuses") or []
     spec_containers = spec.get("containers") or []
     restarts = sum(int(container.get("restartCount") or 0) for container in containers)
+    restart_diagnostics = pod_restart_diagnostics(containers)
     ready = sum(1 for container in containers if container.get("ready"))
     container_problems = []
     for container in containers:
@@ -53,6 +54,10 @@ def pod_summary(item: dict[str, Any]) -> dict[str, Any]:
         "containerProblems": "; ".join(container_problems),
         "conditions": "; ".join(condition_summary),
         "containers": [str(container.get("name", "")) for container in spec_containers if container.get("name")],
+        "restartDiagnostics": restart_diagnostics,
+        "lastRestartReason": first_restart_diagnostic_value(restart_diagnostics, "lastReason"),
+        "lastRestartExitCode": first_restart_diagnostic_value(restart_diagnostics, "lastExitCode"),
+        "lastRestartFinishedAt": first_restart_diagnostic_value(restart_diagnostics, "lastFinishedAt"),
         "ports": format_container_ports(spec_containers),
         "cpuUsage": "",
         "memoryUsage": "",
@@ -60,6 +65,60 @@ def pod_summary(item: dict[str, Any]) -> dict[str, Any]:
     return base
 
 
+def pod_restart_diagnostics(container_statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    diagnostics: list[dict[str, Any]] = []
+    for container in container_statuses:
+        restart_count = int(container.get("restartCount") or 0)
+        state = container.get("state") or {}
+        waiting = state.get("waiting") or {}
+        running = state.get("running") or {}
+        terminated = state.get("terminated") or {}
+        last_state = container.get("lastState") or {}
+        last_terminated = last_state.get("terminated") or {}
+
+        current_state = ""
+        if waiting:
+            current_state = "waiting"
+        elif terminated:
+            current_state = "terminated"
+        elif running:
+            current_state = "running"
+
+        # Keep entries for containers that have restarted or currently carry a
+        # non-running/waiting/terminated state. This keeps the UI concise for
+        # healthy pods, but still preserves actionable restart information.
+        if not restart_count and not last_terminated and not waiting and not terminated:
+            continue
+
+        diagnostics.append({
+            "container": str(container.get("name") or ""),
+            "restartCount": restart_count,
+            "ready": bool(container.get("ready")),
+            "currentState": current_state,
+            "currentReason": str(waiting.get("reason") or terminated.get("reason") or ""),
+            "currentMessage": str(waiting.get("message") or terminated.get("message") or ""),
+            "lastReason": str(last_terminated.get("reason") or ""),
+            "lastExitCode": last_terminated.get("exitCode"),
+            "lastSignal": last_terminated.get("signal"),
+            "lastStartedAt": str(last_terminated.get("startedAt") or ""),
+            "lastFinishedAt": str(last_terminated.get("finishedAt") or ""),
+            "lastMessage": str(last_terminated.get("message") or ""),
+        })
+    return diagnostics
+
+
+def first_restart_diagnostic_value(diagnostics: list[dict[str, Any]], key: str) -> Any:
+    for diagnostic in diagnostics:
+        if int(diagnostic.get("restartCount") or 0) <= 0:
+            continue
+        value = diagnostic.get(key)
+        if value not in (None, ""):
+            return value
+    for diagnostic in diagnostics:
+        value = diagnostic.get(key)
+        if value not in (None, ""):
+            return value
+    return ""
 def service_account_summary(item: dict[str, Any]) -> dict[str, Any]:
     base = meta(item)
     secrets = item.get("secrets") or []
