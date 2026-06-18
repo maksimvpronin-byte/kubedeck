@@ -4,7 +4,7 @@ KubeDeck — Windows desktop Kubernetes IDE.
 
 Проект предназначен для удобной работы с Kubernetes-кластерами из Windows-приложения без необходимости вручную запускать длинные `kubectl`-команды.
 
-Текущая версия проекта: **1.0.5**.
+Текущая версия проекта: **1.1.0**.
 
 ---
 
@@ -68,7 +68,20 @@ Backend запускается локально вместе с desktop-прил
 - выполнять опасные действия с подтверждениями;
 - выполнять bulk delete;
 - использовать RU/EN интерфейс;
-- использовать dark/light/system theme.
+- использовать dark/light/system theme;
+- анализировать ресурсы через локальный OpenAI-compatible LLM API.
+
+## Local LLM diagnostics
+
+KubeDeck 1.1.0 can connect to a local OpenAI-compatible Chat Completions API and add manual diagnostics in the resource drawer LLM tab.
+
+- Supported provider for 1.1.0: `openai_compatible`.
+- LM Studio example: `http://127.0.0.1:1234/v1`.
+- Ollama OpenAI-compatible example: `http://127.0.0.1:11434/v1`.
+- API token is optional. If it is empty, KubeDeck does not send an `Authorization` header.
+- Settings are stored locally in `%APPDATA%\KubeDeck\config.json`; API keys are masked in UI.
+- Resource context is sanitized and truncated before being sent to the configured local endpoint. Kubernetes Secret data, bearer tokens, passwords, private keys and sensitive key-like fields are redacted.
+- Analysis never runs automatically. Open a resource, select the LLM tab, and click `Analyze resource`.
 
 ---
 
@@ -122,7 +135,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -Clone -Build
 После успешной сборки portable-файл будет здесь:
 
 ```text
-%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.0.5-x64.exe
+%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.1.0-x64.exe
 ```
 
 Запусти его двойным кликом.
@@ -134,7 +147,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -Clone -Build
 Если репозиторий уже есть на диске, например:
 
 ```text
-C:\Users\Fidel\Kubedeck-agent 1.0.5
+C:\Users\Fidel\Kubedeck-agent 1.1.0
 ```
 
 Открой PowerShell в этой папке и выполни:
@@ -271,7 +284,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-1.0.5-x64.exe
+apps\desktop\release\KubeDeck-Portable-1.1.0-x64.exe
 ```
 
 ---

@@ -37,6 +37,7 @@ class ConfigStore:
 
     def update_settings(self, settings: Settings) -> AppConfig:
         validate_kubectl_path(settings.kubectlPath)
+        normalize_llm_settings(settings)
         normalize_ssh_settings(settings)
         config = self.load()
         config.settings = settings
@@ -127,6 +128,17 @@ def validate_kubectl_path(value: str) -> None:
         raise ValueError("kubectlPath must point to kubectl or kubectl.exe")
     if not path.exists() or not path.is_file():
         raise FileNotFoundError(f"kubectlPath does not exist: {text}")
+
+
+def normalize_llm_settings(settings: Settings) -> None:
+    llm = settings.llm
+    llm.baseUrl = (llm.baseUrl or "").strip()
+    llm.model = (llm.model or "").strip()
+    # TODO: move apiKey to Windows Credential Manager or encrypted storage after v1.1.0.
+    llm.apiKey = (llm.apiKey or "").strip()
+    llm.temperature = max(0.0, min(2.0, float(llm.temperature)))
+    llm.timeoutSeconds = max(1, min(600, int(llm.timeoutSeconds)))
+    llm.maxContextChars = max(1000, min(250000, int(llm.maxContextChars)))
 
 
 def normalize_ssh_settings(settings: Settings) -> None:

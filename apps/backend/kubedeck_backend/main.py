@@ -18,7 +18,7 @@ configure_logging()
 ensure_app_dirs()
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="KubeDeck Backend", version="1.0.3")
+app = FastAPI(title="KubeDeck Backend", version="1.1.0")
 app.add_middleware(SessionTokenMiddleware, public_paths={"/health"})
 app.add_middleware(
     CORSMiddleware,

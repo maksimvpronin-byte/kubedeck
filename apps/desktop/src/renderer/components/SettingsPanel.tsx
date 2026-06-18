@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ApiClient } from "../api";
+import { ApiError, type ApiClient } from "../api";
 import type { Cluster, ErrorInfo, Settings, SshAuthMethod } from "../types";
 import { normalizeRefreshIntervalSeconds, REFRESH_INTERVAL_OPTIONS_SECONDS } from "../utils/refresh";
 import { normalizeSettingsSsh, normalizeSshPort, normalizeSshSettings, saveStoredSshDefaults } from "../utils/sshDefaults";
@@ -25,7 +25,7 @@ export function SettingsPanel({
 }: {
   api: ApiClient | null;
   settings: Settings;
-  save: (settings: Settings) => void;
+  save: (settings: Settings) => void | Promise<void>;
   t: (key: string) => string;
   clusters: Cluster[];
   activeCluster: Cluster | null;
@@ -38,10 +38,12 @@ export function SettingsPanel({
   removeCluster: (cluster: Cluster) => void;
   onError: (error: ErrorInfo | null) => void;
 }) {
-  const [draft, setDraft] = useState<Settings>(() => normalizeSettingsSsh(settings));
-  useEffect(() => setDraft(normalizeSettingsSsh(settings)), [settings]);
+  const [draft, setDraft] = useState<Settings>(() => normalizeSettings(settings));
+  useEffect(() => setDraft(normalizeSettings(settings)), [settings]);
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
+  const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [llmTestMessage, setLlmTestMessage] = useState("");
 
   useEffect(() => {
     if (saveStatus !== "saved") return undefined;
@@ -50,8 +52,10 @@ export function SettingsPanel({
   }, [saveStatus]);
 const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshIntervalSeconds);
   const sshSettings = normalizeSshSettings(draft.ssh);
+  const llmSettings = normalizeLlmSettings(draft.llm);
   const setSshSettings = (patch: Partial<Settings["ssh"]>) => setDraft({ ...draft, ssh: normalizeSshSettings({ ...sshSettings, ...patch }) });
-  const saveDraft = () => {
+  const setLlmSettings = (patch: Partial<Settings["llm"]>) => setDraft({ ...draft, llm: normalizeLlmSettings({ ...llmSettings, ...patch }) });
+  const saveDraft = async () => {
     setSaveStatus("saving");
     setSaveError("");
     try {
@@ -64,16 +68,31 @@ const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshInt
         jumpUsername: sshSettings.jumpUsername.trim(),
       });
       saveStoredSshDefaults(normalizedSsh);
-      save({
+      await Promise.resolve(save({
         ...draft,
         refreshIntervalSeconds: selectedRefreshInterval,
+        llm: normalizeLlmSettings(llmSettings),
         ssh: normalizedSsh,
-      });
+      }));
       setSaveStatus("saved");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setSaveError(message);
       setSaveStatus("error");
+    }
+  };
+  const testLlmConnection = async () => {
+    if (!api) return;
+    setLlmTestStatus("testing");
+    setLlmTestMessage("");
+    try {
+      const result = await api.testLlm(normalizeLlmSettings(llmSettings));
+      setLlmTestStatus(result.ok ? "success" : "error");
+      setLlmTestMessage(result.ok ? t("llm.connectionSuccessful") : `${t("llm.connectionFailed")}: ${result.message}`);
+    } catch (error) {
+      const message = error instanceof ApiError ? error.info.message : String(error);
+      setLlmTestStatus("error");
+      setLlmTestMessage(`${t("llm.connectionFailed")}: ${message}`);
     }
   };
   return (
@@ -161,8 +180,57 @@ const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshInt
         ) : null}
         <p className="settings-warning">{t("settings.ssh.noSecrets")}</p>
       </div>
+      <div className="settings-card settings-llm-card">
+        <h3>{t("llm.settingsTitle")}</h3>
+        <p className="settings-hint">{t("llm.settingsDescription")}</p>
+        <label className="settings-checkbox">
+          <input type="checkbox" checked={llmSettings.enabled} onChange={(event) => setLlmSettings({ enabled: event.target.checked })} />
+          {t("llm.enable")}
+        </label>
+        <div className="settings-grid-two">
+          <label>
+            {t("llm.provider")}
+            <select value={llmSettings.provider} onChange={(event) => setLlmSettings({ provider: event.target.value as Settings["llm"]["provider"] })}>
+              <option value="openai_compatible">{t("llm.provider.openaiCompatible")}</option>
+            </select>
+          </label>
+          <label>
+            {t("llm.baseUrl")}
+            <input value={llmSettings.baseUrl} onChange={(event) => setLlmSettings({ baseUrl: event.target.value })} placeholder="http://127.0.0.1:1234/v1" />
+          </label>
+          <label>
+            {t("llm.model")}
+            <input value={llmSettings.model} onChange={(event) => setLlmSettings({ model: event.target.value })} placeholder="local-model" />
+          </label>
+          <label>
+            {t("llm.apiKey")}
+            <input type="password" value={llmSettings.apiKey} onChange={(event) => setLlmSettings({ apiKey: event.target.value })} autoComplete="off" />
+          </label>
+          <label>
+            {t("llm.temperature")}
+            <input type="number" min="0" max="2" step="0.1" value={llmSettings.temperature} onChange={(event) => setLlmSettings({ temperature: Number(event.target.value) })} />
+          </label>
+          <label>
+            {t("llm.timeout")}
+            <input type="number" min="1" max="600" value={llmSettings.timeoutSeconds} onChange={(event) => setLlmSettings({ timeoutSeconds: Number(event.target.value) })} />
+          </label>
+          <label>
+            {t("llm.maxContextChars")}
+            <input type="number" min="1000" max="250000" step="1000" value={llmSettings.maxContextChars} onChange={(event) => setLlmSettings({ maxContextChars: Number(event.target.value) })} />
+          </label>
+        </div>
+        <div className="settings-actions settings-llm-actions">
+          <button onClick={() => void saveDraft()} disabled={saveStatus === "saving"}>{t("llm.saveSettings")}</button>
+          <button onClick={() => void testLlmConnection()} disabled={!api || llmTestStatus === "testing"}>
+            {llmTestStatus === "testing" ? t("llm.testing") : t("llm.testConnection")}
+          </button>
+          {llmTestStatus !== "idle" && llmTestStatus !== "testing" ? (
+            <span className={`settings-save-feedback ${llmTestStatus === "error" ? "error" : "success"}`}>{llmTestMessage}</span>
+          ) : null}
+        </div>
+      </div>
       <div className="settings-actions">
-        <button className="primary" onClick={saveDraft} disabled={saveStatus === "saving"}>{saveStatus === "saving" ? t("settings.saving") : t("settings.save")}</button>
+        <button className="primary" onClick={() => void saveDraft()} disabled={saveStatus === "saving"}>{saveStatus === "saving" ? t("settings.saving") : t("settings.save")}</button>
         {saveStatus !== "idle" ? (
           <span className={`settings-save-feedback ${saveStatus === "error" ? "error" : "success"}`}>
             {saveStatus === "error" ? `${t("settings.saveFailed")}: ${saveError}` : t("settings.saved")}
@@ -191,4 +259,30 @@ const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshInt
       />
     </section>
   );
+}
+
+function normalizeSettings(settings: Settings): Settings {
+  return {
+    ...normalizeSettingsSsh(settings),
+    llm: normalizeLlmSettings(settings.llm),
+  };
+}
+
+function normalizeLlmSettings(settings: Partial<Settings["llm"]> | undefined): Settings["llm"] {
+  return {
+    enabled: Boolean(settings?.enabled),
+    provider: "openai_compatible",
+    baseUrl: settings?.baseUrl ?? "",
+    model: settings?.model ?? "",
+    apiKey: settings?.apiKey ?? "",
+    temperature: clampNumber(settings?.temperature, 0, 2, 0.2),
+    timeoutSeconds: clampNumber(settings?.timeoutSeconds, 1, 600, 60),
+    maxContextChars: clampNumber(settings?.maxContextChars, 1000, 250000, 60000),
+  };
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  const numberValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numberValue)) return fallback;
+  return Math.min(max, Math.max(min, numberValue));
 }

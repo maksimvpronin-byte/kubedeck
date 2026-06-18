@@ -1,4 +1,4 @@
-import type { AppConfig, AuditResponse, BackendInfo, Cluster, CommandResult, ErrorInfo, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent } from "./types";
+import type { AppConfig, AuditResponse, BackendInfo, Cluster, CommandResult, ErrorInfo, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent, LlmAnalyzeResourceRequest, LlmAnalyzeResourceResponse, LlmStatus, LlmTestResponse } from "./types";
 
 export class ApiError extends Error {
   info: ErrorInfo;
@@ -82,6 +82,21 @@ export class ApiClient {
 
   updateSettings(settings: Settings) {
     return this.request<AppConfig>("/settings", { method: "PUT", body: JSON.stringify({ settings }) });
+  }
+
+  llmStatus() {
+    return this.request<LlmStatus>("/llm/status");
+  }
+
+  testLlm(settings?: Settings["llm"]) {
+    return this.request<LlmTestResponse>("/llm/test", {
+      method: "POST",
+      body: JSON.stringify(settings ? { settings } : {}),
+    });
+  }
+
+  analyzeResourceWithLlm(request: LlmAnalyzeResourceRequest) {
+    return this.request<LlmAnalyzeResourceResponse>("/llm/analyze-resource", { method: "POST", body: JSON.stringify(request) });
   }
 
   kubectlStatus() {

@@ -1,3 +1,11 @@
+## 1.1.0 - Local LLM diagnostics
+
+- Added local OpenAI-compatible LLM integration with Settings -> LLM configuration.
+- Added a resource drawer LLM tab with manual `Analyze resource`, rerun, copy answer and response metadata.
+- Added backend `/llm/status`, `/llm/test` and `/llm/analyze-resource` endpoints.
+- Added sanitization and truncation before resource context is sent to the configured local LLM endpoint.
+- Bumped application, desktop and backend metadata to 1.1.0.
+
 ## Patch 11 - 1.0.5 stabilization gate
 
 - Added `scripts/validate-1.0.5.ps1` as the explicit stabilization gate for the current 1.0.5 line.

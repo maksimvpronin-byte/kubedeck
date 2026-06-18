@@ -210,6 +210,7 @@ export function App() {
       setError(null);
     } catch (err) {
       setError(asErrorInfo(err));
+      throw err;
     }
   }
 
@@ -1248,6 +1249,7 @@ async function copyBulkDeleteList() {
               onClose={() => setSelectedPod(null)}
               copyLabel={t("error.copy")}
               settings={settings}
+              t={t}
               labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
             />
           ) : null}
