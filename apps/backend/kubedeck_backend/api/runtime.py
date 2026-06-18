@@ -38,8 +38,13 @@ def cluster_command(
     max_output_bytes: int = RESOURCE_JSON_MAX_OUTPUT_BYTES,
 ) -> KubectlCommand:
     config = get_cached_config()
+    cluster = _cluster_or_404(cluster_id, config)
+    return _kubectl_command_for_cluster(cluster, config, args, timeout, max_output_bytes)
+
+
+def _cluster_or_404(cluster_id: str, config: Any) -> Any:
     try:
-        cluster = store.get_cluster(cluster_id, config)
+        return store.get_cluster(cluster_id, config)
     except KeyError as exc:
         raise HTTPException(
             status_code=404,
@@ -50,6 +55,15 @@ def cluster_command(
                 "commandPreview": "",
             },
         ) from exc
+
+
+def _kubectl_command_for_cluster(
+    cluster: Any,
+    config: Any,
+    args: list[str],
+    timeout: int,
+    max_output_bytes: int,
+) -> KubectlCommand:
     return KubectlCommand(
         cluster_id=cluster.id,
         kubeconfig_path=cluster.kubeconfigPath,
