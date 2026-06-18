@@ -8,23 +8,24 @@ from .common import *
 router = APIRouter()
 
 
+def _run_pod_text_command(command: KubectlCommand) -> str:
+    try:
+        return runner.run(command).stdout
+    except KubectlError as exc:
+        raise kubectl_error(exc)
+
+
 @router.get("/clusters/{cluster_id}/pods/{namespace}/{name}/yaml", response_class=PlainTextResponse)
 def pod_yaml(cluster_id: str, namespace: str, name: str) -> str:
     namespace = validate_identifier(namespace, "namespace")
     name = validate_identifier(name, "name")
-    try:
-        return runner.run(cluster_command(cluster_id, ["get", "pod", name, "-n", namespace, "-o", "yaml"], timeout=30, max_output_bytes=TEXT_MAX_OUTPUT_BYTES)).stdout
-    except KubectlError as exc:
-        raise kubectl_error(exc)
+    return _run_pod_text_command(cluster_command(cluster_id, ["get", "pod", name, "-n", namespace, "-o", "yaml"], timeout=30, max_output_bytes=TEXT_MAX_OUTPUT_BYTES))
 
 @router.get("/clusters/{cluster_id}/pods/{namespace}/{name}/describe", response_class=PlainTextResponse)
 def pod_describe(cluster_id: str, namespace: str, name: str) -> str:
     namespace = validate_identifier(namespace, "namespace")
     name = validate_identifier(name, "name")
-    try:
-        return runner.run(cluster_command(cluster_id, ["describe", "pod", name, "-n", namespace], timeout=30, max_output_bytes=TEXT_MAX_OUTPUT_BYTES)).stdout
-    except KubectlError as exc:
-        raise kubectl_error(exc)
+    return _run_pod_text_command(cluster_command(cluster_id, ["describe", "pod", name, "-n", namespace], timeout=30, max_output_bytes=TEXT_MAX_OUTPUT_BYTES))
 
 @router.get("/clusters/{cluster_id}/pods/{namespace}/{name}/logs", response_class=PlainTextResponse)
 def pod_logs(
@@ -58,10 +59,7 @@ def pod_logs(
         args.append("--previous")
     if timestamps:
         args.append("--timestamps")
-    try:
-        return runner.run(cluster_command(cluster_id, args, timeout=timeout, max_output_bytes=max_output_bytes)).stdout
-    except KubectlError as exc:
-        raise kubectl_error(exc)
+    return _run_pod_text_command(cluster_command(cluster_id, args, timeout=timeout, max_output_bytes=max_output_bytes))
 
 @router.post("/clusters/{cluster_id}/pods/{namespace}/{name}/exec")
 def pod_exec(cluster_id: str, namespace: str, name: str, request: PodExecRequest) -> dict[str, Any]:
