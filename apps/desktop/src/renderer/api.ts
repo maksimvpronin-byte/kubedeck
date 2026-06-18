@@ -14,11 +14,26 @@ async function parseApiErrorResponse(response: Response): Promise<ErrorInfo> {
   const text = await response.text();
   try {
     const body = JSON.parse(text);
-    detail = body.detail ?? detail;
+    if (isErrorInfo(body.detail)) {
+      detail = body.detail;
+    } else if (typeof body.detail === "string") {
+      detail.message = body.detail || response.statusText;
+    }
   } catch {
     detail.message = text || response.statusText;
   }
   return detail;
+}
+
+function isErrorInfo(value: unknown): value is ErrorInfo {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.code === "string" &&
+    typeof candidate.message === "string" &&
+    typeof candidate.rawStderr === "string" &&
+    typeof candidate.commandPreview === "string"
+  );
 }
 
 type OperationConfirmation = {
