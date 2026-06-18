@@ -125,9 +125,9 @@
     "semantic_hash": "3dfa7b10256428dbbf8ebd1dfda6721a"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\__init__.py": {
-    "mtime": 1781694570.323484,
-    "ast_hash": "a37e4f02bcf1608bbbc1d5fa11587a4d",
-    "semantic_hash": "a37e4f02bcf1608bbbc1d5fa11587a4d"
+    "mtime": 1781783972.8719923,
+    "ast_hash": "d9dd53ae449b1960574e458e3031d5d1",
+    "semantic_hash": "d9dd53ae449b1960574e458e3031d5d1"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\api\\__init__.py": {
     "mtime": 1781694570.323484,
@@ -160,9 +160,9 @@
     "semantic_hash": "107492a17ac61f8f74a3a98c1cd97b84"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\api\\routes.py": {
-    "mtime": 1781694570.325492,
-    "ast_hash": "affb59087a40294ea4c71c0eb7c89130",
-    "semantic_hash": "affb59087a40294ea4c71c0eb7c89130"
+    "mtime": 1781783664.8101172,
+    "ast_hash": "0a7defe2e8376e7ba0ebeb487c32e80b",
+    "semantic_hash": "0a7defe2e8376e7ba0ebeb487c32e80b"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\api\\routes_audit.py": {
     "mtime": 1781694570.325492,
@@ -175,9 +175,9 @@
     "semantic_hash": "94ee205fc31bc734aabcc240e41be757"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\api\\routes_core.py": {
-    "mtime": 1781695899.5405407,
-    "ast_hash": "e6ddbc8b154f4853dc9626dd07d74dab",
-    "semantic_hash": "e6ddbc8b154f4853dc9626dd07d74dab"
+    "mtime": 1781783973.018875,
+    "ast_hash": "532ecfb6c02388681177ba9198a4734b",
+    "semantic_hash": "532ecfb6c02388681177ba9198a4734b"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\api\\routes_node_ssh.py": {
     "mtime": 1781694570.3264847,
@@ -260,14 +260,14 @@
     "semantic_hash": "198286a153571121af41e599b17c89ca"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\core\\config.py": {
-    "mtime": 1781694570.3304837,
-    "ast_hash": "240987d478d7fd96946bfd900fc79235",
-    "semantic_hash": "240987d478d7fd96946bfd900fc79235"
+    "mtime": 1781783569.6643453,
+    "ast_hash": "73e9438b6b2ada0483228d1164379f5e",
+    "semantic_hash": "73e9438b6b2ada0483228d1164379f5e"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\core\\models.py": {
-    "mtime": 1781694570.3314843,
-    "ast_hash": "832ec7fcee65628a02585d56a852b349",
-    "semantic_hash": "832ec7fcee65628a02585d56a852b349"
+    "mtime": 1781790367.780074,
+    "ast_hash": "3104442a11660fc95118215cc3585527",
+    "semantic_hash": "3104442a11660fc95118215cc3585527"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\core\\paths.py": {
     "mtime": 1781694570.3314843,
@@ -285,9 +285,9 @@
     "semantic_hash": "4bcd225c80c1cf6adb7d391e938f71ba"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\llm\\__init__.py": {
-    "mtime": 1781694570.3324914,
-    "ast_hash": "af5b1ff440834fc05772c9374af69645",
-    "semantic_hash": "af5b1ff440834fc05772c9374af69645"
+    "mtime": 1781783573.807003,
+    "ast_hash": "90463ddb0b8e7830adca4d1f954c5cf4",
+    "semantic_hash": "90463ddb0b8e7830adca4d1f954c5cf4"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\logging_config.py": {
     "mtime": 1781694570.3324914,
@@ -295,9 +295,9 @@
     "semantic_hash": "e4b72fa12f376ffd9ed505dcd44ffca5"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\main.py": {
-    "mtime": 1781694570.3324914,
-    "ast_hash": "0e6ce6f02cc3e737bd138578760654a8",
-    "semantic_hash": "0e6ce6f02cc3e737bd138578760654a8"
+    "mtime": 1781783972.941053,
+    "ast_hash": "35cacef41ae8ee8194c0a2d3771c4045",
+    "semantic_hash": "35cacef41ae8ee8194c0a2d3771c4045"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\metrics\\__init__.py": {
     "mtime": 1781694570.333492,
@@ -360,9 +360,9 @@
     "semantic_hash": "ff9182246a695ce2416c96e69bb3ab5c"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\package.json": {
-    "mtime": 1781695899.5150633,
-    "ast_hash": "9a25e3c078e0d806974d9927d5ae7f03",
-    "semantic_hash": "9a25e3c078e0d806974d9927d5ae7f03"
+    "mtime": 1781783972.660355,
+    "ast_hash": "ee61da8c4fd8dc5cebe16d1edcaec37e",
+    "semantic_hash": "ee61da8c4fd8dc5cebe16d1edcaec37e"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\main\\main.ts": {
     "mtime": 1781694570.3386483,
@@ -380,19 +380,19 @@
     "semantic_hash": "c403fbb2a1003d8dc69b1efe3ece7250"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\App.tsx": {
-    "mtime": 1781701327.3371532,
-    "ast_hash": "365e9c95cd9b23b9f7f63504b7817073",
-    "semantic_hash": "365e9c95cd9b23b9f7f63504b7817073"
+    "mtime": 1781784264.210183,
+    "ast_hash": "da2c88cb28573da84e08a87c9a81d4e3",
+    "semantic_hash": "da2c88cb28573da84e08a87c9a81d4e3"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\api.ts": {
-    "mtime": 1781779970.265101,
-    "ast_hash": "d35fd02247112a08ed09deaab65b4dba",
-    "semantic_hash": "d35fd02247112a08ed09deaab65b4dba"
+    "mtime": 1781787897.8514175,
+    "ast_hash": "d76c8ffae3d8e1776c1235379730b4e0",
+    "semantic_hash": "d76c8ffae3d8e1776c1235379730b4e0"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\AboutPanel.tsx": {
-    "mtime": 1781694570.3401647,
-    "ast_hash": "ffcd65eacb34847e65a6e414f1bc53e9",
-    "semantic_hash": "ffcd65eacb34847e65a6e414f1bc53e9"
+    "mtime": 1781783973.0958061,
+    "ast_hash": "2cca47a2b450378079d9a6fc8fe54336",
+    "semantic_hash": "2cca47a2b450378079d9a6fc8fe54336"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\AuditPanel.tsx": {
     "mtime": 1781694570.3401647,
@@ -430,9 +430,9 @@
     "semantic_hash": "3983b1e1c123fc1652dc0d7b153a4899"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\HelpPanel.tsx": {
-    "mtime": 1781694570.342172,
-    "ast_hash": "9aeba48ebc74be4ae77728a05b0bfbd4",
-    "semantic_hash": "9aeba48ebc74be4ae77728a05b0bfbd4"
+    "mtime": 1781783973.170191,
+    "ast_hash": "fe0a9e1f8c189c1c28f18e2b961b6777",
+    "semantic_hash": "fe0a9e1f8c189c1c28f18e2b961b6777"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\LogsTab.tsx": {
     "mtime": 1781694570.342172,
@@ -450,9 +450,9 @@
     "semantic_hash": "24feccb995dbcc6ccbfa9b44c873c1d3"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\PodDrawer.tsx": {
-    "mtime": 1781694570.3431666,
-    "ast_hash": "47c5df22e13b604913334ab5f4185916",
-    "semantic_hash": "47c5df22e13b604913334ab5f4185916"
+    "mtime": 1781797638.6285634,
+    "ast_hash": "c04722010e9807709d0e3f1bd9029ad2",
+    "semantic_hash": "c04722010e9807709d0e3f1bd9029ad2"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\PodDrawerModals.tsx": {
     "mtime": 1781694570.3431666,
@@ -500,9 +500,9 @@
     "semantic_hash": "c7265dc76a758b6e3cb2dc8888db3d94"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\SettingsPanel.tsx": {
-    "mtime": 1781699563.414124,
-    "ast_hash": "83f70d079a8464542d5ce0753aa7d1ec",
-    "semantic_hash": "83f70d079a8464542d5ce0753aa7d1ec"
+    "mtime": 1781790117.4690506,
+    "ast_hash": "481bf2a6045cbb6f89a897b64d93c832",
+    "semantic_hash": "481bf2a6045cbb6f89a897b64d93c832"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\TerminalTab.tsx": {
     "mtime": 1781694570.3461719,
@@ -550,14 +550,14 @@
     "semantic_hash": "776c1adb7717aa690cfec8415cf3055e"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\locales\\en.json": {
-    "mtime": 1781699563.5055723,
-    "ast_hash": "16eb31f3ea9aee40d64b46da10995eaa",
-    "semantic_hash": "16eb31f3ea9aee40d64b46da10995eaa"
+    "mtime": 1781790117.4762905,
+    "ast_hash": "076754ab49ab3feddf9a6581cd552691",
+    "semantic_hash": "076754ab49ab3feddf9a6581cd552691"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\locales\\ru.json": {
-    "mtime": 1781699563.5164187,
-    "ast_hash": "21e35ac81079263b084d08ec736dcf1d",
-    "semantic_hash": "21e35ac81079263b084d08ec736dcf1d"
+    "mtime": 1781790117.474769,
+    "ast_hash": "786b32c277724a659598d56fd9076384",
+    "semantic_hash": "786b32c277724a659598d56fd9076384"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\main.tsx": {
     "mtime": 1781694570.3496876,
@@ -570,9 +570,9 @@
     "semantic_hash": "e13122124a4ec5a530d880bc382facad"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\types.ts": {
-    "mtime": 1781694570.35068,
-    "ast_hash": "31cb2a4594600786c287917b1bc6a466",
-    "semantic_hash": "31cb2a4594600786c287917b1bc6a466"
+    "mtime": 1781790117.4670377,
+    "ast_hash": "2e28f62af823f736df320b440e79693f",
+    "semantic_hash": "2e28f62af823f736df320b440e79693f"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\uiState.ts": {
     "mtime": 1781694570.35068,
@@ -620,9 +620,9 @@
     "semantic_hash": "fa8621932891f0a1595e42b5ae42600e"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\package.json": {
-    "mtime": 1781695899.496735,
-    "ast_hash": "c464614f3501ae8742fc2211b52e581e",
-    "semantic_hash": "c464614f3501ae8742fc2211b52e581e"
+    "mtime": 1781783972.579238,
+    "ast_hash": "9bb0184a1fa71d2fe5fb9de1c7ff7799",
+    "semantic_hash": "9bb0184a1fa71d2fe5fb9de1c7ff7799"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\packages\\shared-types\\package.json": {
     "mtime": 1781694570.35768,
@@ -705,9 +705,9 @@
     "semantic_hash": "ea9989f19eb6a7d7f285bda4005738b5"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\scripts\\validate-1.0.5.ps1": {
-    "mtime": 1781695899.5925174,
-    "ast_hash": "47b5394b34bd9b63d2a8e841bee37f49",
-    "semantic_hash": "47b5394b34bd9b63d2a8e841bee37f49"
+    "mtime": 1781783973.2436154,
+    "ast_hash": "d4bb6e1a8da337a724db3f60b73cae8e",
+    "semantic_hash": "d4bb6e1a8da337a724db3f60b73cae8e"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\.kubedeck_patch_backup\\1.0.5-20260617-143139\\CHANGELOG.md": {
     "mtime": 1781694570.3214784,
@@ -725,9 +725,9 @@
     "semantic_hash": "414a2016a894fa2e1eda5a1703c0d0fc"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\CHANGELOG.md": {
-    "mtime": 1781695899.5603287,
-    "ast_hash": "453e12d33ffff9da41960ca10ce2f853",
-    "semantic_hash": "453e12d33ffff9da41960ca10ce2f853"
+    "mtime": 1781784037.7496316,
+    "ast_hash": "4ee7a7c88edac9dcfa33a62dcce4f7cf",
+    "semantic_hash": "4ee7a7c88edac9dcfa33a62dcce4f7cf"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\KubeDeck_Codex_Prompt.md": {
     "mtime": 1781694570.3214784,
@@ -745,9 +745,9 @@
     "semantic_hash": "05f1310ee65583d32fbc21339d5b9b45"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\README.md": {
-    "mtime": 1781695899.5497289,
-    "ast_hash": "8ba75fdf163a93fe921f109a3fb69ce2",
-    "semantic_hash": "8ba75fdf163a93fe921f109a3fb69ce2"
+    "mtime": 1781784030.8641922,
+    "ast_hash": "4576a76c688d8ecc37864d01d3138691",
+    "semantic_hash": "4576a76c688d8ecc37864d01d3138691"
   },
   "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\REFACTOR_HOTFIX_1_NOTES.md": {
     "mtime": 1781694570.3224924,
@@ -843,5 +843,50 @@
     "mtime": 1781778849.4840646,
     "ast_hash": "98c20d77cfcc7daad5a77a2ad650c647",
     "semantic_hash": "98c20d77cfcc7daad5a77a2ad650c647"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apply-llm-settings-button-hotfix.ps1": {
+    "mtime": 1781775450.0,
+    "ast_hash": "fa70f53c1541dd2786ac8a8d1ee725f4",
+    "semantic_hash": "fa70f53c1541dd2786ac8a8d1ee725f4"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\api\\routes_llm.py": {
+    "mtime": 1781790117.4610136,
+    "ast_hash": "6264a8cac5cfc3ac5257931522906e2d",
+    "semantic_hash": "6264a8cac5cfc3ac5257931522906e2d"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\llm\\client.py": {
+    "mtime": 1781808302.053207,
+    "ast_hash": "4cd07a8383b7c67c088a06bc78390177",
+    "semantic_hash": "4cd07a8383b7c67c088a06bc78390177"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\llm\\context.py": {
+    "mtime": 1781791700.0594869,
+    "ast_hash": "de48758ebe01d6eb065e9f33aa310606",
+    "semantic_hash": "de48758ebe01d6eb065e9f33aa310606"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\kubedeck_backend\\llm\\prompts.py": {
+    "mtime": 1781807631.651875,
+    "ast_hash": "9ab6529b504c4397990794b0acbb4922",
+    "semantic_hash": "9ab6529b504c4397990794b0acbb4922"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\backend\\tests\\test_llm_context.py": {
+    "mtime": 1781783909.0268583,
+    "ast_hash": "94ba79b4f92ec91e5bb8eb0e0f5bfae2",
+    "semantic_hash": "94ba79b4f92ec91e5bb8eb0e0f5bfae2"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\apps\\desktop\\src\\renderer\\components\\LlmTab.tsx": {
+    "mtime": 1781787897.81751,
+    "ast_hash": "3f81910ed1d4147f4b15de442fbeb07d",
+    "semantic_hash": "3f81910ed1d4147f4b15de442fbeb07d"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\PATCH-NOTES-llm-settings-button-hotfix.md": {
+    "mtime": 1781775450.0,
+    "ast_hash": "6a75dde75711839c1ef21a775cadc321",
+    "semantic_hash": "6a75dde75711839c1ef21a775cadc321"
+  },
+  "C:\\Users\\Fidel\\Documents\\kubedeck\\kubedeck\\kubedeck_1_1_0_llm_codex_prompt.md": {
+    "mtime": 1781783283.484106,
+    "ast_hash": "4c613b5347f8e86e826d2205b6815fd2",
+    "semantic_hash": "4c613b5347f8e86e826d2205b6815fd2"
   }
 }

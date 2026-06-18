@@ -32,9 +32,16 @@ kubectl.exe
 # Temporary review/patch artifacts
 project-tree.txt
 *_PATCH_NOTES.md
+PATCH-NOTES-*.md
 SECURITY_PATCH_NOTES.md
+*_HOTFIX_NOTES.md
+REFACTOR_HOTFIX_*_NOTES.md
 kubedeck-*-patch/
 kubedeck-review-*/
+apply-*-hotfix.ps1
+kubedeck_*_codex_prompt.md
+KubeDeck_*_Prompt.md
+*_Codex_Prompt.md
 
 # Runtime / local app data
 *.log
@@ -75,3 +82,7 @@ kubectl.exe.sha256
 
 # Local patch staging created by ChatGPT/KubeDeck patch scripts
 .kubedeck-patches/
+.kubedeck_patch_backup/
+
+# Local Graphify analysis artifacts
+graphify-out/

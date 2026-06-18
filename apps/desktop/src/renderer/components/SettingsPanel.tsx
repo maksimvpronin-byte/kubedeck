@@ -218,9 +218,17 @@ const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshInt
             {t("llm.maxContextChars")}
             <input type="number" min="1000" max="250000" step="1000" value={llmSettings.maxContextChars} onChange={(event) => setLlmSettings({ maxContextChars: Number(event.target.value) })} />
           </label>
+          <label>
+            {t("llm.maxOutputTokens")}
+            <input
+              type="number"
+              value={llmSettings.maxOutputTokens}
+              onChange={(event) => setLlmSettings({ maxOutputTokens: Number(event.target.value) })}
+            />
+          </label>
         </div>
         <div className="settings-actions settings-llm-actions">
-          <button onClick={() => void saveDraft()} disabled={saveStatus === "saving"}>{t("llm.saveSettings")}</button>
+          
           <button onClick={() => void testLlmConnection()} disabled={!api || llmTestStatus === "testing"}>
             {llmTestStatus === "testing" ? t("llm.testing") : t("llm.testConnection")}
           </button>
@@ -277,7 +285,7 @@ function normalizeLlmSettings(settings: Partial<Settings["llm"]> | undefined): S
     apiKey: settings?.apiKey ?? "",
     temperature: clampNumber(settings?.temperature, 0, 2, 0.2),
     timeoutSeconds: clampNumber(settings?.timeoutSeconds, 1, 600, 60),
-    maxContextChars: clampNumber(settings?.maxContextChars, 1000, 250000, 60000),
+    maxContextChars: clampNumber(settings?.maxContextChars, 1000, 250000, 60000), maxOutputTokens: clampNumber(settings?.maxOutputTokens, 256, 32768, 4096),
   };
 }
 

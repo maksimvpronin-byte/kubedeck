@@ -392,7 +392,7 @@
     "llm.apiKey":  "API Token/API Key",
     "llm.temperature":  "Temperature",
     "llm.timeout":  "Timeout seconds",
-    "llm.maxContextChars":  "Максимальный размер контекста",
+    "llm.maxContextChars": "\u041c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0440\u0430\u0437\u043c\u0435\u0440 \u0432\u0445\u043e\u0434\u043d\u043e\u0433\u043e \u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442\u0430", "llm.maxOutputTokens": "\u041c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0440\u0430\u0437\u043c\u0435\u0440 \u043e\u0442\u0432\u0435\u0442\u0430 (tokens)",
     "llm.saveSettings":  "Сохранить LLM-настройки",
     "llm.testConnection":  "Проверить соединение",
     "llm.testing":  "Проверяю...",
@@ -413,7 +413,13 @@
     "llm.truncated":  "Контекст был обрезан",
     "llm.yes":  "да",
     "llm.no":  "нет",
-    "settings.saving":  "РЎРѕС…СЂР°РЅРµРЅРёРµ...",
-    "settings.saved":  "РќР°СЃС‚СЂРѕР№РєРё СЃРѕС…СЂР°РЅРµРЅС‹",
-    "settings.saveFailed":  "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РЅР°СЃС‚СЂРѕР№РєРё"
+    "llm.showPrompt": "\u041f\u043e\u043a\u0430\u0437\u0430\u0442\u044c prompt",
+    "llm.hidePrompt": "\u0421\u043a\u0440\u044b\u0442\u044c prompt",
+    "llm.promptPreview": "Prompt, \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u0443\u0439\u0434\u0435\u0442 \u0432 LLM",
+    "llm.copyPrompt": "\u0421\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c prompt",
+    "llm.promptCopied": "Prompt \u0441\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d",
+    "llm.collectingContext": "\u0421\u043e\u0431\u0438\u0440\u0430\u044e \u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442...",
+    "settings.saving": "\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u0435...",
+    "settings.saved": "\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u044b",
+    "settings.saveFailed": "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438"
 }

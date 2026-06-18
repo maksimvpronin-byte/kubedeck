@@ -23,6 +23,7 @@ class LlmSettings(BaseModel):
     temperature: float = 0.2
     timeoutSeconds: int = 60
     maxContextChars: int = 60000
+    maxOutputTokens: int = 4096
 
 
 SshAuthMethod = Literal["agent", "password", "privateKey"]
@@ -163,3 +164,4 @@ class LlmAnalyzeResourceResponse(BaseModel):
     elapsedMs: int
     contextChars: int
     truncated: bool
+    maxOutputTokens: int

@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Copy, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiClient, ApiError } from "../api";
 import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, RelatedLink, ResourceRow, Settings } from "../types";
@@ -569,7 +569,18 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       <header>
         <div>
           <span>{displayResource(resource)} · {namespaceText}</span>
-          <h2>{pod.name}</h2>
+          <div className="drawer-title-row">
+            <h2>{pod.name}</h2>
+            <button
+              type="button"
+              className="icon-button drawer-copy-name-button"
+              onClick={() => copyText(`${resource}/${pod.name}`, "Name copied")}
+              title="Copy resource name"
+              aria-label="Copy resource name"
+            >
+              <Copy size={15} />
+            </button>
+          </div>
         </div>
         <button className="icon-button" onClick={requestClose} title="Close">
           <X size={18} />
@@ -612,7 +623,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
               Open involved object
             </button>
           ) : null}
-          <button className="icon-text" onClick={() => copyText(`${resource}/${pod.name}`, "Name copied")}>Copy name</button>
           {applyResult ? <span>{applyResult}</span> : null}
         </div>
         {isCrdDefinitionResource ? (

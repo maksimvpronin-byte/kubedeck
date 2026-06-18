@@ -10,7 +10,7 @@ export interface LlmSettings {
   apiKey: string;
   temperature: number;
   timeoutSeconds: number;
-  maxContextChars: number;
+  maxContextChars: number; maxOutputTokens: number;
 }
 
 export interface LlmStatus {
@@ -52,7 +52,13 @@ export interface LlmAnalyzeResourceResponse {
   model: string;
   elapsedMs: number;
   contextChars: number;
-  truncated: boolean;
+  truncated: boolean; maxOutputTokens: number;
+}
+export interface LlmPromptPreviewResponse {
+  messages: Array<{ role: string; content: string }>;
+  context: string;
+  contextChars: number;
+  truncated: boolean; maxOutputTokens: number;
 }
 
 export type SshAuthMethod = "agent" | "password" | "privateKey";

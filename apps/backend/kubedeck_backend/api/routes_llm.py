@@ -11,8 +11,17 @@ from kubedeck_backend.llm.prompts import SYSTEM_PROMPT, build_user_prompt
 
 from .runtime import get_cached_config
 
-
 router = APIRouter(prefix="/llm")
+
+
+def _build_messages(request: LlmAnalyzeResourceRequest) -> tuple[list[dict[str, str]], int, bool, str]:
+    settings = get_cached_config().settings.llm
+    context, context_chars, truncated = build_resource_context(request, settings.maxContextChars)
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": build_user_prompt(context, request.userRequest)},
+    ]
+    return messages, context_chars, truncated, context
 
 
 @router.get("/status")
@@ -49,18 +58,23 @@ def llm_test(request: LlmTestRequest | None = None) -> dict[str, Any]:
         }
 
 
+@router.post("/preview-resource-prompt")
+def llm_preview_resource_prompt(request: LlmAnalyzeResourceRequest) -> dict[str, Any]:
+    messages, context_chars, truncated, context = _build_messages(request)
+    return {
+        "messages": messages,
+        "context": context,
+        "contextChars": context_chars,
+        "truncated": truncated,
+    }
+
+
 @router.post("/analyze-resource")
 def llm_analyze_resource(request: LlmAnalyzeResourceRequest) -> dict[str, Any]:
     settings = get_cached_config().settings.llm
     try:
-        context, context_chars, truncated = build_resource_context(request, settings.maxContextChars)
-        completion = chat_completion(
-            settings,
-            [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": build_user_prompt(context, request.userRequest)},
-            ],
-        )
+        messages, context_chars, truncated, _context = _build_messages(request)
+        completion = chat_completion(settings, messages)
     except LlmClientError as exc:
         raise HTTPException(
             status_code=400,
@@ -71,7 +85,7 @@ def llm_analyze_resource(request: LlmAnalyzeResourceRequest) -> dict[str, Any]:
         model=completion.model,
         elapsedMs=completion.elapsed_ms,
         contextChars=context_chars,
-        truncated=truncated,
+        truncated=truncated, maxOutputTokens=settings.maxOutputTokens,
     )
     return response.model_dump()
 
