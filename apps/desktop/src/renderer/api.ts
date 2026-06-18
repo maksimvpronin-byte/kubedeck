@@ -9,6 +9,18 @@ export class ApiError extends Error {
   }
 }
 
+async function parseApiErrorResponse(response: Response): Promise<ErrorInfo> {
+  let detail: ErrorInfo = { code: "HTTP_ERROR", message: response.statusText, rawStderr: "", commandPreview: "" };
+  const text = await response.text();
+  try {
+    const body = JSON.parse(text);
+    detail = body.detail ?? detail;
+  } catch {
+    detail.message = text || response.statusText;
+  }
+  return detail;
+}
+
 type OperationConfirmation = {
   clusterId: string;
   action: string;
@@ -32,15 +44,7 @@ export class ApiClient {
       },
     });
     if (!response.ok) {
-      let detail: ErrorInfo = { code: "HTTP_ERROR", message: response.statusText, rawStderr: "", commandPreview: "" };
-      const text = await response.text();
-      try {
-        const body = JSON.parse(text);
-        detail = body.detail ?? detail;
-      } catch {
-        detail.message = text || response.statusText;
-      }
-      throw new ApiError(detail);
+      throw new ApiError(await parseApiErrorResponse(response));
     }
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
