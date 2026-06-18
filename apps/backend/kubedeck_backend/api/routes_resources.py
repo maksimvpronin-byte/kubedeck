@@ -11,6 +11,13 @@ from .workload_logs import deployment_log_targets, deployment_logs_text
 router = APIRouter()
 
 
+def _run_resource_text_command(command: KubectlCommand) -> str:
+    try:
+        return runner.run(command).stdout
+    except KubectlError as exc:
+        raise kubectl_error(exc)
+
+
 @router.get("/clusters/{cluster_id}/resources/{resource}")
 def resources(
     cluster_id: str,
@@ -145,10 +152,7 @@ def resource_yaml(cluster_id: str, resource: str, namespace: str, name: str) -> 
     if namespace != "_cluster":
         args.extend(["-n", namespace])
     args.extend(["-o", "yaml"])
-    try:
-        return runner.run(cluster_command(cluster_id, args, timeout=30, max_output_bytes=TEXT_MAX_OUTPUT_BYTES)).stdout
-    except KubectlError as exc:
-        raise kubectl_error(exc)
+    return _run_resource_text_command(cluster_command(cluster_id, args, timeout=30, max_output_bytes=TEXT_MAX_OUTPUT_BYTES))
 
 @router.get("/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/describe", response_class=PlainTextResponse)
 def resource_describe(cluster_id: str, resource: str, namespace: str, name: str) -> str:
@@ -159,10 +163,7 @@ def resource_describe(cluster_id: str, resource: str, namespace: str, name: str)
     args = ["describe", resource, name]
     if namespace != "_cluster":
         args.extend(["-n", namespace])
-    try:
-        return runner.run(cluster_command(cluster_id, args, timeout=30, max_output_bytes=TEXT_MAX_OUTPUT_BYTES)).stdout
-    except KubectlError as exc:
-        raise kubectl_error(exc)
+    return _run_resource_text_command(cluster_command(cluster_id, args, timeout=30, max_output_bytes=TEXT_MAX_OUTPUT_BYTES))
 
 @router.get("/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/events")
 def resource_events(cluster_id: str, resource: str, namespace: str, name: str) -> dict[str, Any]:
