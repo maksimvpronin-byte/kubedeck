@@ -1,4 +1,4 @@
-export function HelpPanel({ t }: { t: (key: string) => string }) {
+﻿export function HelpPanel({ t }: { t: (key: string) => string }) {
   const quickStart = ["help.quickStart.1", "help.quickStart.2", "help.quickStart.3", "help.quickStart.4"];
   const drawer = ["help.drawer.1", "help.drawer.2", "help.drawer.3", "help.drawer.4"];
   const sections = ["help.sections.1", "help.sections.2", "help.sections.3", "help.sections.4", "help.sections.5"];
@@ -20,9 +20,9 @@ export function HelpPanel({ t }: { t: (key: string) => string }) {
             <dt>{t("help.name")}</dt>
             <dd>KubeDeck</dd>
             <dt>{t("help.version")}</dt>
-            <dd>1.1.1</dd>
+            <dd>1.1.2</dd>
             <dt>{t("help.author")}</dt>
-            <dd>Пронин Максим</dd>
+            <dd>РџСЂРѕРЅРёРЅ РњР°РєСЃРёРј</dd>
             <dt>{t("help.project")}</dt>
             <dd>Autoops MOEX KubeDeck Project</dd>
             <dt>{t("help.buildType")}</dt>
@@ -61,3 +61,5 @@ function HelpList({ title, items }: { title: string; items: string[] }) {
     </article>
   );
 }
+
+

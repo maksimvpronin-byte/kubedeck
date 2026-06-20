@@ -1,38 +1,38 @@
-# KubeDeck
+﻿# KubeDeck
 
-KubeDeck — Windows desktop Kubernetes IDE.
+KubeDeck вЂ” Windows desktop Kubernetes IDE.
 
-Проект предназначен для удобной работы с Kubernetes-кластерами из Windows-приложения без необходимости вручную запускать длинные `kubectl`-команды.
+РџСЂРѕРµРєС‚ РїСЂРµРґРЅР°Р·РЅР°С‡РµРЅ РґР»СЏ СѓРґРѕР±РЅРѕР№ СЂР°Р±РѕС‚С‹ СЃ Kubernetes-РєР»Р°СЃС‚РµСЂР°РјРё РёР· Windows-РїСЂРёР»РѕР¶РµРЅРёСЏ Р±РµР· РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё РІСЂСѓС‡РЅСѓСЋ Р·Р°РїСѓСЃРєР°С‚СЊ РґР»РёРЅРЅС‹Рµ `kubectl`-РєРѕРјР°РЅРґС‹.
 
-Текущая версия проекта: **1.1.1**.
+РўРµРєСѓС‰Р°СЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р°: **1.1.2**.
 
 ---
 
-## Основная идея
+## РћСЃРЅРѕРІРЅР°СЏ РёРґРµСЏ
 
-KubeDeck состоит из двух частей:
+KubeDeck СЃРѕСЃС‚РѕРёС‚ РёР· РґРІСѓС… С‡Р°СЃС‚РµР№:
 
-| Часть | Технологии | Назначение |
+| Р§Р°СЃС‚СЊ | РўРµС…РЅРѕР»РѕРіРёРё | РќР°Р·РЅР°С‡РµРЅРёРµ |
 |---|---|---|
-| Desktop UI | Electron, React, TypeScript | Окно приложения, интерфейс, таблицы ресурсов, drawer, YAML, логи |
-| Backend | Python, FastAPI | Нормализация данных Kubernetes, health-check, локальные API |
-| Kubernetes CLI | kubectl | Реальное взаимодействие с Kubernetes-кластерами |
+| Desktop UI | Electron, React, TypeScript | РћРєРЅРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ, РёРЅС‚РµСЂС„РµР№СЃ, С‚Р°Р±Р»РёС†С‹ СЂРµСЃСѓСЂСЃРѕРІ, drawer, YAML, Р»РѕРіРё |
+| Backend | Python, FastAPI | РќРѕСЂРјР°Р»РёР·Р°С†РёСЏ РґР°РЅРЅС‹С… Kubernetes, health-check, Р»РѕРєР°Р»СЊРЅС‹Рµ API |
+| Kubernetes CLI | kubectl | Р РµР°Р»СЊРЅРѕРµ РІР·Р°РёРјРѕРґРµР№СЃС‚РІРёРµ СЃ Kubernetes-РєР»Р°СЃС‚РµСЂР°РјРё |
 
-Backend запускается локально вместе с desktop-приложением и слушает только `127.0.0.1`.
+Backend Р·Р°РїСѓСЃРєР°РµС‚СЃСЏ Р»РѕРєР°Р»СЊРЅРѕ РІРјРµСЃС‚Рµ СЃ desktop-РїСЂРёР»РѕР¶РµРЅРёРµРј Рё СЃР»СѓС€Р°РµС‚ С‚РѕР»СЊРєРѕ `127.0.0.1`.
 
 ---
 
-## Что умеет приложение
+## Р§С‚Рѕ СѓРјРµРµС‚ РїСЂРёР»РѕР¶РµРЅРёРµ
 
-На текущем этапе KubeDeck умеет:
+РќР° С‚РµРєСѓС‰РµРј СЌС‚Р°РїРµ KubeDeck СѓРјРµРµС‚:
 
-- импортировать kubeconfig через UI;
-- хранить kubeconfig-файлы в `%APPDATA%\KubeDeck\kubeconfigs`;
-- показывать список кластеров/контекстов;
-- переименовывать кластеры в UI;
-- открывать последний выбранный кластер;
-- выбирать namespace;
-- показывать Kubernetes-ресурсы:
+- РёРјРїРѕСЂС‚РёСЂРѕРІР°С‚СЊ kubeconfig С‡РµСЂРµР· UI;
+- С…СЂР°РЅРёС‚СЊ kubeconfig-С„Р°Р№Р»С‹ РІ `%APPDATA%\KubeDeck\kubeconfigs`;
+- РїРѕРєР°Р·С‹РІР°С‚СЊ СЃРїРёСЃРѕРє РєР»Р°СЃС‚РµСЂРѕРІ/РєРѕРЅС‚РµРєСЃС‚РѕРІ;
+- РїРµСЂРµРёРјРµРЅРѕРІС‹РІР°С‚СЊ РєР»Р°СЃС‚РµСЂС‹ РІ UI;
+- РѕС‚РєСЂС‹РІР°С‚СЊ РїРѕСЃР»РµРґРЅРёР№ РІС‹Р±СЂР°РЅРЅС‹Р№ РєР»Р°СЃС‚РµСЂ;
+- РІС‹Р±РёСЂР°С‚СЊ namespace;
+- РїРѕРєР°Р·С‹РІР°С‚СЊ Kubernetes-СЂРµСЃСѓСЂСЃС‹:
   - Pods;
   - Deployments;
   - Services;
@@ -53,29 +53,29 @@ Backend запускается локально вместе с desktop-прил
   - Events;
   - CRD definitions;
   - CRD instances;
-- открывать detail drawer ресурса;
-- смотреть YAML ресурса;
-- редактировать YAML с dry-run/apply;
-- смотреть `kubectl describe`;
-- смотреть Events по ресурсу;
-- смотреть Related resources;
-- смотреть Pod logs;
-- смотреть Deployment logs сразу по всем Pod выбранного Deployment;
-- выполнять Pod terminal через `kubectl exec`;
-- запускать port-forward;
-- смотреть Problems dashboard;
-- смотреть Secrets с reveal/copy/auto-hide;
-- выполнять опасные действия с подтверждениями;
-- выполнять bulk delete;
-- использовать RU/EN интерфейс;
-- использовать dark/light/system theme;
-- анализировать ресурсы через локальный OpenAI-compatible LLM API.
+- РѕС‚РєСЂС‹РІР°С‚СЊ detail drawer СЂРµСЃСѓСЂСЃР°;
+- СЃРјРѕС‚СЂРµС‚СЊ YAML СЂРµСЃСѓСЂСЃР°;
+- СЂРµРґР°РєС‚РёСЂРѕРІР°С‚СЊ YAML СЃ dry-run/apply;
+- СЃРјРѕС‚СЂРµС‚СЊ `kubectl describe`;
+- СЃРјРѕС‚СЂРµС‚СЊ Events РїРѕ СЂРµСЃСѓСЂСЃСѓ;
+- СЃРјРѕС‚СЂРµС‚СЊ Related resources;
+- СЃРјРѕС‚СЂРµС‚СЊ Pod logs;
+- СЃРјРѕС‚СЂРµС‚СЊ Deployment logs СЃСЂР°Р·Сѓ РїРѕ РІСЃРµРј Pod РІС‹Р±СЂР°РЅРЅРѕРіРѕ Deployment;
+- РІС‹РїРѕР»РЅСЏС‚СЊ Pod terminal С‡РµСЂРµР· `kubectl exec`;
+- Р·Р°РїСѓСЃРєР°С‚СЊ port-forward;
+- СЃРјРѕС‚СЂРµС‚СЊ Problems dashboard;
+- СЃРјРѕС‚СЂРµС‚СЊ Secrets СЃ reveal/copy/auto-hide;
+- РІС‹РїРѕР»РЅСЏС‚СЊ РѕРїР°СЃРЅС‹Рµ РґРµР№СЃС‚РІРёСЏ СЃ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏРјРё;
+- РІС‹РїРѕР»РЅСЏС‚СЊ bulk delete;
+- РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ RU/EN РёРЅС‚РµСЂС„РµР№СЃ;
+- РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ dark/light/system theme;
+- Р°РЅР°Р»РёР·РёСЂРѕРІР°С‚СЊ СЂРµСЃСѓСЂСЃС‹ С‡РµСЂРµР· Р»РѕРєР°Р»СЊРЅС‹Р№ OpenAI-compatible LLM API.
 
 ## Local LLM diagnostics
 
-KubeDeck 1.1.1 can connect to a local OpenAI-compatible Chat Completions API and add manual diagnostics in the resource drawer LLM tab.
+KubeDeck 1.1.2 can connect to a local OpenAI-compatible Chat Completions API and add manual diagnostics in the resource drawer LLM tab.
 
-- Supported provider for 1.1.1: `openai_compatible`.
+- Supported provider for 1.1.2: `openai_compatible`.
 - LM Studio example: `http://127.0.0.1:1234/v1`.
 - Ollama OpenAI-compatible example: `http://127.0.0.1:11434/v1`.
 - API token is optional. If it is empty, KubeDeck does not send an `Authorization` header.
@@ -85,21 +85,21 @@ KubeDeck 1.1.1 can connect to a local OpenAI-compatible Chat Completions API and
 
 ---
 
-# Быстрый старт для Windows
+# Р‘С‹СЃС‚СЂС‹Р№ СЃС‚Р°СЂС‚ РґР»СЏ Windows
 
-Этот вариант предназначен для чистой Windows-машины.
+Р­С‚РѕС‚ РІР°СЂРёР°РЅС‚ РїСЂРµРґРЅР°Р·РЅР°С‡РµРЅ РґР»СЏ С‡РёСЃС‚РѕР№ Windows-РјР°С€РёРЅС‹.
 
-Скрипт сам поставит нужные зависимости, скачает проект и соберёт portable `.exe`.
+РЎРєСЂРёРїС‚ СЃР°Рј РїРѕСЃС‚Р°РІРёС‚ РЅСѓР¶РЅС‹Рµ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё, СЃРєР°С‡Р°РµС‚ РїСЂРѕРµРєС‚ Рё СЃРѕР±РµСЂС‘С‚ portable `.exe`.
 
-## 1. Открой PowerShell от имени администратора
+## 1. РћС‚РєСЂРѕР№ PowerShell РѕС‚ РёРјРµРЅРё Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°
 
-Нажми:
+РќР°Р¶РјРё:
 
 ```text
-Start → PowerShell → Run as administrator
+Start в†’ PowerShell в†’ Run as administrator
 ```
 
-## 2. Выполни одну команду
+## 2. Р’С‹РїРѕР»РЅРё РѕРґРЅСѓ РєРѕРјР°РЅРґСѓ
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
@@ -108,76 +108,76 @@ Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/maksimvpro
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -Clone -Build
 ```
 
-## 3. Что сделает скрипт
+## 3. Р§С‚Рѕ СЃРґРµР»Р°РµС‚ СЃРєСЂРёРїС‚
 
-Скрипт выполнит полный bootstrap:
+РЎРєСЂРёРїС‚ РІС‹РїРѕР»РЅРёС‚ РїРѕР»РЅС‹Р№ bootstrap:
 
-1. Проверит, что запуск идёт на Windows.
-2. Проверит наличие `winget`.
-3. Установит недостающие программы:
+1. РџСЂРѕРІРµСЂРёС‚, С‡С‚Рѕ Р·Р°РїСѓСЃРє РёРґС‘С‚ РЅР° Windows.
+2. РџСЂРѕРІРµСЂРёС‚ РЅР°Р»РёС‡РёРµ `winget`.
+3. РЈСЃС‚Р°РЅРѕРІРёС‚ РЅРµРґРѕСЃС‚Р°СЋС‰РёРµ РїСЂРѕРіСЂР°РјРјС‹:
    - Git;
    - Node.js LTS;
    - Python 3.11;
    - kubectl.
-4. Склонирует репозиторий в:
+4. РЎРєР»РѕРЅРёСЂСѓРµС‚ СЂРµРїРѕР·РёС‚РѕСЂРёР№ РІ:
 
    ```text
    %USERPROFILE%\KubeDeck
    ```
 
-5. Установит npm-зависимости.
-6. Установит Python-зависимости backend.
-7. Запустит проверку проекта.
-8. Соберёт portable-версию.
+5. РЈСЃС‚Р°РЅРѕРІРёС‚ npm-Р·Р°РІРёСЃРёРјРѕСЃС‚Рё.
+6. РЈСЃС‚Р°РЅРѕРІРёС‚ Python-Р·Р°РІРёСЃРёРјРѕСЃС‚Рё backend.
+7. Р—Р°РїСѓСЃС‚РёС‚ РїСЂРѕРІРµСЂРєСѓ РїСЂРѕРµРєС‚Р°.
+8. РЎРѕР±РµСЂС‘С‚ portable-РІРµСЂСЃРёСЋ.
 
-## 4. Где будет готовый файл
+## 4. Р“РґРµ Р±СѓРґРµС‚ РіРѕС‚РѕРІС‹Р№ С„Р°Р№Р»
 
-После успешной сборки portable-файл будет здесь:
+РџРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕР№ СЃР±РѕСЂРєРё portable-С„Р°Р№Р» Р±СѓРґРµС‚ Р·РґРµСЃСЊ:
 
 ```text
-%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.1.1-x64.exe
+%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.1.2-x64.exe
 ```
 
-Запусти его двойным кликом.
+Р—Р°РїСѓСЃС‚Рё РµРіРѕ РґРІРѕР№РЅС‹Рј РєР»РёРєРѕРј.
 
 ---
 
-# Если проект уже скачан
+# Р•СЃР»Рё РїСЂРѕРµРєС‚ СѓР¶Рµ СЃРєР°С‡Р°РЅ
 
-Если репозиторий уже есть на диске, например:
+Р•СЃР»Рё СЂРµРїРѕР·РёС‚РѕСЂРёР№ СѓР¶Рµ РµСЃС‚СЊ РЅР° РґРёСЃРєРµ, РЅР°РїСЂРёРјРµСЂ:
 
 ```text
-C:\Users\Fidel\Kubedeck-agent 1.1.1
+C:\Users\Fidel\Kubedeck-agent 1.1.2
 ```
 
-Открой PowerShell в этой папке и выполни:
+РћС‚РєСЂРѕР№ PowerShell РІ СЌС‚РѕР№ РїР°РїРєРµ Рё РІС‹РїРѕР»РЅРё:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -Build
 ```
 
-Скрипт не будет заново клонировать проект. Он использует текущую папку.
+РЎРєСЂРёРїС‚ РЅРµ Р±СѓРґРµС‚ Р·Р°РЅРѕРІРѕ РєР»РѕРЅРёСЂРѕРІР°С‚СЊ РїСЂРѕРµРєС‚. РћРЅ РёСЃРїРѕР»СЊР·СѓРµС‚ С‚РµРєСѓС‰СѓСЋ РїР°РїРєСѓ.
 
 ---
 
-# Требования
+# РўСЂРµР±РѕРІР°РЅРёСЏ
 
-Минимально нужны:
+РњРёРЅРёРјР°Р»СЊРЅРѕ РЅСѓР¶РЅС‹:
 
-| Компонент | Версия | Зачем |
+| РљРѕРјРїРѕРЅРµРЅС‚ | Р’РµСЂСЃРёСЏ | Р—Р°С‡РµРј |
 |---|---:|---|
-| Windows | 10/11 x64 | целевая ОС |
-| PowerShell | 5.1+ | запуск скриптов |
-| winget | актуальный | автоматическая установка зависимостей |
-| Git | актуальный | клонирование репозитория |
-| Node.js | 20+ / LTS | сборка desktop-части |
-| npm | вместе с Node.js | установка JS-зависимостей |
+| Windows | 10/11 x64 | С†РµР»РµРІР°СЏ РћРЎ |
+| PowerShell | 5.1+ | Р·Р°РїСѓСЃРє СЃРєСЂРёРїС‚РѕРІ |
+| winget | Р°РєС‚СѓР°Р»СЊРЅС‹Р№ | Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєР°СЏ СѓСЃС‚Р°РЅРѕРІРєР° Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№ |
+| Git | Р°РєС‚СѓР°Р»СЊРЅС‹Р№ | РєР»РѕРЅРёСЂРѕРІР°РЅРёРµ СЂРµРїРѕР·РёС‚РѕСЂРёСЏ |
+| Node.js | 20+ / LTS | СЃР±РѕСЂРєР° desktop-С‡Р°СЃС‚Рё |
+| npm | РІРјРµСЃС‚Рµ СЃ Node.js | СѓСЃС‚Р°РЅРѕРІРєР° JS-Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№ |
 | Python | 3.11+ | backend |
-| Python Launcher | `py` | запуск Python из скриптов |
-| kubectl | актуальный | доступ к Kubernetes |
+| Python Launcher | `py` | Р·Р°РїСѓСЃРє Python РёР· СЃРєСЂРёРїС‚РѕРІ |
+| kubectl | Р°РєС‚СѓР°Р»СЊРЅС‹Р№ | РґРѕСЃС‚СѓРї Рє Kubernetes |
 
-Проверка вручную:
+РџСЂРѕРІРµСЂРєР° РІСЂСѓС‡РЅСѓСЋ:
 
 ```powershell
 git --version
@@ -189,30 +189,30 @@ kubectl version --client
 
 ---
 
-# Важное про kubectl
+# Р’Р°Р¶РЅРѕРµ РїСЂРѕ kubectl
 
-KubeDeck **не кладёт `kubectl.exe` внутрь portable-сборки**.
+KubeDeck **РЅРµ РєР»Р°РґС‘С‚ `kubectl.exe` РІРЅСѓС‚СЂСЊ portable-СЃР±РѕСЂРєРё**.
 
-Это сделано специально.
+Р­С‚Рѕ СЃРґРµР»Р°РЅРѕ СЃРїРµС†РёР°Р»СЊРЅРѕ.
 
-Приложение использует:
+РџСЂРёР»РѕР¶РµРЅРёРµ РёСЃРїРѕР»СЊР·СѓРµС‚:
 
-1. `kubectl` из системного `PATH`; или
-2. путь до `kubectl.exe`, указанный в Settings приложения.
+1. `kubectl` РёР· СЃРёСЃС‚РµРјРЅРѕРіРѕ `PATH`; РёР»Рё
+2. РїСѓС‚СЊ РґРѕ `kubectl.exe`, СѓРєР°Р·Р°РЅРЅС‹Р№ РІ Settings РїСЂРёР»РѕР¶РµРЅРёСЏ.
 
-Установить kubectl вручную можно так:
+РЈСЃС‚Р°РЅРѕРІРёС‚СЊ kubectl РІСЂСѓС‡РЅСѓСЋ РјРѕР¶РЅРѕ С‚Р°Рє:
 
 ```powershell
 winget install -e --id Kubernetes.kubectl
 ```
 
-Проверить:
+РџСЂРѕРІРµСЂРёС‚СЊ:
 
 ```powershell
 kubectl version --client
 ```
 
-Если `kubectl` лежит не в `PATH`, укажи полный путь в настройках KubeDeck, например:
+Р•СЃР»Рё `kubectl` Р»РµР¶РёС‚ РЅРµ РІ `PATH`, СѓРєР°Р¶Рё РїРѕР»РЅС‹Р№ РїСѓС‚СЊ РІ РЅР°СЃС‚СЂРѕР№РєР°С… KubeDeck, РЅР°РїСЂРёРјРµСЂ:
 
 ```text
 C:\Tools\kubectl\kubectl.exe
@@ -220,16 +220,16 @@ C:\Tools\kubectl\kubectl.exe
 
 ---
 
-# Первый запуск
+# РџРµСЂРІС‹Р№ Р·Р°РїСѓСЃРє
 
-После запуска portable `.exe`:
+РџРѕСЃР»Рµ Р·Р°РїСѓСЃРєР° portable `.exe`:
 
-1. Открой Settings.
-2. Проверь путь до `kubectl`.
-3. Импортируй kubeconfig.
-4. Выбери кластер/context.
-5. Выбери namespace.
-6. Проверь основные разделы:
+1. РћС‚РєСЂРѕР№ Settings.
+2. РџСЂРѕРІРµСЂСЊ РїСѓС‚СЊ РґРѕ `kubectl`.
+3. РРјРїРѕСЂС‚РёСЂСѓР№ kubeconfig.
+4. Р’С‹Р±РµСЂРё РєР»Р°СЃС‚РµСЂ/context.
+5. Р’С‹Р±РµСЂРё namespace.
+6. РџСЂРѕРІРµСЂСЊ РѕСЃРЅРѕРІРЅС‹Рµ СЂР°Р·РґРµР»С‹:
    - Pods;
    - Deployments;
    - Services;
@@ -238,15 +238,15 @@ C:\Tools\kubectl\kubectl.exe
 
 ---
 
-# Где лежат настройки и логи
+# Р“РґРµ Р»РµР¶Р°С‚ РЅР°СЃС‚СЂРѕР№РєРё Рё Р»РѕРіРё
 
-KubeDeck хранит пользовательские данные здесь:
+KubeDeck С…СЂР°РЅРёС‚ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёРµ РґР°РЅРЅС‹Рµ Р·РґРµСЃСЊ:
 
 ```text
 %APPDATA%\KubeDeck
 ```
 
-Основные файлы и папки:
+РћСЃРЅРѕРІРЅС‹Рµ С„Р°Р№Р»С‹ Рё РїР°РїРєРё:
 
 ```text
 %APPDATA%\KubeDeck\
@@ -258,21 +258,21 @@ KubeDeck хранит пользовательские данные здесь:
     kubectl.log
 ```
 
-Назначение:
+РќР°Р·РЅР°С‡РµРЅРёРµ:
 
-| Путь | Назначение |
+| РџСѓС‚СЊ | РќР°Р·РЅР°С‡РµРЅРёРµ |
 |---|---|
-| `config.json` | настройки приложения |
-| `kubeconfigs\` | импортированные kubeconfig-файлы |
-| `logs\desktop.log` | логи Electron/Desktop |
-| `logs\backend.log` | логи Python backend |
-| `logs\kubectl.log` | диагностические логи kubectl-вызовов |
+| `config.json` | РЅР°СЃС‚СЂРѕР№РєРё РїСЂРёР»РѕР¶РµРЅРёСЏ |
+| `kubeconfigs\` | РёРјРїРѕСЂС‚РёСЂРѕРІР°РЅРЅС‹Рµ kubeconfig-С„Р°Р№Р»С‹ |
+| `logs\desktop.log` | Р»РѕРіРё Electron/Desktop |
+| `logs\backend.log` | Р»РѕРіРё Python backend |
+| `logs\kubectl.log` | РґРёР°РіРЅРѕСЃС‚РёС‡РµСЃРєРёРµ Р»РѕРіРё kubectl-РІС‹Р·РѕРІРѕРІ |
 
 ---
 
-# Сборка portable вручную
+# РЎР±РѕСЂРєР° portable РІСЂСѓС‡РЅСѓСЋ
 
-Из корня проекта:
+РР· РєРѕСЂРЅСЏ РїСЂРѕРµРєС‚Р°:
 
 ```powershell
 npm.cmd ci --no-audit --no-fund
@@ -281,17 +281,17 @@ py -3 -m pip install --user pytest
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
 ```
 
-Результат:
+Р РµР·СѓР»СЊС‚Р°С‚:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-1.1.1-x64.exe
+apps\desktop\release\KubeDeck-Portable-1.1.2-x64.exe
 ```
 
 ---
 
-# Запуск в dev-режиме
+# Р—Р°РїСѓСЃРє РІ dev-СЂРµР¶РёРјРµ
 
-Из корня проекта:
+РР· РєРѕСЂРЅСЏ РїСЂРѕРµРєС‚Р°:
 
 ```powershell
 npm.cmd ci --no-audit --no-fund
@@ -299,41 +299,41 @@ py -3 -m pip install --user -r .\apps\backend\requirements.txt
 npm.cmd run dev
 ```
 
-Dev-режим запускает:
+Dev-СЂРµР¶РёРј Р·Р°РїСѓСЃРєР°РµС‚:
 
 - Vite dev server;
 - TypeScript watch;
 - Electron desktop shell;
-- локальный Python backend.
+- Р»РѕРєР°Р»СЊРЅС‹Р№ Python backend.
 
 ---
 
-# Проверка проекта
+# РџСЂРѕРІРµСЂРєР° РїСЂРѕРµРєС‚Р°
 
-Проверка без сборки portable:
+РџСЂРѕРІРµСЂРєР° Р±РµР· СЃР±РѕСЂРєРё portable:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1
 ```
 
-Проверка со сборкой portable:
+РџСЂРѕРІРµСЂРєР° СЃРѕ СЃР±РѕСЂРєРѕР№ portable:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
 ```
 
-Проверка включает:
+РџСЂРѕРІРµСЂРєР° РІРєР»СЋС‡Р°РµС‚:
 
-- проверку структуры проекта;
-- проверку backend Python-кода;
+- РїСЂРѕРІРµСЂРєСѓ СЃС‚СЂСѓРєС‚СѓСЂС‹ РїСЂРѕРµРєС‚Р°;
+- РїСЂРѕРІРµСЂРєСѓ backend Python-РєРѕРґР°;
 - backend tests;
 - desktop TypeScript/Vite build;
-- проверку, что portable-сборка не содержит `kubectl.exe`;
+- РїСЂРѕРІРµСЂРєСѓ, С‡С‚Рѕ portable-СЃР±РѕСЂРєР° РЅРµ СЃРѕРґРµСЂР¶РёС‚ `kubectl.exe`;
 - optional packaging.
 
 ---
 
-# Структура проекта
+# РЎС‚СЂСѓРєС‚СѓСЂР° РїСЂРѕРµРєС‚Р°
 
 ```text
 kubedeck/
@@ -362,32 +362,32 @@ kubedeck/
 
 ---
 
-# Частые ошибки и решения
+# Р§Р°СЃС‚С‹Рµ РѕС€РёР±РєРё Рё СЂРµС€РµРЅРёСЏ
 
-## PowerShell запрещает запуск скрипта
+## PowerShell Р·Р°РїСЂРµС‰Р°РµС‚ Р·Р°РїСѓСЃРє СЃРєСЂРёРїС‚Р°
 
-Ошибка:
+РћС€РёР±РєР°:
 
 ```text
 running scripts is disabled on this system
 ```
 
-Решение:
+Р РµС€РµРЅРёРµ:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1 -Build
 ```
 
-Эта команда меняет policy только для текущего процесса PowerShell.
+Р­С‚Р° РєРѕРјР°РЅРґР° РјРµРЅСЏРµС‚ policy С‚РѕР»СЊРєРѕ РґР»СЏ С‚РµРєСѓС‰РµРіРѕ РїСЂРѕС†РµСЃСЃР° PowerShell.
 
 ---
 
 ## `npm.ps1 cannot be loaded`
 
-На Windows может блокироваться `npm.ps1`.
+РќР° Windows РјРѕР¶РµС‚ Р±Р»РѕРєРёСЂРѕРІР°С‚СЊСЃСЏ `npm.ps1`.
 
-Используй `npm.cmd`:
+РСЃРїРѕР»СЊР·СѓР№ `npm.cmd`:
 
 ```powershell
 npm.cmd ci --no-audit --no-fund
@@ -397,89 +397,89 @@ npm.cmd run dev
 
 ---
 
-## `winget` не найден
+## `winget` РЅРµ РЅР°Р№РґРµРЅ
 
-Проверь:
+РџСЂРѕРІРµСЂСЊ:
 
 ```powershell
 winget --version
 ```
 
-Если команды нет, обнови **App Installer** через Microsoft Store.
+Р•СЃР»Рё РєРѕРјР°РЅРґС‹ РЅРµС‚, РѕР±РЅРѕРІРё **App Installer** С‡РµСЂРµР· Microsoft Store.
 
-После установки заново открой PowerShell.
+РџРѕСЃР»Рµ СѓСЃС‚Р°РЅРѕРІРєРё Р·Р°РЅРѕРІРѕ РѕС‚РєСЂРѕР№ PowerShell.
 
 ---
 
-## `py` не найден
+## `py` РЅРµ РЅР°Р№РґРµРЅ
 
-Проверь:
+РџСЂРѕРІРµСЂСЊ:
 
 ```powershell
 py -3 --version
 ```
 
-Если команды нет:
+Р•СЃР»Рё РєРѕРјР°РЅРґС‹ РЅРµС‚:
 
 ```powershell
 winget install -e --id Python.Python.3.11
 ```
 
-После установки заново открой PowerShell.
+РџРѕСЃР»Рµ СѓСЃС‚Р°РЅРѕРІРєРё Р·Р°РЅРѕРІРѕ РѕС‚РєСЂРѕР№ PowerShell.
 
 ---
 
 ## `kubectl executable not found`
 
-KubeDeck не содержит встроенный `kubectl.exe`.
+KubeDeck РЅРµ СЃРѕРґРµСЂР¶РёС‚ РІСЃС‚СЂРѕРµРЅРЅС‹Р№ `kubectl.exe`.
 
-Решение:
+Р РµС€РµРЅРёРµ:
 
 ```powershell
 winget install -e --id Kubernetes.kubectl
 kubectl version --client
 ```
 
-Или укажи путь к `kubectl.exe` в Settings приложения.
+РР»Рё СѓРєР°Р¶Рё РїСѓС‚СЊ Рє `kubectl.exe` РІ Settings РїСЂРёР»РѕР¶РµРЅРёСЏ.
 
 ---
 
 ## `kubectl timed out after 30s`
 
-Проверь эту же команду напрямую в PowerShell:
+РџСЂРѕРІРµСЂСЊ СЌС‚Сѓ Р¶Рµ РєРѕРјР°РЅРґСѓ РЅР°РїСЂСЏРјСѓСЋ РІ PowerShell:
 
 ```powershell
 kubectl get pods -A -o json
 ```
 
-Если в консоли команда работает быстро, проверь:
+Р•СЃР»Рё РІ РєРѕРЅСЃРѕР»Рё РєРѕРјР°РЅРґР° СЂР°Р±РѕС‚Р°РµС‚ Р±С‹СЃС‚СЂРѕ, РїСЂРѕРІРµСЂСЊ:
 
-1. какой kubeconfig импортирован в KubeDeck;
-2. какой context выбран;
-3. какой `kubectl.exe` использует приложение;
-4. нет ли старого пути до `kubectl` в Settings;
-5. нет ли проблем с VPN/DNS/Proxy;
-6. нет ли зависших процессов KubeDeck.
+1. РєР°РєРѕР№ kubeconfig РёРјРїРѕСЂС‚РёСЂРѕРІР°РЅ РІ KubeDeck;
+2. РєР°РєРѕР№ context РІС‹Р±СЂР°РЅ;
+3. РєР°РєРѕР№ `kubectl.exe` РёСЃРїРѕР»СЊР·СѓРµС‚ РїСЂРёР»РѕР¶РµРЅРёРµ;
+4. РЅРµС‚ Р»Рё СЃС‚Р°СЂРѕРіРѕ РїСѓС‚Рё РґРѕ `kubectl` РІ Settings;
+5. РЅРµС‚ Р»Рё РїСЂРѕР±Р»РµРј СЃ VPN/DNS/Proxy;
+6. РЅРµС‚ Р»Рё Р·Р°РІРёСЃС€РёС… РїСЂРѕС†РµСЃСЃРѕРІ KubeDeck.
 
 ---
 
-## Ошибка 7zip / electron-builder
+## РћС€РёР±РєР° 7zip / electron-builder
 
-Если сборка падает на `7za.exe` или `7zip-bin`, выполни:
+Р•СЃР»Рё СЃР±РѕСЂРєР° РїР°РґР°РµС‚ РЅР° `7za.exe` РёР»Рё `7zip-bin`, РІС‹РїРѕР»РЅРё:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\repair-7zip-bin.ps1
 ```
 
-Если Defender удалил `7za.exe`, проверь карантин или добавь временное исключение для папки проекта.
+Р•СЃР»Рё Defender СѓРґР°Р»РёР» `7za.exe`, РїСЂРѕРІРµСЂСЊ РєР°СЂР°РЅС‚РёРЅ РёР»Рё РґРѕР±Р°РІСЊ РІСЂРµРјРµРЅРЅРѕРµ РёСЃРєР»СЋС‡РµРЅРёРµ РґР»СЏ РїР°РїРєРё РїСЂРѕРµРєС‚Р°.
 
 ---
 
-## Release-директория занята
+## Release-РґРёСЂРµРєС‚РѕСЂРёСЏ Р·Р°РЅСЏС‚Р°
 
-Закрой KubeDeck и Electron-процессы.
+Р—Р°РєСЂРѕР№ KubeDeck Рё Electron-РїСЂРѕС†РµСЃСЃС‹.
 
-Потом повтори сборку:
+РџРѕС‚РѕРј РїРѕРІС‚РѕСЂРё СЃР±РѕСЂРєСѓ:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
@@ -487,9 +487,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable
 
 ---
 
-# Обновление проекта
+# РћР±РЅРѕРІР»РµРЅРёРµ РїСЂРѕРµРєС‚Р°
 
-Если проект уже склонирован:
+Р•СЃР»Рё РїСЂРѕРµРєС‚ СѓР¶Рµ СЃРєР»РѕРЅРёСЂРѕРІР°РЅ:
 
 ```powershell
 cd "$env:USERPROFILE\KubeDeck"
@@ -499,9 +499,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.
 
 ---
 
-# Что нельзя коммитить
+# Р§С‚Рѕ РЅРµР»СЊР·СЏ РєРѕРјРјРёС‚РёС‚СЊ
 
-Не добавляй в git:
+РќРµ РґРѕР±Р°РІР»СЏР№ РІ git:
 
 ```text
 node_modules/
@@ -517,44 +517,44 @@ kubectl.exe
 
 ---
 
-# Безопасность
+# Р‘РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ
 
-В проекте приняты следующие правила:
+Р’ РїСЂРѕРµРєС‚Рµ РїСЂРёРЅСЏС‚С‹ СЃР»РµРґСѓСЋС‰РёРµ РїСЂР°РІРёР»Р°:
 
-- backend слушает только `127.0.0.1`;
-- desktop и backend используют локальный session token;
-- доступ к Kubernetes выполняется через локальный `kubectl`;
-- kubeconfig-файлы копируются в `%APPDATA%\KubeDeck\kubeconfigs`;
-- Secrets не должны сохраняться в логах;
-- portable-сборка не должна содержать `kubectl.exe`;
-- опасные действия требуют подтверждения в UI.
-
----
-
-# Smoke test после сборки
-
-После сборки проверь:
-
-1. Запускается portable `.exe`.
-2. Settings открываются.
-3. Путь до `kubectl` корректный.
-4. kubeconfig импортируется.
-5. Кластер открывается.
-6. Namespace выбирается.
-7. Pods/Deployments/Services/Events отображаются.
-8. Pod drawer открывается.
-9. YAML отображается.
-10. Describe работает.
-11. Logs работают.
-12. Deployment logs работают.
-13. Problems dashboard открывается.
-14. В release-директории нет `kubectl.exe`.
+- backend СЃР»СѓС€Р°РµС‚ С‚РѕР»СЊРєРѕ `127.0.0.1`;
+- desktop Рё backend РёСЃРїРѕР»СЊР·СѓСЋС‚ Р»РѕРєР°Р»СЊРЅС‹Р№ session token;
+- РґРѕСЃС‚СѓРї Рє Kubernetes РІС‹РїРѕР»РЅСЏРµС‚СЃСЏ С‡РµСЂРµР· Р»РѕРєР°Р»СЊРЅС‹Р№ `kubectl`;
+- kubeconfig-С„Р°Р№Р»С‹ РєРѕРїРёСЂСѓСЋС‚СЃСЏ РІ `%APPDATA%\KubeDeck\kubeconfigs`;
+- Secrets РЅРµ РґРѕР»Р¶РЅС‹ СЃРѕС…СЂР°РЅСЏС‚СЊСЃСЏ РІ Р»РѕРіР°С…;
+- portable-СЃР±РѕСЂРєР° РЅРµ РґРѕР»Р¶РЅР° СЃРѕРґРµСЂР¶Р°С‚СЊ `kubectl.exe`;
+- РѕРїР°СЃРЅС‹Рµ РґРµР№СЃС‚РІРёСЏ С‚СЂРµР±СѓСЋС‚ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ РІ UI.
 
 ---
 
-# Команды для разработчика
+# Smoke test РїРѕСЃР»Рµ СЃР±РѕСЂРєРё
 
-## Установка зависимостей
+РџРѕСЃР»Рµ СЃР±РѕСЂРєРё РїСЂРѕРІРµСЂСЊ:
+
+1. Р—Р°РїСѓСЃРєР°РµС‚СЃСЏ portable `.exe`.
+2. Settings РѕС‚РєСЂС‹РІР°СЋС‚СЃСЏ.
+3. РџСѓС‚СЊ РґРѕ `kubectl` РєРѕСЂСЂРµРєС‚РЅС‹Р№.
+4. kubeconfig РёРјРїРѕСЂС‚РёСЂСѓРµС‚СЃСЏ.
+5. РљР»Р°СЃС‚РµСЂ РѕС‚РєСЂС‹РІР°РµС‚СЃСЏ.
+6. Namespace РІС‹Р±РёСЂР°РµС‚СЃСЏ.
+7. Pods/Deployments/Services/Events РѕС‚РѕР±СЂР°Р¶Р°СЋС‚СЃСЏ.
+8. Pod drawer РѕС‚РєСЂС‹РІР°РµС‚СЃСЏ.
+9. YAML РѕС‚РѕР±СЂР°Р¶Р°РµС‚СЃСЏ.
+10. Describe СЂР°Р±РѕС‚Р°РµС‚.
+11. Logs СЂР°Р±РѕС‚Р°СЋС‚.
+12. Deployment logs СЂР°Р±РѕС‚Р°СЋС‚.
+13. Problems dashboard РѕС‚РєСЂС‹РІР°РµС‚СЃСЏ.
+14. Р’ release-РґРёСЂРµРєС‚РѕСЂРёРё РЅРµС‚ `kubectl.exe`.
+
+---
+
+# РљРѕРјР°РЅРґС‹ РґР»СЏ СЂР°Р·СЂР°Р±РѕС‚С‡РёРєР°
+
+## РЈСЃС‚Р°РЅРѕРІРєР° Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№
 
 ```powershell
 npm.cmd ci --no-audit --no-fund
@@ -579,7 +579,7 @@ npm.cmd run build
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
 ```
 
-## Git commit после изменения README
+## Git commit РїРѕСЃР»Рµ РёР·РјРµРЅРµРЅРёСЏ README
 
 ```powershell
 git status
@@ -587,3 +587,4 @@ git add README.md scripts/setup-windows.ps1
 git commit -m "docs: add full Windows setup guide"
 git push
 ```
+

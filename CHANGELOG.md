@@ -1,3 +1,8 @@
+﻿## 1.1.2 - Windows portable builder cleanup
+
+- Added a canonical Windows portable builder.
+- Updated package:win to use scripts/build-portable-windows.ps1.
+- Converted package-windows.ps1 and build.bat into wrappers for the canonical builder.
 ## 1.1.1 - Related and namespace selector hotfix
 - Fixed Related tab diagnostics and relation chips layout so scanned sources and badges render as compact UI elements instead of loose text.
 - Preserved the last selected namespaced namespace when navigating to cluster-scoped resources and returning back to namespaced resource sections.
@@ -205,7 +210,7 @@
 - Kept drawer/resource tabs scrollable without forcing the drawer off-screen.
 - Rebalanced YAML editor height so it stays usable without turning into a tiny block.
 
-## 2026-06-02 — 1.0.5 Secret tab resource-text hotfix
+## 2026-06-02 вЂ” 1.0.5 Secret tab resource-text hotfix
 
 - Fixed TypeScript build error in `PodDrawer.tsx` after adding the Secret tab.
 - Secret tab is now excluded from the generic YAML/Describe `resourceText()` loader.
@@ -303,4 +308,5 @@
 - Restored visible YAML editor content after the drawer fill-layout change.
 - Kept the drawer outer scrollbar suppressed while allowing YAML to scroll inside the editor.
 - Did not change backend, dependencies, package manifests, or application version.
+
 

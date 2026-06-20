@@ -1,7 +1,7 @@
 {
   "name": "@kubedeck/desktop",
   "productName": "KubeDeck",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "main": "dist/main/main.js",
   "scripts": {
