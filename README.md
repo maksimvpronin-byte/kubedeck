@@ -4,7 +4,7 @@ KubeDeck — Windows desktop Kubernetes IDE.
 
 Проект предназначен для удобной работы с Kubernetes-кластерами из Windows-приложения без необходимости вручную запускать длинные `kubectl`-команды.
 
-Текущая версия проекта: **1.1.0**.
+Текущая версия проекта: **1.1.1**.
 
 ---
 
@@ -73,9 +73,9 @@ Backend запускается локально вместе с desktop-прил
 
 ## Local LLM diagnostics
 
-KubeDeck 1.1.0 can connect to a local OpenAI-compatible Chat Completions API and add manual diagnostics in the resource drawer LLM tab.
+KubeDeck 1.1.1 can connect to a local OpenAI-compatible Chat Completions API and add manual diagnostics in the resource drawer LLM tab.
 
-- Supported provider for 1.1.0: `openai_compatible`.
+- Supported provider for 1.1.1: `openai_compatible`.
 - LM Studio example: `http://127.0.0.1:1234/v1`.
 - Ollama OpenAI-compatible example: `http://127.0.0.1:11434/v1`.
 - API token is optional. If it is empty, KubeDeck does not send an `Authorization` header.
@@ -135,7 +135,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -Clone -Build
 После успешной сборки portable-файл будет здесь:
 
 ```text
-%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.1.0-x64.exe
+%USERPROFILE%\KubeDeck\apps\desktop\release\KubeDeck-Portable-1.1.1-x64.exe
 ```
 
 Запусти его двойным кликом.
@@ -147,7 +147,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -Clone -Build
 Если репозиторий уже есть на диске, например:
 
 ```text
-C:\Users\Fidel\Kubedeck-agent 1.1.0
+C:\Users\Fidel\Kubedeck-agent 1.1.1
 ```
 
 Открой PowerShell в этой папке и выполни:
@@ -284,7 +284,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-1.1.0-x64.exe
+apps\desktop\release\KubeDeck-Portable-1.1.1-x64.exe
 ```
 
 ---

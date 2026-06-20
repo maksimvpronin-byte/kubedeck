@@ -1,3 +1,7 @@
+## 1.1.1 - Related and namespace selector hotfix
+- Fixed Related tab diagnostics and relation chips layout so scanned sources and badges render as compact UI elements instead of loose text.
+- Preserved the last selected namespaced namespace when navigating to cluster-scoped resources and returning back to namespaced resource sections.
+- Bumped application, desktop and backend metadata to 1.1.1.
 ## 1.1.0 - Local LLM diagnostics
 
 - Added local OpenAI-compatible LLM integration with Settings -> LLM configuration.
