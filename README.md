@@ -278,7 +278,7 @@ KubeDeck хранит пользовательские данные здесь:
 npm.cmd ci --no-audit --no-fund
 py -3 -m pip install --user -r .\apps\backend\requirements.txt
 py -3 -m pip install --user pytest
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
 ```
 
 Результат:
@@ -319,7 +319,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5
 Проверка со сборкой portable:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
 ```
 
 Проверка включает:
@@ -351,7 +351,7 @@ kubedeck/
     ui/
   scripts/
     setup-windows.ps1
-    package-windows.ps1
+    build-portable-windows.ps1
     validate-1.0.5.ps1
     repair-7zip-bin.ps1
   docs/
@@ -482,7 +482,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\repair-7zip-bi
 Потом повтори сборку:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
 ```
 
 ---
@@ -576,7 +576,7 @@ npm.cmd run build
 ## Portable package
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
 ```
 
 ## Git commit после изменения README
