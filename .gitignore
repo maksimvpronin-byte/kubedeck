@@ -1,14 +1,16 @@
 # Dependencies
+
 node_modules/
 .pnpm-store/
 .yarn/
 .venv/
 .build-venv/
 venv/
-__pycache__/
+**pycache**/
 *.pyc
 
 # Build outputs
+
 build/
 dist/
 out/
@@ -19,70 +21,67 @@ apps/desktop/build/
 apps/desktop/dist/
 apps/desktop/release/
 apps/desktop/release-fixed/
+apps/desktop/build/backend/
+apps/desktop/build/backend.spec
 
 # Local binaries / packaged app
+
 kubectl.exe
+kubectl.exe.sha256
 *.msi
 *.dmg
 *.AppImage
 
 # Local/generated archives
+
 *.zip
 
-# Temporary review/patch artifacts
-project-tree.txt
-*_PATCH_NOTES.md
-PATCH-NOTES-*.md
-SECURITY_PATCH_NOTES.md
-*_HOTFIX_NOTES.md
-REFACTOR_HOTFIX_*_NOTES.md
-kubedeck-*-patch/
-kubedeck-review-*/
-apply-*-hotfix.ps1
-kubedeck_*_codex_prompt.md
-KubeDeck_*_Prompt.md
-*_Codex_Prompt.md
-
 # Runtime / local app data
+
 *.log
 *.pid
 .env
 .env.*
 !.env.example
 
-# IDE / OS
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-desktop.ini
+# Temporary review/patch artifacts
 
-# Python packaging
+project-tree.txt
+*_PATCH_NOTES.md
+PATCH-NOTES-*.md
+SECURITY_PATCH_NOTES.md
+**HOTFIX_NOTES.md
+REFACTOR_HOTFIX***NOTES.md
+kubedeck-*-patch/
+kubedeck-review-*/
+apply-*-hotfix.ps1
+kubedeck***codex_prompt.md
+KubeDeck**_Prompt.md
+*_Codex_Prompt.md
+
+# Local patch staging created by ChatGPT/KubeDeck patch scripts
+
+.kubedeck-patches/
+.kubedeck_patch_backup/
+*backup_patch**/
+*backup_manual**/
+
+# Local Graphify analysis artifacts
+
+graphify-out/
+
+# Python packaging / cache
+
 *.spec
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
-# Local backups created by patch scripts
-_backup_patch_*/
-_backup_manual_*/
+# IDE / OS
 
-# KubeDeck local build artifacts
-apps/desktop/dist/
-apps/desktop/release/
-apps/desktop/build/backend/
-apps/desktop/build/backend.spec
-.build-venv/
-node_modules/
-
-# Local kubectl binaries should not be committed
-kubectl.exe
-kubectl.exe.sha256
-
-# Local patch staging created by ChatGPT/KubeDeck patch scripts
-.kubedeck-patches/
-.kubedeck_patch_backup/
-
-# Local Graphify analysis artifacts
-graphify-out/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
