@@ -436,7 +436,7 @@ function defaultColumnWidth(key: string) {
     reason: 150,
     cpuUsage: 80,
     memoryUsage: 100,
-  };
+  namespaceResources: 260, };
   return widths[key] ?? 120;
 }
 

@@ -98,6 +98,11 @@ export function App() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
   const keepDrawerSelection = useRef(false);
+  const lastNamespacedSelectionRef = useRef<string[]>(
+    initialSelectedNamespaces.length > 0 && !initialSelectedNamespaces.includes("_cluster")
+      ? initialSelectedNamespaces
+      : ["all"],
+  );
   const loadResourcesRef = useRef<number | null>(null);
   const resourceLoadAbortRef = useRef<AbortController | null>(null);
   const resourceLoadSeqRef = useRef(0);
@@ -119,6 +124,19 @@ export function App() {
     onError: setError,
   });
   const namespace = selectedNamespaces.length === 1 ? selectedNamespaces[0] : selectedNamespaces.join(",");
+
+  useEffect(() => {
+    if (selectedNamespaces.length > 0 && !selectedNamespaces.includes("_cluster")) {
+      lastNamespacedSelectionRef.current = selectedNamespaces;
+    }
+  }, [selectedNamespaces]);
+
+  function restoreLastNamespacedSelection() {
+    const remembered = lastNamespacedSelectionRef.current.length > 0
+      ? lastNamespacedSelectionRef.current
+      : ["all"];
+    setNamespaceSelection(remembered);
+  }
   const {
     query: globalSearch,
     setQuery: setGlobalSearch,
@@ -210,6 +228,7 @@ export function App() {
       setError(null);
     } catch (err) {
       setError(asErrorInfo(err));
+      throw err;
     }
   }
 
@@ -442,8 +461,12 @@ useEffect(() => {
     const nextSection = sectionForResource(resource) ?? (locator.crdInstance ? "crd" : "workloads");
     const locatorNamespace = String(locator.namespace || "");
     const nextNamespace = definition && !definition.namespaced
-      ? "_cluster"
-      : locatorNamespace || (namespace === "_cluster" ? "all" : namespace || "all");
+    ? "_cluster"
+    : locatorNamespace && locatorNamespace !== "_cluster"
+      ? locatorNamespace
+      : namespace === "_cluster"
+        ? (lastNamespacedSelectionRef.current.length === 1 ? lastNamespacedSelectionRef.current[0] : "all")
+        : namespace || "all";
 
     setSection(nextSection);
     if (resourceTree[nextSection]) {
@@ -453,8 +476,13 @@ useEffect(() => {
     setResourceTab(resource);
     setSelectedResource(resource);
     setSelectedPod(locator);
-    if (definition && !definition.namespaced) setNamespaceSelection("_cluster");
-    else if (nextNamespace && nextNamespace !== "all") setNamespaceSelection(nextNamespace);
+    if (definition && !definition.namespaced) {
+    setNamespaceSelection("_cluster");
+  } else if (nextNamespace && nextNamespace !== "all") {
+    setNamespaceSelection(nextNamespace);
+  } else if (selectedNamespaces.includes("_cluster")) {
+    restoreLastNamespacedSelection();
+  }
 
     try {
       const response = await api.resources(activeCluster.id, resource, nextNamespace);
@@ -689,26 +717,65 @@ async function copyBulkDeleteList() {
   }
 
   function selectSection(next: Section) {
-    setSection(next);
-    if (resourceTree[next]) {
-      setExpandedSections((current) => new Set(current).add(next));
-    }
-    if (next === "nodes") {
-      setResourceTab("nodes");
-      setNamespaceSelection("_cluster");
-    }
-    if (next === "namespaces") setResourceTab("namespaces");
-    if (next === "rbac") setResourceTab("serviceaccounts");
-    if (next === "workloads") setResourceTab("pods");
-    if (next === "network") setResourceTab("services");
-    if (next === "storage") setResourceTab("persistentvolumeclaims");
-    if (next === "config") setResourceTab("configmaps");
-    if (next === "crd") {
-      setResourceTab("customresourcedefinitions");
-      setNamespaceSelection("_cluster");
-    }
-    if (next === "events") setResourceTab("events");
+  setSection(next);
+
+  if (resourceTree[next]) {
+    setExpandedSections((current) => new Set(current).add(next));
   }
+
+  if (next === "nodes") {
+    setResourceTab("nodes");
+    setNamespaceSelection("_cluster");
+    return;
+  }
+
+  if (next === "namespaces") {
+    setResourceTab("namespaces");
+    setNamespaceSelection("_cluster");
+    return;
+  }
+
+  if (next === "crd") {
+    setResourceTab("customresourcedefinitions");
+    setNamespaceSelection("_cluster");
+    return;
+  }
+
+  if (next === "rbac") {
+    setResourceTab("serviceaccounts");
+    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    return;
+  }
+
+  if (next === "workloads") {
+    setResourceTab("pods");
+    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    return;
+  }
+
+  if (next === "network") {
+    setResourceTab("services");
+    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    return;
+  }
+
+  if (next === "storage") {
+    setResourceTab("persistentvolumeclaims");
+    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    return;
+  }
+
+  if (next === "config") {
+    setResourceTab("configmaps");
+    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    return;
+  }
+
+  if (next === "events") {
+    setResourceTab("events");
+    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+  }
+}
 
   function toggleSection(sectionId: Section) {
     setExpandedSections((current) => {
@@ -742,8 +809,11 @@ async function copyBulkDeleteList() {
       return;
     }
     const definition = findResourceDefinition(resourceDefinitions, resource);
-    if (definition && !definition.namespaced) setNamespaceSelection("_cluster");
-    else if (namespace === "_cluster") setNamespaceSelection("all");
+    if (definition && !definition.namespaced) {
+    setNamespaceSelection("_cluster");
+  } else if (selectedNamespaces.includes("_cluster")) {
+    restoreLastNamespacedSelection();
+  }
   }
 
   function openGlobalSearchResult(result: GlobalSearchItem) {
@@ -853,11 +923,7 @@ async function copyBulkDeleteList() {
       { key: "kubeletVersion", label: t("col.kubernetes") },
       { key: "createdAt", label: t("col.age") },
     ],
-    namespaces: [
-      { key: "name", label: t("col.name") },
-      { key: "status", label: t("col.status") },
-      { key: "createdAt", label: t("col.age") },
-    ],
+    namespaces: [ { key: "name", label: t("col.name") }, { key: "status", label: t("col.status") }, { key: "namespaceResources", label: "CPU/RAM" }, { key: "createdAt", label: t("col.age") }, ],
     pods: [
       { key: "namespace", label: t("col.namespace") },
       { key: "name", label: t("col.name") },
@@ -1248,6 +1314,7 @@ async function copyBulkDeleteList() {
               onClose={() => setSelectedPod(null)}
               copyLabel={t("error.copy")}
               settings={settings}
+              t={t}
               labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
             />
           ) : null}

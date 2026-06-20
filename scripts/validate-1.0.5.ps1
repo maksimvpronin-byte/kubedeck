@@ -21,10 +21,10 @@ function Invoke-Checked {
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $ProjectRoot
 
-Write-Host "==> Validate KubeDeck 1.0.5 versions via node"
+Write-Host "==> Validate KubeDeck 1.1.0 versions via node"
 $VersionCheck = @'
 const fs = require('fs');
-const expected = '1.0.5';
+const expected = '1.1.0';
 function readJson(path) {
   return JSON.parse(fs.readFileSync(path, 'utf8'));
 }
@@ -74,4 +74,4 @@ if ($Package) {
     }
 }
 
-Write-Host "==> KubeDeck 1.0.5 validation completed"
+Write-Host "==> KubeDeck 1.1.0 validation completed"

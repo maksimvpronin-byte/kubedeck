@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Copy, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiClient, ApiError } from "../api";
 import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, RelatedLink, ResourceRow, Settings } from "../types";
@@ -11,13 +11,14 @@ import { DescribeTab } from "./DescribeTab";
 import { EventsTab } from "./EventsTab";
 import { RelatedTab } from "./RelatedTab";
 import { SecretTab } from "./SecretTab";
+import { LlmTab } from "./LlmTab";
 import { PortForwardModal, defaultPortForwardDraft, supportsPortForward } from "./PortForwardModal";
 import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, actionLabel, supportedActions, type ResourceAction } from "./PodDrawerModals";
 import { useUiClock } from "../hooks/useUiClock";
 import { ResourceSummary } from "./ResourceSummary";
 import { containerNames, displayResource, downloadTextFile, eventTargetForOpen, formatOperationError, isAbortError } from "./podDrawerHelpers";
 
-type DrawerTab = "summary" | "yaml" | "describe" | "logs" | "events" | "related" | "terminal" | "secret";
+type DrawerTab = "summary" | "llm" | "yaml" | "describe" | "logs" | "events" | "related" | "terminal" | "secret";
 interface Props {
   api: ApiClient;
   clusterId: string;
@@ -32,6 +33,7 @@ interface Props {
   onClose: () => void;
   copyLabel: string;
   settings?: Settings;
+  t: (key: string) => string;
   labels: {
     summary: string;
     yaml: string;
@@ -40,9 +42,11 @@ interface Props {
   };
 }
 
-export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onClose, copyLabel, labels, settings }: Props) {
+export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onClose, copyLabel, labels, settings, t }: Props) {
   const [tab, setTab] = useState<DrawerTab>("summary");
   const [content, setContent] = useState("");
+  const [describeContent, setDescribeContent] = useState("");
+  const [logsContent, setLogsContent] = useState("");
   const [yamlBaseline, setYamlBaseline] = useState("");
   const [yamlDraft, setYamlDraft] = useState("");
   const [yamlObjectKey, setYamlObjectKey] = useState("");
@@ -79,6 +83,13 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   const [logsPodFilter, setLogsPodFilter] = useState("");
   const [deploymentLogPods, setDeploymentLogPods] = useState<string[]>([]);
   const [deploymentLogContainers, setDeploymentLogContainers] = useState<string[]>([]);
+  const [llmLoading, setLlmLoading] = useState(false);
+  const [llmError, setLlmError] = useState<ErrorInfo | null>(null);
+  const [llmAnswer, setLlmAnswer] = useState("");
+  const [llmModel, setLlmModel] = useState("");
+  const [llmElapsedMs, setLlmElapsedMs] = useState(0);
+  const [llmContextChars, setLlmContextChars] = useState(0);
+  const [llmTruncated, setLlmTruncated] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
 
   const podUid = pod?.uid ? String(pod.uid) : "";
@@ -116,6 +127,8 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setLogsPodFilter("");
     setDeploymentLogPods([]);
     setDeploymentLogContainers([]);
+    setDescribeContent("");
+    setLogsContent("");
     setYamlBaseline("");
     setYamlDraft("");
     setYamlObjectKey("");
@@ -125,11 +138,18 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setRelatedSources({});
     setRelatedErrors([]);
     setEvents([]);
+    setLlmLoading(false);
+    setLlmError(null);
+    setLlmAnswer("");
+    setLlmModel("");
+    setLlmElapsedMs(0);
+    setLlmContextChars(0);
+    setLlmTruncated(false);
     setTab((current) => current === "terminal" ? "summary" : current);
   }, [pod?.uid, resource]);
 
   useEffect(() => {
-    if (!pod || tab === "summary" || tab === "events" || tab === "related" || tab === "terminal" || tab === "logs" || tab === "secret") {
+    if (!pod || tab === "summary" || tab === "llm" || tab === "events" || tab === "related" || tab === "terminal" || tab === "logs" || tab === "secret") {
       if (tab !== "yaml") setError(null);
       return;
     }
@@ -155,6 +175,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
           setYamlObjectKey(currentObjectKey);
         } else {
           setContent(text);
+          if (tab === "describe") setDescribeContent(text);
         }
       })
       .catch((err) => {
@@ -194,6 +215,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
         .then((text) => {
           if (controller.signal.aborted || typeof text !== "string") return;
           setContent((current) => current === text ? current : text);
+          setLogsContent((current) => current === text ? current : text);
         })
         .catch((err) => {
           if (isAbortError(err)) return;
@@ -215,6 +237,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       .then((text) => {
         if (controller.signal.aborted) return;
         setContent((current) => current === text ? current : text);
+        setLogsContent((current) => current === text ? current : text);
       })
       .catch((err) => {
         if (isAbortError(err)) return;
@@ -515,6 +538,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   const yamlReadOnly = isCrdDefinitionResource;
   const drawerTabs = [
     "summary",
+    "llm",
     ...(resource === "events" ? [] : ["related"]),
     ...(isSecretResource ? ["secret"] : []),
     "yaml",
@@ -545,7 +569,18 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       <header>
         <div>
           <span>{displayResource(resource)} · {namespaceText}</span>
-          <h2>{pod.name}</h2>
+          <div className="drawer-title-row">
+            <h2>{pod.name}</h2>
+            <button
+              type="button"
+              className="icon-button drawer-copy-name-button"
+              onClick={() => copyText(`${resource}/${pod.name}`, "Name copied")}
+              title="Copy resource name"
+              aria-label="Copy resource name"
+            >
+              <Copy size={15} />
+            </button>
+          </div>
         </div>
         <button className="icon-button" onClick={requestClose} title="Close">
           <X size={18} />
@@ -554,11 +589,11 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       <nav className="drawer-tabs">
         {drawerTabs.map((item) => (
           <button className={tab === item ? "active" : ""} onClick={() => setTab(item)} key={item}>
-            {item === "events" ? "Events" : item === "related" ? "Related" : item === "terminal" ? (isNodeResource ? "SSH" : "Terminal") : item === "secret" ? "Secret" : labels[item]}
+            {item === "events" ? "Events" : item === "related" ? "Related" : item === "terminal" ? (isNodeResource ? "SSH" : "Terminal") : item === "secret" ? "Secret" : item === "llm" ? t("llm.title") : labels[item]}
           </button>
         ))}
       </nav>
-      <div className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" ? "drawer-content drawer-content-fill" : "drawer-content"}>
+      <div className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
         <div className="drawer-actions">
           {actions.map((action) => (
             <button key={action} className={action === "delete" ? "danger" : "icon-text"} disabled={loading} onClick={() => setPendingAction(action)}>
@@ -588,7 +623,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
               Open involved object
             </button>
           ) : null}
-          <button className="icon-text" onClick={() => copyText(`${resource}/${pod.name}`, "Name copied")}>Copy name</button>
           {applyResult ? <span>{applyResult}</span> : null}
         </div>
         {isCrdDefinitionResource ? (
@@ -604,6 +638,38 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
         ) : null}
         {tab === "summary" ? (
           <ResourceSummary row={pod} resource={resource} now={now} />
+        ) : tab === "llm" ? (
+          <LlmTab
+            api={api}
+            clusterId={clusterId}
+            resource={resource}
+            row={pod}
+            settings={settings}
+            yaml={yamlDraft || yamlBaseline}
+            describe={describeContent}
+            logs={logsContent}
+            events={events}
+            relatedLinks={relatedLinks}
+            loading={llmLoading}
+            answer={llmAnswer}
+            model={llmModel}
+            elapsedMs={llmElapsedMs}
+            contextChars={llmContextChars}
+            truncated={llmTruncated}
+            error={llmError}
+            copyLabel={copyLabel}
+            t={t}
+            onLoadingChange={setLlmLoading}
+            onAnswer={(result) => {
+              setLlmAnswer(result.answer);
+              setLlmModel(result.model);
+              setLlmElapsedMs(result.elapsedMs);
+              setLlmContextChars(result.contextChars);
+              setLlmTruncated(result.truncated);
+            }}
+            onError={setLlmError}
+            onCopy={copyText}
+          />
         ) : tab === "related" ? (
           <RelatedTab
             pod={pod}

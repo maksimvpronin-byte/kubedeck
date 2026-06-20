@@ -4,9 +4,61 @@ export type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
 
 export interface LlmSettings {
   enabled: boolean;
+  provider: "openai_compatible";
   baseUrl: string;
   model: string;
-  apiKeyRef: string;
+  apiKey: string;
+  temperature: number;
+  timeoutSeconds: number;
+  maxContextChars: number; maxOutputTokens: number;
+}
+
+export interface LlmStatus {
+  enabled: boolean;
+  configured: boolean;
+  provider: "openai_compatible";
+  baseUrl: string;
+  model: string;
+}
+
+export interface LlmTestResponse {
+  ok: boolean;
+  message: string;
+  code?: string;
+  model?: string;
+  elapsedMs?: number;
+  status: LlmStatus;
+}
+
+export interface LlmAnalyzeResourceRequest {
+  clusterId: string;
+  resource: string;
+  kind?: string;
+  namespace?: string;
+  name: string;
+  resourceObject: Record<string, unknown>;
+  yaml?: string;
+  events?: ResourceRow[];
+  describe?: string;
+  logs?: string;
+  previousLogs?: string;
+  relatedResources?: RelatedLink[];
+  userRequest?: string;
+  language?: string;
+}
+
+export interface LlmAnalyzeResourceResponse {
+  answer: string;
+  model: string;
+  elapsedMs: number;
+  contextChars: number;
+  truncated: boolean; maxOutputTokens: number;
+}
+export interface LlmPromptPreviewResponse {
+  messages: Array<{ role: string; content: string }>;
+  context: string;
+  contextChars: number;
+  truncated: boolean; maxOutputTokens: number;
 }
 
 export type SshAuthMethod = "agent" | "password" | "privateKey";
@@ -75,6 +127,7 @@ export interface BackendInfo {
     logsTailLines: number;
     language: string;
     theme: string;
+    llm?: LlmStatus;
     ssh?: SshSettings;
   };
   clusters: number;

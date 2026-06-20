@@ -1,4 +1,4 @@
-# Dependencies
+﻿# Dependencies
 node_modules/
 .pnpm-store/
 .yarn/
@@ -19,22 +19,18 @@ apps/desktop/build/
 apps/desktop/dist/
 apps/desktop/release/
 apps/desktop/release-fixed/
+apps/desktop/build/backend/
+apps/desktop/build/backend.spec
 
 # Local binaries / packaged app
 kubectl.exe
+kubectl.exe.sha256
 *.msi
 *.dmg
 *.AppImage
 
 # Local/generated archives
 *.zip
-
-# Temporary review/patch artifacts
-project-tree.txt
-*_PATCH_NOTES.md
-SECURITY_PATCH_NOTES.md
-kubedeck-*-patch/
-kubedeck-review-*/
 
 # Runtime / local app data
 *.log
@@ -43,35 +39,39 @@ kubedeck-review-*/
 .env.*
 !.env.example
 
-# IDE / OS
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-desktop.ini
+# Temporary review/patch artifacts
+project-tree.txt
+*_PATCH_NOTES.md
+PATCH-NOTES-*.md
+SECURITY_PATCH_NOTES.md
+*_HOTFIX_NOTES.md
+REFACTOR_HOTFIX_*_NOTES.md
+kubedeck-*-patch/
+kubedeck-review-*/
+apply-*-hotfix.ps1
+kubedeck_*_codex_prompt.md
+KubeDeck_*_Prompt.md
+*_Codex_Prompt.md
 
-# Python packaging
+# Local patch staging created by ChatGPT/KubeDeck patch scripts
+.kubedeck-patches/
+.kubedeck_patch_backup/
+_backup_patch_*/
+_backup_manual_*/
+
+# Local Graphify analysis artifacts
+graphify-out/
+
+# Python packaging / cache
 *.spec
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
-# Local backups created by patch scripts
-_backup_patch_*/
-_backup_manual_*/
-
-# KubeDeck local build artifacts
-apps/desktop/dist/
-apps/desktop/release/
-apps/desktop/build/backend/
-apps/desktop/build/backend.spec
-.build-venv/
-node_modules/
-
-# Local kubectl binaries should not be committed
-kubectl.exe
-kubectl.exe.sha256
-
-# Local patch staging created by ChatGPT/KubeDeck patch scripts
-.kubedeck-patches/
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

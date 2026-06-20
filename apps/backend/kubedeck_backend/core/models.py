@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -16,9 +16,14 @@ def utc_now() -> str:
 
 class LlmSettings(BaseModel):
     enabled: bool = False
+    provider: Literal["openai_compatible"] = "openai_compatible"
     baseUrl: str = ""
     model: str = ""
-    apiKeyRef: str = ""
+    apiKey: str = ""
+    temperature: float = 0.2
+    timeoutSeconds: int = 60
+    maxContextChars: int = 60000
+    maxOutputTokens: int = 4096
 
 
 SshAuthMethod = Literal["agent", "password", "privateKey"]
@@ -130,3 +135,33 @@ class PortForwardStartRequest(BaseModel):
     # localPort=0 means "auto-pick a free high local port".
     localPort: int = 0
     remotePort: int
+
+
+class LlmTestRequest(BaseModel):
+    settings: LlmSettings | None = None
+
+
+class LlmAnalyzeResourceRequest(BaseModel):
+    clusterId: str
+    resource: str
+    kind: str | None = None
+    namespace: str | None = None
+    name: str
+    resourceObject: dict[str, Any] = Field(default_factory=dict)
+    yaml: str = ""
+    events: list[Any] = Field(default_factory=list)
+    describe: str = ""
+    logs: str = ""
+    previousLogs: str = ""
+    relatedResources: list[Any] = Field(default_factory=list)
+    userRequest: str | None = None
+    language: str | None = None
+
+
+class LlmAnalyzeResourceResponse(BaseModel):
+    answer: str
+    model: str
+    elapsedMs: int
+    contextChars: int
+    truncated: bool
+    maxOutputTokens: int

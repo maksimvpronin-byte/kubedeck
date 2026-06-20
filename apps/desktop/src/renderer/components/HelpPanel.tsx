@@ -20,7 +20,7 @@ export function HelpPanel({ t }: { t: (key: string) => string }) {
             <dt>{t("help.name")}</dt>
             <dd>KubeDeck</dd>
             <dt>{t("help.version")}</dt>
-            <dd>1.0.3</dd>
+            <dd>1.1.1</dd>
             <dt>{t("help.author")}</dt>
             <dd>Пронин Максим</dd>
             <dt>{t("help.project")}</dt>

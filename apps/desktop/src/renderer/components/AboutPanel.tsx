@@ -97,7 +97,7 @@ export function AboutPanel({
       <div className="about-grid">
         <AboutCard title={t("about.application")}>
           <InfoRow label={t("about.name")} value={desktopInfo?.appName || "KubeDeck"} />
-          <InfoRow label={t("about.version")} value={desktopInfo?.appVersion || "1.0.3"} />
+          <InfoRow label={t("about.version")} value={desktopInfo?.appVersion || "1.1.0"} />
           <InfoRow label={t("about.mode")} value={desktopInfo?.isPackaged ? t("about.packaged") : t("about.development")} />
           <InfoRow label={t("about.platform")} value={desktopInfo ? `${desktopInfo.platform}/${desktopInfo.arch}` : "-"} />
         </AboutCard>

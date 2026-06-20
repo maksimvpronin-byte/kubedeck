@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from .routes_audit import router as audit_router
 from .routes_clusters import router as clusters_router
 from .routes_core import router as core_router
+from .routes_llm import router as llm_router
 from .routes_pods import router as pods_router
 from .routes_port_forward import router as port_forward_router
 from .routes_problems import router as problems_router
@@ -22,6 +23,7 @@ router = APIRouter()
 # existed in the old monolithic routes.py file.
 for subrouter in (
     core_router,
+    llm_router,
     audit_router,
     clusters_router,
     port_forward_router,

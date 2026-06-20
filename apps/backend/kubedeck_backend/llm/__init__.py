@@ -1,1 +1,1 @@
-# TODO: Foundation placeholder for the future LLM bridge.
+"""Local LLM integration helpers."""

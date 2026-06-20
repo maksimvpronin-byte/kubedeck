@@ -10,6 +10,167 @@ from .workload_logs import deployment_log_targets, deployment_logs_text
 
 router = APIRouter()
 
+# KubeDeck 1.1.1 namespace CPU/RAM usage enrichment.
+def _kubedeck_cpu_to_millicores(value: Any) -> int | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("m"):
+            return int(float(text[:-1]))
+        if text.endswith("u"):
+            return int(float(text[:-1]) / 1000)
+        if text.endswith("n"):
+            return int(float(text[:-1]) / 1000000)
+        return int(float(text) * 1000)
+    except (TypeError, ValueError):
+        return None
+
+
+def _kubedeck_memory_to_bytes(value: Any) -> int | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    units = {
+        "Ki": 1024,
+        "Mi": 1024 ** 2,
+        "Gi": 1024 ** 3,
+        "Ti": 1024 ** 4,
+        "Pi": 1024 ** 5,
+        "Ei": 1024 ** 6,
+        "K": 1000,
+        "M": 1000 ** 2,
+        "G": 1000 ** 3,
+        "T": 1000 ** 4,
+        "P": 1000 ** 5,
+        "E": 1000 ** 6,
+    }
+    try:
+        for suffix, multiplier in units.items():
+            if text.endswith(suffix):
+                return int(float(text[: -len(suffix)]) * multiplier)
+        return int(float(text))
+    except (TypeError, ValueError):
+        return None
+
+
+def _kubedeck_format_cpu(millicores: int | None) -> str:
+    if millicores is None:
+        return "N/A"
+    if millicores == 0:
+        return "0m"
+    if millicores % 1000 == 0:
+        return str(millicores // 1000)
+    return f"{millicores}m"
+
+
+def _kubedeck_format_memory(bytes_value: int | None) -> str:
+    if bytes_value is None:
+        return "N/A"
+    if bytes_value == 0:
+        return "0Mi"
+    for suffix, multiplier in (("Gi", 1024 ** 3), ("Mi", 1024 ** 2), ("Ki", 1024)):
+        if bytes_value >= multiplier and bytes_value % multiplier == 0:
+            return f"{bytes_value // multiplier}{suffix}"
+    if bytes_value >= 1024 ** 2:
+        return f"{round(bytes_value / (1024 ** 2), 1)}Mi"
+    if bytes_value >= 1024:
+        return f"{round(bytes_value / 1024, 1)}Ki"
+    return f"{bytes_value}B"
+
+
+def _kubedeck_namespace_top_pod_usage(cluster_id: str) -> tuple[dict[str, dict[str, int]], bool]:
+    usage: dict[str, dict[str, int]] = {}
+    try:
+        stdout = runner.run(
+            cluster_command(
+                cluster_id,
+                ["top", "pods", "-A", "--no-headers"],
+                timeout=30,
+                max_output_bytes=TEXT_MAX_OUTPUT_BYTES,
+            )
+        ).stdout
+    except KubectlError:
+        return usage, False
+    for line in stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        namespace = parts[0]
+        cpu = _kubedeck_cpu_to_millicores(parts[-2])
+        memory = _kubedeck_memory_to_bytes(parts[-1])
+        bucket = usage.setdefault(namespace, {"cpu": 0, "memory": 0})
+        if cpu is not None:
+            bucket["cpu"] += cpu
+        if memory is not None:
+            bucket["memory"] += memory
+    return usage, True
+
+
+def _kubedeck_namespace_quota_hard(cluster_id: str) -> dict[str, dict[str, int | None]]:
+    quota: dict[str, dict[str, int | None]] = {}
+    try:
+        data = runner.run_json(
+            cluster_command(
+                cluster_id,
+                ["get", "resourcequota", "-A", "-o", "json"],
+                timeout=30,
+                max_output_bytes=RESOURCE_JSON_MAX_OUTPUT_BYTES,
+            )
+        )
+    except KubectlError:
+        return quota
+    for item in data.get("items", []):
+        namespace = ((item.get("metadata") or {}).get("namespace") or "").strip()
+        if not namespace:
+            continue
+        hard = (item.get("status") or {}).get("hard") or {}
+        cpu_value = None
+        memory_value = None
+        for key in ("limits.cpu", "requests.cpu", "cpu"):
+            cpu_value = _kubedeck_cpu_to_millicores(hard.get(key))
+            if cpu_value is not None:
+                break
+        for key in ("limits.memory", "requests.memory", "memory"):
+            memory_value = _kubedeck_memory_to_bytes(hard.get(key))
+            if memory_value is not None:
+                break
+        bucket = quota.setdefault(namespace, {"cpu": None, "memory": None})
+        if cpu_value is not None:
+            bucket["cpu"] = cpu_value if bucket["cpu"] is None else int(bucket["cpu"] or 0) + cpu_value
+        if memory_value is not None:
+            bucket["memory"] = memory_value if bucket["memory"] is None else int(bucket["memory"] or 0) + memory_value
+    return quota
+
+
+def apply_namespace_resource_usage(cluster_id: str, summaries: list[dict[str, Any]]) -> None:
+    usage, metrics_available = _kubedeck_namespace_top_pod_usage(cluster_id)
+    quota = _kubedeck_namespace_quota_hard(cluster_id)
+    for row in summaries:
+        namespace = str(row.get("name") or row.get("namespace") or "")
+        used = usage.get(namespace, {"cpu": 0, "memory": 0})
+        hard = quota.get(namespace, {"cpu": None, "memory": None})
+        used_cpu = used.get("cpu") if metrics_available else None
+        used_memory = used.get("memory") if metrics_available else None
+        hard_cpu = hard.get("cpu")
+        hard_memory = hard.get("memory")
+        cpu_quota = _kubedeck_format_cpu(hard_cpu) if hard_cpu is not None else "no quota"
+        memory_quota = _kubedeck_format_memory(hard_memory) if hard_memory is not None else "no quota"
+        metrics_suffix = "" if metrics_available else " (metrics N/A)"
+        row["namespaceCpuUsed"] = _kubedeck_format_cpu(used_cpu)
+        row["namespaceMemoryUsed"] = _kubedeck_format_memory(used_memory)
+        row["namespaceCpuQuota"] = cpu_quota
+        row["namespaceMemoryQuota"] = memory_quota
+        row["namespaceResources"] = (
+            f"CPU {_kubedeck_format_cpu(used_cpu)} / {cpu_quota}; "
+            f"RAM {_kubedeck_format_memory(used_memory)} / {memory_quota}{metrics_suffix}"
+        )
+
+
 
 def _run_resource_text_command(command: KubectlCommand) -> str:
     try:
@@ -72,6 +233,8 @@ def resources(
             summary.setdefault("apiVersion", "")
     if resource == "pods":
         apply_pod_metrics(cluster_id, namespace, summaries)
+    if resource == "namespaces":
+        apply_namespace_resource_usage(cluster_id, summaries)
     response = {"items": summaries, "rawCount": len(items), "cached": False}
     return set_cached_resource_list_response(cluster_id, resource, namespace, response)
 
