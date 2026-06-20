@@ -323,13 +323,7 @@ Dev-режим запускает:
 
 # Проверка проекта
 
-Проверка без сборки portable:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-1.0.5.ps1
-```
-
-Проверка со сборкой portable:
+Актуальная проверка и сборка portable выполняются через общий Windows build script:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
@@ -341,8 +335,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable
 - проверку backend Python-кода;
 - backend tests;
 - desktop TypeScript/Vite build;
-- проверку, что portable-сборка не содержит `kubectl.exe`;
-- optional packaging.
+- сборку portable `.exe`;
+- проверку, что portable-сборка не содержит `kubectl.exe`.
 
 ---
 
@@ -365,7 +359,6 @@ kubedeck/
   scripts/
     setup-windows.ps1
     build-portable-windows.ps1
-    validate-1.0.5.ps1
     repair-7zip-bin.ps1
   docs/
   README.md
@@ -542,6 +535,40 @@ kubectl.exe
 
 ---
 
+# Release notes 1.1.2
+
+## Документация
+
+- Исправлен `README.md`: восстановлены UTF-8, русская кириллица и нормальная Markdown-разметка.
+- Удалены устаревшие release/build notes из актуального сценария проверки.
+- Обновлены инструкции сборки portable через `scripts\build-portable-windows.ps1`.
+
+## Local LLM diagnostics
+
+- Добавлена интеграция с локальным OpenAI-compatible Chat Completions API.
+- Добавлены настройки локального LLM endpoint, модели и API token.
+- Добавлен ручной анализ ресурса из LLM tab в drawer.
+- Контекст перед отправкой очищается от sensitive data: Secret data, bearer tokens, passwords, private keys и похожие поля.
+- Анализ не запускается автоматически: пользователь явно нажимает `Analyze resource`.
+
+## Logs
+
+- Добавлен просмотр логов Deployment сразу по всем Pod выбранного Deployment.
+- Логи остаются ручной диагностической функцией и не требуют дополнительных серверных компонентов.
+
+## Portable build
+
+- Portable-сборка не должна содержать `kubectl.exe`.
+- Приложение использует системный `kubectl` из `PATH` или путь, заданный в Settings.
+
+## Smoke test
+
+- Обновлён чек-лист ручной проверки после сборки.
+- В smoke test добавлена проверка Deployment logs.
+- В smoke test сохранена проверка отсутствия `kubectl.exe` в release-директории.
+
+---
+
 # Smoke test после сборки
 
 После сборки проверь:
@@ -595,6 +622,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable
 ```powershell
 git status
 git add README.md
-git commit -m "docs: repair README encoding and markdown"
+git commit -m "docs: update README release notes for 1.1.2"
 git push
 ```
