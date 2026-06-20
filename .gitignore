@@ -1,16 +1,14 @@
-# Dependencies
-
+﻿# Dependencies
 node_modules/
 .pnpm-store/
 .yarn/
 .venv/
 .build-venv/
 venv/
-**pycache**/
+__pycache__/
 *.pyc
 
 # Build outputs
-
 build/
 dist/
 out/
@@ -25,7 +23,6 @@ apps/desktop/build/backend/
 apps/desktop/build/backend.spec
 
 # Local binaries / packaged app
-
 kubectl.exe
 kubectl.exe.sha256
 *.msi
@@ -33,11 +30,9 @@ kubectl.exe.sha256
 *.AppImage
 
 # Local/generated archives
-
 *.zip
 
 # Runtime / local app data
-
 *.log
 *.pid
 .env
@@ -45,33 +40,29 @@ kubectl.exe.sha256
 !.env.example
 
 # Temporary review/patch artifacts
-
 project-tree.txt
 *_PATCH_NOTES.md
 PATCH-NOTES-*.md
 SECURITY_PATCH_NOTES.md
-**HOTFIX_NOTES.md
-REFACTOR_HOTFIX***NOTES.md
+*_HOTFIX_NOTES.md
+REFACTOR_HOTFIX_*_NOTES.md
 kubedeck-*-patch/
 kubedeck-review-*/
 apply-*-hotfix.ps1
-kubedeck***codex_prompt.md
-KubeDeck**_Prompt.md
+kubedeck_*_codex_prompt.md
+KubeDeck_*_Prompt.md
 *_Codex_Prompt.md
 
 # Local patch staging created by ChatGPT/KubeDeck patch scripts
-
 .kubedeck-patches/
 .kubedeck_patch_backup/
-*backup_patch**/
-*backup_manual**/
+_backup_patch_*/
+_backup_manual_*/
 
 # Local Graphify analysis artifacts
-
 graphify-out/
 
 # Python packaging / cache
-
 *.spec
 *.egg-info/
 .pytest_cache/
@@ -79,7 +70,6 @@ graphify-out/
 .ruff_cache/
 
 # IDE / OS
-
 .vscode/
 .idea/
 .DS_Store
