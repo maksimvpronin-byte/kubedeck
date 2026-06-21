@@ -1,34 +1,35 @@
 {
-  "name": "@kubedeck/desktop",
-  "productName": "KubeDeck",
-  "version": "1.1.2",
-  "private": true,
-  "main": "dist/main/main.js",
-  "scripts": {
-    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"tsc -p tsconfig.main.json --watch\" \"wait-on http://127.0.0.1:5173 dist/main/main.js && node scripts/start-electron.cjs\"",
-    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && vite build",
-    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "dist:win": "electron-builder --win --x64 --config.npmRebuild=false"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.2",
-    "@types/react": "^18.3.17",
-    "@types/react-dom": "^18.3.5",
-    "@vitejs/plugin-react": "^4.5.0",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
-    "7zip-bin": "^5.2.0",
-    "concurrently": "^9.1.2",
-    "electron": "31.7.7",
-    "electron-builder": "^24.13.3",
-    "lucide-react": "^0.468.0",
-    "postcss": "^8.5.15",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "typescript": "^5.7.2",
-    "vite": "^5.4.11",
-    "wait-on": "^7.2.0"
-  },
-  "description": "KubeDeck desktop Kubernetes IDE",
-  "author": "KubeDeck"
+    "name":  "@kubedeck/desktop",
+    "productName":  "KubeDeck",
+    "version":  "2.0.0-alpha.1",
+    "private":  true,
+    "main":  "dist/main/main.js",
+    "scripts":  {
+                    "dev":  "concurrently -k \"vite --host 127.0.0.1\" \"tsc -p tsconfig.main.json --watch\" \"wait-on http://127.0.0.1:5173 dist/main/main.js \u0026\u0026 node scripts/start-electron.cjs\"",
+                    "build":  "tsc -p tsconfig.main.json \u0026\u0026 tsc -p tsconfig.renderer.json \u0026\u0026 vite build",
+                    "typecheck":  "tsc -p tsconfig.main.json --noEmit \u0026\u0026 tsc -p tsconfig.renderer.json --noEmit",
+                    "dist:win":  "electron-builder --win --x64 --config.npmRebuild=false",
+                    "test:gateway":  "node --test tests/gateway.contract.test.cjs"
+                },
+    "devDependencies":  {
+                            "@types/node":  "^22.10.2",
+                            "@types/react":  "^18.3.17",
+                            "@types/react-dom":  "^18.3.5",
+                            "@vitejs/plugin-react":  "^4.5.0",
+                            "@xterm/addon-fit":  "^0.11.0",
+                            "@xterm/xterm":  "^6.0.0",
+                            "7zip-bin":  "^5.2.0",
+                            "concurrently":  "^9.1.2",
+                            "electron":  "31.7.7",
+                            "electron-builder":  "^24.13.3",
+                            "lucide-react":  "^0.468.0",
+                            "postcss":  "^8.5.15",
+                            "react":  "^18.3.1",
+                            "react-dom":  "^18.3.1",
+                            "typescript":  "^5.7.2",
+                            "vite":  "^5.4.11",
+                            "wait-on":  "^7.2.0"
+                        },
+    "description":  "KubeDeck desktop Kubernetes IDE",
+    "author":  "KubeDeck"
 }

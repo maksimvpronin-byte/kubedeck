@@ -4,10 +4,14 @@ import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { startGateway } from "./backend/gateway";
+import type { GatewayHandle } from "./backend/types";
 
 let mainWindow: BrowserWindow | null = null;
 let backend: ChildProcessWithoutNullStreams | null = null;
 let backendUrl = "";
+let gatewayUrl = "";
+let gateway: GatewayHandle | null = null;
 let backendSessionToken = "";
 let backendPid: number | null = null;
 let backendStopping = false;
@@ -141,6 +145,31 @@ async function waitForBackendReady(timeoutMs = 20000) {
   throw new Error(`Backend did not become ready within ${timeoutMs}ms. Last error: ${lastError || "unknown"}`);
 }
 
+async function startNodeGateway() {
+  if (!backendUrl || !backendSessionToken) {
+    throw new Error("Legacy backend must be ready before Node Gateway starts");
+  }
+
+  gateway = await startGateway({
+    legacyBackendUrl: backendUrl,
+    sessionToken: backendSessionToken,
+    legacyProcessId: () => backendPid,
+    log: logDesktop,
+  });
+  gatewayUrl = gateway.baseUrl;
+}
+
+function stopNodeGateway(reason: string) {
+  if (!gateway) return;
+  logDesktop(`node gateway stop reason=${reason}`);
+  const current = gateway;
+  gateway = null;
+  gatewayUrl = "";
+  void current.close().catch((error: unknown) => {
+    logDesktop(`node gateway stop failed: ${String(error)}`);
+  });
+}
+
 async function startBackend() {
   cleanupStaleBackend();
   const port = await findFreePort();
@@ -174,7 +203,6 @@ async function startBackend() {
     clearBackendPidFile(backendPid);
     backend = null;
     backendPid = null;
-    backendSessionToken = "";
   });
 }
 
@@ -369,8 +397,8 @@ function resolveDevServerUrl() {
   }
 }
 
-ipcMain.handle("kubedeck:getBackendAuth", () => ({ baseUrl: backendUrl, token: backendSessionToken }));
-ipcMain.handle("kubedeck:getBackendUrl", () => backendUrl);
+ipcMain.handle("kubedeck:getBackendAuth", () => ({ baseUrl: gatewayUrl, token: backendSessionToken }));
+ipcMain.handle("kubedeck:getBackendUrl", () => gatewayUrl);
 ipcMain.handle("kubedeck:selectKubeconfig", async () => {
   const result = await dialog.showOpenDialog({
     title: "Select kubeconfig",
@@ -470,8 +498,8 @@ ipcMain.handle("kubedeck:openPodShell", async (_event, request: {
 });
 
 async function fetchBackendConfig(): Promise<BackendConfig> {
-  if (!backendUrl || !backendSessionToken) throw new Error("Backend is not ready");
-  const response = await fetch(`${backendUrl}/config`, { headers: { "X-KubeDeck-Token": backendSessionToken } });
+  if (!gatewayUrl || !backendSessionToken) throw new Error("Backend is not ready");
+  const response = await fetch(`${gatewayUrl}/config`, { headers: { "X-KubeDeck-Token": backendSessionToken } });
   if (!response.ok) throw new Error(`Backend config request failed: ${response.status}`);
   return (await response.json()) as BackendConfig;
 }
@@ -523,6 +551,7 @@ if (!gotSingleInstanceLock) {
     logDesktop("desktop startup");
     await startBackend();
     await waitForBackendReady();
+    await startNodeGateway();
     await createWindow();
   }).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
@@ -533,15 +562,18 @@ if (!gotSingleInstanceLock) {
 }
 
 app.on("window-all-closed", () => {
+  stopNodeGateway("window-all-closed");
   stopBackend("window-all-closed");
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
   logDesktop("desktop shutdown");
+  stopNodeGateway("before-quit");
   stopBackend("before-quit");
 });
 
 app.on("will-quit", () => {
+  stopNodeGateway("will-quit");
   stopBackend("will-quit");
 });
