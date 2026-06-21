@@ -1,26 +1,26 @@
-# KubeDeck 2.0.0-alpha.3.1 — Resource details on Node
-
-This patch moves five read-only resource-detail routes from Python to the Node Gateway.
+# KubeDeck 2.0.0-alpha.3.2 — Resource discovery and events on Node
 
 ## Routes migrated to Node
 
-- `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/yaml`
-- `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/describe`
-- `GET /clusters/{cluster_id}/pods/{namespace}/{name}/yaml`
-- `GET /clusters/{cluster_id}/pods/{namespace}/{name}/describe`
-- `GET /clusters/{cluster_id}/pods/{namespace}/{name}/logs`
+- `GET /clusters/{cluster_id}/resource-definitions`
+- `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/events`
 
-## Preserved behavior
+## Included
 
-- Namespaced and cluster-scoped resources through `_cluster`.
-- Bounded log output with `tail`, `all`, `container`, `previous`, and `timestamps`.
-- HTTP follow-mode rejection; streaming remains on the existing WebSocket path.
-- Identifier validation and the current `ErrorInfo` response envelope.
-- Existing kubectl timeouts and output-size limits.
+- `kubectl api-resources --verbs=list -o wide` parsing.
+- In-memory resource-definition cache with a 60-second TTL.
+- Namespaced and cluster-scoped event loading.
+- Event filtering by target UID with name/kind/namespace fallback.
+- Reverse chronological event sorting.
+- Compatibility with both `involvedObject` and `regarding`.
+- Existing KubeDeck `ErrorInfo` envelope.
+- Contract tests for parsing, caching, filtering, sorting and HTTP responses.
+- Existing Gateway contract assertions updated to the Alpha 3.2 ownership count.
+- `test:gateway` now runs all current Node backend contract files.
 
 ## Ownership after the patch
 
-- Node: 18 existing routes.
-- Python: 31 existing routes.
+- Node: 20 existing routes.
+- Python: 29 existing routes.
 
-Python/FastAPI remains packaged during the hybrid migration.
+No renderer or Python business logic is removed in this patch.
