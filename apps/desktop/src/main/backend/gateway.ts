@@ -35,6 +35,7 @@ import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
 import { handleYamlRequest, invalidateLegacyResourceCache } from "./routes/yaml";
 import { handleSecretRequest } from "./routes/secrets";
 import { handleResourceActionRequest } from "./routes/resourceActions";
+import { handlePodExecRequest } from "./routes/podExec";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
@@ -263,6 +264,20 @@ function handleRequest(
       options.log(`gateway cluster remove failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");
     });
+    return;
+  }
+
+  if (
+    handlePodExecRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.auditStore,
+      services.kubectlRunner,
+      options.log,
+    )
+  ) {
     return;
   }
 

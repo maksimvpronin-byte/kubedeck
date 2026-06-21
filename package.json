@@ -1,6 +1,6 @@
 {
   "name": "kubedeck",
-  "version": "2.0.0-alpha.4.2",
+  "version": "2.0.0-alpha.4.3",
   "private": true,
   "workspaces": [
     "apps/desktop",
