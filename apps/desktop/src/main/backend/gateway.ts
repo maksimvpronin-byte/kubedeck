@@ -31,6 +31,7 @@ import { writeKubectlStatus } from "./routes/kubectl";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import { handleResourceDetailsRequest } from "./routes/resourceDetails";
 import { handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscoveryEvents";
+import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
@@ -259,6 +260,19 @@ function handleRequest(
       options.log(`gateway cluster remove failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");
     });
+    return;
+  }
+
+  if (
+    handleDeploymentLogsRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.kubectlRunner,
+      options.log,
+    )
+  ) {
     return;
   }
 
