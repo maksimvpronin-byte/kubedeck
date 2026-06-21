@@ -1,26 +1,31 @@
-# KubeDeck 2.0.0-alpha.1 — Node Gateway foundation
+# KubeDeck 2.0.0-alpha.2.1 — Node cluster management
 
-This patch introduces the first Node-owned backend boundary without removing Python.
+This patch migrates four existing cluster-management contracts from Python to the Node Gateway:
 
-## Included
+- `GET /clusters`
+- `POST /clusters/import`
+- `PATCH /clusters/{cluster_id}`
+- `DELETE /clusters/{cluster_id}`
 
-- Node HTTP Gateway inside the Electron main process.
-- Public Node-owned `GET /health`.
-- Authenticated Node-owned `GET /migration/status`.
-- Transparent HTTP proxy for the remaining 46 HTTP contracts.
-- Transparent TCP/WebSocket upgrade proxy for the existing 3 WebSocket contracts.
-- Session-token and Origin validation in the Gateway.
-- Explicit registry for all 49 existing backend contracts.
-- Contract test based on the built-in Node test runner.
-- Version bump to `2.0.0-alpha.1`.
+## Resulting ownership
 
-## Ownership after the patch
+- Node: 9 existing routes
+- Python: 40 existing routes
 
-- Node: 1 existing route (`GET /health`).
-- Python: 48 existing routes.
-- New Node diagnostic route: `GET /migration/status`.
+The following cluster routes intentionally remain on Python until the Node kubectl runtime is introduced:
 
-## Important
+- `POST /clusters/last/open`
+- `POST /clusters/{cluster_id}/open`
+- `GET /clusters/{cluster_id}/namespaces`
 
-Python/FastAPI and the packaged backend executable are intentionally retained in Alpha 1.
-No React screen or Kubernetes business feature is migrated in this patch.
+## Compatibility and safety
+
+- Imported kubeconfigs are copied into `%APPDATA%\KubeDeck\kubeconfigs\<uuid>.yaml`.
+- Cluster rename preserves the existing name when the submitted name is blank.
+- Cluster removal deletes only kubeconfigs located inside KubeDeck's managed kubeconfig directory.
+- External/user-owned kubeconfig files are never deleted.
+- Deletion triggers best-effort cleanup of the legacy Python resource cache.
+- Python config caching now observes `config.json` modification time, so Node-written config changes are visible immediately to Python routes that still remain during migration.
+- Cluster import, rename, remove, and failure paths are written to the existing audit log.
+
+No new npm dependencies are added.

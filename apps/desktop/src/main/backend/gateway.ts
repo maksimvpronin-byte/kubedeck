@@ -16,6 +16,7 @@ import { proxyHttpRequest, proxyWebSocketUpgrade } from "./legacyProxy";
 import { writeAppInfo } from "./routes/appInfo";
 import { writeAudit } from "./routes/audit";
 import { writeConfig, writeSettings } from "./routes/config";
+import { writeClusters, writeImportCluster, writeRemoveCluster, writeRenameCluster } from "./routes/clusters";
 import { writeHealth } from "./routes/health";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import type { GatewayHandle, GatewayOptions } from "./types";
@@ -123,6 +124,66 @@ function handleRequest(
 
   if (request.method === "GET" && pathname === "/audit") {
     writeAudit(request.url, response, services.auditStore);
+    return;
+  }
+
+  if (request.method === "GET" && pathname === "/clusters") {
+    try {
+      writeClusters(response, services.configStore);
+    } catch (error) {
+      options.log(`gateway cluster list failed: ${String(error)}`);
+      writeError(response, 500, "CLUSTER_LIST_FAILED", "Unable to read clusters");
+    }
+    return;
+  }
+
+  if (request.method === "POST" && pathname === "/clusters/import") {
+    void writeImportCluster(
+      request,
+      response,
+      services.configStore,
+      services.auditStore,
+    ).catch((error) => {
+      options.log(`gateway cluster import failed: ${String(error)}`);
+      writeError(response, 500, "IMPORT_FAILED", "Unable to import cluster");
+    });
+    return;
+  }
+
+  const clusterMatch = pathname.match(/^\/clusters\/([^/]+)$/);
+  if (clusterMatch && (request.method === "PATCH" || request.method === "DELETE")) {
+    let clusterId: string;
+    try {
+      clusterId = decodeURIComponent(clusterMatch[1]);
+    } catch {
+      writeError(response, 400, "INVALID_CLUSTER_ID", "Cluster id is not valid URL encoding");
+      return;
+    }
+
+    if (request.method === "PATCH") {
+      void writeRenameCluster(
+        request,
+        response,
+        clusterId,
+        services.configStore,
+        services.auditStore,
+      ).catch((error) => {
+        options.log(`gateway cluster rename failed: ${String(error)}`);
+        writeError(response, 500, "CLUSTER_RENAME_FAILED", "Unable to rename cluster");
+      });
+      return;
+    }
+
+    void writeRemoveCluster(
+      response,
+      clusterId,
+      services.configStore,
+      services.auditStore,
+      options,
+    ).catch((error) => {
+      options.log(`gateway cluster remove failed: ${String(error)}`);
+      writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");
+    });
     return;
   }
 

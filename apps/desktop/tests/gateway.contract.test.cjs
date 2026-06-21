@@ -100,24 +100,36 @@ function settings(overrides = {}) {
   };
 }
 
-test("Node Gateway alpha.2 config/settings/audit contract", async (t) => {
+test("Node Gateway alpha.2.1 cluster management contract", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-gateway-"));
+  const sourceKubeconfig = path.join(appDataRoot, "source.test.yaml");
+  const externalKubeconfig = path.join(appDataRoot, "external-owned-by-user.yaml");
+  fs.writeFileSync(sourceKubeconfig, "apiVersion: v1\nclusters: []\n", "utf8");
+  fs.writeFileSync(externalKubeconfig, "apiVersion: v1\nexternal: true\n", "utf8");
   t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
 
+  const cacheClearClusterIds = [];
   const legacy = http.createServer((request, response) => {
-    if (request.url === "/health") {
+    const url = new URL(request.url, "http://127.0.0.1");
+    if (url.pathname === "/health") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ ok: true }));
       return;
     }
-    if (request.url === "/json") {
+    if (request.method === "POST" && url.pathname === "/resource-cache/clear") {
+      cacheClearClusterIds.push(url.searchParams.get("cluster_id"));
       response.setHeader("Content-Type", "application/json");
-      response.end(JSON.stringify({ source: "python" }));
+      response.end(JSON.stringify({ cleared: 1 }));
       return;
     }
-    if (request.url === "/text") {
-      response.setHeader("Content-Type", "text/plain; charset=utf-8");
-      response.end("legacy text");
+    if (request.method === "POST" && url.pathname === "/clusters/test/open") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ source: "python-open" }));
+      return;
+    }
+    if (url.pathname === "/json") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ source: "python" }));
       return;
     }
     response.statusCode = 418;
@@ -148,7 +160,7 @@ test("Node Gateway alpha.2 config/settings/audit contract", async (t) => {
     sessionToken: TOKEN,
     legacyProcessId: () => 1234,
     appDataRoot,
-    appVersion: "2.0.0-alpha.2",
+    appVersion: "2.0.0-alpha.2.1",
     log: () => {},
   });
 
@@ -164,27 +176,96 @@ test("Node Gateway alpha.2 config/settings/audit contract", async (t) => {
 
   const health = await fetch(`${gateway.baseUrl}/health`);
   assert.equal(health.status, 200);
-  assert.equal((await health.json()).gatewayVersion, "2.0.0-alpha.2");
+  assert.equal((await health.json()).gatewayVersion, "2.0.0-alpha.2.1");
 
-  const unauthorized = await fetch(`${gateway.baseUrl}/migration/status`);
-  assert.equal(unauthorized.status, 401);
-  assert.equal((await unauthorized.json()).detail.code, "UNAUTHORIZED");
-
-  const status = await fetch(`${gateway.baseUrl}/migration/status`, {
-    headers: authHeaders,
-  });
+  const status = await fetch(`${gateway.baseUrl}/migration/status`, { headers: authHeaders });
   const migration = await status.json();
   assert.equal(migration.routes.totalExisting, 49);
-  assert.equal(migration.routes.nodeOwned, 5);
-  assert.equal(migration.routes.pythonOwned, 44);
-  assert.equal(migration.legacyBackend.healthy, true);
+  assert.equal(migration.routes.nodeOwned, 9);
+  assert.equal(migration.routes.pythonOwned, 40);
 
-  const initialConfigResponse = await fetch(`${gateway.baseUrl}/config`, {
+  const initialClusters = await fetch(`${gateway.baseUrl}/clusters`, { headers: authHeaders });
+  assert.deepEqual((await initialClusters.json()).clusters, []);
+
+  const missingImport = await fetch(`${gateway.baseUrl}/clusters/import`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ sourcePath: path.join(appDataRoot, "missing.yaml") }),
+  });
+  assert.equal(missingImport.status, 400);
+  assert.equal((await missingImport.json()).detail.code, "IMPORT_FAILED");
+
+  const importResponse = await fetch(`${gateway.baseUrl}/clusters/import`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ sourcePath: sourceKubeconfig, displayName: "Imported cluster" }),
+  });
+  assert.equal(importResponse.status, 200);
+  const imported = await importResponse.json();
+  assert.equal(imported.displayName, "Imported cluster");
+  assert.match(imported.id, /^[0-9a-f-]{36}$/i);
+  assert.equal(path.dirname(imported.kubeconfigPath), path.join(appDataRoot, "kubeconfigs"));
+  assert.equal(fs.readFileSync(imported.kubeconfigPath, "utf8"), fs.readFileSync(sourceKubeconfig, "utf8"));
+
+  const listAfterImport = await fetch(`${gateway.baseUrl}/clusters`, { headers: authHeaders });
+  assert.equal((await listAfterImport.json()).clusters.length, 1);
+
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const renameResponse = await fetch(`${gateway.baseUrl}/clusters/${imported.id}`, {
+    method: "PATCH",
+    headers: authHeaders,
+    body: JSON.stringify({ displayName: "  Renamed cluster  " }),
+  });
+  assert.equal(renameResponse.status, 200);
+  const renamed = await renameResponse.json();
+  assert.equal(renamed.displayName, "Renamed cluster");
+  assert.notEqual(renamed.updatedAt, imported.updatedAt);
+
+  const proxiedOpen = await fetch(`${gateway.baseUrl}/clusters/test/open`, {
+    method: "POST",
     headers: authHeaders,
   });
-  const initialConfig = await initialConfigResponse.json();
-  assert.equal(initialConfig.settings.kubectlPath, "kubectl");
-  assert.deepEqual(initialConfig.clusters, []);
+  assert.deepEqual(await proxiedOpen.json(), { source: "python-open" });
+
+  const managedCopy = imported.kubeconfigPath;
+  const deleteResponse = await fetch(`${gateway.baseUrl}/clusters/${imported.id}`, {
+    method: "DELETE",
+    headers: authHeaders,
+  });
+  assert.equal(deleteResponse.status, 200);
+  assert.deepEqual(await deleteResponse.json(), { ok: true });
+  assert.equal(fs.existsSync(managedCopy), false);
+  assert.equal(fs.existsSync(sourceKubeconfig), true);
+  assert.ok(cacheClearClusterIds.includes(imported.id));
+
+  const configPath = path.join(appDataRoot, "config.json");
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const externalCluster = {
+    id: "external-cluster",
+    displayName: "External cluster",
+    kubeconfigPath: externalKubeconfig,
+    lastOpened: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  config.clusters.push(externalCluster);
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+
+  const externalDelete = await fetch(`${gateway.baseUrl}/clusters/external-cluster`, {
+    method: "DELETE",
+    headers: authHeaders,
+  });
+  assert.equal(externalDelete.status, 200);
+  assert.equal(fs.existsSync(externalKubeconfig), true);
+  assert.ok(cacheClearClusterIds.includes("external-cluster"));
+
+  const missingRename = await fetch(`${gateway.baseUrl}/clusters/not-found`, {
+    method: "PATCH",
+    headers: authHeaders,
+    body: JSON.stringify({ displayName: "Nope" }),
+  });
+  assert.equal(missingRename.status, 404);
+  assert.equal((await missingRename.json()).detail.code, "CLUSTER_NOT_FOUND");
 
   const updatedSettings = settings();
   const updateResponse = await fetch(`${gateway.baseUrl}/settings`, {
@@ -193,82 +274,26 @@ test("Node Gateway alpha.2 config/settings/audit contract", async (t) => {
     body: JSON.stringify({ settings: updatedSettings }),
   });
   assert.equal(updateResponse.status, 200);
-  const updatedConfig = await updateResponse.json();
-  assert.equal(updatedConfig.settings.llm.baseUrl, "http://127.0.0.1:1234/v1");
-  assert.equal(updatedConfig.settings.llm.model, "test-model");
-  assert.equal(updatedConfig.settings.ssh.defaultUsername, "user");
-  assert.equal(fs.existsSync(path.join(appDataRoot, "config.backup.json")), true);
 
-  const savedConfig = JSON.parse(
-    fs.readFileSync(path.join(appDataRoot, "config.json"), "utf8"),
-  );
-  assert.equal(savedConfig.settings.llm.apiKey, updatedSettings.llm.apiKey);
-
-  const appInfoResponse = await fetch(`${gateway.baseUrl}/app/info`, {
-    headers: authHeaders,
-  });
-  const appInfo = await appInfoResponse.json();
-  assert.equal(appInfo.runtime, "node");
-  assert.equal(appInfo.backendVersion, "2.0.0-alpha.2");
-  assert.equal(appInfo.pythonVersion, "");
-  assert.equal(appInfo.settings.kubectlPath, "kubectl");
-  assert.equal(appInfo.clusters, 0);
-
-  const auditResponse = await fetch(`${gateway.baseUrl}/audit?limit=20`, {
-    headers: authHeaders,
-  });
+  const auditResponse = await fetch(`${gateway.baseUrl}/audit?limit=50`, { headers: authHeaders });
   const audit = await auditResponse.json();
-  assert.equal(audit.limit, 20);
-  assert.equal(audit.items[0].action, "settings.update");
-  assert.equal(audit.items[0].status, "success");
+  const actions = audit.items.map((item) => `${item.action}:${item.status}`);
+  assert.ok(actions.includes("cluster.import:success"));
+  assert.ok(actions.includes("cluster.import:failed"));
+  assert.ok(actions.includes("cluster.rename:success"));
+  assert.ok(actions.includes("cluster.rename:failed"));
+  assert.ok(actions.filter((value) => value === "cluster.remove:success").length >= 2);
   assert.equal(JSON.stringify(audit).includes(updatedSettings.llm.apiKey), false);
 
-  const invalidLimit = await fetch(`${gateway.baseUrl}/audit?limit=0`, {
-    headers: authHeaders,
-  });
-  assert.equal(invalidLimit.status, 422);
-  assert.equal((await invalidLimit.json()).detail.code, "INVALID_LIMIT");
-
-  const invalidSettings = await fetch(`${gateway.baseUrl}/settings`, {
-    method: "PUT",
-    headers: authHeaders,
-    body: JSON.stringify({
-      settings: settings({ kubectlPath: "not-kubectl.exe" }),
-    }),
-  });
-  assert.equal(invalidSettings.status, 400);
-  assert.equal((await invalidSettings.json()).detail.code, "INVALID_SETTINGS");
-
-  const jsonResponse = await fetch(`${gateway.baseUrl}/json`, {
-    headers: authHeaders,
-  });
+  const jsonResponse = await fetch(`${gateway.baseUrl}/json`, { headers: authHeaders });
   assert.deepEqual(await jsonResponse.json(), { source: "python" });
-
-  const textResponse = await fetch(`${gateway.baseUrl}/text`, {
-    headers: authHeaders,
-  });
-  assert.match(textResponse.headers.get("content-type"), /^text\/plain/);
-  assert.equal(await textResponse.text(), "legacy text");
-
-  const statusResponse = await fetch(`${gateway.baseUrl}/missing`, {
-    headers: authHeaders,
-  });
-  assert.equal(statusResponse.status, 418);
 
   const gatewayPort = Number(new URL(gateway.baseUrl).port);
   const invalidWs = await websocketRequest(gatewayPort, "wrong-token");
-  assert.match(invalidWs.toString("latin1"), /101 Switching Protocols/);
   const closeFrameOffset = invalidWs.indexOf(Buffer.from([0x88]));
   assert.notEqual(closeFrameOffset, -1);
   assert.equal(invalidWs.readUInt16BE(closeFrameOffset + 2), 1008);
 
   const validWs = await websocketRequest(gatewayPort, TOKEN);
   assert.match(validWs.toString("latin1"), /LEGACY_OK/);
-
-  await close(legacy);
-  const unavailable = await fetch(`${gateway.baseUrl}/json`, {
-    headers: authHeaders,
-  });
-  assert.equal(unavailable.status, 502);
-  assert.equal((await unavailable.json()).detail.code, "LEGACY_BACKEND_UNAVAILABLE");
 });

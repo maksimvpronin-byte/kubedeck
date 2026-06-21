@@ -1,4 +1,5 @@
-import fs, { type Stats } from "node:fs";
+import { randomUUID } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { ensureAppPaths, type AppPaths } from "./paths";
 import type {
@@ -235,7 +236,7 @@ export function validateKubectlPath(value: string): void {
     throw new Error("kubectlPath must point to kubectl or kubectl.exe");
   }
 
-  let stat: Stats;
+  let stat: fs.Stats;
   try {
     stat = fs.statSync(text);
   } catch {
@@ -245,6 +246,35 @@ export function validateKubectlPath(value: string): void {
   if (!stat.isFile()) {
     throw new Error(`kubectlPath does not exist: ${text}`);
   }
+}
+
+
+export class ClusterNotFoundError extends Error {
+  constructor(readonly clusterId: string) {
+    super(`Cluster not found: ${clusterId}`);
+  }
+}
+
+function managedPath(pathname: string, baseDirectory: string): boolean {
+  if (!fs.existsSync(pathname)) return false;
+
+  let resolvedPath = path.resolve(pathname);
+  let resolvedBase = path.resolve(baseDirectory);
+
+  try {
+    resolvedPath = fs.realpathSync.native(pathname);
+  } catch {
+    // Fall back to the normalized absolute path.
+  }
+
+  try {
+    resolvedBase = fs.realpathSync.native(baseDirectory);
+  } catch {
+    // The directory is created by ensureAppPaths, so this is only a defensive fallback.
+  }
+
+  const relative = path.relative(resolvedBase, resolvedPath);
+  return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
 }
 
 export class ConfigStore {
@@ -307,5 +337,87 @@ export class ConfigStore {
     const config = this.load();
     config.settings = settings;
     return this.save(config);
+  }
+
+  listClusters(): Cluster[] {
+    return this.load().clusters;
+  }
+
+  getCluster(clusterId: string, config = this.load()): Cluster {
+    const cluster = config.clusters.find((item) => item.id === clusterId);
+    if (!cluster) {
+      throw new ClusterNotFoundError(clusterId);
+    }
+    return cluster;
+  }
+
+  importCluster(sourcePath: string, displayName?: string): Cluster {
+    const source = path.resolve(sourcePath);
+    let stat: fs.Stats;
+
+    try {
+      stat = fs.statSync(source);
+    } catch {
+      throw new Error(`Kubeconfig file not found: ${sourcePath}`);
+    }
+
+    if (!stat.isFile()) {
+      throw new Error(`Kubeconfig file not found: ${sourcePath}`);
+    }
+
+    const clusterId = randomUUID();
+    const target = path.join(this.paths.kubeconfigs, `${clusterId}.yaml`);
+    const temporaryTarget = `${target}.${process.pid}.${Date.now()}.tmp`;
+    const now = utcNow();
+    const requestedName = typeof displayName === "string" ? displayName.trim() : "";
+    const cluster: Cluster = {
+      id: clusterId,
+      displayName: requestedName || path.parse(source).name,
+      kubeconfigPath: target,
+      lastOpened: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    try {
+      fs.copyFileSync(source, temporaryTarget);
+      fs.renameSync(temporaryTarget, target);
+
+      const config = this.load();
+      config.clusters.push(cluster);
+      this.save(config);
+      return cluster;
+    } catch (error) {
+      fs.rmSync(temporaryTarget, { force: true });
+      fs.rmSync(target, { force: true });
+      throw error;
+    }
+  }
+
+  renameCluster(clusterId: string, displayName: string): Cluster {
+    const config = this.load();
+    const cluster = this.getCluster(clusterId, config);
+    cluster.displayName = displayName.trim() || cluster.displayName;
+    cluster.updatedAt = utcNow();
+    this.save(config);
+    return cluster;
+  }
+
+  removeCluster(clusterId: string): { cluster: Cluster; removedManagedFile: boolean } {
+    const config = this.load();
+    const cluster = this.getCluster(clusterId, config);
+    config.clusters = config.clusters.filter((item) => item.id !== clusterId);
+    this.save(config);
+
+    let removedManagedFile = false;
+    if (managedPath(cluster.kubeconfigPath, this.paths.kubeconfigs)) {
+      const stat = fs.statSync(cluster.kubeconfigPath);
+      if (stat.isFile()) {
+        fs.unlinkSync(cluster.kubeconfigPath);
+        removedManagedFile = true;
+      }
+    }
+
+    return { cluster, removedManagedFile };
   }
 }

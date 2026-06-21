@@ -12,17 +12,30 @@ RESOURCE_JSON_MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 
 store = ConfigStore()
 runner = KubectlRunner()
-_config_cache: tuple[float, Any] | None = None
+_config_cache: tuple[float, int, Any] | None = None
 _config_cache_ttl = 1.0
+
+
+def _config_mtime_ns() -> int:
+    try:
+        return store.path.stat().st_mtime_ns
+    except OSError:
+        return 0
 
 
 def get_cached_config() -> Any:
     global _config_cache
     now = time.time()
-    if _config_cache and now - _config_cache[0] < _config_cache_ttl:
-        return _config_cache[1]
+    current_mtime = _config_mtime_ns()
+    if (
+        _config_cache
+        and now - _config_cache[0] < _config_cache_ttl
+        and _config_cache[1] == current_mtime
+    ):
+        return _config_cache[2]
+
     config = store.load()
-    _config_cache = (now, config)
+    _config_cache = (now, _config_mtime_ns(), config)
     return config
 
 
