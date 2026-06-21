@@ -9,6 +9,7 @@ export interface KubectlCommand {
   args: string[];
   timeoutSeconds: number;
   maxOutputBytes: number;
+  stdinText?: string;
 }
 
 export interface BuiltKubectlCommand {
@@ -28,6 +29,7 @@ export function createKubectlCommand(
     args: [...values.args],
     timeoutSeconds: values.timeoutSeconds ?? 30,
     maxOutputBytes: values.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+    ...(typeof values.stdinText === "string" ? { stdinText: values.stdinText } : {}),
   };
 }
 

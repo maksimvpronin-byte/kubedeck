@@ -50,8 +50,12 @@ export class KubectlRunner {
     }
 
     const built = buildKubectlCommand(command);
+    const stdinBytes = typeof command.stdinText === "string"
+      ? Buffer.byteLength(command.stdinText, "utf8")
+      : 0;
+
     this.log(
-      `node kubectl preview=${built.preview} timeout=${command.timeoutSeconds}s maxOutput=${command.maxOutputBytes}`,
+      `node kubectl preview=${built.preview} timeout=${command.timeoutSeconds}s maxOutput=${command.maxOutputBytes} stdinBytes=${stdinBytes}`,
     );
 
     return new Promise<CommandResult>((resolve, reject) => {
@@ -137,6 +141,16 @@ export class KubectlRunner {
       child.stdout.on("data", (chunk) => collect(stdoutChunks, chunk));
       child.stderr.on("data", (chunk) => collect(stderrChunks, chunk));
 
+      child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+        if (settled || error.code === "EPIPE") return;
+        fail(new KubectlError({
+          code: "KUBECTL_STDIN_FAILED",
+          message: "Unable to send input to kubectl",
+          rawStderr: truncateKubectlText(sanitizeKubectlText(error.message)),
+          commandPreview: built.preview,
+        }), true);
+      });
+
       child.on("error", (error: NodeJS.ErrnoException) => {
         const missing = error.code === "ENOENT";
         fail(new KubectlError({
@@ -192,7 +206,11 @@ export class KubectlRunner {
         }, command.timeoutSeconds * 1000);
       }
 
-      child.stdin.end();
+      if (typeof command.stdinText === "string") {
+        child.stdin.end(command.stdinText, "utf8");
+      } else {
+        child.stdin.end();
+      }
     });
   }
 
