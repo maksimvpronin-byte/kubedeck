@@ -154,6 +154,8 @@ async function startNodeGateway() {
     legacyBackendUrl: backendUrl,
     sessionToken: backendSessionToken,
     legacyProcessId: () => backendPid,
+    appDataRoot: appDataRoot(),
+    appVersion: app.getVersion(),
     log: logDesktop,
   });
   gatewayUrl = gateway.baseUrl;

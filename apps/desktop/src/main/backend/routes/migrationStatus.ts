@@ -1,5 +1,6 @@
 import http from "node:http";
 import type { ServerResponse } from "node:http";
+import { writeJson } from "../http";
 import { routeOwnershipSummary } from "../routeOwnership";
 import type { GatewayOptions, MigrationStatus } from "../types";
 
@@ -43,7 +44,7 @@ export async function writeMigrationStatus(
     mode: routes.pythonOwned > 0 ? "hybrid" : "node-only",
     gateway: {
       runtime: "node",
-      version: "2.0.0-alpha.1",
+      version: options.appVersion,
       processId: process.pid,
       nodeVersion: process.versions.node,
     },
@@ -62,9 +63,5 @@ export async function writeMigrationStatus(
     },
   };
 
-  const serialized = JSON.stringify(body);
-  response.statusCode = 200;
-  response.setHeader("Content-Type", "application/json; charset=utf-8");
-  response.setHeader("Content-Length", Buffer.byteLength(serialized));
-  response.end(serialized);
+  writeJson(response, body);
 }

@@ -55,6 +55,8 @@ export interface GatewayOptions {
   legacyBackendUrl: string;
   sessionToken: string;
   legacyProcessId: () => number | null;
+  appDataRoot: string;
+  appVersion: string;
   log: (message: string) => void;
 }
 

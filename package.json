@@ -1,20 +1,20 @@
 {
-    "name":  "kubedeck",
-    "version":  "2.0.0-alpha.1",
-    "private":  true,
-    "workspaces":  [
-                       "apps/desktop",
-                       "packages/shared-types",
-                       "packages/ui"
-                   ],
-    "scripts":  {
-                    "dev":  "npm --workspace apps/desktop run dev",
-                    "build":  "npm --workspace apps/desktop run build",
-                    "typecheck":  "npm --workspace apps/desktop run typecheck",
-                    "package:win":  "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-portable-windows.ps1",
-                    "test:gateway":  "npm --workspace apps/desktop run build \u0026\u0026 npm --workspace apps/desktop run test:gateway"
-                },
-    "devDependencies":  {
-                            "7zip-bin":  "^5.2.0"
-                        }
+  "name": "kubedeck",
+  "version": "2.0.0-alpha.2",
+  "private": true,
+  "workspaces": [
+    "apps/desktop",
+    "packages/shared-types",
+    "packages/ui"
+  ],
+  "scripts": {
+    "dev": "npm --workspace apps/desktop run dev",
+    "build": "npm --workspace apps/desktop run build",
+    "typecheck": "npm --workspace apps/desktop run typecheck",
+    "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-portable-windows.ps1",
+    "test:gateway": "npm --workspace apps/desktop run build && npm --workspace apps/desktop run test:gateway"
+  },
+  "devDependencies": {
+    "7zip-bin": "^5.2.0"
+  }
 }

@@ -9,14 +9,24 @@ import {
   websocketToken,
   writePolicyViolation,
 } from "./auth";
+import { AuditStore } from "./audit/auditStore";
+import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
 import { proxyHttpRequest, proxyWebSocketUpgrade } from "./legacyProxy";
+import { writeAppInfo } from "./routes/appInfo";
+import { writeAudit } from "./routes/audit";
+import { writeConfig, writeSettings } from "./routes/config";
 import { writeHealth } from "./routes/health";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
 const ALLOWED_HEADERS = "Content-Type,X-KubeDeck-Token";
+
+interface GatewayServices {
+  configStore: ConfigStore;
+  auditStore: AuditStore;
+}
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
   const origin = requestOrigin(request);
@@ -39,18 +49,11 @@ function requestPath(request: IncomingMessage): string {
   return new URL(request.url ?? "/", "http://127.0.0.1").pathname;
 }
 
-function isHealthRequest(request: IncomingMessage): boolean {
-  return request.method === "GET" && requestPath(request) === "/health";
-}
-
-function isMigrationStatusRequest(request: IncomingMessage): boolean {
-  return request.method === "GET" && requestPath(request) === "/migration/status";
-}
-
 function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
   options: GatewayOptions,
+  services: GatewayServices,
 ): void {
   if (!applyCors(request, response)) return;
 
@@ -60,8 +63,10 @@ function handleRequest(
     return;
   }
 
-  if (isHealthRequest(request)) {
-    writeHealth(response);
+  const pathname = requestPath(request);
+
+  if (request.method === "GET" && pathname === "/health") {
+    writeHealth(response, options.appVersion);
     return;
   }
 
@@ -75,11 +80,49 @@ function handleRequest(
     return;
   }
 
-  if (isMigrationStatusRequest(request)) {
+  if (request.method === "GET" && pathname === "/migration/status") {
     void writeMigrationStatus(response, options).catch((error) => {
       options.log(`gateway migration status failed: ${String(error)}`);
       writeError(response, 500, "MIGRATION_STATUS_FAILED", "Unable to build migration status");
     });
+    return;
+  }
+
+  if (request.method === "GET" && pathname === "/app/info") {
+    try {
+      writeAppInfo(response, options, services.configStore);
+    } catch (error) {
+      options.log(`gateway app info failed: ${String(error)}`);
+      writeError(response, 500, "APP_INFO_FAILED", "Unable to read application information");
+    }
+    return;
+  }
+
+  if (request.method === "GET" && pathname === "/config") {
+    try {
+      writeConfig(response, services.configStore);
+    } catch (error) {
+      options.log(`gateway config read failed: ${String(error)}`);
+      writeError(response, 500, "CONFIG_READ_FAILED", "Unable to read application config");
+    }
+    return;
+  }
+
+  if (request.method === "PUT" && pathname === "/settings") {
+    void writeSettings(
+      request,
+      response,
+      services.configStore,
+      services.auditStore,
+    ).catch((error) => {
+      options.log(`gateway settings update failed: ${String(error)}`);
+      writeError(response, 500, "SETTINGS_UPDATE_FAILED", "Unable to update settings");
+    });
+    return;
+  }
+
+  if (request.method === "GET" && pathname === "/audit") {
+    writeAudit(request.url, response, services.auditStore);
     return;
   }
 
@@ -107,8 +150,15 @@ function handleUpgrade(
 }
 
 export async function startGateway(options: GatewayOptions): Promise<GatewayHandle> {
+  const services: GatewayServices = {
+    configStore: new ConfigStore(options.appDataRoot),
+    auditStore: new AuditStore(options.appDataRoot, options.log),
+  };
+
   const sockets = new Set<Socket>();
-  const server = http.createServer((request, response) => handleRequest(request, response, options));
+  const server = http.createServer((request, response) =>
+    handleRequest(request, response, options, services),
+  );
 
   server.on("connection", (socket) => {
     sockets.add(socket);

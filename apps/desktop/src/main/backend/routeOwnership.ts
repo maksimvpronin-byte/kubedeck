@@ -2,9 +2,9 @@ import type { RouteOwnership } from "./types";
 
 export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "GET", path: "/health", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.1", migratedIn: "2.0.0-alpha.1", sourceModule: "routes_core.py" },
-  { method: "GET", path: "/app/info", transport: "http", owner: "python", targetRelease: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
-  { method: "GET", path: "/config", transport: "http", owner: "python", targetRelease: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
-  { method: "PUT", path: "/settings", transport: "http", owner: "python", targetRelease: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
+  { method: "GET", path: "/app/info", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
+  { method: "GET", path: "/config", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
+  { method: "PUT", path: "/settings", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
   { method: "GET", path: "/resource-cache/status", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_core.py" },
   { method: "POST", path: "/resource-cache/clear", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_core.py" },
   { method: "GET", path: "/kubectl/status", transport: "http", owner: "python", targetRelease: "2.0.0-alpha.3", sourceModule: "routes_core.py" },
@@ -15,7 +15,7 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "POST", path: "/clusters/last/open", transport: "http", owner: "python", targetRelease: "2.0.0-alpha.2", sourceModule: "routes_clusters.py" },
   { method: "POST", path: "/clusters/{cluster_id}/open", transport: "http", owner: "python", targetRelease: "2.0.0-alpha.3", sourceModule: "routes_clusters.py" },
   { method: "GET", path: "/clusters/{cluster_id}/namespaces", transport: "http", owner: "python", targetRelease: "2.0.0-alpha.3", sourceModule: "routes_clusters.py" },
-  { method: "GET", path: "/audit", transport: "http", owner: "python", targetRelease: "2.0.0-alpha.2", sourceModule: "routes_audit.py" },
+  { method: "GET", path: "/audit", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_audit.py" },
   { method: "GET", path: "/llm/status", transport: "http", owner: "python", targetRelease: "2.0.0-beta.2", sourceModule: "routes_llm.py" },
   { method: "POST", path: "/llm/test", transport: "http", owner: "python", targetRelease: "2.0.0-beta.2", sourceModule: "routes_llm.py" },
   { method: "POST", path: "/llm/preview-resource-prompt", transport: "http", owner: "python", targetRelease: "2.0.0-beta.2", sourceModule: "routes_llm.py" },
