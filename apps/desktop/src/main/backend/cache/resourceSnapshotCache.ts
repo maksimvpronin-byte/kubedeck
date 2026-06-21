@@ -100,6 +100,36 @@ export class ResourceSnapshotCache {
     return cloneResponse(value);
   }
 
+  clearResource(
+    clusterId: string,
+    resource: string,
+    namespace: string,
+    reason = "watch.event",
+  ): number {
+    const normalizedResource = resource.toLowerCase();
+    let cleared = 0;
+    for (const [key, entry] of this.entries) {
+      if (entry.clusterId !== clusterId || entry.resource !== normalizedResource) continue;
+      const namespaceMatches =
+        namespace === "all" ||
+        entry.namespace === namespace ||
+        entry.namespace === "all";
+      if (!namespaceMatches) continue;
+      this.entries.delete(key);
+      cleared += 1;
+    }
+    this.invalidations.push({
+      reason,
+      at: this.now() / 1000,
+      clusterId,
+      cleared,
+    });
+    if (this.invalidations.length > 50) {
+      this.invalidations.splice(0, this.invalidations.length - 50);
+    }
+    return cleared;
+  }
+
   clear(clusterId?: string, reason = "manual.clear"): number {
     let cleared = 0;
 

@@ -44,11 +44,11 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "GET", path: "/port-forwards", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_port_forward.py" },
   { method: "POST", path: "/clusters/{cluster_id}/port-forwards", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_port_forward.py" },
   { method: "DELETE", path: "/port-forwards/{session_id}", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_port_forward.py" },
-  { method: "GET", path: "/watches/status", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_watch.py" },
-  { method: "POST", path: "/clusters/{cluster_id}/watches", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_watch.py" },
-  { method: "DELETE", path: "/watches/{watch_id}", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_watch.py" },
-  { method: "POST", path: "/watches/stop-all", transport: "http", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_watch.py" },
-  { method: "WS", path: "/clusters/{cluster_id}/resources/{resource}/watch-events", transport: "websocket", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_watch.py" },
+  { method: "GET", path: "/watches/status", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/watches", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "DELETE", path: "/watches/{watch_id}", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "POST", path: "/watches/stop-all", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "WS", path: "/clusters/{cluster_id}/resources/{resource}/watch-events", transport: "websocket", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
   { method: "WS", path: "/clusters/{cluster_id}/nodes/{name}/ssh", transport: "websocket", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_node_ssh.py" },
 ];
 

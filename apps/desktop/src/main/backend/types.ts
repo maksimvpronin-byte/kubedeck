@@ -49,7 +49,7 @@ export interface MigrationStatus {
     terminals: number;
     portForwards: number;
     sshSessions: number;
-    source: "legacy-not-inspected" | "node";
+    source: "legacy-not-inspected" | "node" | "hybrid";
   };
 }
 

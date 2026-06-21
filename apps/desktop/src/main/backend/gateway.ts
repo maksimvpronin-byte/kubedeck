@@ -11,6 +11,9 @@ import {
 } from "./auth";
 import { AuditStore } from "./audit/auditStore";
 import { ResourceSnapshotCache } from "./cache/resourceSnapshotCache";
+import { ResourceWatchEventHub } from "./watch/eventHub";
+import { ResourceWatchWebSocketServer } from "./watch/webSocket";
+import { WatchManager } from "./watch/watchManager";
 import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
@@ -41,6 +44,7 @@ import { handleSecretRequest } from "./routes/secrets";
 import { handleResourceActionRequest } from "./routes/resourceActions";
 import { handlePodExecRequest } from "./routes/podExec";
 import { handleResourceListRequest } from "./routes/resourceLists";
+import { handleWatchRequest } from "./routes/watch";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
@@ -51,6 +55,7 @@ configStore: ConfigStore;
   auditStore: AuditStore;
   kubectlRunner: KubectlRunner;
   resourceCache: ResourceSnapshotCache;
+  watchManager: WatchManager;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -115,7 +120,11 @@ function handleRequest(
   }
 
   if (request.method === "GET" && pathname === "/migration/status") {
-    void writeMigrationStatus(response, options).catch((error) => {
+    void writeMigrationStatus(
+      response,
+      options,
+      services.watchManager.activeCount(),
+    ).catch((error) => {
       options.log(`gateway migration status failed: ${String(error)}`);
       writeError(response, 500, "MIGRATION_STATUS_FAILED", "Unable to build migration status");
     });
@@ -260,6 +269,7 @@ function handleRequest(
       return;
     }
 
+    void services.watchManager.stopCluster(clusterId);
     services.resourceCache.clear(clusterId, "cluster.remove");
       clearResourceDefinitionCache(clusterId);
       void writeRemoveCluster(
@@ -272,6 +282,19 @@ function handleRequest(
       options.log(`gateway cluster remove failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");
     });
+    return;
+  }
+
+  if (
+    handleWatchRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.watchManager,
+      options.log,
+    )
+  ) {
     return;
   }
 
@@ -411,6 +434,7 @@ function handleUpgrade(
   socket: Duplex,
   head: Buffer,
   options: GatewayOptions,
+  watchWebSocket: ResourceWatchWebSocketServer,
 ): void {
   const origin = requestOrigin(request);
 
@@ -424,15 +448,26 @@ function handleUpgrade(
     return;
   }
 
+  if (watchWebSocket.handleUpgrade(request, socket, head)) return;
   proxyWebSocketUpgrade(request, socket, head, options.legacyBackendUrl, options.log);
 }
 
 export async function startGateway(options: GatewayOptions): Promise<GatewayHandle> {
+  const resourceCache = new ResourceSnapshotCache();
+  const watchEvents = new ResourceWatchEventHub();
+  const watchManager = new WatchManager(
+    options.log,
+    resourceCache,
+    watchEvents,
+    options.spawnKubectl,
+  );
+  const watchWebSocket = new ResourceWatchWebSocketServer(watchEvents, options.log);
   const services: GatewayServices = {
     configStore: new ConfigStore(options.appDataRoot),
     auditStore: new AuditStore(options.appDataRoot, options.log),
     kubectlRunner: new KubectlRunner(options.log, options.spawnKubectl),
-    resourceCache: new ResourceSnapshotCache(),
+    resourceCache,
+    watchManager,
   };
 
   const sockets = new Set<Socket>();
@@ -446,7 +481,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   });
 
   server.on("upgrade", (request, socket, head) => {
-    handleUpgrade(request, socket, head, options);
+    handleUpgrade(request, socket, head, options, watchWebSocket);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -474,7 +509,9 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
       if (closing) return closing;
 
       closing = (async () => {
-        await services.kubectlRunner.close();
+        await services.watchManager.close();
+      watchWebSocket.close();
+      await services.kubectlRunner.close();
 
         for (const socket of sockets) {
           socket.destroy();
