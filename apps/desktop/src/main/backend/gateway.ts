@@ -12,12 +12,22 @@ import {
 import { AuditStore } from "./audit/auditStore";
 import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
+import { KubectlRunner } from "./kubectl/runner";
 import { proxyHttpRequest, proxyWebSocketUpgrade } from "./legacyProxy";
 import { writeAppInfo } from "./routes/appInfo";
 import { writeAudit } from "./routes/audit";
+import {
+  writeClusters,
+  writeImportCluster,
+  writeNamespaces,
+  writeOpenCluster,
+  writeOpenLastCluster,
+  writeRemoveCluster,
+  writeRenameCluster,
+} from "./routes/clusters";
 import { writeConfig, writeSettings } from "./routes/config";
-import { writeClusters, writeImportCluster, writeRemoveCluster, writeRenameCluster } from "./routes/clusters";
 import { writeHealth } from "./routes/health";
+import { writeKubectlStatus } from "./routes/kubectl";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
@@ -27,6 +37,7 @@ const ALLOWED_HEADERS = "Content-Type,X-KubeDeck-Token";
 interface GatewayServices {
   configStore: ConfigStore;
   auditStore: AuditStore;
+  kubectlRunner: KubectlRunner;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -48,6 +59,15 @@ function applyCors(request: IncomingMessage, response: ServerResponse): boolean 
 
 function requestPath(request: IncomingMessage): string {
   return new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+}
+
+function decodePathPart(value: string, response: ServerResponse): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    writeError(response, 400, "INVALID_CLUSTER_ID", "Cluster id is not valid URL encoding");
+    return null;
+  }
 }
 
 function handleRequest(
@@ -127,6 +147,18 @@ function handleRequest(
     return;
   }
 
+  if (request.method === "GET" && pathname === "/kubectl/status") {
+    void writeKubectlStatus(
+      response,
+      services.configStore,
+      services.kubectlRunner,
+    ).catch((error) => {
+      options.log(`gateway kubectl status failed: ${String(error)}`);
+      writeError(response, 500, "KUBECTL_STATUS_FAILED", "Unable to read kubectl status");
+    });
+    return;
+  }
+
   if (request.method === "GET" && pathname === "/clusters") {
     try {
       writeClusters(response, services.configStore);
@@ -150,15 +182,56 @@ function handleRequest(
     return;
   }
 
+  if (request.method === "POST" && pathname === "/clusters/last/open") {
+    void writeOpenLastCluster(
+      response,
+      services.configStore,
+      services.kubectlRunner,
+    ).catch((error) => {
+      options.log(`gateway last cluster open failed: ${String(error)}`);
+      writeError(response, 500, "CLUSTER_OPEN_FAILED", "Unable to open last cluster");
+    });
+    return;
+  }
+
+  const openClusterMatch = pathname.match(/^\/clusters\/([^/]+)\/open$/);
+  if (request.method === "POST" && openClusterMatch) {
+    const clusterId = decodePathPart(openClusterMatch[1], response);
+    if (clusterId === null) return;
+
+    void writeOpenCluster(
+      response,
+      clusterId,
+      services.configStore,
+      services.kubectlRunner,
+    ).catch((error) => {
+      options.log(`gateway cluster open failed cluster=${clusterId}: ${String(error)}`);
+      writeError(response, 500, "CLUSTER_OPEN_FAILED", "Unable to open cluster");
+    });
+    return;
+  }
+
+  const namespacesMatch = pathname.match(/^\/clusters\/([^/]+)\/namespaces$/);
+  if (request.method === "GET" && namespacesMatch) {
+    const clusterId = decodePathPart(namespacesMatch[1], response);
+    if (clusterId === null) return;
+
+    void writeNamespaces(
+      response,
+      clusterId,
+      services.configStore,
+      services.kubectlRunner,
+    ).catch((error) => {
+      options.log(`gateway namespaces failed cluster=${clusterId}: ${String(error)}`);
+      writeError(response, 500, "NAMESPACES_FAILED", "Unable to load namespaces");
+    });
+    return;
+  }
+
   const clusterMatch = pathname.match(/^\/clusters\/([^/]+)$/);
   if (clusterMatch && (request.method === "PATCH" || request.method === "DELETE")) {
-    let clusterId: string;
-    try {
-      clusterId = decodeURIComponent(clusterMatch[1]);
-    } catch {
-      writeError(response, 400, "INVALID_CLUSTER_ID", "Cluster id is not valid URL encoding");
-      return;
-    }
+    const clusterId = decodePathPart(clusterMatch[1], response);
+    if (clusterId === null) return;
 
     if (request.method === "PATCH") {
       void writeRenameCluster(
@@ -197,6 +270,7 @@ function handleUpgrade(
   options: GatewayOptions,
 ): void {
   const origin = requestOrigin(request);
+
   if (!isAllowedOrigin(origin)) {
     writePolicyViolation(request, socket, "Origin not allowed");
     return;
@@ -214,6 +288,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   const services: GatewayServices = {
     configStore: new ConfigStore(options.appDataRoot),
     auditStore: new AuditStore(options.appDataRoot, options.log),
+    kubectlRunner: new KubectlRunner(options.log, options.spawnKubectl),
   };
 
   const sockets = new Set<Socket>();
@@ -254,13 +329,19 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     close: () => {
       if (closing) return closing;
 
-      closing = new Promise<void>((resolve) => {
-        for (const socket of sockets) socket.destroy();
-        server.close(() => {
-          options.log("node gateway stopped");
-          resolve();
+      closing = (async () => {
+        await services.kubectlRunner.close();
+
+        for (const socket of sockets) {
+          socket.destroy();
+        }
+
+        await new Promise<void>((resolve) => {
+          server.close(() => resolve());
         });
-      });
+
+        options.log("node gateway stopped");
+      })();
 
       return closing;
     },

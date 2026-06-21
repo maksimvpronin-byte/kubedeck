@@ -1,3 +1,5 @@
+import type { SpawnProcess } from "./kubectl/runner";
+
 export type RouteOwner = "node" | "python";
 export type RouteTransport = "http" | "websocket";
 
@@ -58,6 +60,7 @@ export interface GatewayOptions {
   appDataRoot: string;
   appVersion: string;
   log: (message: string) => void;
+  spawnKubectl?: SpawnProcess;
 }
 
 export interface GatewayHandle {

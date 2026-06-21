@@ -351,6 +351,25 @@ export class ConfigStore {
     return cluster;
   }
 
+  lastOpenedCluster(): Cluster | null {
+    return this.load().clusters.find((cluster) => cluster.lastOpened) ?? null;
+  }
+
+  markOpened(clusterId: string): Cluster {
+    const config = this.load();
+    const selected = this.getCluster(clusterId, config);
+
+    for (const cluster of config.clusters) {
+      cluster.lastOpened = cluster.id === clusterId;
+      if (cluster.id === clusterId) {
+        cluster.updatedAt = utcNow();
+      }
+    }
+
+    this.save(config);
+    return selected;
+  }
+
   importCluster(sourcePath: string, displayName?: string): Cluster {
     const source = path.resolve(sourcePath);
     let stat: fs.Stats;

@@ -3,6 +3,9 @@ import type { AuditStore } from "../audit/auditStore";
 import { ClusterNotFoundError, ConfigStore } from "../config/configStore";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
+import { clusterCommand, kubeconfigAvailable } from "../kubectl/clusterCommand";
+import { KubectlError, writeKubectlError } from "../kubectl/errors";
+import type { KubectlRunner } from "../kubectl/runner";
 import { clearLegacyResourceCache } from "../legacyControl";
 import type { GatewayOptions } from "../types";
 
@@ -21,6 +24,10 @@ function writeBodyError(response: ServerResponse, error: unknown): boolean {
   return true;
 }
 
+function decodeItems(value: Record<string, unknown>): unknown[] {
+  return Array.isArray(value.items) ? value.items : [];
+}
+
 export function writeClusters(response: ServerResponse, configStore: ConfigStore): void {
   writeJson(response, { clusters: configStore.listClusters() });
 }
@@ -37,7 +44,12 @@ export async function writeImportCluster(
       writeError(response, 422, "INVALID_REQUEST", "sourcePath is required");
       return;
     }
-    if (body.displayName !== undefined && body.displayName !== null && typeof body.displayName !== "string") {
+
+    if (
+      body.displayName !== undefined &&
+      body.displayName !== null &&
+      typeof body.displayName !== "string"
+    ) {
       writeError(response, 422, "INVALID_REQUEST", "displayName must be a string");
       return;
     }
@@ -46,6 +58,7 @@ export async function writeImportCluster(
       body.sourcePath,
       typeof body.displayName === "string" ? body.displayName : undefined,
     );
+
     auditStore.append({
       action: "cluster.import",
       status: "success",
@@ -55,6 +68,7 @@ export async function writeImportCluster(
     writeJson(response, cluster);
   } catch (error) {
     if (writeBodyError(response, error)) return;
+
     const message = errorMessage(error);
     auditStore.append({ action: "cluster.import", status: "failed", message });
     writeError(response, 400, "IMPORT_FAILED", message);
@@ -85,12 +99,15 @@ export async function writeRenameCluster(
     writeJson(response, cluster);
   } catch (error) {
     if (writeBodyError(response, error)) return;
+
     const message = errorMessage(error);
     auditStore.append({ action: "cluster.rename", status: "failed", clusterId, message });
+
     if (error instanceof ClusterNotFoundError) {
       writeError(response, 404, "CLUSTER_NOT_FOUND", message);
       return;
     }
+
     writeError(response, 400, "CLUSTER_RENAME_FAILED", message);
   }
 }
@@ -104,6 +121,7 @@ export async function writeRemoveCluster(
 ): Promise<void> {
   try {
     const result = configStore.removeCluster(clusterId);
+
     try {
       await clearLegacyResourceCache(options, clusterId);
     } catch (error) {
@@ -121,10 +139,112 @@ export async function writeRemoveCluster(
   } catch (error) {
     const message = errorMessage(error);
     auditStore.append({ action: "cluster.remove", status: "failed", clusterId, message });
+
     if (error instanceof ClusterNotFoundError) {
       writeError(response, 404, "CLUSTER_NOT_FOUND", message);
       return;
     }
+
     writeError(response, 500, "CLUSTER_REMOVE_FAILED", message);
+  }
+}
+
+export async function writeOpenLastCluster(
+  response: ServerResponse,
+  configStore: ConfigStore,
+  runner: KubectlRunner,
+): Promise<void> {
+  const cluster = configStore.lastOpenedCluster();
+  if (!cluster) {
+    writeJson(response, { cluster: null });
+    return;
+  }
+
+  await writeOpenCluster(response, cluster.id, configStore, runner);
+}
+
+export async function writeOpenCluster(
+  response: ServerResponse,
+  clusterId: string,
+  configStore: ConfigStore,
+  runner: KubectlRunner,
+): Promise<void> {
+  let cluster;
+
+  try {
+    cluster = configStore.getCluster(clusterId);
+  } catch (error) {
+    if (error instanceof ClusterNotFoundError) {
+      writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
+      return;
+    }
+    throw error;
+  }
+
+  if (!kubeconfigAvailable(cluster.kubeconfigPath)) {
+    writeError(response, 400, "CLUSTER_UNAVAILABLE", "kubeconfig file is missing");
+    return;
+  }
+
+  try {
+    await runner.run(clusterCommand(
+      configStore,
+      clusterId,
+      ["cluster-info"],
+      30,
+      16 * 1024 * 1024,
+    ));
+
+    const namespaces = await runner.runJson(clusterCommand(
+      configStore,
+      clusterId,
+      ["get", "namespaces", "-o", "json"],
+      30,
+      64 * 1024 * 1024,
+    ));
+
+    const opened = configStore.markOpened(clusterId);
+    writeJson(response, {
+      cluster: opened,
+      namespaces: decodeItems(namespaces),
+    });
+  } catch (error) {
+    if (error instanceof KubectlError) {
+      writeKubectlError(response, error);
+      return;
+    }
+
+    writeError(response, 500, "CLUSTER_OPEN_FAILED", "Unable to open cluster");
+  }
+}
+
+export async function writeNamespaces(
+  response: ServerResponse,
+  clusterId: string,
+  configStore: ConfigStore,
+  runner: KubectlRunner,
+): Promise<void> {
+  try {
+    const data = await runner.runJson(clusterCommand(
+      configStore,
+      clusterId,
+      ["get", "namespaces", "-o", "json"],
+      30,
+      64 * 1024 * 1024,
+    ));
+
+    writeJson(response, { items: decodeItems(data) });
+  } catch (error) {
+    if (error instanceof ClusterNotFoundError) {
+      writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
+      return;
+    }
+
+    if (error instanceof KubectlError) {
+      writeKubectlError(response, error);
+      return;
+    }
+
+    writeError(response, 500, "NAMESPACES_FAILED", "Unable to load namespaces");
   }
 }

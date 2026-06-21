@@ -1,31 +1,29 @@
-# KubeDeck 2.0.0-alpha.2.1 — Node cluster management
+# KubeDeck 2.0.0-alpha.3 — Node kubectl runtime
 
-This patch migrates four existing cluster-management contracts from Python to the Node Gateway:
+This patch introduces the first native Node kubectl execution layer.
 
-- `GET /clusters`
-- `POST /clusters/import`
-- `PATCH /clusters/{cluster_id}`
-- `DELETE /clusters/{cluster_id}`
+## Routes migrated to Node
 
-## Resulting ownership
-
-- Node: 9 existing routes
-- Python: 40 existing routes
-
-The following cluster routes intentionally remain on Python until the Node kubectl runtime is introduced:
-
+- `GET /kubectl/status`
 - `POST /clusters/last/open`
 - `POST /clusters/{cluster_id}/open`
 - `GET /clusters/{cluster_id}/namespaces`
 
-## Compatibility and safety
+## Runtime behavior
 
-- Imported kubeconfigs are copied into `%APPDATA%\KubeDeck\kubeconfigs\<uuid>.yaml`.
-- Cluster rename preserves the existing name when the submitted name is blank.
-- Cluster removal deletes only kubeconfigs located inside KubeDeck's managed kubeconfig directory.
-- External/user-owned kubeconfig files are never deleted.
-- Deletion triggers best-effort cleanup of the legacy Python resource cache.
-- Python config caching now observes `config.json` modification time, so Node-written config changes are visible immediately to Python routes that still remain during migration.
-- Cluster import, rename, remove, and failure paths are written to the existing audit log.
+- Starts kubectl with `spawn()` and `shell: false`.
+- Uses the kubectl path stored in KubeDeck settings.
+- Adds the selected cluster kubeconfig.
+- Applies process and Kubernetes request timeouts.
+- Limits captured stdout/stderr size.
+- Parses JSON responses.
+- Returns the existing KubeDeck `ErrorInfo` envelope.
+- Terminates active kubectl processes when the Node Gateway stops.
+- Preserves HTTP and WebSocket proxying for routes still owned by Python.
 
-No new npm dependencies are added.
+## Ownership after the patch
+
+- Node: 13 existing routes.
+- Python: 36 existing routes.
+
+Python/FastAPI remains packaged during the hybrid migration.
