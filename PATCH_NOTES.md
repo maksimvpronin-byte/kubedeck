@@ -1,29 +1,26 @@
-# KubeDeck 2.0.0-alpha.3 — Node kubectl runtime
+# KubeDeck 2.0.0-alpha.3.1 — Resource details on Node
 
-This patch introduces the first native Node kubectl execution layer.
+This patch moves five read-only resource-detail routes from Python to the Node Gateway.
 
 ## Routes migrated to Node
 
-- `GET /kubectl/status`
-- `POST /clusters/last/open`
-- `POST /clusters/{cluster_id}/open`
-- `GET /clusters/{cluster_id}/namespaces`
+- `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/yaml`
+- `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/describe`
+- `GET /clusters/{cluster_id}/pods/{namespace}/{name}/yaml`
+- `GET /clusters/{cluster_id}/pods/{namespace}/{name}/describe`
+- `GET /clusters/{cluster_id}/pods/{namespace}/{name}/logs`
 
-## Runtime behavior
+## Preserved behavior
 
-- Starts kubectl with `spawn()` and `shell: false`.
-- Uses the kubectl path stored in KubeDeck settings.
-- Adds the selected cluster kubeconfig.
-- Applies process and Kubernetes request timeouts.
-- Limits captured stdout/stderr size.
-- Parses JSON responses.
-- Returns the existing KubeDeck `ErrorInfo` envelope.
-- Terminates active kubectl processes when the Node Gateway stops.
-- Preserves HTTP and WebSocket proxying for routes still owned by Python.
+- Namespaced and cluster-scoped resources through `_cluster`.
+- Bounded log output with `tail`, `all`, `container`, `previous`, and `timestamps`.
+- HTTP follow-mode rejection; streaming remains on the existing WebSocket path.
+- Identifier validation and the current `ErrorInfo` response envelope.
+- Existing kubectl timeouts and output-size limits.
 
 ## Ownership after the patch
 
-- Node: 13 existing routes.
-- Python: 36 existing routes.
+- Node: 18 existing routes.
+- Python: 31 existing routes.
 
 Python/FastAPI remains packaged during the hybrid migration.
