@@ -34,6 +34,7 @@ import { handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscovery
 import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
 import { handleYamlRequest, invalidateLegacyResourceCache } from "./routes/yaml";
 import { handleSecretRequest } from "./routes/secrets";
+import { handleResourceActionRequest } from "./routes/resourceActions";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
@@ -274,6 +275,25 @@ function handleRequest(
       services.auditStore,
       services.kubectlRunner,
       options.log,
+    )
+  ) {
+    return;
+  }
+
+  if (
+    handleResourceActionRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.auditStore,
+      services.kubectlRunner,
+      options.log,
+      (clusterId) => invalidateLegacyResourceCache(
+        options.legacyBackendUrl,
+        options.sessionToken,
+        clusterId,
+      ),
     )
   ) {
     return;
