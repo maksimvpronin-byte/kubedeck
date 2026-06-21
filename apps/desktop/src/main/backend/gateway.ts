@@ -10,6 +10,7 @@ import {
   writePolicyViolation,
 } from "./auth";
 import { AuditStore } from "./audit/auditStore";
+import { ResourceSnapshotCache } from "./cache/resourceSnapshotCache";
 import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
@@ -30,21 +31,26 @@ import { writeHealth } from "./routes/health";
 import { writeKubectlStatus } from "./routes/kubectl";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import { handleResourceDetailsRequest } from "./routes/resourceDetails";
-import { handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscoveryEvents";
+import {
+  clearResourceDefinitionCache,
+  handleResourceDiscoveryEventsRequest,
+} from "./routes/resourceDiscoveryEvents";
 import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
 import { handleYamlRequest, invalidateLegacyResourceCache } from "./routes/yaml";
 import { handleSecretRequest } from "./routes/secrets";
 import { handleResourceActionRequest } from "./routes/resourceActions";
 import { handlePodExecRequest } from "./routes/podExec";
+import { handleResourceListRequest } from "./routes/resourceLists";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
 const ALLOWED_HEADERS = "Content-Type,X-KubeDeck-Token";
 
 interface GatewayServices {
-  configStore: ConfigStore;
+configStore: ConfigStore;
   auditStore: AuditStore;
   kubectlRunner: KubectlRunner;
+  resourceCache: ResourceSnapshotCache;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -254,7 +260,9 @@ function handleRequest(
       return;
     }
 
-    void writeRemoveCluster(
+    services.resourceCache.clear(clusterId, "cluster.remove");
+      clearResourceDefinitionCache(clusterId);
+      void writeRemoveCluster(
       response,
       clusterId,
       services.configStore,
@@ -264,6 +272,21 @@ function handleRequest(
       options.log(`gateway cluster remove failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");
     });
+    return;
+  }
+
+  if (
+    handleResourceListRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.kubectlRunner,
+      services.resourceCache,
+      clearResourceDefinitionCache,
+      options.log,
+    )
+  ) {
     return;
   }
 
@@ -304,11 +327,15 @@ function handleRequest(
       services.auditStore,
       services.kubectlRunner,
       options.log,
-      (clusterId) => invalidateLegacyResourceCache(
-        options.legacyBackendUrl,
-        options.sessionToken,
-        clusterId,
-      ),
+      async (clusterId) => {
+        services.resourceCache.clear(clusterId, "mutation");
+        clearResourceDefinitionCache(clusterId);
+        await invalidateLegacyResourceCache(
+          options.legacyBackendUrl,
+          options.sessionToken,
+          clusterId,
+        );
+      },
     )
   ) {
     return;
@@ -323,11 +350,15 @@ function handleRequest(
       services.auditStore,
       services.kubectlRunner,
       options.log,
-      (clusterId) => invalidateLegacyResourceCache(
-        options.legacyBackendUrl,
-        options.sessionToken,
-        clusterId,
-      ),
+      async (clusterId) => {
+        services.resourceCache.clear(clusterId, "mutation");
+        clearResourceDefinitionCache(clusterId);
+        await invalidateLegacyResourceCache(
+          options.legacyBackendUrl,
+          options.sessionToken,
+          clusterId,
+        );
+      },
     )
   ) {
     return;
@@ -401,6 +432,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     configStore: new ConfigStore(options.appDataRoot),
     auditStore: new AuditStore(options.appDataRoot, options.log),
     kubectlRunner: new KubectlRunner(options.log, options.spawnKubectl),
+    resourceCache: new ResourceSnapshotCache(),
   };
 
   const sockets = new Set<Socket>();
