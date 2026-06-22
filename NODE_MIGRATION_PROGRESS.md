@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Текущая проверяемая версия: `2.0.0-alpha.14`
+Текущая проверяемая версия: `2.0.0-alpha.15`
 
 ## Итог
 
@@ -15,6 +15,7 @@
 - Python/FastAPI child process: удалён.
 - PyInstaller packaging: удалён.
 - Python backend payload в portable: запрещён проверкой сборщика.
+- Встроенный `kubectl.exe`: запрещён проверкой сборщика.
 
 ## Выполненные этапы
 
@@ -30,49 +31,51 @@
 - Alpha 12: Related Resources.
 - Alpha 13: LLM status/test/preview/analyze.
 - Alpha 14: удаление Python runtime, legacy proxy и PyInstaller.
+- Alpha 15: стабилизация Node-only build/test/documentation pipeline.
 
-## Alpha 14 — Node-only Runtime Cleanup
+## Alpha 14 — принято
 
-Удалено:
+Проверено вручную:
 
-- `apps/backend` с FastAPI-кодом и Python-тестами;
-- запуск `kubedeck_backend.main` из Electron;
-- backend port allocation, health wait и PID-файл;
-- legacy HTTP/WebSocket proxy;
-- legacy resource-cache invalidation;
-- Python health probe из `/migration/status`;
-- PyInstaller virtualenv и backend executable packaging;
-- `extraResources: build/backend` из electron-builder;
-- требования Python из setup/build документации.
+- portable-сборка выполнена;
+- приложение запускается без `python.exe`/`pythonw.exe`;
+- Node Gateway contract tests проходят;
+- `/migration/status`: Node 49, Python 0, mode `node-only`;
+- portable не содержит Python backend payload и встроенный `kubectl.exe`.
+
+## Alpha 15 — Node-only Stabilization
 
 Добавлено:
 
-- постоянный `/migration/status` в режиме `node-only`;
-- HTTP 404 `ROUTE_NOT_FOUND` для неизвестных маршрутов;
-- WebSocket policy close для неизвестных WS-маршрутов;
-- contract test Node-only runtime;
-- portable-проверка отсутствия Python backend payload;
-- Node-only README и Windows bootstrap.
+- единый `scripts/verify-node-only.ps1`;
+- root-команда `npm.cmd run verify:node-only`;
+- единые ожидания `node-only`, `49/0` и `processes.source=node`;
+- проверка source tree до сборки;
+- проверка release payload после electron-builder;
+- синхронизированная Node-only документация;
+- защита от повторного появления FastAPI/PyInstaller/legacy proxy.
 
-## Обязательная проверка Alpha 14
+Новая функциональность API/UI не добавляется.
 
-- TypeScript typecheck.
-- Desktop/Vite build.
-- Все Node Gateway contract tests.
-- Windows portable build.
-- Запуск portable без установленного Python.
-- `/migration/status`: Node 49, Python 0, mode `node-only`.
-- В release отсутствуют `kubectl.exe`, `resources/backend`, Python DLL и backend executable.
-- Regression smoke test: resources, watch, logs, YAML, terminal, SSH, port-forward, Problems, Search, Related и LLM.
+## Обязательная проверка Alpha 15
 
-## Дальнейшие шаги
+- `npm.cmd run verify:node-only`;
+- TypeScript typecheck;
+- Desktop/Vite build;
+- все Node Gateway contract tests;
+- Windows portable build;
+- запуск portable;
+- regression smoke test основных функций;
+- проверка отсутствия Python и встроенного kubectl в runtime/release.
 
-После ручной проверки Alpha 14:
+## Следующий этап
 
-1. зафиксировать и push cleanup-коммит;
-2. выполнить полный regression smoke test;
-3. подготовить RC без изменения backend-контрактов;
-4. отдельно обновить историческую техническую документацию при необходимости.
+После успешной ручной проверки Alpha 15:
+
+1. commit и push stabilization;
+2. зафиксировать regression checklist;
+3. перейти к `2.0.0-beta.1` без изменения backend-контрактов;
+4. новые функции вести отдельными этапами после beta baseline.
 
 ## Правила работы
 

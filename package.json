@@ -1,6 +1,6 @@
 {
   "name": "kubedeck",
-  "version": "2.0.0-alpha.14",
+  "version": "2.0.0-alpha.15",
   "private": true,
   "workspaces": [
     "apps/desktop",
@@ -12,7 +12,8 @@
     "build": "npm --workspace apps/desktop run build",
     "typecheck": "npm --workspace apps/desktop run typecheck",
     "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-portable-windows.ps1",
-    "test:gateway": "npm --workspace apps/desktop run build && npm --workspace apps/desktop run test:gateway"
+    "test:gateway": "npm --workspace apps/desktop run build && npm --workspace apps/desktop run test:gateway",
+    "verify:node-only": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify-node-only.ps1"
   },
   "devDependencies": {
     "7zip-bin": "^5.2.0"
