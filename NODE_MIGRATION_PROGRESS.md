@@ -2,8 +2,8 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Базовая проверенная версия: `2.0.0-alpha.8`  
-Текущая проверенная версия: `2.0.0-alpha.8`
+Базовая проверенная версия: `2.0.0-alpha.9`  
+Текущая проверенная версия: `2.0.0-alpha.9`
 
 ## Цель миграции
 
@@ -64,39 +64,38 @@
 
 Проверена вручную и работает штатно.
 
-Перенесены:
+Перенесены три Port Forward маршрута. Добавлены Node Port Forward Manager, привязка к `127.0.0.1`, автоматический локальный порт, readiness-проверка, дедупликация, graceful stop, audit и cleanup.
 
-- `GET /port-forwards`.
-- `POST /clusters/{cluster_id}/port-forwards`.
-- `DELETE /port-forwards/{session_id}`.
+### `2.0.0-alpha.8` — Node Pod Terminal
 
-Добавлены Node Port Forward Manager, привязка к `127.0.0.1`, автоматический локальный порт, readiness-проверка, дедупликация, graceful stop, audit и cleanup при удалении кластера/закрытии приложения.
+Проверена вручную, portable-сборка выполнена успешно.
 
-## Выполненный этап `2.0.0-alpha.8` — Node Pod Terminal
+Перенесён WebSocket Pod Terminal. Добавлены `kubectl auth can-i`, shell-режимы, Windows ConPTY через `node-pty`, pipe fallback, resize, lifecycle cleanup и audit без введённых команд.
 
-Переносится:
+## Выполненный этап `2.0.0-alpha.9` — Node SSH WebSocket
 
-- WebSocket `/clusters/{cluster_id}/pods/{namespace}/{name}/terminal`.
+Перенесён:
 
-Добавляется:
+- WebSocket `/clusters/{cluster_id}/nodes/{name}/ssh`.
 
-- отдельный Node Pod Terminal WebSocket server;
-- проверка session token и Origin на уровне Gateway;
-- валидация cluster, namespace, pod, container и shell;
-- `kubectl auth can-i create pods/exec` перед запуском;
-- shell-режимы `auto`, `bash`, `sh`, `ash`;
-- Auto-последовательность `bash → sh → ash`;
-- полноценный PTY через `node-pty`/Windows ConPTY;
-- автоматический pipe fallback, если native PTY недоступен;
-- совместимые сообщения `input`, `resize`, `close`, `output`, `status`, `error`;
-- завершение terminal-сессий при удалении кластера и закрытии Gateway;
-- audit открытия и закрытия без логирования введённых команд;
-- активный Node terminal count в `/migration/status`.
+Добавлено:
 
-## Владение маршрутами после применения Alpha 8
+- отдельный Node SSH WebSocket server;
+- сохранение существующего Renderer-протокола `connect/input/resize/close` и `output/status/error`;
+- password authentication;
+- private key и key passphrase;
+- SSH-agent или стандартный ключ из пользовательского `.ssh`;
+- jump host через отдельное SSH-соединение и `forwardOut`;
+- интерактивный `xterm-256color` shell и PTY resize;
+- лимиты WebSocket payload, таймаут первого сообщения и SSH connect timeout;
+- завершение SSH-сессий при удалении кластера и закрытии Gateway;
+- audit открытия, ошибки и закрытия без паролей, passphrase и введённых команд;
+- активный Node SSH session count в `/migration/status`.
 
-- Node: 41.
-- Python: 8.
+## Владение маршрутами после применения Alpha 9
+
+- Node: 42.
+- Python: 7.
 - Всего существующих контрактов: 49.
 
 ## Оставшиеся Python-маршруты
@@ -114,25 +113,22 @@
 - Prompt preview.
 - Resource analysis.
 
-### Интерактивные WebSocket-сессии
+## Проверка Alpha 9
 
-- Node SSH.
-
-## Проверка Alpha 8
-
+- TypeScript main и renderer проверки пройдены.
+- Desktop build выполнен успешно.
 - Gateway contract tests пройдены.
 - Portable-сборка выполнена успешно.
-- Pod Terminal проверен вручную.
-- Подключение, ввод и вывод команд работают.
-- Изменение размера и закрытие terminal-сессии работают.
-- Resource Watch, Port Forward и Node SSH продолжают работать.
+- Node SSH проверен вручную.
+- Подключение, ввод команд, вывод и закрытие сессии работают.
+- Pod Terminal, Resource Watch и Port Forward продолжают работать.
 - Этап принят как рабочий.
 ## Следующий рекомендуемый небольшой этап
 
-После ручной проверки и push Alpha 8:
+После ручной проверки и push Alpha 9:
 
-1. Node SSH WebSocket.
-2. Затем Problems, Search и Related Resources.
+1. Problems.
+2. Затем Global Search и Related Resources небольшими отдельными этапами.
 3. После этого — четыре LLM-контракта.
 4. Python backend и PyInstaller удалять только на RC-этапе.
 

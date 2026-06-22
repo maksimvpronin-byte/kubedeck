@@ -349,8 +349,8 @@ test("Node Gateway owns Pod Terminal WebSocket and pipe fallback", async (t) => 
 
   const migrationResponse = await fetch(`${gateway.baseUrl}/migration/status`, { headers });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.nodeOwned, 41);
-  assert.equal(migration.routes.pythonOwned, 8);
+  assert.equal(migration.routes.nodeOwned, 42);
+  assert.equal(migration.routes.pythonOwned, 7);
   assert.equal(migration.processes.terminals, 1);
 
   socket.send(JSON.stringify({ type: "close" }));

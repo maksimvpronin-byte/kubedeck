@@ -1,5 +1,6 @@
 import type { SpawnProcess } from "./kubectl/runner";
 import type { TerminalPtyFactory } from "./terminal/podTerminalWebSocket";
+import type { SshClientFactory } from "./ssh/nodeSshWebSocket";
 
 export type RouteOwner = "node" | "python";
 export type RouteTransport = "http" | "websocket";
@@ -63,6 +64,7 @@ export interface GatewayOptions {
   log: (message: string) => void;
   spawnKubectl?: SpawnProcess;
   terminalPtyFactory?: TerminalPtyFactory | null;
+  sshClientFactory?: SshClientFactory;
 }
 
 export interface GatewayHandle {

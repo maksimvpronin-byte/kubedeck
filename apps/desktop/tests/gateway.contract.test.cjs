@@ -133,7 +133,7 @@ function oversizedSpawn() {
   return child;
 }
 
-function websocketRequest(port, token, pathname = "/clusters/test/nodes/demo/ssh") {
+function websocketRequest(port, token, pathname = "/legacy/test/websocket") {
   return new Promise((resolve, reject) => {
     const key = crypto.randomBytes(16).toString("base64");
     const socket = net.connect({ host: "127.0.0.1", port });
@@ -269,8 +269,8 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   });
   const migration = await migrationResponse.json();
   assert.equal(migration.routes.totalExisting, 49);
-  assert.equal(migration.routes.nodeOwned, 41);
-  assert.equal(migration.routes.pythonOwned, 8);
+  assert.equal(migration.routes.nodeOwned, 42);
+  assert.equal(migration.routes.pythonOwned, 7);
 
   const kubectlStatus = await fetch(`${gateway.baseUrl}/kubectl/status`, {
     headers: authHeaders,

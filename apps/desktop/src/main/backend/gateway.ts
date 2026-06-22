@@ -16,6 +16,7 @@ import { ResourceWatchWebSocketServer } from "./watch/webSocket";
 import { WatchManager } from "./watch/watchManager";
 import { PortForwardManager } from "./portForward/portForwardManager";
 import { PodTerminalWebSocketServer } from "./terminal/podTerminalWebSocket";
+import { NodeSshWebSocketServer } from "./ssh/nodeSshWebSocket";
 import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
@@ -61,6 +62,7 @@ configStore: ConfigStore;
   watchManager: WatchManager;
   portForwardManager: PortForwardManager;
   terminalWebSocket: PodTerminalWebSocketServer;
+  sshWebSocket: NodeSshWebSocketServer;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -130,6 +132,7 @@ function handleRequest(
       options,
       services.watchManager.activeCount(),
       services.terminalWebSocket.activeCount(),
+      services.sshWebSocket.activeCount(),
       services.portForwardManager.activeCount(),
     ).catch((error) => {
       options.log(`gateway migration status failed: ${String(error)}`);
@@ -279,6 +282,7 @@ function handleRequest(
     void services.watchManager.stopCluster(clusterId);
     void services.portForwardManager.stopCluster(clusterId);
     void services.terminalWebSocket.stopCluster(clusterId);
+    void services.sshWebSocket.stopCluster(clusterId);
     services.resourceCache.clear(clusterId, "cluster.remove");
       clearResourceDefinitionCache(clusterId);
       void writeRemoveCluster(
@@ -459,6 +463,7 @@ function handleUpgrade(
   options: GatewayOptions,
   watchWebSocket: ResourceWatchWebSocketServer,
   terminalWebSocket: PodTerminalWebSocketServer,
+  sshWebSocket: NodeSshWebSocketServer,
 ): void {
   const origin = requestOrigin(request);
 
@@ -472,6 +477,7 @@ function handleUpgrade(
     return;
   }
 
+  if (sshWebSocket.handleUpgrade(request, socket, head)) return;
   if (terminalWebSocket.handleUpgrade(request, socket, head)) return;
   if (watchWebSocket.handleUpgrade(request, socket, head)) return;
   proxyWebSocketUpgrade(request, socket, head, options.legacyBackendUrl, options.log);
@@ -503,6 +509,9 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
       ptyFactory: options.terminalPtyFactory,
     },
   );
+  const sshWebSocket = new NodeSshWebSocketServer(auditStore, options.log, {
+    clientFactory: options.sshClientFactory,
+  });
   const services: GatewayServices = {
     configStore,
     auditStore,
@@ -511,6 +520,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     watchManager,
     portForwardManager,
     terminalWebSocket,
+    sshWebSocket,
   };
 
   const sockets = new Set<Socket>();
@@ -531,6 +541,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
       options,
       watchWebSocket,
       terminalWebSocket,
+      sshWebSocket,
     );
   });
 
@@ -559,7 +570,8 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
       if (closing) return closing;
 
       closing = (async () => {
-        await services.terminalWebSocket.close();
+        await services.sshWebSocket.close();
+      await services.terminalWebSocket.close();
       await services.portForwardManager.close();
       await services.watchManager.close();
       watchWebSocket.close();
