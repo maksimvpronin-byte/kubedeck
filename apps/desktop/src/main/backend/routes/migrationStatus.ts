@@ -37,6 +37,7 @@ export async function writeMigrationStatus(
   response: ServerResponse,
   options: GatewayOptions,
   nodeWatchCount = 0,
+  nodePortForwardCount = 0,
 ): Promise<void> {
   const healthy = await legacyHealth(options.legacyBackendUrl, options.sessionToken);
   const routes = routeOwnershipSummary();
@@ -58,7 +59,7 @@ export async function writeMigrationStatus(
     processes: {
       watches: nodeWatchCount,
       terminals: 0,
-      portForwards: 0,
+      portForwards: nodePortForwardCount,
       sshSessions: 0,
       source: routes.pythonOwned > 0 ? "hybrid" : "node",
     },

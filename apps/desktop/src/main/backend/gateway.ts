@@ -14,6 +14,7 @@ import { ResourceSnapshotCache } from "./cache/resourceSnapshotCache";
 import { ResourceWatchEventHub } from "./watch/eventHub";
 import { ResourceWatchWebSocketServer } from "./watch/webSocket";
 import { WatchManager } from "./watch/watchManager";
+import { PortForwardManager } from "./portForward/portForwardManager";
 import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
@@ -45,6 +46,7 @@ import { handleResourceActionRequest } from "./routes/resourceActions";
 import { handlePodExecRequest } from "./routes/podExec";
 import { handleResourceListRequest } from "./routes/resourceLists";
 import { handleWatchRequest } from "./routes/watch";
+import { handlePortForwardRequest } from "./routes/portForward";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
@@ -56,6 +58,7 @@ configStore: ConfigStore;
   kubectlRunner: KubectlRunner;
   resourceCache: ResourceSnapshotCache;
   watchManager: WatchManager;
+  portForwardManager: PortForwardManager;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -124,6 +127,7 @@ function handleRequest(
       response,
       options,
       services.watchManager.activeCount(),
+      services.portForwardManager.activeCount(),
     ).catch((error) => {
       options.log(`gateway migration status failed: ${String(error)}`);
       writeError(response, 500, "MIGRATION_STATUS_FAILED", "Unable to build migration status");
@@ -270,6 +274,7 @@ function handleRequest(
     }
 
     void services.watchManager.stopCluster(clusterId);
+    void services.portForwardManager.stopCluster(clusterId);
     services.resourceCache.clear(clusterId, "cluster.remove");
       clearResourceDefinitionCache(clusterId);
       void writeRemoveCluster(
@@ -282,6 +287,20 @@ function handleRequest(
       options.log(`gateway cluster remove failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");
     });
+    return;
+  }
+
+  if (
+    handlePortForwardRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.auditStore,
+      services.portForwardManager,
+      options.log,
+    )
+  ) {
     return;
   }
 
@@ -462,12 +481,16 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     options.spawnKubectl,
   );
   const watchWebSocket = new ResourceWatchWebSocketServer(watchEvents, options.log);
+  const portForwardManager = new PortForwardManager(options.log, {
+    spawnProcess: options.spawnKubectl,
+  });
   const services: GatewayServices = {
     configStore: new ConfigStore(options.appDataRoot),
     auditStore: new AuditStore(options.appDataRoot, options.log),
     kubectlRunner: new KubectlRunner(options.log, options.spawnKubectl),
     resourceCache,
     watchManager,
+    portForwardManager,
   };
 
   const sockets = new Set<Socket>();
@@ -509,7 +532,8 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
       if (closing) return closing;
 
       closing = (async () => {
-        await services.watchManager.close();
+        await services.portForwardManager.close();
+      await services.watchManager.close();
       watchWebSocket.close();
       await services.kubectlRunner.close();
 

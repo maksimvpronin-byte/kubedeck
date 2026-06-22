@@ -380,8 +380,8 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
     headers,
   });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.nodeOwned, 37);
-  assert.equal(migration.routes.pythonOwned, 12);
+  assert.equal(migration.routes.nodeOwned, 40);
+  assert.equal(migration.routes.pythonOwned, 9);
   assert.equal(migration.processes.watches, 1);
   assert.equal(migration.processes.source, "hybrid");
 

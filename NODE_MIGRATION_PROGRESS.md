@@ -2,8 +2,8 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Базовая проверенная версия: `2.0.0-alpha.6`  
-Текущая проверенная версия: `2.0.0-alpha.6`
+Базовая проверенная версия: `2.0.0-alpha.7`  
+Текущая проверенная версия: `2.0.0-alpha.7`
 
 ## Цель миграции
 
@@ -67,9 +67,11 @@
 - Защита от возврата устаревшего кэша при недоступном кластере.
 - Очистка кэша после YAML apply, resource actions и удаления кластера.
 
-## Выполненный этап `2.0.0-alpha.6` — Node Resource Watch
+### `2.0.0-alpha.6` — Node Resource Watch
 
-Переносится один связанный блок:
+Проверена вручную и работает штатно.
+
+Перенесены:
 
 - `GET /watches/status`.
 - `POST /clusters/{cluster_id}/watches`.
@@ -77,29 +79,35 @@
 - `POST /watches/stop-all`.
 - WebSocket `/clusters/{cluster_id}/resources/{resource}/watch-events`.
 
+Добавлены Node Watch Manager, дедупликация, graceful stop, точечная очистка resource cache, Node Event Hub и совместимые WebSocket-события.
+
+## Выполненный этап `2.0.0-alpha.7` — Node Port Forward
+
+Переносятся:
+
+- `GET /port-forwards`.
+- `POST /clusters/{cluster_id}/port-forwards`.
+- `DELETE /port-forwards/{session_id}`.
+
 Добавляется:
 
-- отдельный Node Watch Manager для долгоживущих `kubectl watch` процессов;
-- дедупликация по cluster/resource/namespace;
-- состояния `running`, `stopping`, `stopped`, `failed`;
+- отдельный Node Port Forward Manager;
+- запуск `kubectl port-forward` без shell;
+- привязка только к `127.0.0.1`;
+- автоматический выбор свободного локального порта при `localPort: 0`;
+- проверка readiness по выводу kubectl;
+- защита от повторного запуска одинаковой сессии;
 - ограниченные stdout/stderr tails;
 - graceful stop и принудительное завершение по таймауту;
-- остановка watch-процессов при закрытии Gateway;
-- остановка watch-процессов удаляемого кластера;
-- точечная очистка соответствующих resource snapshots;
-- Node Event Hub;
-- ограниченная очередь WebSocket-клиента с удалением самого старого события;
-- совместимые сообщения `status`, `heartbeat`, `pong`, `resource.changed`;
-- прежняя фильтрация `all`, `_cluster` и конкретного namespace;
-- WebSocket auth/origin checks через общий Node Gateway security layer.
-- Отображение активного Node watch count в `/migration/status` с process source `hybrid`.
+- остановка port-forward при удалении кластера;
+- остановка всех port-forward при закрытии Gateway;
+- аудит запуска, ошибки запуска и остановки;
+- отображение активного Node port-forward count в `/migration/status`.
 
-Terminal и Node SSH WebSocket в этом этапе остаются в Python.
+## Владение маршрутами после применения Alpha 7
 
-## Владение маршрутами после применения Alpha 6
-
-- Node: 37.
-- Python: 12.
+- Node: 40.
+- Python: 9.
 - Всего существующих контрактов: 49.
 
 ## Оставшиеся Python-маршруты
@@ -117,32 +125,26 @@ Terminal и Node SSH WebSocket в этом этапе остаются в Python
 - Prompt preview.
 - Resource analysis.
 
-### Port Forward
-
-- List port forwards.
-- Create port forward.
-- Stop port forward.
-
 ### Интерактивные WebSocket-сессии
 
 - Pod Terminal.
 - Node SSH.
 
-## Проверка Alpha 6
+## Проверка Alpha 7
 
+- Gateway contract tests пройдены.
 - Portable-сборка выполнена успешно.
-- Ручная проверка пройдена.
-- Node Resource Watch работает штатно.
+- Port Forward для Pod, Service и Deployment проверен.
+- Запуск и остановка сессий работают.
 - Этап принят как рабочий.
 ## Следующий рекомендуемый небольшой этап
 
-После ручной проверки и push Alpha 6:
+После ручной проверки и push Alpha 7:
 
-1. Node Port Forward Manager.
-2. Затем Pod Terminal WebSocket.
-3. Затем Node SSH WebSocket.
-4. После process-heavy блока — Problems, Search, Related и LLM.
-5. Python backend и PyInstaller удалять только на RC-этапе.
+1. Pod Terminal WebSocket.
+2. Затем Node SSH WebSocket.
+3. После process-heavy блока — Problems, Search, Related и LLM.
+4. Python backend и PyInstaller удалять только на RC-этапе.
 
 ## Правила дальнейшей работы
 
