@@ -2,8 +2,8 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Базовая проверенная версия: `2.0.0-alpha.9`  
-Текущий этап: `2.0.0-alpha.10`
+Базовая проверенная версия: `2.0.0-alpha.10`  
+Текущий этап: `2.0.0-alpha.11`
 
 ## Цель миграции
 
@@ -78,39 +78,45 @@
 
 Перенесён WebSocket `/clusters/{cluster_id}/nodes/{name}/ssh`. Добавлены password/private-key/agent authentication, jump host, интерактивный PTY, resize, lifecycle cleanup и audit без секретов или введённых команд.
 
-## Текущий этап `2.0.0-alpha.10` — Node Problems Engine
+## Выполненный этап `2.0.0-alpha.10` — Node Problems Engine
+
+Проверена вручную и работает штатно.
+
+Перенесён `GET /clusters/{cluster_id}/problems`. Добавлены Node Problems Engine, параллельная загрузка пяти источников, partial errors, restart threshold, категории, severity, target links, сортировка и дедупликация.
+
+## Текущий этап `2.0.0-alpha.11` — Node Global Search
 
 Переносится:
 
-- `GET /clusters/{cluster_id}/problems`.
+- `GET /clusters/{cluster_id}/search`.
 
 Добавляется:
 
-- отдельный Node Problems Engine;
-- параллельная загрузка Pods, Deployments, Events, Nodes и PVC;
+- отдельный Node Global Search engine;
 - сохранение ответа `{ items, summary, errors }`;
+- поиск по Pods, Deployments, Services, ConfigMaps, Secrets, Ingresses, PVC, Events, Namespaces и Nodes;
+- query normalization и ограничения 2–128 символов;
+- `limit` от 1 до 500;
+- namespace-режимы `all`, `_cluster` и список до 20 namespace;
+- ranking по exact/partial name, namespace, kind, resource, labels, annotations, status и безопасным полям spec;
+- обязательное совпадение всех токенов запроса;
+- concurrency `3`, kubectl timeout `10s` и общий search timeout `12s`;
 - частичный результат при ошибке одного Kubernetes-источника;
-- диагностика CrashLoopBackOff, ImagePull, scheduling, restarts и Pod phase;
-- диагностика недоступных Deployment replicas;
-- Warning Events с target resource links;
-- NotReady и pressure для Nodes;
-- Pending/Lost PVC;
-- `restartProblemThreshold` из текущих настроек без перезапуска backend;
-- сортировка Critical → Warning → Info и по времени;
-- дедупликация одинаковых problem rows;
-- contract tests для engine, route, partial errors и missing cluster.
+- дедупликация и стабильная сортировка;
+- CRD definitions и ограниченный поиск CRD instances;
+- безопасный поиск Secrets без чтения `data`;
+- contract tests для ranking, namespace modes, CRD, partial errors, limits и missing cluster.
 
-## Владение маршрутами после применения Alpha 10
+## Владение маршрутами после применения Alpha 11
 
-- Node: 43.
-- Python: 6.
+- Node: 44.
+- Python: 5.
 - Всего существующих контрактов: 49.
 
 ## Оставшиеся Python-маршруты
 
-### Диагностика и поиск
+### Relations
 
-- Global Search.
 - Related Resources.
 
 ### LLM
@@ -120,28 +126,28 @@
 - Prompt preview.
 - Resource analysis.
 
-## Проверка Alpha 10
+## Проверка Alpha 11
 
 Нужно проверить:
 
-- Problems Dashboard открывается без Python-обработки маршрута.
-- CrashLoopBackOff и превышение restart threshold отображаются.
-- Warning Events отображаются и ведут к целевому ресурсу.
-- NotReady Node и Node pressure отображаются.
-- Pending PVC отображается.
-- При запрете чтения одного типа ресурсов остальные проблемы продолжают отображаться.
-- Изменение `restartProblemThreshold` применяется после сохранения настроек.
+- Global Search открывается без Python-обработки маршрута.
+- Поиск по точному и частичному имени работает.
+- Поиск по labels, namespace, kind и status работает.
+- Фильтр одного namespace и `all` работает.
+- Cluster-scoped ресурсы Nodes и Namespaces находятся.
+- При запрете чтения одного типа ресурсов остальные результаты продолжают отображаться.
+- CRD definition и CRD instances находятся по имени вида ресурса.
+- Secrets не раскрывают значения.
 - Gateway contract tests проходят.
 - Portable-сборка выполняется успешно.
 
 ## Следующий рекомендуемый небольшой этап
 
-После ручной проверки и push Alpha 10:
+После ручной проверки и push Alpha 11:
 
-1. Global Search.
-2. Related Resources отдельным этапом.
-3. Затем четыре LLM-контракта.
-4. Python backend и PyInstaller удалять только на RC-этапе.
+1. Related Resources отдельным этапом.
+2. Затем четыре LLM-контракта.
+3. Python backend и PyInstaller удалять только на RC-этапе.
 
 ## Правила дальнейшей работы
 

@@ -1,7 +1,7 @@
 {
   "name": "@kubedeck/desktop",
   "productName": "KubeDeck",
-  "version": "2.0.0-alpha.10",
+  "version": "2.0.0-alpha.11",
   "private": true,
   "main": "dist/main/main.js",
   "scripts": {
@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && vite build",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "dist:win": "electron-builder --win --x64 --config.npmRebuild=false",
-    "test:gateway": "node --test tests/gateway.contract.test.cjs tests/resource-details.contract.test.cjs tests/resource-discovery-events.contract.test.cjs tests/deployment-logs.contract.test.cjs tests/yaml.contract.test.cjs tests/secrets.contract.test.cjs tests/resource-actions.contract.test.cjs tests/pod-exec.contract.test.cjs tests/resource-lists.contract.test.cjs tests/watch.contract.test.cjs tests/port-forward.contract.test.cjs tests/pod-terminal.contract.test.cjs tests/node-ssh.contract.test.cjs tests/problems.contract.test.cjs"
+    "test:gateway": "node --test tests/gateway.contract.test.cjs tests/resource-details.contract.test.cjs tests/resource-discovery-events.contract.test.cjs tests/deployment-logs.contract.test.cjs tests/yaml.contract.test.cjs tests/secrets.contract.test.cjs tests/resource-actions.contract.test.cjs tests/pod-exec.contract.test.cjs tests/resource-lists.contract.test.cjs tests/watch.contract.test.cjs tests/port-forward.contract.test.cjs tests/pod-terminal.contract.test.cjs tests/node-ssh.contract.test.cjs tests/problems.contract.test.cjs tests/search.contract.test.cjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
