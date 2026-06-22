@@ -1,4 +1,5 @@
 import type { SpawnProcess } from "./kubectl/runner";
+import type { TerminalPtyFactory } from "./terminal/podTerminalWebSocket";
 
 export type RouteOwner = "node" | "python";
 export type RouteTransport = "http" | "websocket";
@@ -61,6 +62,7 @@ export interface GatewayOptions {
   appVersion: string;
   log: (message: string) => void;
   spawnKubectl?: SpawnProcess;
+  terminalPtyFactory?: TerminalPtyFactory | null;
 }
 
 export interface GatewayHandle {

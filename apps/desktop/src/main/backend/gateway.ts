@@ -15,6 +15,7 @@ import { ResourceWatchEventHub } from "./watch/eventHub";
 import { ResourceWatchWebSocketServer } from "./watch/webSocket";
 import { WatchManager } from "./watch/watchManager";
 import { PortForwardManager } from "./portForward/portForwardManager";
+import { PodTerminalWebSocketServer } from "./terminal/podTerminalWebSocket";
 import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
@@ -59,6 +60,7 @@ configStore: ConfigStore;
   resourceCache: ResourceSnapshotCache;
   watchManager: WatchManager;
   portForwardManager: PortForwardManager;
+  terminalWebSocket: PodTerminalWebSocketServer;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -127,6 +129,7 @@ function handleRequest(
       response,
       options,
       services.watchManager.activeCount(),
+      services.terminalWebSocket.activeCount(),
       services.portForwardManager.activeCount(),
     ).catch((error) => {
       options.log(`gateway migration status failed: ${String(error)}`);
@@ -275,6 +278,7 @@ function handleRequest(
 
     void services.watchManager.stopCluster(clusterId);
     void services.portForwardManager.stopCluster(clusterId);
+    void services.terminalWebSocket.stopCluster(clusterId);
     services.resourceCache.clear(clusterId, "cluster.remove");
       clearResourceDefinitionCache(clusterId);
       void writeRemoveCluster(
@@ -454,6 +458,7 @@ function handleUpgrade(
   head: Buffer,
   options: GatewayOptions,
   watchWebSocket: ResourceWatchWebSocketServer,
+  terminalWebSocket: PodTerminalWebSocketServer,
 ): void {
   const origin = requestOrigin(request);
 
@@ -467,6 +472,7 @@ function handleUpgrade(
     return;
   }
 
+  if (terminalWebSocket.handleUpgrade(request, socket, head)) return;
   if (watchWebSocket.handleUpgrade(request, socket, head)) return;
   proxyWebSocketUpgrade(request, socket, head, options.legacyBackendUrl, options.log);
 }
@@ -481,16 +487,30 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     options.spawnKubectl,
   );
   const watchWebSocket = new ResourceWatchWebSocketServer(watchEvents, options.log);
+  const configStore = new ConfigStore(options.appDataRoot);
+  const auditStore = new AuditStore(options.appDataRoot, options.log);
+  const kubectlRunner = new KubectlRunner(options.log, options.spawnKubectl);
   const portForwardManager = new PortForwardManager(options.log, {
     spawnProcess: options.spawnKubectl,
   });
+  const terminalWebSocket = new PodTerminalWebSocketServer(
+    configStore,
+    auditStore,
+    kubectlRunner,
+    options.log,
+    {
+      spawnProcess: options.spawnKubectl,
+      ptyFactory: options.terminalPtyFactory,
+    },
+  );
   const services: GatewayServices = {
-    configStore: new ConfigStore(options.appDataRoot),
-    auditStore: new AuditStore(options.appDataRoot, options.log),
-    kubectlRunner: new KubectlRunner(options.log, options.spawnKubectl),
+    configStore,
+    auditStore,
+    kubectlRunner,
     resourceCache,
     watchManager,
     portForwardManager,
+    terminalWebSocket,
   };
 
   const sockets = new Set<Socket>();
@@ -504,7 +524,14 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   });
 
   server.on("upgrade", (request, socket, head) => {
-    handleUpgrade(request, socket, head, options, watchWebSocket);
+    handleUpgrade(
+      request,
+      socket,
+      head,
+      options,
+      watchWebSocket,
+      terminalWebSocket,
+    );
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -532,7 +559,8 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
       if (closing) return closing;
 
       closing = (async () => {
-        await services.portForwardManager.close();
+        await services.terminalWebSocket.close();
+      await services.portForwardManager.close();
       await services.watchManager.close();
       watchWebSocket.close();
       await services.kubectlRunner.close();

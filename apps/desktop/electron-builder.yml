@@ -12,6 +12,8 @@ directories:
 files:
   - dist/**/*
   - package.json
+asarUnpack:
+  - "node_modules/node-pty/**/*"
 
 extraResources:
   - from: build/backend

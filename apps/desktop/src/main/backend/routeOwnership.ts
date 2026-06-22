@@ -40,7 +40,7 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "GET", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/describe", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.1", sourceModule: "routes_pods.py" },
   { method: "GET", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/logs", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.1", sourceModule: "routes_pods.py" },
   { method: "POST", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/exec", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.3", sourceModule: "routes_pods.py" },
-  { method: "WS", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/terminal", transport: "websocket", owner: "python", targetRelease: "2.0.0-beta.1", sourceModule: "routes_pods.py" },
+  { method: "WS", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/terminal", transport: "websocket", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.8", sourceModule: "routes_pods.py" },
   { method: "GET", path: "/port-forwards", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.7", sourceModule: "routes_port_forward.py" },
   { method: "POST", path: "/clusters/{cluster_id}/port-forwards", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.7", sourceModule: "routes_port_forward.py" },
   { method: "DELETE", path: "/port-forwards/{session_id}", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.7", sourceModule: "routes_port_forward.py" },
