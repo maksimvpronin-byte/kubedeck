@@ -2,8 +2,8 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Базовая проверенная версия: `2.0.0-alpha.11`  
-Текущий этап: `2.0.0-alpha.12`
+Базовая проверенная версия: `2.0.0-alpha.12`  
+Текущий этап: `2.0.0-alpha.13`
 
 ## Цель миграции
 
@@ -90,67 +90,74 @@
 
 Перенесён `GET /clusters/{cluster_id}/search`. Добавлены ranking, namespace modes, partial errors, CRD discovery, ограниченный поиск CRD instances и безопасный поиск Secrets.
 
-## Текущий этап `2.0.0-alpha.12` — Node Related Resources
+### `2.0.0-alpha.12` — Node Related Resources
 
-Переносится:
+Проверена вручную и работает штатно.
 
-- `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related`.
+Перенесён `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related`. Добавлены связи workload, network, storage, config и RBAC, дедупликация, кеширование source-запросов и partial errors.
 
-Добавляется:
+## Текущий этап `2.0.0-alpha.13` — Node LLM Backend
 
-- отдельный Node Related Resources engine;
-- сохранение ответа `{ items, sources, errors }`;
-- связи Pod с Node, ServiceAccount, Deployment/CronJob, Service, PVC, ConfigMap и Secret;
-- связи workload selector с Pods, Services и ReplicaSets;
-- связи Service с Pods, Ingress, Endpoints и EndpointSlices;
-- связи Ingress с backend Services;
-- связи PVC/PV со StorageClass, Pod и bound volume/claim;
-- обратный поиск Pods, использующих ConfigMap или Secret;
-- связи ServiceAccount, Role, ClusterRole, RoleBinding и ClusterRoleBinding;
-- связи Node с запущенными на нём Pods;
-- ограничение результата до 200 элементов;
-- дедупликация и стабильная сортировка;
-- кеширование одинаковых source-запросов внутри одного HTTP-вызова;
-- partial errors: ошибка одного Kubernetes-источника не обрушает остальные связи;
-- contract tests для Pod, Service, storage, config, RBAC, partial errors и missing cluster.
-
-## Владение маршрутами после применения Alpha 12
-
-- Node: 45.
-- Python: 4.
-- Всего существующих контрактов: 49.
-
-## Оставшиеся Python-маршруты
-
-### LLM
+Переносятся:
 
 - `GET /llm/status`.
 - `POST /llm/test`.
 - `POST /llm/preview-resource-prompt`.
 - `POST /llm/analyze-resource`.
 
-## Проверка Alpha 12
+Добавляется:
+
+- Node OpenAI-compatible client для `/v1/chat/completions`;
+- сохранение текущих кодов ошибок `LLM_*`;
+- timeout через `AbortController`;
+- поддержка `content`, content parts и reasoning-only ответов;
+- извлечение `<kubedeck_final>` и фиксированный пятисекционный результат;
+- перенос system prompt и prompt preview без изменений Renderer-контракта;
+- безопасный Kubernetes context builder;
+- полный Describe, YAML excerpt и previous logs tail-5;
+- current logs tail-5 только при отсутствии previous logs;
+- status/conditions, container states, events и related resources summary;
+- маскирование Secret data/stringData, token, password, API key, bearer, private key и certificate;
+- ограничение `maxContextChars`;
+- запрет логирования API key, LLM payload и введённого user request;
+- contract tests для sanitizer, truncation, prompt, status, test, preview, analyze, reasoning-only и ошибок.
+
+## Владение маршрутами после применения Alpha 13
+
+- Node: 49.
+- Python: 0.
+- Всего существующих контрактов: 49.
+- Режим `/migration/status`: `node-only`.
+
+## Оставшиеся Python-маршруты
+
+Нет. Python backend пока физически остаётся в runtime и portable только до отдельного cleanup-этапа.
+
+## Проверка Alpha 13
 
 Нужно проверить:
 
-- Related Resources открывается без Python-обработки маршрута.
-- У Pod отображаются Deployment, Node, Service, ServiceAccount, ConfigMap, Secret и PVC.
-- У Service отображаются Pods, Ingress, Endpoints и EndpointSlices.
-- У PVC отображаются PV, StorageClass и использующие claim Pods.
-- У ConfigMap/Secret отображаются использующие их Pods.
-- У ServiceAccount и RBAC-ресурсов отображаются связанные bindings, roles и subjects.
-- У Node отображаются запущенные на нём Pods.
-- Ошибка чтения одного типа ресурсов не скрывает остальные связи.
+- Settings → LLM показывает текущий status.
+- Test connection работает с сохранёнными и временными настройками.
+- Prompt preview совпадает с prompt, используемым Analyze.
+- Analyze Resource возвращает пять секций.
+- reasoning-only ответ возвращает понятный `LLM_EMPTY_FINAL_RESPONSE`.
+- timeout и недоступный сервер возвращают `LLM_TIMEOUT`/`LLM_UNREACHABLE`.
+- Secret data, API key, token, password и private key отсутствуют в preview, app logs и ответе.
+- Previous logs ограничены последними пятью строками.
+- При превышении `maxContextChars` выставляется `truncated: true`.
+- `/migration/status` показывает Node 49 / Python 0 и `node-only`.
 - Gateway contract tests проходят.
 - Portable-сборка выполняется успешно.
 
 ## Следующий рекомендуемый этап
 
-После ручной проверки и push Alpha 12:
+После полного regression test и push Alpha 13:
 
-1. Перенести четыре LLM-контракта отдельным этапом.
-2. Провести полный regression test без Python-owned маршрутов.
-3. Python backend и PyInstaller удалять только на RC-этапе.
+1. `2.0.0-alpha.14` — удалить запуск Python/FastAPI child process.
+2. Удалить Python backend из portable packaging и build scripts.
+3. Удалить PyInstaller/runtime artifacts и legacy proxy после проверки rollback-плана.
+4. Выполнить финальный node-only regression test перед beta/RC.
 
 ## Правила дальнейшей работы
 

@@ -290,8 +290,8 @@ test("Node Gateway owns Port Forward HTTP contracts and reports process count", 
     headers,
   });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.nodeOwned, 45);
-  assert.equal(migration.routes.pythonOwned, 4);
+  assert.equal(migration.routes.nodeOwned, 49);
+  assert.equal(migration.routes.pythonOwned, 0);
   assert.equal(migration.processes.portForwards, 1);
 
   const listResponse = await fetch(`${gateway.baseUrl}/port-forwards`, { headers });
