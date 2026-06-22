@@ -3,7 +3,7 @@
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
 Базовая проверенная версия: `2.0.0-alpha.9`  
-Текущая проверенная версия: `2.0.0-alpha.9`
+Текущий этап: `2.0.0-alpha.10`
 
 ## Цель миграции
 
@@ -72,37 +72,44 @@
 
 Перенесён WebSocket Pod Terminal. Добавлены `kubectl auth can-i`, shell-режимы, Windows ConPTY через `node-pty`, pipe fallback, resize, lifecycle cleanup и audit без введённых команд.
 
-## Выполненный этап `2.0.0-alpha.9` — Node SSH WebSocket
+### `2.0.0-alpha.9` — Node SSH WebSocket
 
-Перенесён:
+Проверена вручную и запушена в `dev/2.0.0`.
 
-- WebSocket `/clusters/{cluster_id}/nodes/{name}/ssh`.
+Перенесён WebSocket `/clusters/{cluster_id}/nodes/{name}/ssh`. Добавлены password/private-key/agent authentication, jump host, интерактивный PTY, resize, lifecycle cleanup и audit без секретов или введённых команд.
 
-Добавлено:
+## Текущий этап `2.0.0-alpha.10` — Node Problems Engine
 
-- отдельный Node SSH WebSocket server;
-- сохранение существующего Renderer-протокола `connect/input/resize/close` и `output/status/error`;
-- password authentication;
-- private key и key passphrase;
-- SSH-agent или стандартный ключ из пользовательского `.ssh`;
-- jump host через отдельное SSH-соединение и `forwardOut`;
-- интерактивный `xterm-256color` shell и PTY resize;
-- лимиты WebSocket payload, таймаут первого сообщения и SSH connect timeout;
-- завершение SSH-сессий при удалении кластера и закрытии Gateway;
-- audit открытия, ошибки и закрытия без паролей, passphrase и введённых команд;
-- активный Node SSH session count в `/migration/status`.
+Переносится:
 
-## Владение маршрутами после применения Alpha 9
+- `GET /clusters/{cluster_id}/problems`.
 
-- Node: 42.
-- Python: 7.
+Добавляется:
+
+- отдельный Node Problems Engine;
+- параллельная загрузка Pods, Deployments, Events, Nodes и PVC;
+- сохранение ответа `{ items, summary, errors }`;
+- частичный результат при ошибке одного Kubernetes-источника;
+- диагностика CrashLoopBackOff, ImagePull, scheduling, restarts и Pod phase;
+- диагностика недоступных Deployment replicas;
+- Warning Events с target resource links;
+- NotReady и pressure для Nodes;
+- Pending/Lost PVC;
+- `restartProblemThreshold` из текущих настроек без перезапуска backend;
+- сортировка Critical → Warning → Info и по времени;
+- дедупликация одинаковых problem rows;
+- contract tests для engine, route, partial errors и missing cluster.
+
+## Владение маршрутами после применения Alpha 10
+
+- Node: 43.
+- Python: 6.
 - Всего существующих контрактов: 49.
 
 ## Оставшиеся Python-маршруты
 
 ### Диагностика и поиск
 
-- Problems.
 - Global Search.
 - Related Resources.
 
@@ -113,23 +120,27 @@
 - Prompt preview.
 - Resource analysis.
 
-## Проверка Alpha 9
+## Проверка Alpha 10
 
-- TypeScript main и renderer проверки пройдены.
-- Desktop build выполнен успешно.
-- Gateway contract tests пройдены.
-- Portable-сборка выполнена успешно.
-- Node SSH проверен вручную.
-- Подключение, ввод команд, вывод и закрытие сессии работают.
-- Pod Terminal, Resource Watch и Port Forward продолжают работать.
-- Этап принят как рабочий.
+Нужно проверить:
+
+- Problems Dashboard открывается без Python-обработки маршрута.
+- CrashLoopBackOff и превышение restart threshold отображаются.
+- Warning Events отображаются и ведут к целевому ресурсу.
+- NotReady Node и Node pressure отображаются.
+- Pending PVC отображается.
+- При запрете чтения одного типа ресурсов остальные проблемы продолжают отображаться.
+- Изменение `restartProblemThreshold` применяется после сохранения настроек.
+- Gateway contract tests проходят.
+- Portable-сборка выполняется успешно.
+
 ## Следующий рекомендуемый небольшой этап
 
-После ручной проверки и push Alpha 9:
+После ручной проверки и push Alpha 10:
 
-1. Problems.
-2. Затем Global Search и Related Resources небольшими отдельными этапами.
-3. После этого — четыре LLM-контракта.
+1. Global Search.
+2. Related Resources отдельным этапом.
+3. Затем четыре LLM-контракта.
 4. Python backend и PyInstaller удалять только на RC-этапе.
 
 ## Правила дальнейшей работы

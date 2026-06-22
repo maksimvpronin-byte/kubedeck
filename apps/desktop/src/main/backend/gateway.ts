@@ -49,6 +49,7 @@ import { handlePodExecRequest } from "./routes/podExec";
 import { handleResourceListRequest } from "./routes/resourceLists";
 import { handleWatchRequest } from "./routes/watch";
 import { handlePortForwardRequest } from "./routes/portForward";
+import { handleProblemsRequest } from "./routes/problems";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
@@ -325,6 +326,18 @@ function handleRequest(
     return;
   }
 
+  if (
+    handleProblemsRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.kubectlRunner,
+      options.log,
+    )
+  ) {
+    return;
+  }
   if (
     handleResourceListRequest(
       request,
