@@ -17,7 +17,7 @@ export interface RouteOwnership {
 }
 
 export interface MigrationStatus {
-  mode: "hybrid" | "node-only";
+  mode: "node-only";
   gateway: {
     runtime: "node";
     version: string;
@@ -25,9 +25,8 @@ export interface MigrationStatus {
     nodeVersion: string;
   };
   legacyBackend: {
-    enabled: boolean;
-    healthy: boolean;
-    processId?: number;
+    enabled: false;
+    healthy: false;
   };
   routes: {
     totalExisting: number;
@@ -51,14 +50,12 @@ export interface MigrationStatus {
     terminals: number;
     portForwards: number;
     sshSessions: number;
-    source: "legacy-not-inspected" | "node" | "hybrid";
+    source: "node";
   };
 }
 
 export interface GatewayOptions {
-  legacyBackendUrl: string;
   sessionToken: string;
-  legacyProcessId: () => number | null;
   appDataRoot: string;
   appVersion: string;
   log: (message: string) => void;

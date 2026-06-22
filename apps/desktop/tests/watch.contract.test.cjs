@@ -383,7 +383,7 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
   assert.equal(migration.routes.nodeOwned, 49);
   assert.equal(migration.routes.pythonOwned, 0);
   assert.equal(migration.processes.watches, 1);
-  assert.equal(migration.processes.source, "hybrid");
+  assert.equal(migration.processes.source, "node");
 
   const stopResponse = await fetch(`${gateway.baseUrl}/watches/${watch.id}`, {
     method: "DELETE",

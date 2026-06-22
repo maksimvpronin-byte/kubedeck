@@ -1,7 +1,6 @@
 appId: dev.kubedeck.app
 productName: KubeDeck
 artifactName: ${productName}-${version}-${arch}.${ext}
-
 npmRebuild: false
 nodeGypRebuild: false
 buildDependenciesFromSource: false
@@ -12,14 +11,7 @@ directories:
 files:
   - dist/**/*
   - package.json
-asarUnpack:
-  - "node_modules/node-pty/**/*"
 
-extraResources:
-  - from: build/backend
-    to: backend
-    filter:
-      - "**/*"
 win:
   signAndEditExecutable: false
   signDlls: false

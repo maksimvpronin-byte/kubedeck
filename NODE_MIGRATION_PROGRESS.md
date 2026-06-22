@@ -1,171 +1,84 @@
-# KubeDeck 2.0 — промежуточный прогресс миграции на Node
+# KubeDeck 2.0 — миграция backend на Node завершена
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Базовая проверенная версия: `2.0.0-alpha.12`  
-Текущий этап: `2.0.0-alpha.13`
+Текущая проверяемая версия: `2.0.0-alpha.14`
 
-## Цель миграции
+## Итог
 
-Убрать отдельный Python/FastAPI backend-процесс и постепенно перенести backend KubeDeck в Node.js внутри Electron main process.
+Все существующие backend-контракты перенесены из Python/FastAPI в Node.js внутри Electron main process.
 
-Во время перехода:
-
-- Renderer обращается только к Node Gateway.
-- Уже перенесённые маршруты выполняются в Node.
-- Остальные маршруты временно проксируются в Python.
-- Python backend пока остаётся в portable-сборке.
-- Python и PyInstaller удаляются только после миграции и проверки всех контрактов.
+- Node routes: **49**.
+- Python routes: **0**.
+- Runtime mode: **node-only**.
+- Legacy HTTP/WebSocket proxy: удалён.
+- Python/FastAPI child process: удалён.
+- PyInstaller packaging: удалён.
+- Python backend payload в portable: запрещён проверкой сборщика.
 
 ## Выполненные этапы
 
-### `2.0.0-alpha.1`
+- Alpha 1–2: Node Gateway, config, audit и cluster management.
+- Alpha 3–4: Node kubectl runtime, resource details, logs, YAML, Secrets, actions и Pod Exec.
+- Alpha 5: resource lists и Resource Snapshot Cache.
+- Alpha 6: Resource Watch и WebSocket Event Hub.
+- Alpha 7: Port Forward Manager.
+- Alpha 8: Pod Terminal и ConPTY/pipe fallback.
+- Alpha 9: Node SSH, private key, agent и jump host.
+- Alpha 10: Problems Engine.
+- Alpha 11: Global Search.
+- Alpha 12: Related Resources.
+- Alpha 13: LLM status/test/preview/analyze.
+- Alpha 14: удаление Python runtime, legacy proxy и PyInstaller.
 
-- Node Gateway.
-- `GET /health`.
-- `GET /migration/status`.
-- Legacy HTTP/WebSocket proxy в Python.
+## Alpha 14 — Node-only Runtime Cleanup
 
-### `2.0.0-alpha.2` и `2.0.0-alpha.2.1`
+Удалено:
 
-- App info, config, settings и audit.
-- Список, импорт, переименование и удаление кластеров.
-- Совместимость с существующим `config.json` и каталогом kubeconfig.
+- `apps/backend` с FastAPI-кодом и Python-тестами;
+- запуск `kubedeck_backend.main` из Electron;
+- backend port allocation, health wait и PID-файл;
+- legacy HTTP/WebSocket proxy;
+- legacy resource-cache invalidation;
+- Python health probe из `/migration/status`;
+- PyInstaller virtualenv и backend executable packaging;
+- `extraResources: build/backend` из electron-builder;
+- требования Python из setup/build документации.
 
-### `2.0.0-alpha.3` — `2.0.0-alpha.3.3`
+Добавлено:
 
-- Node Kubectl Runtime.
-- Открытие кластера, namespaces и kubectl status.
-- Resource YAML, Describe, Events, Pod Logs.
-- Resource discovery cache.
-- Deployment log targets и aggregated logs.
+- постоянный `/migration/status` в режиме `node-only`;
+- HTTP 404 `ROUTE_NOT_FOUND` для неизвестных маршрутов;
+- WebSocket policy close для неизвестных WS-маршрутов;
+- contract test Node-only runtime;
+- portable-проверка отсутствия Python backend payload;
+- Node-only README и Windows bootstrap.
 
-### `2.0.0-alpha.4` — `2.0.0-alpha.4.3`
+## Обязательная проверка Alpha 14
 
-- YAML server-side dry-run и apply.
-- Secret keys/reveal/copy без утечки значений в логи.
-- Resource actions: delete, restart/redeploy, scale, cordon, uncordon и drain.
-- Pod Exec.
-- Подтверждения, `kubectl auth can-i`, audit и cache invalidation.
+- TypeScript typecheck.
+- Desktop/Vite build.
+- Все Node Gateway contract tests.
+- Windows portable build.
+- Запуск portable без установленного Python.
+- `/migration/status`: Node 49, Python 0, mode `node-only`.
+- В release отсутствуют `kubectl.exe`, `resources/backend`, Python DLL и backend executable.
+- Regression smoke test: resources, watch, logs, YAML, terminal, SSH, port-forward, Problems, Search, Related и LLM.
 
-### `2.0.0-alpha.5`
+## Дальнейшие шаги
 
-Проверена вручную и запушена в `dev/2.0.0`.
+После ручной проверки Alpha 14:
 
-Перенесены resource list и Resource Snapshot Cache, включая CPU/RAM, Namespace usage/quota, CRD fallback и защиту от устаревшего кэша.
+1. зафиксировать и push cleanup-коммит;
+2. выполнить полный regression smoke test;
+3. подготовить RC без изменения backend-контрактов;
+4. отдельно обновить историческую техническую документацию при необходимости.
 
-### `2.0.0-alpha.6` — Node Resource Watch
-
-Проверена вручную и работает штатно.
-
-Перенесены четыре HTTP watch-контракта и WebSocket resource watch. Добавлены Node Watch Manager, дедупликация, graceful stop, точечная очистка resource cache и Node Event Hub.
-
-### `2.0.0-alpha.7` — Node Port Forward
-
-Проверена вручную и работает штатно.
-
-Перенесены три Port Forward маршрута. Добавлены Node Port Forward Manager, привязка к `127.0.0.1`, автоматический локальный порт, readiness-проверка, дедупликация, graceful stop, audit и cleanup.
-
-### `2.0.0-alpha.8` — Node Pod Terminal
-
-Проверена вручную, portable-сборка выполнена успешно.
-
-Перенесён WebSocket Pod Terminal. Добавлены `kubectl auth can-i`, shell-режимы, Windows ConPTY через `node-pty`, pipe fallback, resize, lifecycle cleanup и audit без введённых команд.
-
-### `2.0.0-alpha.9` — Node SSH WebSocket
-
-Проверена вручную и запушена в `dev/2.0.0`.
-
-Перенесён WebSocket `/clusters/{cluster_id}/nodes/{name}/ssh`. Добавлены password/private-key/agent authentication, jump host, интерактивный PTY, resize, lifecycle cleanup и audit без секретов или введённых команд.
-
-### `2.0.0-alpha.10` — Node Problems Engine
-
-Проверена вручную и работает штатно.
-
-Перенесён `GET /clusters/{cluster_id}/problems`. Добавлены Node Problems Engine, параллельная загрузка пяти источников, partial errors, restart threshold, категории, severity, target links, сортировка и дедупликация.
-
-### `2.0.0-alpha.11` — Node Global Search
-
-Проверена вручную и работает штатно.
-
-Перенесён `GET /clusters/{cluster_id}/search`. Добавлены ranking, namespace modes, partial errors, CRD discovery, ограниченный поиск CRD instances и безопасный поиск Secrets.
-
-### `2.0.0-alpha.12` — Node Related Resources
-
-Проверена вручную и работает штатно.
-
-Перенесён `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related`. Добавлены связи workload, network, storage, config и RBAC, дедупликация, кеширование source-запросов и partial errors.
-
-## Текущий этап `2.0.0-alpha.13` — Node LLM Backend
-
-Переносятся:
-
-- `GET /llm/status`.
-- `POST /llm/test`.
-- `POST /llm/preview-resource-prompt`.
-- `POST /llm/analyze-resource`.
-
-Добавляется:
-
-- Node OpenAI-compatible client для `/v1/chat/completions`;
-- сохранение текущих кодов ошибок `LLM_*`;
-- timeout через `AbortController`;
-- поддержка `content`, content parts и reasoning-only ответов;
-- извлечение `<kubedeck_final>` и фиксированный пятисекционный результат;
-- перенос system prompt и prompt preview без изменений Renderer-контракта;
-- безопасный Kubernetes context builder;
-- полный Describe, YAML excerpt и previous logs tail-5;
-- current logs tail-5 только при отсутствии previous logs;
-- status/conditions, container states, events и related resources summary;
-- маскирование Secret data/stringData, token, password, API key, bearer, private key и certificate;
-- ограничение `maxContextChars`;
-- запрет логирования API key, LLM payload и введённого user request;
-- contract tests для sanitizer, truncation, prompt, status, test, preview, analyze, reasoning-only и ошибок.
-
-## Владение маршрутами после применения Alpha 13
-
-- Node: 49.
-- Python: 0.
-- Всего существующих контрактов: 49.
-- Режим `/migration/status`: `node-only`.
-
-## Оставшиеся Python-маршруты
-
-Нет. Python backend пока физически остаётся в runtime и portable только до отдельного cleanup-этапа.
-
-## Проверка Alpha 13
-
-Нужно проверить:
-
-- Settings → LLM показывает текущий status.
-- Test connection работает с сохранёнными и временными настройками.
-- Prompt preview совпадает с prompt, используемым Analyze.
-- Analyze Resource возвращает пять секций.
-- reasoning-only ответ возвращает понятный `LLM_EMPTY_FINAL_RESPONSE`.
-- timeout и недоступный сервер возвращают `LLM_TIMEOUT`/`LLM_UNREACHABLE`.
-- Secret data, API key, token, password и private key отсутствуют в preview, app logs и ответе.
-- Previous logs ограничены последними пятью строками.
-- При превышении `maxContextChars` выставляется `truncated: true`.
-- `/migration/status` показывает Node 49 / Python 0 и `node-only`.
-- Gateway contract tests проходят.
-- Portable-сборка выполняется успешно.
-
-## Следующий рекомендуемый этап
-
-После полного regression test и push Alpha 13:
-
-1. `2.0.0-alpha.14` — удалить запуск Python/FastAPI child process.
-2. Удалить Python backend из portable packaging и build scripts.
-3. Удалить PyInstaller/runtime artifacts и legacy proxy после проверки rollback-плана.
-4. Выполнить финальный node-only regression test перед beta/RC.
-
-## Правила дальнейшей работы
+## Правила работы
 
 - Работа ведётся в ветке `dev/2.0.0`.
-- Один ZIP-патч — один функциональный блок.
-- Перед каждым ZIP-патчем сначала согласуется план.
-- Патчи применяются поверх текущего проекта.
-- Не использовать `git diff` в инструкциях.
+- Один ZIP-патч — один логический этап.
+- Перед ZIP-патчем согласуется план.
 - Не выполнять `npm ci` без необходимости.
-- Не добавлять `kubectl.exe` в portable-сборку.
-- Каждый этап проходит typecheck, desktop build, contract tests, portable build и ручную UI-проверку.
+- Не добавлять `kubectl.exe` в portable.
+- Не использовать `git diff` в инструкциях.

@@ -492,27 +492,3 @@ export function handleYamlRequest(
   return true;
 }
 
-export async function invalidateLegacyResourceCache(
-  legacyBackendUrl: string,
-  sessionToken: string,
-  clusterId: string,
-): Promise<void> {
-  const url = new URL("/resource-cache/clear", legacyBackendUrl);
-  url.searchParams.set("cluster_id", clusterId);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 2000);
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "X-KubeDeck-Token": sessionToken },
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      throw new Error(`legacy cache clear returned HTTP ${response.status}`);
-    }
-  } finally {
-    clearTimeout(timer);
-  }
-}

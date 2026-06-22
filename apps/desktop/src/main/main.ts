@@ -1,28 +1,15 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
-import { spawn, spawnSync, ChildProcessWithoutNullStreams } from "node:child_process";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
-import net from "node:net";
 import path from "node:path";
 import { startGateway } from "./backend/gateway";
 import type { GatewayHandle } from "./backend/types";
 
 let mainWindow: BrowserWindow | null = null;
-let backend: ChildProcessWithoutNullStreams | null = null;
-let backendUrl = "";
 let gatewayUrl = "";
 let gateway: GatewayHandle | null = null;
-let backendSessionToken = "";
-let backendPid: number | null = null;
-let backendStopping = false;
+let gatewaySessionToken = "";
 
-type BackendPidFile = {
-  app: "KubeDeck Backend";
-  pid: number;
-  startedAt: string;
-  command: string;
-  tokenHash: string;
-};
 
 type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
 
@@ -88,72 +75,12 @@ function logDesktop(message: string) {
   fs.appendFileSync(path.join(logsDir(), "desktop.log"), `${new Date().toISOString()} ${sanitizeLogText(message)}\n`, "utf-8");
 }
 
-function backendPidPath() {
-  return path.join(appDataRoot(), "backend.pid");
-}
-
-function tokenHash(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (!address || typeof address === "string") {
-        reject(new Error("Unable to allocate backend port"));
-        return;
-      }
-      const port = address.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-function delay(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForBackendReady(timeoutMs = 20000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError = "";
-  while (Date.now() < deadline) {
-    if (backend && backend.exitCode !== null) {
-      throw new Error(`Backend exited before becoming ready. exitCode=${backend.exitCode}`);
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1500);
-    try {
-      const response = await fetch(`${backendUrl}/health`, {
-        headers: { "X-KubeDeck-Token": backendSessionToken },
-        signal: controller.signal,
-      });
-      if (response.ok) {
-        logDesktop(`backend ready url=${backendUrl}`);
-        return;
-      }
-      lastError = `HTTP ${response.status}`;
-    } catch (error) {
-      lastError = String(error);
-    } finally {
-      clearTimeout(timer);
-    }
-    await delay(250);
-  }
-  throw new Error(`Backend did not become ready within ${timeoutMs}ms. Last error: ${lastError || "unknown"}`);
-}
-
 async function startNodeGateway() {
-  if (!backendUrl || !backendSessionToken) {
-    throw new Error("Legacy backend must be ready before Node Gateway starts");
-  }
+  if (gateway) return;
 
+  gatewaySessionToken = randomBytes(32).toString("base64url");
   gateway = await startGateway({
-    legacyBackendUrl: backendUrl,
-    sessionToken: backendSessionToken,
-    legacyProcessId: () => backendPid,
+    sessionToken: gatewaySessionToken,
     appDataRoot: appDataRoot(),
     appVersion: app.getVersion(),
     log: logDesktop,
@@ -171,182 +98,6 @@ function stopNodeGateway(reason: string) {
     logDesktop(`node gateway stop failed: ${String(error)}`);
   });
 }
-
-async function startBackend() {
-  cleanupStaleBackend();
-  const port = await findFreePort();
-  backendSessionToken = randomBytes(32).toString("base64url");
-  backendUrl = `http://127.0.0.1:${port}`;
-  const projectRoot = path.resolve(__dirname, "../../../..");
-  const backendCwd = path.join(projectRoot, "apps", "backend");
-  const packagedBackend = resolvePackagedBackend();
-  const usePackagedBackend = app.isPackaged && fs.existsSync(packagedBackend);
-  const env = {
-    ...process.env,
-    KUBEDECK_BACKEND_PORT: String(port),
-    KUBEDECK_SESSION_TOKEN: backendSessionToken,
-    ...(usePackagedBackend ? {} : { PYTHONPATH: backendCwd }),
-  };
-  const command = usePackagedBackend ? packagedBackend : "py";
-  const args = usePackagedBackend ? [] : ["-3", "-m", "kubedeck_backend.main"];
-  backend = spawn(command, args, {
-    cwd: usePackagedBackend ? path.dirname(packagedBackend) : backendCwd,
-    env,
-    windowsHide: true,
-    detached: false,
-  });
-  backendPid = backend.pid ?? null;
-  if (backendPid) writeBackendPidFile({ app: "KubeDeck Backend", pid: backendPid, startedAt: new Date().toISOString(), command, tokenHash: tokenHash(backendSessionToken) });
-  logDesktop(`backend start url=${backendUrl} pid=${backendPid ?? "unknown"} packaged=${usePackagedBackend} command=${command}`);
-  backend.stdout.on("data", (chunk) => logDesktop(`backend stdout ${chunk.toString().trim()}`));
-  backend.stderr.on("data", (chunk) => logDesktop(`backend stderr ${chunk.toString().trim()}`));
-  backend.on("exit", (code, signal) => {
-    logDesktop(`backend exit code=${code} signal=${signal}`);
-    clearBackendPidFile(backendPid);
-    backend = null;
-    backendPid = null;
-  });
-}
-
-function resolvePackagedBackend() {
-  const backendDir = path.join(process.resourcesPath, "backend");
-  const namedBackend = path.join(backendDir, "KubeDeck Backend.exe");
-  if (fs.existsSync(namedBackend)) return namedBackend;
-  return path.join(backendDir, "kubedeck-backend.exe");
-}
-
-function writeBackendPidFile(info: BackendPidFile) {
-  fs.mkdirSync(appDataRoot(), { recursive: true });
-  fs.writeFileSync(backendPidPath(), JSON.stringify(info, null, 2), "utf-8");
-}
-
-function cleanupStaleBackend() {
-  const stored = readStoredBackendInfo();
-  if (!stored) return;
-  if (!isKubeDeckBackendProcess(stored.pid, stored.tokenHash)) {
-    fs.rmSync(backendPidPath(), { force: true });
-    return;
-  }
-  logDesktop(`cleanup stale backend pid=${stored.pid}`);
-  killProcessTree(stored.pid, stored.tokenHash);
-  fs.rmSync(backendPidPath(), { force: true });
-}
-
-function stopBackend(reason: string) {
-  if (backendStopping) return;
-  backendStopping = true;
-  const stored = readStoredBackendInfo();
-  const pid = backendPid ?? backend?.pid ?? stored?.pid ?? null;
-  const expectedTokenHash = backendSessionToken ? tokenHash(backendSessionToken) : stored?.tokenHash;
-  logDesktop(`backend stop reason=${reason} pid=${pid ?? "unknown"}`);
-  if (backend && !backend.killed) {
-    backend.kill();
-  }
-  if (pid) {
-    killProcessTree(pid, expectedTokenHash);
-    clearBackendPidFile(pid);
-  }
-  backend = null;
-  backendPid = null;
-  backendSessionToken = "";
-}
-
-function readStoredBackendInfo(): BackendPidFile | null {
-  try {
-    const raw = fs.readFileSync(backendPidPath(), "utf-8").trim();
-    if (!raw) return null;
-    if (raw.startsWith("{")) {
-      const parsed = JSON.parse(raw) as Partial<BackendPidFile>;
-      if (parsed.app !== "KubeDeck Backend" || !Number.isInteger(parsed.pid) || Number(parsed.pid) <= 0) return null;
-      return {
-        app: "KubeDeck Backend",
-        pid: Number(parsed.pid),
-        startedAt: String(parsed.startedAt || ""),
-        command: String(parsed.command || ""),
-        tokenHash: String(parsed.tokenHash || ""),
-      };
-    }
-    const legacyPid = Number(raw);
-    return Number.isInteger(legacyPid) && legacyPid > 0
-      ? { app: "KubeDeck Backend", pid: legacyPid, startedAt: "", command: "", tokenHash: "" }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function clearBackendPidFile(expectedPid: number | null) {
-  const pidFile = backendPidPath();
-  if (!fs.existsSync(pidFile)) return;
-  if (!expectedPid) {
-    fs.rmSync(pidFile, { force: true });
-    return;
-  }
-  const stored = readStoredBackendInfo();
-  if (stored?.pid === expectedPid) fs.rmSync(pidFile, { force: true });
-}
-
-function isKubeDeckBackendProcess(pid: number, expectedTokenHash?: string) {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  if (process.platform === "win32") {
-    const commandLine = getWindowsProcessCommandLine(pid);
-    if (!commandLine) return false;
-    const normalized = commandLine.toLowerCase();
-    const looksLikeBackend =
-      normalized.includes("kubedeck backend") ||
-      normalized.includes("kubedeck-backend") ||
-      normalized.includes("kubedeck_backend.main") ||
-      normalized.includes(`${path.sep}apps${path.sep}backend`.toLowerCase()) ||
-      normalized.includes("resources\\backend");
-    if (!looksLikeBackend) return false;
-    if (expectedTokenHash && backendSessionToken && tokenHash(backendSessionToken) !== expectedTokenHash) return false;
-    return true;
-  }
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function getWindowsProcessCommandLine(pid: number) {
-  const result = spawnSync(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-Command",
-      `($p = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}' -ErrorAction SilentlyContinue); if ($p) { $p.CommandLine }`,
-    ],
-    { encoding: "utf-8", windowsHide: true }
-  );
-  if (result.error) {
-    logDesktop(`process inspection error pid=${pid} ${result.error.message}`);
-    return "";
-  }
-  return (result.stdout || "").trim();
-}
-
-function killProcessTree(pid: number, expectedTokenHash?: string) {
-  if (!isKubeDeckBackendProcess(pid, expectedTokenHash)) {
-    logDesktop(`skip taskkill pid=${pid}: process is not verified as KubeDeck backend`);
-    return;
-  }
-  if (process.platform === "win32") {
-    const result = spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { encoding: "utf-8", windowsHide: true });
-    if (result.error) logDesktop(`taskkill error pid=${pid} ${result.error.message}`);
-    if (result.stdout?.trim()) logDesktop(`taskkill stdout ${result.stdout.trim()}`);
-    if (result.stderr?.trim()) logDesktop(`taskkill stderr ${result.stderr.trim()}`);
-    return;
-  }
-  try {
-    process.kill(pid, "SIGTERM");
-  } catch (error) {
-    logDesktop(`kill error pid=${pid} ${String(error)}`);
-  }
-}
-
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -399,7 +150,7 @@ function resolveDevServerUrl() {
   }
 }
 
-ipcMain.handle("kubedeck:getBackendAuth", () => ({ baseUrl: gatewayUrl, token: backendSessionToken }));
+ipcMain.handle("kubedeck:getBackendAuth", () => ({ baseUrl: gatewayUrl, token: gatewaySessionToken }));
 ipcMain.handle("kubedeck:getBackendUrl", () => gatewayUrl);
 ipcMain.handle("kubedeck:selectKubeconfig", async () => {
   const result = await dialog.showOpenDialog({
@@ -500,8 +251,8 @@ ipcMain.handle("kubedeck:openPodShell", async (_event, request: {
 });
 
 async function fetchBackendConfig(): Promise<BackendConfig> {
-  if (!gatewayUrl || !backendSessionToken) throw new Error("Backend is not ready");
-  const response = await fetch(`${gatewayUrl}/config`, { headers: { "X-KubeDeck-Token": backendSessionToken } });
+  if (!gatewayUrl || !gatewaySessionToken) throw new Error("Backend is not ready");
+  const response = await fetch(`${gatewayUrl}/config`, { headers: { "X-KubeDeck-Token": gatewaySessionToken } });
   if (!response.ok) throw new Error(`Backend config request failed: ${response.status}`);
   return (await response.json()) as BackendConfig;
 }
@@ -551,8 +302,6 @@ if (!gotSingleInstanceLock) {
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     logDesktop("desktop startup");
-    await startBackend();
-    await waitForBackendReady();
     await startNodeGateway();
     await createWindow();
   }).catch((error) => {
@@ -565,17 +314,14 @@ if (!gotSingleInstanceLock) {
 
 app.on("window-all-closed", () => {
   stopNodeGateway("window-all-closed");
-  stopBackend("window-all-closed");
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
   logDesktop("desktop shutdown");
   stopNodeGateway("before-quit");
-  stopBackend("before-quit");
 });
 
 app.on("will-quit", () => {
   stopNodeGateway("will-quit");
-  stopBackend("will-quit");
 });

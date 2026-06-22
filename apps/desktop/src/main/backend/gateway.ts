@@ -20,7 +20,6 @@ import { NodeSshWebSocketServer } from "./ssh/nodeSshWebSocket";
 import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
-import { proxyHttpRequest, proxyWebSocketUpgrade } from "./legacyProxy";
 import { writeAppInfo } from "./routes/appInfo";
 import { writeAudit } from "./routes/audit";
 import {
@@ -42,7 +41,7 @@ import {
   handleResourceDiscoveryEventsRequest,
 } from "./routes/resourceDiscoveryEvents";
 import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
-import { handleYamlRequest, invalidateLegacyResourceCache } from "./routes/yaml";
+import { handleYamlRequest } from "./routes/yaml";
 import { handleSecretRequest } from "./routes/secrets";
 import { handleResourceActionRequest } from "./routes/resourceActions";
 import { handlePodExecRequest } from "./routes/podExec";
@@ -431,11 +430,6 @@ function handleRequest(
       async (clusterId) => {
         services.resourceCache.clear(clusterId, "mutation");
         clearResourceDefinitionCache(clusterId);
-        await invalidateLegacyResourceCache(
-          options.legacyBackendUrl,
-          options.sessionToken,
-          clusterId,
-        );
       },
     )
   ) {
@@ -454,11 +448,6 @@ function handleRequest(
       async (clusterId) => {
         services.resourceCache.clear(clusterId, "mutation");
         clearResourceDefinitionCache(clusterId);
-        await invalidateLegacyResourceCache(
-          options.legacyBackendUrl,
-          options.sessionToken,
-          clusterId,
-        );
       },
     )
   ) {
@@ -504,7 +493,7 @@ function handleRequest(
     return;
   }
 
-  proxyHttpRequest(request, response, options.legacyBackendUrl, options.log);
+  writeError(response, 404, "ROUTE_NOT_FOUND", "Route is not implemented by KubeDeck");
 }
 
 function handleUpgrade(
@@ -531,7 +520,7 @@ function handleUpgrade(
   if (sshWebSocket.handleUpgrade(request, socket, head)) return;
   if (terminalWebSocket.handleUpgrade(request, socket, head)) return;
   if (watchWebSocket.handleUpgrade(request, socket, head)) return;
-  proxyWebSocketUpgrade(request, socket, head, options.legacyBackendUrl, options.log);
+  writePolicyViolation(request, socket, "Unknown WebSocket route");
 }
 
 export async function startGateway(options: GatewayOptions): Promise<GatewayHandle> {

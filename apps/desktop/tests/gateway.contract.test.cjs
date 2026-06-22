@@ -378,10 +378,11 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   assert.equal(missingKubectl.status, 502);
   assert.equal((await missingKubectl.json()).detail.code, "KUBECTL_NOT_FOUND");
 
-  const jsonResponse = await fetch(`${gateway.baseUrl}/json`, {
+  const missingRoute = await fetch(`${gateway.baseUrl}/json`, {
     headers: authHeaders,
   });
-  assert.deepEqual(await jsonResponse.json(), { source: "python" });
+  assert.equal(missingRoute.status, 404);
+  assert.equal((await missingRoute.json()).detail.code, "ROUTE_NOT_FOUND");
 
   const gatewayPort = Number(new URL(gateway.baseUrl).port);
   const invalidWs = await websocketRequest(gatewayPort, "wrong-token");
@@ -390,7 +391,9 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   assert.equal(invalidWs.readUInt16BE(closeFrameOffset + 2), 1008);
 
   const validWs = await websocketRequest(gatewayPort, TOKEN);
-  assert.match(validWs.toString("latin1"), /LEGACY_OK/);
+  const unknownCloseOffset = validWs.indexOf(Buffer.from([0x88]));
+  assert.notEqual(unknownCloseOffset, -1);
+  assert.equal(validWs.readUInt16BE(unknownCloseOffset + 2), 1008);
 });
 
 test("Node kubectl runtime enforces timeout, output limit, and shutdown", async () => {

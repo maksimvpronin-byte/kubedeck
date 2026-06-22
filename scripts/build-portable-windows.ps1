@@ -1,14 +1,10 @@
 <#
-KubeDeck Windows portable build script.
+KubeDeck Node-only Windows portable builder.
 
-This is the single canonical portable builder for Windows.
-It builds the Electron desktop app, packages the Python backend with PyInstaller,
-and then runs electron-builder to produce the portable .exe.
-
-Usage from repository root:
+From the repository root:
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1
 
-Optional first-run dependency install:
+Install npm dependencies only when they are missing:
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-portable-windows.ps1 -InstallNpmDeps
 #>
 
@@ -46,7 +42,7 @@ function Assert-Command {
 function Invoke-Native {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
+        [string[]]$Arguments = @()
     )
 
     & $FilePath @Arguments
@@ -55,27 +51,25 @@ function Invoke-Native {
     }
 }
 
-function Assert-ProjectRoot {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    $RequiredPaths = @(
-        "package.json",
-        "apps\desktop\package.json",
-        "apps\backend\kubedeck_backend\main.py",
-        "scripts"
-    )
-
-    foreach ($RelativePath in $RequiredPaths) {
-        $FullPath = Join-Path $Path $RelativePath
-        if (-not (Test-Path $FullPath)) {
-            throw "This script must be run from the KubeDeck repository root. Missing: $RelativePath"
-        }
-    }
-}
-
 function Read-JsonFile {
     param([Parameter(Mandatory = $true)][string]$Path)
     return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+}
+
+function Assert-ProjectRoot {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    foreach ($RelativePath in @(
+        "package.json",
+        "apps\desktop\package.json",
+        "apps\desktop\src\main\main.ts",
+        "scripts"
+    )) {
+        $FullPath = Join-Path $Path $RelativePath
+        if (-not (Test-Path -LiteralPath $FullPath)) {
+            throw "This script must be run from the KubeDeck repository root. Missing: $RelativePath"
+        }
+    }
 }
 
 function Assert-VersionConsistency {
@@ -84,9 +78,8 @@ function Assert-VersionConsistency {
         [Parameter(Mandatory = $true)][string]$DesktopPackageJson
     )
 
-    $RootPkg = Read-JsonFile $RootPackageJson
-    $DesktopPkg = Read-JsonFile $DesktopPackageJson
-
+    $RootPkg = Read-JsonFile -Path $RootPackageJson
+    $DesktopPkg = Read-JsonFile -Path $DesktopPackageJson
     if ($RootPkg.version -ne $DesktopPkg.version) {
         throw "Version mismatch: package.json=$($RootPkg.version), apps/desktop/package.json=$($DesktopPkg.version)"
     }
@@ -98,20 +91,15 @@ function Assert-VersionConsistency {
 function Test-NpmDependenciesReady {
     param([Parameter(Mandatory = $true)][string]$Root)
 
-    $RequiredBins = @(
+    foreach ($RelativeBin in @(
         "node_modules\.bin\tsc.cmd",
         "node_modules\.bin\vite.cmd",
         "node_modules\.bin\electron-builder.cmd"
-    )
-
-    foreach ($RelativeBin in $RequiredBins) {
-        $RequiredBin = Join-Path $Root $RelativeBin
-        if (-not (Test-Path $RequiredBin)) {
-            Write-Host "Missing npm executable: $RequiredBin" -ForegroundColor Yellow
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $Root $RelativeBin))) {
             return $false
         }
     }
-
     return $true
 }
 
@@ -127,242 +115,200 @@ function Ensure-NpmDependencies {
     }
 
     if (-not $Install) {
-        throw "npm dependencies are incomplete. Run 'npm.cmd ci --no-audit --no-fund' from the project root, or rerun this script with -InstallNpmDeps."
+        throw "npm dependencies are incomplete. Run 'npm.cmd ci --no-audit --no-fund', or rerun with -InstallNpmDeps."
     }
 
     Write-Info "Installing npm dependencies because -InstallNpmDeps was specified."
-    Invoke-Native npm.cmd ci --no-audit --no-fund
+    Invoke-Native -FilePath "npm.cmd" -Arguments @("ci", "--no-audit", "--no-fund")
 
     if (-not (Test-NpmDependenciesReady -Root $Root)) {
         throw "npm dependencies are still incomplete after npm ci."
     }
 }
 
-function Ensure-BuildPythonVenv {
-    param(
-        [Parameter(Mandatory = $true)][string]$BuildVenvDir,
-        [Parameter(Mandatory = $true)][string]$BuildPythonExe
-    )
+function Ensure-RollupNativeModule {
+    param([Parameter(Mandatory = $true)][string]$Root)
 
-    if (-not (Test-Path $BuildPythonExe)) {
-        Write-Info "Creating isolated build Python venv: $BuildVenvDir"
-        if (Test-Path $BuildVenvDir) {
-            Remove-Item -LiteralPath $BuildVenvDir -Recurse -Force
+    Push-Location $Root
+    try {
+        & node -e "require('rollup')" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Rollup native module OK."
+            return
         }
-        Invoke-Native py -3 -m venv "$BuildVenvDir"
-    }
 
-    if (-not (Test-Path $BuildPythonExe)) {
-        throw "Build Python executable was not created: $BuildPythonExe"
-    }
+        $RollupVersion = (& node -p "require('./node_modules/rollup/package.json').version").Trim()
+        if (-not $RollupVersion) {
+            throw "Unable to determine installed Rollup version."
+        }
 
-    Invoke-Native $BuildPythonExe -m pip install --disable-pip-version-check --upgrade pip
+        Write-Info "Repairing missing Rollup Windows optional dependency for version $RollupVersion."
+        Invoke-Native -FilePath "npm.cmd" -Arguments @(
+            "install",
+            "--no-save",
+            "--package-lock=false",
+            "@rollup/rollup-win32-x64-msvc@$RollupVersion"
+        )
+    }
+    finally {
+        Pop-Location
+    }
 }
 
 function Stop-KubeDeckProcesses {
     param([Parameter(Mandatory = $true)][string]$Root)
 
     $SelfPid = $PID
-
     try {
-        Get-CimInstance Win32_Process |
-            Where-Object {
-                $_.ProcessId -ne $SelfPid -and
-                ($_.Name -in @("KubeDeck.exe", "electron.exe", "kubedeck-backend.exe", "KubeDeck Backend.exe", "node.exe", "py.exe", "python.exe")) -and
-                ($_.CommandLine -like "*$Root*" -or $_.CommandLine -like "*KubeDeck-Portable*" -or $_.CommandLine -like "*kubedeck-backend*" -or $_.CommandLine -like "*KubeDeck Backend*")
-            } |
-            ForEach-Object {
-                Write-Info "Stopping process $($_.Name) PID=$($_.ProcessId)"
-                Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
-            }
+        Get-CimInstance Win32_Process | Where-Object {
+            $_.ProcessId -ne $SelfPid -and
+            $_.Name -in @("KubeDeck.exe", "electron.exe", "node.exe") -and
+            ($_.CommandLine -like "*$Root*" -or $_.CommandLine -like "*KubeDeck-Portable*")
+        } | ForEach-Object {
+            Write-Info "Stopping process $($_.Name) PID=$($_.ProcessId)"
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        }
     }
     catch {
-        Write-Host "Could not inspect process command lines; falling back to process names. $($_.Exception.Message)" -ForegroundColor Yellow
-        Get-Process -ErrorAction SilentlyContinue |
-            Where-Object {
-                $_.Id -ne $SelfPid -and
-                ($_.ProcessName -in @("KubeDeck", "electron", "kubedeck-backend", "KubeDeck Backend") -or $_.ProcessName -like "KubeDeck-Portable*")
-            } |
-            ForEach-Object {
-                Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
-            }
+        Write-Host "Could not inspect process command lines: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
-function Copy-DirectoryClean {
-    param(
-        [Parameter(Mandatory = $true)][string]$Source,
-        [Parameter(Mandatory = $true)][string]$Destination
-    )
+function Assert-NodeOnlySource {
+    param([Parameter(Mandatory = $true)][string]$Root)
 
-    if (Test-Path $Destination) {
-        Remove-Item -LiteralPath $Destination -Recurse -Force
+    $BackendDir = Join-Path (Join-Path $Root "apps") "backend"
+    $LegacyProxy = Join-Path $Root "apps\desktop\src\main\backend\legacyProxy.ts"
+    if (Test-Path -LiteralPath $BackendDir) {
+        throw "Python backend source still exists: $BackendDir"
+    }
+    if (Test-Path -LiteralPath $LegacyProxy) {
+        throw "Legacy proxy source still exists: $LegacyProxy"
     }
 
-    Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
+    $MainSource = Get-Content -LiteralPath (Join-Path $Root "apps\desktop\src\main\main.ts") -Raw
+    if ($MainSource -match "startBackend|waitForBackendReady|kubedeck_backend|KUBEDECK_BACKEND_PORT|legacyBackendUrl") {
+        throw "Electron main process still contains legacy Python startup code."
+    }
+
+    $BuilderConfig = Get-Content -LiteralPath (Join-Path $Root "apps\desktop\electron-builder.yml") -Raw
+    if ($BuilderConfig -match "build[\\/]backend|to:\s*backend") {
+        throw "electron-builder still bundles the legacy backend."
+    }
+
+    Write-Ok "Node-only source layout verified."
 }
 
 function Assert-NoBundledKubectl {
     param([Parameter(Mandatory = $true)][string]$ReleaseDir)
 
-    if (-not (Test-Path $ReleaseDir)) {
-        throw "Release directory was not created: $ReleaseDir"
-    }
-
-    $BundledKubectl = Get-ChildItem -Path $ReleaseDir -Recurse -Force -ErrorAction SilentlyContinue |
+    $Found = Get-ChildItem -Path $ReleaseDir -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -ieq "kubectl.exe" }
-
-    if ($BundledKubectl) {
-        $Paths = ($BundledKubectl | ForEach-Object { $_.FullName }) -join "; "
-        throw "Portable release must not contain kubectl.exe. Found: $Paths"
+    if ($Found) {
+        throw "Portable release must not contain kubectl.exe: $(($Found.FullName) -join '; ')"
     }
+    Write-Ok "kubectl.exe is not bundled."
+}
 
-    Write-Ok "kubectl.exe is not bundled into the release output."
+function Assert-NoPythonBackendPayload {
+    param([Parameter(Mandatory = $true)][string]$ReleaseDir)
+
+    $Forbidden = Get-ChildItem -Path $ReleaseDir -Recurse -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.FullName -match "[\\/]resources[\\/]backend([\\/]|$)" -or
+            $_.Name -in @("KubeDeck Backend.exe", "kubedeck-backend.exe") -or
+            $_.Name -match "^python\d*\.dll$"
+        }
+
+    if ($Forbidden) {
+        throw "Portable release contains legacy Python backend payload: $(($Forbidden.FullName) -join '; ')"
+    }
+    Write-Ok "No Python/FastAPI/PyInstaller backend payload is bundled."
 }
 
 $Root = Split-Path -Parent $PSScriptRoot
 $DesktopDir = Join-Path $Root "apps\desktop"
-$BackendDir = Join-Path $Root "apps\backend"
-$BackendEntry = Join-Path $BackendDir "kubedeck_backend\main.py"
-$BackendDist = Join-Path $DesktopDir "build\backend"
-$BackendOnedirDist = Join-Path $Root "build\backend-onedir"
-$BackendOnedirCollect = Join-Path $BackendOnedirDist "KubeDeck Backend"
-$PyInstallerWork = Join-Path $Root "build\pyinstaller"
 $ReleaseDir = Join-Path $DesktopDir "release"
-$BackendExe = Join-Path $BackendDist "KubeDeck Backend.exe"
-$BuildVenvDir = Join-Path $Root ".build-venv"
-$BuildPythonExe = Join-Path $BuildVenvDir "Scripts\python.exe"
 $RootPackageJson = Join-Path $Root "package.json"
 $DesktopPackageJson = Join-Path $DesktopDir "package.json"
-$RequirementsFile = Join-Path $BackendDir "requirements.lock.txt"
-
-if (-not (Test-Path $RequirementsFile)) {
-    $RequirementsFile = Join-Path $BackendDir "requirements.txt"
-}
 
 try {
-    if (-not $IsWindows -and $PSVersionTable.PSEdition -eq "Core") {
+    if ($env:OS -ne "Windows_NT") {
         throw "Windows portable build must be run on Windows."
     }
 
     Set-Location $Root
 
-    Write-Step "Validating project root"
+    Write-Step "Validating Node-only project"
     Assert-ProjectRoot -Path $Root
-    $ProjectVersion = Assert-VersionConsistency -RootPackageJson $RootPackageJson -DesktopPackageJson $DesktopPackageJson
+    $ProjectVersion = Assert-VersionConsistency `
+        -RootPackageJson $RootPackageJson `
+        -DesktopPackageJson $DesktopPackageJson
+    Assert-NodeOnlySource -Root $Root
 
     Write-Step "Checking required commands"
-    Assert-Command "node"
-    Assert-Command "npm.cmd"
-    Assert-Command "py"
-    Write-Ok "Required commands OK."
+    Assert-Command -Name "node"
+    Assert-Command -Name "npm.cmd"
+    Write-Ok "Required commands OK. Python is not required."
 
     Write-Step "Checking npm dependencies"
     Ensure-NpmDependencies -Root $Root -Install:$InstallNpmDeps
 
-    Write-Step "Repairing electron-builder 7zip helper"
+    Write-Step "Repairing electron-builder helpers"
     $Repair7zipScript = Join-Path $Root "scripts\repair-7zip-bin.ps1"
-    if (-not (Test-Path $Repair7zipScript)) {
+    if (-not (Test-Path -LiteralPath $Repair7zipScript)) {
         throw "Missing repair script: $Repair7zipScript"
     }
     & $Repair7zipScript
-
-    Write-Step "Preparing isolated backend build Python venv"
-    Ensure-BuildPythonVenv -BuildVenvDir $BuildVenvDir -BuildPythonExe $BuildPythonExe
-
-    Write-Step "Installing backend Python dependencies into isolated venv"
-    Invoke-Native $BuildPythonExe -m pip install --disable-pip-version-check -r "$RequirementsFile"
-
-    Write-Step "Ensuring pinned PyInstaller is installed in isolated venv"
-    Invoke-Native $BuildPythonExe -m pip install --disable-pip-version-check pyinstaller==6.11.1
+    Ensure-RollupNativeModule -Root $Root
 
     Write-Step "Cleaning packaging output"
     Stop-KubeDeckProcesses -Root $Root
     Start-Sleep -Milliseconds 500
-
-    foreach ($PathToClean in @($BackendDist, $PyInstallerWork, $BackendOnedirDist, $ReleaseDir)) {
-        if (Test-Path $PathToClean) {
-            Remove-Item -LiteralPath $PathToClean -Recurse -Force
-        }
+    if (Test-Path -LiteralPath $ReleaseDir) {
+        Remove-Item -LiteralPath $ReleaseDir -Recurse -Force
     }
-
-    New-Item -ItemType Directory -Force -Path $BackendDist | Out-Null
-    New-Item -ItemType Directory -Force -Path $PyInstallerWork | Out-Null
 
     if (-not $SkipTypecheck) {
         Write-Step "Running TypeScript typecheck"
-        Invoke-Native npm.cmd run typecheck
+        Invoke-Native -FilePath "npm.cmd" -Arguments @("run", "typecheck")
     }
 
     Write-Step "Building Electron renderer and main process"
-    Invoke-Native npm.cmd run build
+    Invoke-Native -FilePath "npm.cmd" -Arguments @("run", "build")
 
-    Write-Step "Building backend executable"
-    Invoke-Native $BuildPythonExe -m PyInstaller `
-        --noconfirm `
-        --clean `
-        --onedir `
-        --name "KubeDeck Backend" `
-        --distpath "$BackendOnedirDist" `
-        --workpath "$PyInstallerWork" `
-        --specpath "$PyInstallerWork" `
-        --paths "$BackendDir" `
-        --hidden-import uvicorn.logging `
-        --hidden-import uvicorn.loops.auto `
-        --hidden-import uvicorn.loops.asyncio `
-        --hidden-import uvicorn.protocols.http.auto `
-        --hidden-import uvicorn.protocols.http.h11_impl `
-        --hidden-import uvicorn.protocols.websockets.auto `
-        --hidden-import uvicorn.protocols.websockets.websockets_impl `
-        --hidden-import uvicorn.lifespan.on `
-        "$BackendEntry"
-
-    $BuiltBackendExe = Join-Path $BackendOnedirCollect "KubeDeck Backend.exe"
-    $BuiltBackendInternal = Join-Path $BackendOnedirCollect "_internal"
-
-    if (-not (Test-Path $BuiltBackendExe)) {
-        throw "PyInstaller did not create backend exe: $BuiltBackendExe"
-    }
-    if (-not (Test-Path $BuiltBackendInternal)) {
-        throw "PyInstaller did not create backend _internal directory: $BuiltBackendInternal"
-    }
-
-    Copy-Item -LiteralPath $BuiltBackendExe -Destination $BackendExe -Force
-    Copy-DirectoryClean -Source $BuiltBackendInternal -Destination (Join-Path $BackendDist "_internal")
-
-    if (-not (Test-Path $BackendExe)) {
-        throw "Backend executable was not copied: $BackendExe"
-    }
-
-    Write-Ok "Backend executable prepared: $BackendExe"
-    Write-Ok "Portable package uses user-provided kubectl only: Settings path or PATH."
+    Write-Step "Running Node Gateway contract tests"
+    Invoke-Native -FilePath "npm.cmd" -Arguments @(
+        "--workspace", "apps/desktop", "run", "test:gateway"
+    )
 
     Write-Step "Building Windows portable package"
     Push-Location $DesktopDir
     try {
         $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
-        Invoke-Native npm.cmd run dist:win
+        Invoke-Native -FilePath "npm.cmd" -Arguments @("run", "dist:win")
     }
     finally {
         Pop-Location
     }
 
     Write-Step "Validating release output"
-    Assert-NoBundledKubectl -ReleaseDir $ReleaseDir
-
-    $PortableExe = Get-ChildItem -Path $ReleaseDir -Filter "*Portable*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $PortableExe) {
-        $PortableExe = Get-ChildItem -Path $ReleaseDir -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not (Test-Path -LiteralPath $ReleaseDir)) {
+        throw "Release directory was not created: $ReleaseDir"
     }
+    Assert-NoBundledKubectl -ReleaseDir $ReleaseDir
+    Assert-NoPythonBackendPayload -ReleaseDir $ReleaseDir
 
+    $PortableExe = Get-ChildItem -Path $ReleaseDir -Filter "*Portable*.exe" -ErrorAction SilentlyContinue |
+        Select-Object -First 1
     if (-not $PortableExe) {
-        throw "No .exe was produced in release directory: $ReleaseDir"
+        throw "No portable .exe was produced in: $ReleaseDir"
     }
 
     Write-Host ""
     Write-Host "Done." -ForegroundColor Green
     Write-Host "Project version: $ProjectVersion" -ForegroundColor Green
-    Write-Host "Build output:" -ForegroundColor Green
+    Write-Host "Node-only portable output:" -ForegroundColor Green
     Write-Host "  $($PortableExe.FullName)" -ForegroundColor Green
 }
 catch {
