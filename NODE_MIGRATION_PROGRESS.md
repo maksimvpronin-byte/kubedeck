@@ -2,8 +2,8 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Базовая проверенная версия: `2.0.0-alpha.10`  
-Текущий этап: `2.0.0-alpha.11`
+Базовая проверенная версия: `2.0.0-alpha.11`  
+Текущий этап: `2.0.0-alpha.12`
 
 ## Цель миграции
 
@@ -78,75 +78,78 @@
 
 Перенесён WebSocket `/clusters/{cluster_id}/nodes/{name}/ssh`. Добавлены password/private-key/agent authentication, jump host, интерактивный PTY, resize, lifecycle cleanup и audit без секретов или введённых команд.
 
-## Выполненный этап `2.0.0-alpha.10` — Node Problems Engine
+### `2.0.0-alpha.10` — Node Problems Engine
 
 Проверена вручную и работает штатно.
 
 Перенесён `GET /clusters/{cluster_id}/problems`. Добавлены Node Problems Engine, параллельная загрузка пяти источников, partial errors, restart threshold, категории, severity, target links, сортировка и дедупликация.
 
-## Текущий этап `2.0.0-alpha.11` — Node Global Search
+### `2.0.0-alpha.11` — Node Global Search
+
+Проверена вручную и работает штатно.
+
+Перенесён `GET /clusters/{cluster_id}/search`. Добавлены ranking, namespace modes, partial errors, CRD discovery, ограниченный поиск CRD instances и безопасный поиск Secrets.
+
+## Текущий этап `2.0.0-alpha.12` — Node Related Resources
 
 Переносится:
 
-- `GET /clusters/{cluster_id}/search`.
+- `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related`.
 
 Добавляется:
 
-- отдельный Node Global Search engine;
-- сохранение ответа `{ items, summary, errors }`;
-- поиск по Pods, Deployments, Services, ConfigMaps, Secrets, Ingresses, PVC, Events, Namespaces и Nodes;
-- query normalization и ограничения 2–128 символов;
-- `limit` от 1 до 500;
-- namespace-режимы `all`, `_cluster` и список до 20 namespace;
-- ranking по exact/partial name, namespace, kind, resource, labels, annotations, status и безопасным полям spec;
-- обязательное совпадение всех токенов запроса;
-- concurrency `3`, kubectl timeout `10s` и общий search timeout `12s`;
-- частичный результат при ошибке одного Kubernetes-источника;
+- отдельный Node Related Resources engine;
+- сохранение ответа `{ items, sources, errors }`;
+- связи Pod с Node, ServiceAccount, Deployment/CronJob, Service, PVC, ConfigMap и Secret;
+- связи workload selector с Pods, Services и ReplicaSets;
+- связи Service с Pods, Ingress, Endpoints и EndpointSlices;
+- связи Ingress с backend Services;
+- связи PVC/PV со StorageClass, Pod и bound volume/claim;
+- обратный поиск Pods, использующих ConfigMap или Secret;
+- связи ServiceAccount, Role, ClusterRole, RoleBinding и ClusterRoleBinding;
+- связи Node с запущенными на нём Pods;
+- ограничение результата до 200 элементов;
 - дедупликация и стабильная сортировка;
-- CRD definitions и ограниченный поиск CRD instances;
-- безопасный поиск Secrets без чтения `data`;
-- contract tests для ranking, namespace modes, CRD, partial errors, limits и missing cluster.
+- кеширование одинаковых source-запросов внутри одного HTTP-вызова;
+- partial errors: ошибка одного Kubernetes-источника не обрушает остальные связи;
+- contract tests для Pod, Service, storage, config, RBAC, partial errors и missing cluster.
 
-## Владение маршрутами после применения Alpha 11
+## Владение маршрутами после применения Alpha 12
 
-- Node: 44.
-- Python: 5.
+- Node: 45.
+- Python: 4.
 - Всего существующих контрактов: 49.
 
 ## Оставшиеся Python-маршруты
 
-### Relations
-
-- Related Resources.
-
 ### LLM
 
-- LLM status.
-- LLM connection test.
-- Prompt preview.
-- Resource analysis.
+- `GET /llm/status`.
+- `POST /llm/test`.
+- `POST /llm/preview-resource-prompt`.
+- `POST /llm/analyze-resource`.
 
-## Проверка Alpha 11
+## Проверка Alpha 12
 
 Нужно проверить:
 
-- Global Search открывается без Python-обработки маршрута.
-- Поиск по точному и частичному имени работает.
-- Поиск по labels, namespace, kind и status работает.
-- Фильтр одного namespace и `all` работает.
-- Cluster-scoped ресурсы Nodes и Namespaces находятся.
-- При запрете чтения одного типа ресурсов остальные результаты продолжают отображаться.
-- CRD definition и CRD instances находятся по имени вида ресурса.
-- Secrets не раскрывают значения.
+- Related Resources открывается без Python-обработки маршрута.
+- У Pod отображаются Deployment, Node, Service, ServiceAccount, ConfigMap, Secret и PVC.
+- У Service отображаются Pods, Ingress, Endpoints и EndpointSlices.
+- У PVC отображаются PV, StorageClass и использующие claim Pods.
+- У ConfigMap/Secret отображаются использующие их Pods.
+- У ServiceAccount и RBAC-ресурсов отображаются связанные bindings, roles и subjects.
+- У Node отображаются запущенные на нём Pods.
+- Ошибка чтения одного типа ресурсов не скрывает остальные связи.
 - Gateway contract tests проходят.
 - Portable-сборка выполняется успешно.
 
-## Следующий рекомендуемый небольшой этап
+## Следующий рекомендуемый этап
 
-После ручной проверки и push Alpha 11:
+После ручной проверки и push Alpha 12:
 
-1. Related Resources отдельным этапом.
-2. Затем четыре LLM-контракта.
+1. Перенести четыре LLM-контракта отдельным этапом.
+2. Провести полный regression test без Python-owned маршрутов.
 3. Python backend и PyInstaller удалять только на RC-этапе.
 
 ## Правила дальнейшей работы

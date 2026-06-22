@@ -51,6 +51,7 @@ import { handleWatchRequest } from "./routes/watch";
 import { handlePortForwardRequest } from "./routes/portForward";
 import { handleProblemsRequest } from "./routes/problems";
 import { handleSearchRequest } from "./routes/search";
+import { handleRelatedResourcesRequest } from "./routes/relatedResources";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
@@ -341,6 +342,18 @@ function handleRequest(
   }
   if (
     handleSearchRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.kubectlRunner,
+      options.log,
+    )
+  ) {
+    return;
+  }
+  if (
+    handleRelatedResourcesRequest(
       request,
       response,
       pathname,
