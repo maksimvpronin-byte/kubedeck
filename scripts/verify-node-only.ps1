@@ -10,12 +10,11 @@ param(
     [string]$ReleaseDir = ""
 )
 
+$ErrorActionPreference = "Stop"
+
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Split-Path -Parent $PSScriptRoot
 }
-
-
-$ErrorActionPreference = "Stop"
 
 function Write-Check {
     param([Parameter(Mandatory = $true)][string]$Message)
@@ -131,7 +130,7 @@ Assert-NoPattern -Path $BuilderPath -Patterns @(
     'pip\s+install',
     'requirements\.txt',
     'requirements\.lock\.txt',
-    'apps[\\/]backend[\\/](?:requirements\.txt|kubedeck_backend|main\.py)',
+    'apps[\\/]backend',
     '\.build-venv',
     '\bpy\s+-3\b'
 ) -Description "Portable builder must remain Node-only"
@@ -139,7 +138,7 @@ Assert-NoPattern -Path $BuilderPath -Patterns @(
 Assert-NoPattern -Path $SetupPath -Patterns @(
     'Python\.Python',
     'pip\s+install',
-    'apps[\\/]backend[\\/](?:requirements\.txt|kubedeck_backend|main\.py)',
+    'apps[\\/]backend',
     '\bpy\s+-3\b'
 ) -Description "Windows bootstrap must remain Node-only"
 

@@ -10,7 +10,7 @@ const read = (relativePath) =>
 const forbiddenRuntimePattern =
   /startBackend|waitForBackendReady|kubedeck_backend|KUBEDECK_BACKEND_PORT|legacyBackendUrl|legacyProcessId|legacyProxy|proxyHttpRequest|proxyWebSocketUpgrade|invalidateLegacyResourceCache|clearLegacyResourceCache|backend\.pid|resources[\\/]backend/;
 
-test("KubeDeck Alpha 15 keeps the runtime and build pipeline Node-only", () => {
+test("KubeDeck Beta 1 keeps the runtime and build pipeline Node-only", () => {
   const rootPackage = JSON.parse(read("package.json").replace(/^\uFEFF/, ""));
   const desktopPackage = JSON.parse(
     read("apps/desktop/package.json").replace(/^\uFEFF/, ""),
@@ -33,9 +33,14 @@ test("KubeDeck Alpha 15 keeps the runtime and build pipeline Node-only", () => {
     "../dist/main/backend/routeOwnership.js",
   );
 
-  assert.equal(rootPackage.version, "2.0.0-alpha.15");
-  assert.equal(desktopPackage.version, "2.0.0-alpha.15");
+  assert.equal(rootPackage.version, "2.0.0-beta.1");
+  assert.equal(desktopPackage.version, "2.0.0-beta.1");
   assert.match(rootPackage.scripts["verify:node-only"], /verify-node-only\.ps1/);
+  assert.match(rootPackage.scripts["verify:beta1"], /verify-beta1\.ps1/);
+  assert.match(
+    desktopPackage.scripts["test:gateway"],
+    /--test-concurrency=1/,
+  );
   assert.match(
     desktopPackage.scripts["test:gateway"],
     /node-only-runtime\.contract\.test\.cjs/,
@@ -78,9 +83,12 @@ test("KubeDeck Alpha 15 keeps the runtime and build pipeline Node-only", () => {
   );
   assert.doesNotMatch(electronBuilder, /build[\\/]backend|to:\s*backend/);
   assert.match(verifierSource, /Route ownership: Node 49 \/ Python 0/);
-  assert.match(readme, /2\.0\.0-alpha\.15/);
+  assert.match(readme, /2\.0\.0-beta\.1/);
   assert.match(readme, /Node-only runtime/);
-  assert.doesNotMatch(readme, /pip\s+install|apps[\\/]backend[\\/](?:requirements\.txt|kubedeck_backend|main\.py)/);
+  assert.doesNotMatch(
+    readme,
+    /pip\s+install|apps[\\/]backend[\\/](?:requirements\.txt|kubedeck_backend|main\.py)/,
+  );
 
   const ownership = routeOwnershipSummary();
   assert.equal(ownership.totalExisting, 49);

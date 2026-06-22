@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Текущая проверяемая версия: `2.0.0-alpha.15`
+Текущая проверяемая версия: `2.0.0-beta.1`
 
 ## Итог
 
@@ -33,49 +33,52 @@
 - Alpha 14: удаление Python runtime, legacy proxy и PyInstaller.
 - Alpha 15: стабилизация Node-only build/test/documentation pipeline.
 
-## Alpha 14 — принято
+## Alpha 15 — принято
 
-Проверено вручную:
+Проверено:
 
-- portable-сборка выполнена;
+- `npm.cmd run verify:node-only` проходит;
+- TypeScript typecheck и desktop build проходят;
+- Gateway suite запускается с `--test-concurrency=1`;
+- process-heavy Watch и Port Forward тесты проходят без cancelled;
+- Windows portable собирается;
 - приложение запускается без `python.exe`/`pythonw.exe`;
-- Node Gateway contract tests проходят;
 - `/migration/status`: Node 49, Python 0, mode `node-only`;
 - portable не содержит Python backend payload и встроенный `kubectl.exe`.
 
-## Alpha 15 — Node-only Stabilization
+## Beta 1 — release baseline
+
+`2.0.0-beta.1` не добавляет новые API/UI-функции. Этап фиксирует проверенный Node-only baseline для расширенного ручного regression test.
 
 Добавлено:
 
-- единый `scripts/verify-node-only.ps1`;
-- root-команда `npm.cmd run verify:node-only`;
-- единые ожидания `node-only`, `49/0` и `processes.source=node`;
-- проверка source tree до сборки;
-- проверка release payload после electron-builder;
-- синхронизированная Node-only документация;
-- защита от повторного появления FastAPI/PyInstaller/legacy proxy.
+- `RELEASE_NOTES_2.0.0-beta.1.md`;
+- `BETA_REGRESSION_CHECKLIST.md`;
+- `scripts/verify-beta1.ps1`;
+- root-команда `npm.cmd run verify:beta1`;
+- release contract test;
+- постоянный последовательный запуск Gateway test suite.
 
-Новая функциональность API/UI не добавляется.
-
-## Обязательная проверка Alpha 15
+## Обязательная проверка Beta 1
 
 - `npm.cmd run verify:node-only`;
+- `npm.cmd run verify:beta1`;
 - TypeScript typecheck;
 - Desktop/Vite build;
-- все Node Gateway contract tests;
+- все Node Gateway contract tests без fail/cancelled;
 - Windows portable build;
 - запуск portable;
-- regression smoke test основных функций;
+- полный `BETA_REGRESSION_CHECKLIST.md`;
 - проверка отсутствия Python и встроенного kubectl в runtime/release.
 
 ## Следующий этап
 
-После успешной ручной проверки Alpha 15:
+После принятия Beta 1:
 
-1. commit и push stabilization;
-2. зафиксировать regression checklist;
-3. перейти к `2.0.0-beta.1` без изменения backend-контрактов;
-4. новые функции вести отдельными этапами после beta baseline.
+1. commit и push beta baseline;
+2. закрыть ручной regression checklist;
+3. исправлять найденные дефекты отдельными небольшими beta-патчами;
+4. после стабилизации подготовить `2.0.0-rc.1`.
 
 ## Правила работы
 

@@ -4,7 +4,7 @@ KubeDeck — Windows desktop Kubernetes IDE на Electron, React и TypeScript.
 
 Начиная с `2.0.0-alpha.14`, приложение использует **Node-only runtime внутри Electron**. Отдельный Python/FastAPI-процесс больше не запускается и не включается в portable-сборку.
 
-Текущая версия: **`2.0.0-alpha.15` — Node-only Stabilization**.
+Текущая версия: **`2.0.0-beta.1` — первый Node-only beta baseline**.
 
 ## Архитектура
 
@@ -65,6 +65,19 @@ npm.cmd run verify:node-only
 - владение маршрутами `Node 49 / Python 0`;
 - отсутствие `kubectl.exe`, Python DLL и backend executable в release, если release уже собран.
 
+## Проверка Beta 1
+
+```powershell
+npm.cmd run verify:beta1
+```
+
+Beta-проверка дополнительно контролирует:
+
+- версию `2.0.0-beta.1` во всех package-файлах;
+- последовательный запуск process-heavy Gateway-тестов;
+- наличие release notes и regression checklist;
+- имя portable-артефакта при проверке release-каталога.
+
 ## Сборка portable
 
 ```powershell
@@ -85,14 +98,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 1. Node-only verification;
 2. TypeScript typecheck;
 3. Electron/Vite build;
-4. все Node Gateway contract tests;
+4. все Node Gateway contract tests последовательно;
 5. electron-builder portable packaging;
 6. повторную проверку source tree и release payload.
 
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.0.0-alpha.15-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.0.0-beta.1-x64.exe
 ```
 
 ## Dev-режим
@@ -157,13 +170,6 @@ kubectl version --client
 - команды запускаются через аргументы процесса без shell-интерполяции;
 - portable не содержит `kubectl.exe` и Python runtime.
 
-## Smoke test после сборки
+## Beta regression
 
-1. Portable запускается без Python.
-2. Settings и импорт kubeconfig работают.
-3. Кластер и namespaces открываются.
-4. Resources, YAML, Describe, Events и Related работают.
-5. Logs, Terminal, SSH и Port Forward работают.
-6. Problems, Global Search и LLM работают.
-7. `/migration/status` показывает `node-only`, Node `49`, Python `0`.
-8. В release нет `kubectl.exe`, `resources/backend`, backend executable и Python DLL.
+Полный ручной чек-лист находится в [`BETA_REGRESSION_CHECKLIST.md`](./BETA_REGRESSION_CHECKLIST.md). Изменения Beta 1 описаны в [`RELEASE_NOTES_2.0.0-beta.1.md`](./RELEASE_NOTES_2.0.0-beta.1.md).
