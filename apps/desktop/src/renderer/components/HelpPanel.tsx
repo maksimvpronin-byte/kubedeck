@@ -1,4 +1,4 @@
-﻿export function HelpPanel({ t }: { t: (key: string) => string }) {
+export function HelpPanel({ t }: { t: (key: string) => string }) {
   const quickStart = ["help.quickStart.1", "help.quickStart.2", "help.quickStart.3", "help.quickStart.4"];
   const drawer = ["help.drawer.1", "help.drawer.2", "help.drawer.3", "help.drawer.4"];
   const sections = ["help.sections.1", "help.sections.2", "help.sections.3", "help.sections.4", "help.sections.5"];
@@ -20,17 +20,17 @@
             <dt>{t("help.name")}</dt>
             <dd>KubeDeck</dd>
             <dt>{t("help.version")}</dt>
-            <dd>1.1.2</dd>
+            <dd>2.0.0-beta.1</dd>
             <dt>{t("help.author")}</dt>
-            <dd>РџСЂРѕРЅРёРЅ РњР°РєСЃРёРј</dd>
+            <dd>Пронин Максим</dd>
             <dt>{t("help.project")}</dt>
             <dd>Autoops MOEX KubeDeck Project</dd>
             <dt>{t("help.buildType")}</dt>
-            <dd>Windows Portable</dd>
+            <dd>Windows x64 Portable / macOS arm64 DMG + ZIP</dd>
             <dt>{t("help.components")}</dt>
-            <dd>Electron, React, FastAPI backend, kubectl</dd>
+            <dd>Electron, React, TypeScript, Node Gateway, kubectl</dd>
             <dt>{t("help.appData")}</dt>
-            <dd>%APPDATA%\KubeDeck</dd>
+            <dd>Windows: %APPDATA%\KubeDeck / macOS: ~/Library/Application Support/KubeDeck</dd>
           </dl>
         </article>
 
@@ -44,7 +44,7 @@
         <article className="help-card wide">
           <h3>{t("help.diagnostics")}</h3>
           <p>{t("help.diagnostics.package")}</p>
-          <code>powershell -ExecutionPolicy Bypass -File .\scripts\package-windows.ps1</code>
+          <code>npm run package:win / npm run package:mac</code>
         </article>
       </div>
     </section>

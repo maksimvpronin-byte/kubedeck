@@ -1,7 +1,6 @@
 appId: dev.kubedeck.app
 productName: KubeDeck
 artifactName: ${productName}-${version}-${arch}.${ext}
-
 npmRebuild: false
 nodeGypRebuild: false
 buildDependenciesFromSource: false
@@ -13,11 +12,6 @@ files:
   - dist/**/*
   - package.json
 
-extraResources:
-  - from: build/backend
-    to: backend
-    filter:
-      - "**/*"
 win:
   signAndEditExecutable: false
   signDlls: false
@@ -28,3 +22,19 @@ win:
 
 portable:
   artifactName: ${productName}-Portable-${version}-${arch}.${ext}
+
+mac:
+  identity: null
+  category: public.app-category.developer-tools
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}

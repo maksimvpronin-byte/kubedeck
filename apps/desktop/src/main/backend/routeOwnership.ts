@@ -1,0 +1,66 @@
+import type { RouteOwnership } from "./types";
+
+export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
+  { method: "GET", path: "/health", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.1", migratedIn: "2.0.0-alpha.1", sourceModule: "routes_core.py" },
+  { method: "GET", path: "/app/info", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
+  { method: "GET", path: "/config", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
+  { method: "PUT", path: "/settings", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_core.py" },
+  { method: "GET", path: "/resource-cache/status", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.5", sourceModule: "routes_core.py" },
+  { method: "POST", path: "/resource-cache/clear", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.5", sourceModule: "routes_core.py" },
+  { method: "GET", path: "/kubectl/status", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3", sourceModule: "routes_core.py" },
+  { method: "GET", path: "/clusters", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2.1", migratedIn: "2.0.0-alpha.2.1", sourceModule: "routes_clusters.py" },
+  { method: "POST", path: "/clusters/import", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2.1", migratedIn: "2.0.0-alpha.2.1", sourceModule: "routes_clusters.py" },
+  { method: "PATCH", path: "/clusters/{cluster_id}", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2.1", migratedIn: "2.0.0-alpha.2.1", sourceModule: "routes_clusters.py" },
+  { method: "DELETE", path: "/clusters/{cluster_id}", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2.1", migratedIn: "2.0.0-alpha.2.1", sourceModule: "routes_clusters.py" },
+  { method: "POST", path: "/clusters/last/open", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3", sourceModule: "routes_clusters.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/open", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3", sourceModule: "routes_clusters.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/namespaces", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3", sourceModule: "routes_clusters.py" },
+  { method: "GET", path: "/audit", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_audit.py" },
+  { method: "GET", path: "/llm/status", transport: "http", owner: "node", targetRelease: "2.0.0-beta.2", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },
+  { method: "POST", path: "/llm/test", transport: "http", owner: "node", targetRelease: "2.0.0-beta.2", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },
+  { method: "POST", path: "/llm/preview-resource-prompt", transport: "http", owner: "node", targetRelease: "2.0.0-beta.2", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },
+  { method: "POST", path: "/llm/analyze-resource", transport: "http", owner: "node", targetRelease: "2.0.0-beta.2", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/problems", transport: "http", owner: "node", targetRelease: "2.0.0-beta.2", migratedIn: "2.0.0-alpha.10", sourceModule: "routes_problems.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/search", transport: "http", owner: "node", targetRelease: "2.0.0-beta.2", migratedIn: "2.0.0-alpha.11", sourceModule: "routes_search.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/yaml/dry-run", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4", sourceModule: "routes_yaml.py" },
+  { method: "PUT", path: "/clusters/{cluster_id}/yaml/apply", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4", sourceModule: "routes_yaml.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/resources/{resource}", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.5", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/secrets/{namespace}/{name}/keys", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.1", sourceModule: "routes_resources.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/secrets/{namespace}/{name}/reveal", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.1", sourceModule: "routes_resources.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/secrets/{namespace}/{name}/copy", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.1", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/deployments/{namespace}/{name}/log-targets", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.3.3", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/deployments/{namespace}/{name}/logs", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.3.3", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/resource-definitions", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.2", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/yaml", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.1", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/describe", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.1", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/events", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.2", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related", transport: "http", owner: "node", targetRelease: "2.0.0-beta.2", migratedIn: "2.0.0-alpha.12", sourceModule: "routes_resources.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/action", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.2", sourceModule: "routes_resources.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/yaml", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.1", sourceModule: "routes_pods.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/describe", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.1", sourceModule: "routes_pods.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/logs", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.1", sourceModule: "routes_pods.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/exec", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.3", sourceModule: "routes_pods.py" },
+  { method: "WS", path: "/clusters/{cluster_id}/pods/{namespace}/{name}/terminal", transport: "websocket", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.8", sourceModule: "routes_pods.py" },
+  { method: "GET", path: "/port-forwards", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.7", sourceModule: "routes_port_forward.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/port-forwards", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.7", sourceModule: "routes_port_forward.py" },
+  { method: "DELETE", path: "/port-forwards/{session_id}", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.7", sourceModule: "routes_port_forward.py" },
+  { method: "GET", path: "/watches/status", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/watches", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "DELETE", path: "/watches/{watch_id}", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "POST", path: "/watches/stop-all", transport: "http", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "WS", path: "/clusters/{cluster_id}/resources/{resource}/watch-events", transport: "websocket", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.6", sourceModule: "routes_watch.py" },
+  { method: "WS", path: "/clusters/{cluster_id}/nodes/{name}/ssh", transport: "websocket", owner: "node", targetRelease: "2.0.0-beta.1", migratedIn: "2.0.0-alpha.9", sourceModule: "routes_node_ssh.py" },
+];
+
+export function routeOwnershipSummary() {
+  const node = ROUTE_OWNERSHIP.filter((route) => route.owner === "node");
+  const python = ROUTE_OWNERSHIP.filter((route) => route.owner === "python");
+
+  return {
+    totalExisting: ROUTE_OWNERSHIP.length,
+    nodeOwned: node.length,
+    pythonOwned: python.length,
+    node: node.map(({ method, path, transport, migratedIn }) => ({ method, path, transport, migratedIn })),
+    python: python.map(({ method, path, transport, targetRelease }) => ({ method, path, transport, targetRelease })),
+  };
+}
