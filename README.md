@@ -113,6 +113,42 @@ npm ci --no-audit --no-fund
 
 `node_modules`, созданный на Windows, нельзя переносить на macOS и наоборот: проект содержит нативную зависимость `node-pty`.
 
+## Устранение проблем npm
+
+### Ошибка `ECONNRESET` при `npm ci`
+
+Если установка зависимостей завершается ошибкой:
+
+```text
+npm error code ECONNRESET
+npm error network read ECONNRESET
+```
+
+соединение с npm registry было прервано. Предупреждения `deprecated` сами по себе не останавливают установку или сборку.
+
+На Windows повторите установку с проверкой кеша, увеличенными таймаутами и дополнительными попытками:
+
+```powershell
+npm.cmd cache verify
+
+npm.cmd ci `
+  --no-audit `
+  --no-fund `
+  --prefer-offline `
+  --fetch-retries=5 `
+  --fetch-retry-mintimeout=20000 `
+  --fetch-retry-maxtimeout=120000 `
+  --fetch-timeout=300000
+```
+
+После успешной установки зависимостей запустите сборку:
+
+```powershell
+npm.cmd run package:win
+```
+
+Обновление npm для устранения `ECONNRESET` не требуется.
+
 ## Dev-режим
 
 Из корня проекта:
