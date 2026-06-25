@@ -173,3 +173,17 @@ kubectl version --client
 ## Beta regression
 
 Полный ручной чек-лист находится в [`BETA_REGRESSION_CHECKLIST.md`](./BETA_REGRESSION_CHECKLIST.md). Изменения Beta 1 описаны в [`RELEASE_NOTES_2.0.0-beta.1.md`](./RELEASE_NOTES_2.0.0-beta.1.md).
+
+## Сборка для macOS Apple Silicon
+
+Тестовая неподписанная сборка поддерживает Mac с Apple Silicon (`arm64`). Требуются Node.js 20+, npm, Xcode Command Line Tools и системный `kubectl`.
+
+Из корня проекта:
+
+```bash
+npm run package:mac
+```
+
+Сборщик выполняет typecheck, production build, Node Gateway contract tests, пересборку нативных Electron-зависимостей и создаёт DMG/ZIP в `apps/desktop/release`.
+
+Неподписанное приложение при первом запуске может потребовать **Control-click → Open** в Finder.

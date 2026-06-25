@@ -217,34 +217,77 @@ ipcMain.handle("kubedeck:openPodShell", async (_event, request: {
   const dir = path.join(appDataRoot(), "terminals");
   fs.mkdirSync(dir, { recursive: true });
   cleanupOldTerminalScripts(dir);
-  const scriptPath = path.join(dir, `kubedeck-shell-${Date.now()}.cmd`);
-  const args = [
-    quoteCmdArg(kubectlPath),
-    "--kubeconfig",
-    quoteCmdArg(kubeconfigPath),
-    "exec",
-    "-i",
-    "-t",
-    "-n",
-    quoteCmdArg(request.namespace),
-    quoteCmdArg(request.pod),
-    ...(request.container ? ["-c", quoteCmdArg(request.container)] : []),
-    "--",
-    "sh",
-    "-c",
-    quoteCmdArg("clear; (bash || sh || ash)"),
-  ];
-  const body = [
-    "@echo off",
-    "chcp 65001 >nul",
-    `title KubeDeck shell: ${request.namespace}/${request.pod}`,
-    args.join(" "),
-    "echo.",
-    "echo Session closed. Press any key to exit.",
-    "pause >nul",
-    "",
-  ].join("\r\n");
-  fs.writeFileSync(scriptPath, body, "utf-8");
+  if (process.platform !== "win32" && process.platform !== "darwin") {
+    throw new Error("External Pod Shell is supported only on Windows and macOS");
+  }
+
+  const isMac = process.platform === "darwin";
+  const scriptPath = path.join(
+    dir,
+    `kubedeck-shell-${Date.now()}${isMac ? ".command" : ".cmd"}`,
+  );
+
+  if (isMac) {
+    const args = [
+      quotePosixArg(kubectlPath),
+      "--kubeconfig",
+      quotePosixArg(kubeconfigPath),
+      "exec",
+      "-i",
+      "-t",
+      "-n",
+      quotePosixArg(request.namespace),
+      quotePosixArg(request.pod),
+      ...(request.container ? ["-c", quotePosixArg(request.container)] : []),
+      "--",
+      "sh",
+      "-c",
+      quotePosixArg("clear; (bash || sh || ash)"),
+    ];
+    const body = [
+      "#!/bin/zsh",
+      "clear",
+      `printf '\\033]0;KubeDeck shell: ${request.namespace}/${request.pod}\\007'`,
+      args.join(" "),
+      "status=$?",
+      "echo",
+      'echo "Session closed."',
+      'printf "Press Enter to exit..."',
+      "read -r",
+      'exit "$status"',
+      "",
+    ].join("\n");
+    fs.writeFileSync(scriptPath, body, "utf-8");
+    fs.chmodSync(scriptPath, 0o700);
+  } else {
+    const args = [
+      quoteCmdArg(kubectlPath),
+      "--kubeconfig",
+      quoteCmdArg(kubeconfigPath),
+      "exec",
+      "-i",
+      "-t",
+      "-n",
+      quoteCmdArg(request.namespace),
+      quoteCmdArg(request.pod),
+      ...(request.container ? ["-c", quoteCmdArg(request.container)] : []),
+      "--",
+      "sh",
+      "-c",
+      quoteCmdArg("clear; (bash || sh || ash)"),
+    ];
+    const body = [
+      "@echo off",
+      "chcp 65001 >nul",
+      `title KubeDeck shell: ${request.namespace}/${request.pod}`,
+      args.join(" "),
+      "echo.",
+      "echo Session closed. Press any key to exit.",
+      "pause >nul",
+      "",
+    ].join("\r\n");
+    fs.writeFileSync(scriptPath, body, "utf-8");
+  }
   const openError = await shell.openPath(scriptPath);
   if (openError) throw new Error(openError);
   logDesktop(`open pod shell cluster=${request.clusterId} namespace=${request.namespace} pod=${request.pod} container=${request.container ?? ""}`);
@@ -273,12 +316,19 @@ function quoteCmdArg(value: string) {
   return `"${String(value).replace(/"/g, '""')}"`;
 }
 
+function quotePosixArg(value: string) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
 function cleanupOldTerminalScripts(dir: string) {
   const maxAgeMs = 24 * 60 * 60 * 1000;
   const now = Date.now();
   try {
     for (const entry of fs.readdirSync(dir)) {
-      if (!entry.startsWith("kubedeck-shell-") || !entry.endsWith(".cmd")) continue;
+      if (
+        !entry.startsWith("kubedeck-shell-") ||
+        (!entry.endsWith(".cmd") && !entry.endsWith(".command"))
+      ) continue;
       const file = path.join(dir, entry);
       const stat = fs.statSync(file);
       if (now - stat.mtimeMs > maxAgeMs) fs.rmSync(file, { force: true });
@@ -312,9 +362,19 @@ if (!gotSingleInstanceLock) {
   });
 }
 
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length > 0) return;
+  void createWindow().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    logDesktop(`window activation failed: ${message}`);
+    dialog.showErrorBox("KubeDeck window failed", message);
+  });
+});
+
 app.on("window-all-closed", () => {
+  if (process.platform === "darwin") return;
   stopNodeGateway("window-all-closed");
-  if (process.platform !== "darwin") app.quit();
+  app.quit();
 });
 
 app.on("before-quit", () => {
