@@ -6,6 +6,7 @@ import type { ApiClient } from "../api";
 import type { ResourceRow } from "../types";
 
 type TerminalShell = "auto" | "sh" | "bash" | "ash";
+type TerminalMessage = { type: string; data?: string; transport?: "pty" | "pipes"; commandPreview?: string };
 
 interface TerminalTabProps {
   api: ApiClient;
@@ -23,6 +24,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [status, setStatus] = useState("Disconnected");
+  const [transport, setTransport] = useState<"pty" | "pipes" | "">("");
   const socketRef = useRef<WebSocket | null>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -64,10 +66,25 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     fit.fit();
     terminal.writeln("Choose a container/shell and click Connect to open kubectl exec.");
     terminal.onData((data) => {
-      const socket = socketRef.current;
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "input", data }));
+      sendTerminalInput(socketRef.current, data);
+    });
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown") return true;
+      const key = event.key.toLowerCase();
+      const copyRequested = (event.ctrlKey && event.shiftKey && key === "c") || (event.ctrlKey && event.key === "Insert");
+      if (copyRequested || (event.ctrlKey && !event.shiftKey && key === "c" && terminal.hasSelection())) {
+        copyTerminalSelection(terminal, lastCopiedSelectionRef, true);
+        return false;
       }
+      const pasteRequested =
+        (event.ctrlKey && key === "v") ||
+        (event.ctrlKey && event.shiftKey && key === "v") ||
+        (event.shiftKey && event.key === "Insert");
+      if (pasteRequested) {
+        void pasteFromClipboard(socketRef.current);
+        return false;
+      }
+      return true;
     });
     terminal.onSelectionChange(() => {
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
@@ -78,6 +95,11 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     terminalRef.current = terminal;
     fitRef.current = fit;
 
+    const scheduleFitAndResize = () => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(fitAndResize);
+      });
+    };
     const fitAndResize = () => {
       try {
         fit.fit();
@@ -88,13 +110,22 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     };
     const onResize = () => fitAndResize();
     const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current
-      ? new ResizeObserver(() => window.requestAnimationFrame(fitAndResize))
+      ? new ResizeObserver(scheduleFitAndResize)
       : null;
     if (hostRef.current) resizeObserver?.observe(hostRef.current);
+    const onPaste = (event: ClipboardEvent) => {
+      const text = event.clipboardData?.getData("text/plain");
+      if (!text) return;
+      event.preventDefault();
+      sendTerminalInput(socketRef.current, normalizePastedText(text));
+    };
+    hostRef.current?.addEventListener("paste", onPaste);
     window.addEventListener("resize", onResize);
+    scheduleFitAndResize();
 
     return () => {
       window.removeEventListener("resize", onResize);
+      hostRef.current?.removeEventListener("paste", onPaste);
       resizeObserver?.disconnect();
       disconnectTerminal(socketRef, setConnected, setStatus, setConnecting);
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
@@ -106,10 +137,13 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
   }, [pod.uid]);
 
   useEffect(() => {
-    window.setTimeout(() => {
-      fitRef.current?.fit();
-      if (terminalRef.current) sendTerminalResize(socketRef.current, terminalRef.current);
+    const timer = window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
+        fitRef.current?.fit();
+        if (terminalRef.current) sendTerminalResize(socketRef.current, terminalRef.current);
+      });
     }, 0);
+    return () => window.clearTimeout(timer);
   }, [selectedContainer, shell]);
 
   useEffect(() => {
@@ -129,7 +163,10 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     const terminal = terminalRef.current;
     const fit = fitRef.current;
     if (!terminal || !fit) return;
-    fit.fit();
+    window.requestAnimationFrame(() => {
+      fit.fit();
+      sendTerminalResize(socketRef.current, terminal);
+    });
     const socket = new WebSocket(api.podTerminalUrl(clusterId, String(pod.namespace), pod.name, selectedContainer, shell));
     socketRef.current = socket;
     terminal.clear();
@@ -149,7 +186,13 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       if (socketRef.current !== socket) return;
       const message = parseTerminalMessage(event.data);
       if (message.type === "output") terminal.write(message.data || "");
-      if (message.type === "status") setStatus(message.data || "Connected");
+      if (message.type === "status") {
+        if (message.transport) setTransport(message.transport);
+        setStatus(statusText(message.data || "Connected", message.transport));
+        if (message.transport === "pipes") {
+          terminal.writeln("\r\n[KubeDeck warning: PTY unavailable; interactive editing may be unstable.]");
+        }
+      }
       if (message.type === "error") {
         setStatus("Error");
         setConnecting(false);
@@ -162,6 +205,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       setConnected(false);
       setConnecting(false);
       setStatus("Disconnected");
+      setTransport("");
       terminal.writeln("\r\n[session closed]");
     };
     socket.onerror = () => {
@@ -211,6 +255,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
           Clear
         </button>
         <span className={terminalStatusClass(status, connected, connecting)}>{status}</span>
+        {transport ? <span className={`terminal-transport ${transport}`}>{transport.toUpperCase()}</span> : null}
       </div>
       <div className="terminal-command-preview">
         kubectl exec -i -t -n {String(pod.namespace)} {pod.name}{selectedContainer ? ` -c ${selectedContainer}` : ""} -- {shellCommandPreview(shell)}
@@ -258,14 +303,19 @@ function terminalStatusClass(status: string, connected: boolean, connecting: boo
   return "terminal-status";
 }
 
-function parseTerminalMessage(value: unknown): { type: string; data?: string } {
+function parseTerminalMessage(value: unknown): TerminalMessage {
   if (typeof value !== "string") return { type: "output", data: "" };
   try {
-    const parsed = JSON.parse(value) as { type?: string; data?: string };
-    return { type: parsed.type || "output", data: parsed.data || "" };
+    const parsed = JSON.parse(value) as TerminalMessage;
+    return { type: parsed.type || "output", data: parsed.data || "", transport: parsed.transport, commandPreview: parsed.commandPreview };
   } catch {
     return { type: "output", data: value };
   }
+}
+
+function sendTerminalInput(socket: WebSocket | null, data: string) {
+  if (socket?.readyState !== WebSocket.OPEN || !data) return;
+  socket.send(JSON.stringify({ type: "input", data }));
 }
 
 function sendTerminalResize(socket: WebSocket | null, terminal: XTerm) {
@@ -273,9 +323,27 @@ function sendTerminalResize(socket: WebSocket | null, terminal: XTerm) {
   socket.send(JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
 }
 
-function copyTerminalSelection(terminal: XTerm | null, lastCopiedRef?: { current: string }) {
+function copyTerminalSelection(terminal: XTerm | null, lastCopiedRef?: { current: string }, force = false) {
   const selection = terminal?.getSelection();
-  if (!selection || selection === lastCopiedRef?.current) return;
+  if (!selection || (!force && selection === lastCopiedRef?.current)) return;
   lastCopiedRef && (lastCopiedRef.current = selection);
   navigator.clipboard?.writeText(selection).catch(() => undefined);
+}
+
+async function pasteFromClipboard(socket: WebSocket | null) {
+  try {
+    const text = await navigator.clipboard?.readText();
+    if (text) sendTerminalInput(socket, normalizePastedText(text));
+  } catch {
+    // Some Electron/Windows clipboard policies only allow the native paste event.
+  }
+}
+
+function normalizePastedText(text: string) {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function statusText(value: string, transport?: "pty" | "pipes") {
+  if (!transport || value.toLowerCase() !== "connected") return value;
+  return `Connected (${transport.toUpperCase()})`;
 }

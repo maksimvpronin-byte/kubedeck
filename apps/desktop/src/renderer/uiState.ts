@@ -1,5 +1,6 @@
 export interface UiState {
   drawerWidth?: number;
+  sidebarWidth?: number;
   expandedSections?: string[];
   expandedCrdGroups?: string[];
   section?: string;

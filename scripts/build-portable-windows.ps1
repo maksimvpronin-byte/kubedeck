@@ -145,6 +145,48 @@ function Ensure-RollupNativeModule {
     }
 }
 
+function Ensure-NodePtyElectronModule {
+    param([Parameter(Mandatory = $true)][string]$Root)
+    Push-Location $Root
+    try {
+        $ElectronVersion = (& node -p "require('./apps/desktop/package.json').devDependencies.electron.replace(/^[^0-9]*/, '')").Trim()
+        if (-not $ElectronVersion) {
+            throw "Unable to determine Electron version."
+        }
+        $ElectronRebuild = Join-Path $Root "node_modules\.bin\electron-rebuild.cmd"
+        $ElectronBin = Join-Path $Root "node_modules\.bin\electron.cmd"
+        if (-not (Test-Path -LiteralPath $ElectronRebuild)) {
+            throw "@electron/rebuild is unavailable. Run: npm.cmd ci --no-audit --no-fund"
+        }
+        if (-not (Test-Path -LiteralPath $ElectronBin)) {
+            throw "Electron executable is unavailable. Run: npm.cmd ci --no-audit --no-fund"
+        }
+        Write-Info "Rebuilding node-pty for Electron $ElectronVersion win32 x64."
+        Invoke-Native -FilePath $ElectronRebuild -Arguments @(
+            "--force",
+            "--only", "node-pty",
+            "--version", $ElectronVersion,
+            "--arch", "x64",
+            "--module-dir", $Root
+        )
+        $PreviousElectronRunAsNode = $env:ELECTRON_RUN_AS_NODE
+        try {
+            $env:ELECTRON_RUN_AS_NODE = "1"
+            Invoke-Native -FilePath $ElectronBin -Arguments @(
+                "-e",
+                "require('node-pty'); console.log('node-pty Electron OK:', process.versions.electron, process.arch)"
+            )
+        }
+        finally {
+            $env:ELECTRON_RUN_AS_NODE = $PreviousElectronRunAsNode
+        }
+        Write-Ok "node-pty Electron module OK."
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 function Stop-KubeDeckProcesses {
     param([Parameter(Mandatory = $true)][string]$Root)
     $SelfPid = $PID
@@ -212,6 +254,7 @@ try {
     }
     & $Repair7zipScript
     Ensure-RollupNativeModule -Root $Root
+    Ensure-NodePtyElectronModule -Root $Root
 
     Write-Step "Cleaning packaging output"
     Stop-KubeDeckProcesses -Root $Root

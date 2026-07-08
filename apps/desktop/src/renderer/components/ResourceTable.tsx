@@ -189,6 +189,7 @@ export function ResourceTable({
   const totalPages = Math.max(1, Math.ceil(visibleRows.length / pageSize));
   const safePageIndex = Math.min(pageIndex, totalPages - 1);
   const pageStart = safePageIndex * pageSize;
+  const tableWidth = useMemo(() => 38 + visibleColumns.reduce((sum, column) => sum + widthFor(column), 0), [visibleColumns, columnWidths, compactTable, narrowTable]);
   const renderedRows = useMemo(() => visibleRows.slice(pageStart, pageStart + pageSize), [visibleRows, pageStart, pageSize]);
   const selectedRows = useMemo(() => visibleRows.filter((row) => selected.has(rowKey(row))), [visibleRows, selected]);
   const selectedPageRows = useMemo(() => renderedRows.filter((row) => selected.has(rowKey(row))), [renderedRows, selected]);
@@ -290,7 +291,13 @@ export function ResourceTable({
       </div>
 
       <div className="table-scroll">
-        <table className="resource-table">
+        <table className="resource-table" style={{ width: tableWidth }}>
+          <colgroup>
+            <col style={{ width: 38 }} />
+            {visibleColumns.map((column) => (
+              <col key={column.key} style={{ width: widthFor(column) }} />
+            ))}
+          </colgroup>
           <thead>
             <tr>
               <th className="select-col">
@@ -310,7 +317,7 @@ export function ResourceTable({
                 />
               </th>
               {visibleColumns.map((column) => (
-                <th key={column.key} style={{ width: widthFor(column) }}>
+                <th key={column.key}>
                   <button type="button" className="table-sort-button" onClick={() => changeSort(column.key)}>
                     <span className="table-sort-label">{column.label}</span>
                     {sortKey === column.key ? (

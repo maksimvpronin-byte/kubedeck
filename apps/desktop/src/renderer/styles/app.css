@@ -26,19 +26,35 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 236px 1fr;
+  grid-template-columns: var(--sidebar-width, 236px) 1fr;
   height: 100vh;
   min-height: 0;
   background: #101317;
 }
 
 .sidebar {
+  position: relative;
   background: #151a20;
   border-right: 1px solid #27313b;
   padding: 14px;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: rgba(77, 148, 183, 0.72);
 }
 
 .brand {
@@ -1396,7 +1412,7 @@ dd {
 
 .pod-terminal {
   display: grid;
-  grid-template-rows: auto auto auto minmax(260px, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 10px;
   min-height: 0;
   flex: 1 1 auto;
@@ -1454,6 +1470,15 @@ dd {
   overflow: hidden;
 }
 
+.drawer-content-fill > .pod-terminal {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.drawer-content-fill .xterm-host {
+  min-height: 0;
+}
+
 .xterm-host .xterm {
   height: 100%;
   padding: 10px;
@@ -1491,6 +1516,29 @@ dd {
 
 .terminal-status.error {
   color: #fca5a5;
+}
+
+.terminal-transport {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid #2f4152;
+  border-radius: 6px;
+  color: #9fb2c7;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.terminal-transport.pty {
+  border-color: rgba(34, 197, 94, 0.42);
+  color: #86efac;
+}
+
+.terminal-transport.pipes {
+  border-color: rgba(251, 191, 36, 0.46);
+  color: #fde68a;
 }
 
 .terminal-hint {
@@ -4111,6 +4159,27 @@ button:disabled {
 .resource-table {
   width: max-content;
   min-width: 100%;
+  table-layout: fixed;
+}
+
+.resource-table th {
+  position: relative;
+}
+
+.column-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+  touch-action: none;
+}
+
+.column-resizer:hover,
+.column-resizer:active {
+  background: rgba(77, 148, 183, 0.78);
 }
 
 .resource-table th,

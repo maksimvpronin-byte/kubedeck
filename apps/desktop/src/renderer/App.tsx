@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { ApiClient } from "./api";
 import { AboutPanel } from "./components/AboutPanel";
 import { AuditPanel } from "./components/AuditPanel";
@@ -89,6 +90,7 @@ export function App() {
   const [selectedPod, setSelectedPod] = useState<ResourceRow | null>(null);
   const [selectedResource, setSelectedResource] = useState("pods");
   const [drawerWidth, setDrawerWidth] = useState(initialUiState.drawerWidth ?? 520);
+  const [sidebarWidth, setSidebarWidth] = useState(initialUiState.sidebarWidth ?? 236);
   const [bulkDelete, setBulkDelete] = useState<{ resource: string; rows: ResourceRow[] } | null>(null); const [nodeActionConfirmation, setNodeActionConfirmation] = useState<NodeActionConfirmation | null>(null); 
   const [bulkActionMessage, setBulkActionMessage] = useState("");
   const [renameTarget, setRenameTarget] = useState<Cluster | null>(null);
@@ -194,6 +196,7 @@ export function App() {
 
   usePersistUiState({
     drawerWidth,
+    sidebarWidth,
     expandedSections,
     expandedCrdGroups,
     section,
@@ -1035,9 +1038,25 @@ async function copyBulkDeleteList() {
     };
   }, [api, activeCluster?.id, resourceTab, selectedNamespaces, isResourceTableView, isClusterScoped, loadResources]);
 
+  function startSidebarResize(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = sidebarWidth;
+    const onMove = (moveEvent: MouseEvent) => {
+      setSidebarWidth(Math.min(420, Math.max(188, startWidth + moveEvent.clientX - startX)));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp, { once: true });
+  }
+
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
       <aside className="sidebar">
+        <div className="sidebar-resize-handle" onMouseDown={startSidebarResize} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />
         <div className="brand">
           <Database size={22} />
           <strong>KubeDeck</strong>
@@ -1582,4 +1601,3 @@ function PlaceholderSection({ section, t }: { section: Section; t: (key: string)
     </section>
   );
 }
-
