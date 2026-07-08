@@ -88,6 +88,10 @@ export npm_config_fetch_timeout=300000
 ELECTRON_RUN_AS_NODE=1 "$ELECTRON_BIN" \
   -e "require('node-pty'); console.log('node-pty Electron OK:', process.versions.electron, process.arch)"
 
+SPAWN_HELPER="$ROOT/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper"
+[[ -f "$SPAWN_HELPER" ]] || fail "node-pty spawn-helper is missing: $SPAWN_HELPER"
+chmod 755 "$SPAWN_HELPER"
+
 step "Packaging unsigned macOS arm64 DMG and ZIP"
 export CSC_IDENTITY_AUTO_DISCOVERY=false
 export npm_config_fetch_retries=5
@@ -105,6 +109,10 @@ if [[ ! -f "$ZIP" ]]; then
   ZIP="$(find "$RELEASE_DIR" -maxdepth 1 -type f -name "KubeDeck-${ROOT_VERSION}-arm64*.zip" -print -quit)"
 fi
 [[ -n "${ZIP:-}" && -f "$ZIP" ]] || fail "macOS ZIP was not produced in: $RELEASE_DIR"
+
+PACKAGED_SPAWN_HELPER="$RELEASE_DIR/mac-arm64/KubeDeck.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper"
+[[ -x "$PACKAGED_SPAWN_HELPER" ]] ||
+  fail "Packaged node-pty spawn-helper is not executable: $PACKAGED_SPAWN_HELPER"
 
 printf '\nBuild completed successfully.\n'
 printf 'DMG: %s\n' "$DMG"

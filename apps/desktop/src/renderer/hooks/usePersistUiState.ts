@@ -4,6 +4,7 @@ import { loadUiState, saveUiState } from "../uiState";
 
 interface PersistUiStateOptions {
   drawerWidth: number;
+  sidebarWidth: number;
   expandedSections: Set<string>;
   expandedCrdGroups: Set<string>;
   section: Section;
@@ -14,6 +15,7 @@ interface PersistUiStateOptions {
 
 export function usePersistUiState({
   drawerWidth,
+  sidebarWidth,
   expandedSections,
   expandedCrdGroups,
   section,
@@ -26,6 +28,7 @@ export function usePersistUiState({
       saveUiState({
         ...loadUiState(),
         drawerWidth,
+        sidebarWidth,
         expandedSections: Array.from(expandedSections),
         expandedCrdGroups: Array.from(expandedCrdGroups),
         section,
@@ -35,5 +38,5 @@ export function usePersistUiState({
       });
     }, 300);
     return () => clearTimeout(timer);
-  }, [drawerWidth, expandedSections, expandedCrdGroups, section, resourceTab, namespace, selectedNamespaces]);
+  }, [drawerWidth, sidebarWidth, expandedSections, expandedCrdGroups, section, resourceTab, namespace, selectedNamespaces]);
 }

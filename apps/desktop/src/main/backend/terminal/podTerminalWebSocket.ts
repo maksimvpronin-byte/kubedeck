@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import fs from "node:fs";
 import type { IncomingMessage } from "node:http";
+import path from "node:path";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
@@ -24,6 +26,14 @@ const MIN_COLS = 20;
 const MAX_COLS = 500;
 const STOP_TIMEOUT_MS = 1200;
 const ERROR_TEXT_LIMIT = 12_000;
+const EXTRA_PTY_PATH_DIRS = [
+  "/opt/homebrew/bin",
+  "/usr/local/bin",
+  "/usr/bin",
+  "/bin",
+  "/usr/sbin",
+  "/sbin",
+];
 
 type TerminalShell = "auto" | "sh" | "bash" | "ash";
 type TerminalTransport = "pty" | "pipes";
@@ -81,6 +91,12 @@ interface PodTerminalWebSocketOptions {
   spawnProcess?: SpawnProcess;
   ptyFactory?: TerminalPtyFactory | null;
   stopTimeoutMs?: number;
+}
+
+interface PtyCommand {
+  executable: string;
+  args: string[];
+  environment: NodeJS.ProcessEnv;
 }
 
 function decodePart(value: string, field: string): string {
@@ -200,10 +216,64 @@ function processEnvironment(environment: NodeJS.ProcessEnv): Record<string, stri
   return result;
 }
 
+function hasPathSeparator(value: string): boolean {
+  return value.includes("/") || value.includes("\\");
+}
+
+function ptyPath(environment: NodeJS.ProcessEnv): string {
+  const existing = environment.PATH ?? environment.Path ?? process.env.PATH ?? "";
+  const values: string[] = [];
+  const seen = new Set<string>();
+  for (const value of [...existing.split(path.delimiter), ...EXTRA_PTY_PATH_DIRS]) {
+    const item = value.trim();
+    if (!item || seen.has(item)) continue;
+    seen.add(item);
+    values.push(item);
+  }
+  return values.join(path.delimiter);
+}
+
+function buildPtyCommand(built: BuiltKubectlCommand): PtyCommand {
+  const environment = {
+    ...built.environment,
+    PATH: ptyPath(built.environment),
+  };
+  if (process.platform === "win32") {
+    if (hasPathSeparator(built.executable)) {
+      return {
+        executable: built.executable,
+        args: built.args,
+        environment,
+      };
+    }
+    return {
+      executable: "cmd.exe",
+      args: ["/d", "/s", "/c", built.executable, ...built.args],
+      environment,
+    };
+  }
+
+  const shellPath = "/bin/sh";
+  try {
+    fs.accessSync(shellPath, fs.constants.X_OK);
+  } catch {
+    return {
+      executable: built.executable,
+      args: built.args,
+      environment,
+    };
+  }
+
+  return {
+    executable: shellPath,
+    args: ["-lc", "exec \"$@\"", "kubedeck-pty", built.executable, ...built.args],
+    environment,
+  };
+}
+
 function loadNodePty(log: (message: string) => void): TerminalPtyFactory | null {
   try {
-    // node-pty is intentionally loaded at runtime so KubeDeck can fall back to
-    // pipes if a native binary is unavailable on a particular Windows host.
+    // node-pty is loaded at runtime because it is a native Electron dependency.
     const module = require("node-pty") as {
       spawn?: TerminalPtyFactory;
     };
@@ -211,7 +281,7 @@ function loadNodePty(log: (message: string) => void): TerminalPtyFactory | null 
     log("node terminal pty unavailable: node-pty does not export spawn");
   } catch (error) {
     log(
-      `node terminal pty unavailable, using pipes: ${
+      `node terminal pty unavailable: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
@@ -388,28 +458,33 @@ export class PodTerminalWebSocketServer {
     if (socket.readyState !== WebSocket.OPEN) return;
 
     const id = randomUUID();
+    if (!this.ptyFactory) {
+      const message = "Interactive pod terminal requires node-pty, but the native PTY module is unavailable in this build.";
+      this.log(`node terminal refused: ${message}`);
+      safeSend(socket, {
+        type: "error",
+        data: message,
+      });
+      socket.close(1011, "Terminal PTY unavailable");
+      return;
+    }
+
     let session: TerminalSession;
     try {
-      session = this.ptyFactory
-        ? this.startPtySession(id, socket, target)
-        : this.startPipeSession(id, socket, target);
+      session = this.startPtySession(id, socket, target);
     } catch (error) {
       this.log(
-        `node terminal pty start failed, falling back to pipes: ${terminalErrorText(error)}`,
+        `node terminal pty start failed: ${terminalErrorText(error)}`,
       );
-      try {
-        session = this.startPipeSession(id, socket, target);
-      } catch (fallbackError) {
-        safeSend(socket, {
-          type: "error",
-          data: truncateKubectlText(
-            sanitizeKubectlText(terminalErrorText(fallbackError)),
-            ERROR_TEXT_LIMIT,
-          ),
-        });
-        socket.close(1011, "Terminal process failed");
-        return;
-      }
+      safeSend(socket, {
+        type: "error",
+        data: truncateKubectlText(
+          sanitizeKubectlText(terminalErrorText(error)),
+          ERROR_TEXT_LIMIT,
+        ),
+      });
+      socket.close(1011, "Terminal PTY failed");
+      return;
     }
 
     this.sessions.set(id, session);
@@ -445,15 +520,16 @@ export class PodTerminalWebSocketServer {
   ): TerminalSession {
     const command = terminalCommand(this.configStore, target, true);
     const built = buildKubectlCommand(command);
+    const ptyCommand = buildPtyCommand(built);
     const pty = (this.ptyFactory as TerminalPtyFactory)(
-      built.executable,
-      built.args,
+      ptyCommand.executable,
+      ptyCommand.args,
       {
         name: "xterm-256color",
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
         cwd: process.cwd(),
-        env: processEnvironment(built.environment),
+        env: processEnvironment(ptyCommand.environment),
       },
     );
     let finished = false;

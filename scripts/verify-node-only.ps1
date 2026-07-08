@@ -58,6 +58,7 @@ $GatewayPath = Join-Path $Root "apps\desktop\src\main\backend\gateway.ts"
 $ClustersPath = Join-Path $Root "apps\desktop\src\main\backend\routes\clusters.ts"
 $YamlPath = Join-Path $Root "apps\desktop\src\main\backend\routes\yaml.ts"
 $BuilderPath = Join-Path $Root "scripts\build-portable-windows.ps1"
+$MacBuilderPath = Join-Path $Root "scripts\build-macos.sh"
 $SetupPath = Join-Path $Root "scripts\setup-windows.ps1"
 $ReadmePath = Join-Path $Root "README.md"
 $DesktopBuilderPath = Join-Path $Root "apps\desktop\electron-builder.yml"
@@ -146,6 +147,22 @@ Assert-NoPattern -Path $DesktopBuilderPath -Patterns @(
     'build[\\/]backend',
     'to\s*:\s*backend'
 ) -Description "electron-builder must not bundle Python backend"
+
+$BuilderText = Read-Text -Path $BuilderPath
+if ($BuilderText -notmatch 'electron-rebuild' -or $BuilderText -notmatch 'node-pty') {
+    throw "Windows portable builder must rebuild and verify node-pty for Electron."
+}
+$DesktopBuilderText = Read-Text -Path $DesktopBuilderPath
+if ($DesktopBuilderText -notmatch 'node_modules/node-pty') {
+    throw "electron-builder.yml must unpack node-pty native modules."
+}
+if ($DesktopBuilderText -notmatch 'afterPack') {
+    throw "electron-builder.yml must run afterPack to repair native helper permissions."
+}
+$MacBuilderText = Read-Text -Path $MacBuilderPath
+if ($MacBuilderText -notmatch 'spawn-helper' -or $MacBuilderText -notmatch 'chmod 755') {
+    throw "macOS package builder must mark node-pty spawn-helper executable."
+}
 
 Assert-NoPattern -Path $ReadmePath -Patterns @(
     'pip\s+install',

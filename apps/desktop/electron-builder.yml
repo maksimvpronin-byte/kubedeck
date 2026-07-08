@@ -4,6 +4,7 @@ artifactName: ${productName}-${version}-${arch}.${ext}
 npmRebuild: false
 nodeGypRebuild: false
 buildDependenciesFromSource: false
+afterPack: scripts/electron-after-pack.cjs
 
 directories:
   output: release
@@ -11,6 +12,9 @@ directories:
 files:
   - dist/**/*
   - package.json
+
+asarUnpack:
+  - node_modules/node-pty/**/*
 
 win:
   signAndEditExecutable: false

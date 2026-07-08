@@ -258,13 +258,18 @@ test("Node Pod Terminal uses PTY input and resize when ConPTY is available", asy
   assert.deepEqual(state.ptyResizes, [{ cols: 160, rows: 55 }]);
   assert.equal(state.ptyCommands.length, 1);
   assert.equal(state.ptyCommands[0].args.includes("-t"), true);
+  if (process.platform !== "win32") {
+    assert.equal(state.ptyCommands[0].executable, "/bin/sh");
+    assert.deepEqual(state.ptyCommands[0].args.slice(0, 4), ["-lc", 'exec "$@"', "kubedeck-pty", "kubectl"]);
+    assert.match(state.ptyCommands[0].options.env.PATH, /\/opt\/homebrew\/bin/);
+  }
 
   socket.send(JSON.stringify({ type: "close" }));
   await waitForClose(socket);
   assert.equal(state.ptyKills, 1);
 });
 
-test("Node Gateway owns Pod Terminal WebSocket and pipe fallback", async (t) => {
+test("Node Gateway rejects Pod Terminal when PTY is unavailable", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-terminal-"));
   const source = path.join(appDataRoot, "cluster.yaml");
   fs.writeFileSync(
@@ -324,38 +329,18 @@ test("Node Gateway owns Pod Terminal WebSocket and pipe fallback", async (t) => 
   const socket = new WebSocket(terminalUrl(gateway.baseUrl, cluster.id), {
     origin: "http://127.0.0.1:5173",
   });
-  const connectedPromise = waitForMessage(
-    socket,
-    (message) => message.type === "status" && message.data === "connected",
-  );
-  const outputPromise = waitForMessage(socket, (message) => message.type === "output");
-  await connectedPromise;
-  const output = await outputPromise;
-  assert.match(output.data, /terminal-ready/);
-  assert.equal(output.stream, "stdout");
-
-  socket.send(JSON.stringify({ type: "input", data: "echo hello\r" }));
-  socket.send(JSON.stringify({ type: "resize", cols: 140, rows: 40 }));
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.equal(state.stdin.join(""), "echo hello\r");
-
-  const terminalCommand = state.commands.find((command) => command.args.includes("exec"));
-  assert.ok(terminalCommand);
-  assert.equal(terminalCommand.args.includes("-t"), false);
-  assert.deepEqual(
-    terminalCommand.args.slice(terminalCommand.args.indexOf("exec"), terminalCommand.args.indexOf("--")),
-    ["exec", "-i", "demo", "-n", "default", "-c", "app"],
-  );
+  const error = await waitForMessage(socket, (message) => message.type === "error");
+  assert.match(error.data, /requires node-pty/i);
+  await waitForClose(socket);
+  assert.equal(state.stdin.join(""), "");
+  assert.equal(state.commands.filter((command) => command.args.includes("exec")).length, 0);
 
   const migrationResponse = await fetch(`${gateway.baseUrl}/migration/status`, { headers });
   const migration = await migrationResponse.json();
   assert.equal(migration.routes.nodeOwned, 49);
   assert.equal(migration.routes.pythonOwned, 0);
-  assert.equal(migration.processes.terminals, 1);
-
-  socket.send(JSON.stringify({ type: "close" }));
-  await waitForClose(socket);
-  assert.equal(state.kills.length, 1);
+  assert.equal(migration.processes.terminals, 0);
+  assert.equal(state.kills.length, 0);
 });
 
 test("Pod Terminal rejects denied kubectl auth and invalid shell", async (t) => {
