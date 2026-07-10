@@ -44,6 +44,8 @@ export interface PodTerminalTarget {
   name: string;
   container: string;
   shell: TerminalShell;
+  cols: number;
+  rows: number;
 }
 
 interface PtyExitEvent {
@@ -147,11 +149,13 @@ export function matchPodTerminalWebSocket(
       ? validateIdentifier(containerText, "container", 253)
       : "",
     shell: normalizeShell(url.searchParams.get("shell") ?? "auto"),
+    cols: clampInteger(url.searchParams.get("cols") ?? undefined, DEFAULT_COLS, MIN_COLS, MAX_COLS),
+    rows: clampInteger(url.searchParams.get("rows") ?? undefined, DEFAULT_ROWS, MIN_ROWS, MAX_ROWS),
   };
 }
 
 export function terminalShellCommand(shell: TerminalShell): string {
-  const prefix = "TERM=xterm-256color; export TERM; clear; ";
+  const prefix = "TERM=xterm-256color; export TERM; ";
   if (shell === "auto") {
     return (
       prefix +
@@ -526,8 +530,8 @@ export class PodTerminalWebSocketServer {
       ptyCommand.args,
       {
         name: "xterm-256color",
-        cols: DEFAULT_COLS,
-        rows: DEFAULT_ROWS,
+        cols: target.cols,
+        rows: target.rows,
         cwd: process.cwd(),
         env: processEnvironment(ptyCommand.environment),
       },

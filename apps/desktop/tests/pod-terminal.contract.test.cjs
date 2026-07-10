@@ -162,13 +162,15 @@ function waitForClose(socket, timeoutMs = 2000) {
   });
 }
 
-function terminalUrl(baseUrl, clusterId, shell = "auto", token = TOKEN) {
+function terminalUrl(baseUrl, clusterId, shell = "auto", token = TOKEN, size = {}) {
   const url = new URL(baseUrl);
   url.protocol = "ws:";
   url.pathname = `/clusters/${clusterId}/pods/default/demo/terminal`;
   url.searchParams.set("token", token);
   url.searchParams.set("container", "app");
   url.searchParams.set("shell", shell);
+  if (size.cols) url.searchParams.set("cols", String(size.cols));
+  if (size.rows) url.searchParams.set("rows", String(size.rows));
   return url.toString();
 }
 
@@ -182,6 +184,8 @@ test("Pod Terminal route validation and auto-shell command remain compatible", (
     name: "demo",
     container: "app",
     shell: "auto",
+    cols: 100,
+    rows: 24,
   });
   const command = terminalShellCommand("auto");
   assert.match(command, /command -v bash/);
@@ -238,7 +242,7 @@ test("Node Pod Terminal uses PTY input and resize when ConPTY is available", asy
     body: JSON.stringify({ sourcePath: source, displayName: "PTY cluster" }),
   });
   const cluster = await imported.json();
-  const socket = new WebSocket(terminalUrl(gateway.baseUrl, cluster.id, "bash"), {
+  const socket = new WebSocket(terminalUrl(gateway.baseUrl, cluster.id, "bash", TOKEN, { cols: 132, rows: 31 }), {
     origin: "http://127.0.0.1:5173",
   });
   const connectedPromise = waitForMessage(
@@ -258,6 +262,8 @@ test("Node Pod Terminal uses PTY input and resize when ConPTY is available", asy
   assert.deepEqual(state.ptyResizes, [{ cols: 160, rows: 55 }]);
   assert.equal(state.ptyCommands.length, 1);
   assert.equal(state.ptyCommands[0].args.includes("-t"), true);
+  assert.equal(state.ptyCommands[0].options.cols, 132);
+  assert.equal(state.ptyCommands[0].options.rows, 31);
   if (process.platform !== "win32") {
     assert.equal(state.ptyCommands[0].executable, "/bin/sh");
     assert.deepEqual(state.ptyCommands[0].args.slice(0, 4), ["-lc", 'exec "$@"', "kubedeck-pty", "kubectl"]);

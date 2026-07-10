@@ -35,6 +35,7 @@ UI-эргономика списков ресурсов и терминала.
 - DONE: поднять версию продукта до стабильной `2.0.6` и убрать beta release metadata.
 - DONE: добавить в таблицу Pods отдельную колонку контейнеров со статусными кубиками для multi-container pods.
 - DONE: отключить автоматический перенос строк в просмотрщике Logs и оставить горизонтальную прокрутку для длинных log lines.
+- DONE: стабилизировать начальную геометрию pod terminal на Windows: передавать `cols/rows` до spawn PTY и убрать обязательный `clear`.
 
 ## Ближайшие задачи
 
@@ -91,3 +92,4 @@ UI-эргономика списков ресурсов и терминала.
 - 2026-07-10: версия продукта поднята до стабильной `2.0.6`: обновлены package metadata, lockfile, README, release notes, regression checklist, release verifier, contract tests, Help version и build artifact paths; проверки: `npm run typecheck`, `npm run build`.
 - 2026-07-10: в таблицу Pods добавлена колонка `Контейнеры` со статусными кубиками по каждому контейнеру pod, backend normalizer теперь отдает `containerStates`, а `ready` учитывает `spec.containers`, если `containerStatuses` еще пуст; файлы `normalizers.ts`, `ResourceTable.tsx`, `App.tsx`, `app.css`, `ru.json`, `en.json`, `resource-lists.contract.test.cjs`, `future-development-plan.md`; проверки: `npm run typecheck`, `npm run build`, `node --test --test-concurrency=1 apps/desktop/tests/resource-lists.contract.test.cjs`.
 - 2026-07-10: просмотрщик Logs переведен с `pre-wrap` на `pre`, длинные строки больше не переносятся и доступны через нижний горизонтальный scroll; файлы `app.css`, `future-development-plan.md`; проверки: `npm run typecheck`, `npm run build`, `node --test --test-concurrency=1 apps/desktop/tests/resource-details.contract.test.cjs apps/desktop/tests/deployment-logs.contract.test.cjs`.
+- 2026-07-10: для pod terminal начальные `cols/rows` теперь передаются в WebSocket URL и используются при spawn PTY, чтобы shell на Windows стартовал с правильной шириной; обязательный `clear` перед shell убран, чтобы не получать `clear: command not found`; файлы `api.ts`, `TerminalTab.tsx`, `podTerminalWebSocket.ts`, `pod-terminal.contract.test.cjs`, `future-development-plan.md`; проверки: `npm run typecheck`, `npm run build`, `node --test --test-concurrency=1 apps/desktop/tests/pod-terminal.contract.test.cjs`.

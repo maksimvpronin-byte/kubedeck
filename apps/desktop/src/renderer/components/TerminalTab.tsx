@@ -172,7 +172,10 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       fit.fit();
       sendTerminalResizeIfChanged(socketRef.current, terminal, lastResizeRef);
     });
-    const socket = new WebSocket(api.podTerminalUrl(clusterId, String(pod.namespace), pod.name, selectedContainer, shell));
+    fit.fit();
+    const initialSize = terminalSize(terminal);
+    lastResizeRef.current = initialSize;
+    const socket = new WebSocket(api.podTerminalUrl(clusterId, String(pod.namespace), pod.name, selectedContainer, shell, initialSize));
     socketRef.current = socket;
     terminal.clear();
     terminal.writeln(`Connecting to ${pod.name}${selectedContainer ? `/${selectedContainer}` : ""} with ${shellLabel(shell)}...`);
@@ -358,6 +361,12 @@ function sendTerminalResizeIfChanged(
   if (lastSize && lastSize.cols === cols && lastSize.rows === rows) return;
   lastSizeRef.current = { cols, rows };
   socket.send(JSON.stringify({ type: "resize", cols, rows }));
+}
+
+function terminalSize(terminal: XTerm): TerminalSize {
+  const cols = Number.isFinite(terminal.cols) && terminal.cols > 0 ? terminal.cols : 100;
+  const rows = Number.isFinite(terminal.rows) && terminal.rows > 0 ? terminal.rows : 24;
+  return { cols: Math.trunc(cols), rows: Math.trunc(rows) };
 }
 
 function copyTerminalSelection(terminal: XTerm | null, lastCopiedRef?: { current: string }, force = false) {

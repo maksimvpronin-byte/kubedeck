@@ -342,13 +342,17 @@ export class ApiClient {
     return url.toString();
   }
 
-  podTerminalUrl(clusterId: string, namespace: string, name: string, container?: string, shell = "auto") {
+  podTerminalUrl(clusterId: string, namespace: string, name: string, container?: string, shell = "auto", size?: { cols: number; rows: number }) {
     const url = new URL(this.baseUrl);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.pathname = `/clusters/${clusterId}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/terminal`;
     url.searchParams.set("token", this.token);
     if (container) url.searchParams.set("container", container);
     if (shell) url.searchParams.set("shell", shell);
+    if (size && Number.isFinite(size.cols) && Number.isFinite(size.rows) && size.cols > 0 && size.rows > 0) {
+      url.searchParams.set("cols", String(Math.trunc(size.cols)));
+      url.searchParams.set("rows", String(Math.trunc(size.rows)));
+    }
     return url.toString();
   }
 
