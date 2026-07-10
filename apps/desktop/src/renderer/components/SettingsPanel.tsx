@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { ApiError, type ApiClient } from "../api";
+import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, Settings, SshAuthMethod } from "../types";
 import { normalizeRefreshIntervalSeconds, REFRESH_INTERVAL_OPTIONS_SECONDS } from "../utils/refresh";
 import { normalizeSettingsSsh, normalizeSshPort, normalizeSshSettings, saveStoredSshDefaults } from "../utils/sshDefaults";
 import { applyThemePreference } from "../utils/theme";
+import { toErrorInfo } from "../utils/errors";
 import { ClusterPanel } from "./ClusterPanel";
 import { ResourceCacheDiagnostics } from "./ResourceCacheDiagnostics";
 import { WatchDiagnostics } from "./WatchDiagnostics";
@@ -105,7 +106,7 @@ export function SettingsPanel({
       setLlmTestStatus(result.ok ? "success" : "error");
       setLlmTestMessage(result.ok ? t("llm.connectionSuccessful") : `${t("llm.connectionFailed")}: ${result.message}`);
     } catch (error) {
-      const message = error instanceof ApiError ? error.info.message : String(error);
+      const message = toErrorInfo(error).message;
       setLlmTestStatus("error");
       setLlmTestMessage(`${t("llm.connectionFailed")}: ${message}`);
     }

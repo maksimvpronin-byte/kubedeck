@@ -4,7 +4,10 @@ import type { ResourceRow } from "../types";
 import { loadUiState, saveUiState } from "../uiState";
 import { parseTimestamp } from "../utils/time";
 
-export interface ResourceTableColumn { key: string; label: string }
+export interface ResourceTableColumn {
+  key: string;
+  label: string;
+}
 
 export const PAGE_SIZE_OPTIONS = [50, 100, 200, 500, 1000];
 const DEFAULT_PAGE_SIZE = 200;
@@ -45,6 +48,14 @@ export function moveColumnKey(order: string[], sourceKey: string, targetKey: str
   return [...current.slice(0, targetIndex), sourceKey, ...current.slice(targetIndex)];
 }
 
+export function resourceTablePreferencePatch(stateKey: string, columns: ResourceTableColumn[], columnWidths: Record<string, number>, columnOrder: string[], hiddenColumns: string[]) {
+  return {
+    columnWidths: { [stateKey]: columnWidths },
+    columnOrders: { [stateKey]: normalizeColumnOrder(columnOrder, columns) },
+    hiddenColumns: { [stateKey]: normalizeHiddenColumns(hiddenColumns, columns) },
+  };
+}
+
 function compareRows(left: ResourceRow, right: ResourceRow, key: string) {
   if (key === "createdAt") return parseTimestamp(left.createdAt) - parseTimestamp(right.createdAt);
   const leftValue = left[key];
@@ -54,12 +65,35 @@ function compareRows(left: ResourceRow, right: ResourceRow, key: string) {
 }
 
 function compactColumnWidth(key: string, narrow: boolean) {
-  const widths: Record<string, number> = { namespace: narrow ? 94 : 104, name: narrow ? 150 : 168, phase: 96, createdAt: 96, node: 116, message: narrow ? 180 : 220, reason: narrow ? 120 : 140, type: 100 };
+  const widths: Record<string, number> = {
+    namespace: narrow ? 94 : 104,
+    name: narrow ? 150 : 168,
+    phase: 96,
+    createdAt: 96,
+    node: 116,
+    message: narrow ? 180 : 220,
+    reason: narrow ? 120 : 140,
+    type: 100,
+  };
   return widths[key] ?? (narrow ? 96 : 110);
 }
 
 function defaultColumnWidth(key: string) {
-  const widths: Record<string, number> = { namespace: 120, name: 180, containers: 132, message: 260, labels: 180, createdAt: 110, node: 140, ports: 140, clusterIp: 120, reason: 150, cpuUsage: 80, memoryUsage: 100, namespaceResources: 260 };
+  const widths: Record<string, number> = {
+    namespace: 120,
+    name: 180,
+    containers: 132,
+    message: 260,
+    labels: 180,
+    createdAt: 110,
+    node: 140,
+    ports: 140,
+    clusterIp: 120,
+    reason: 150,
+    cpuUsage: 80,
+    memoryUsage: 100,
+    namespaceResources: 260,
+  };
   return widths[key] ?? 120;
 }
 
@@ -83,7 +117,9 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     if (!element) return undefined;
     const update = () => setContainerWidth(element.getBoundingClientRect().width);
     update();
-    const observer = new ResizeObserver((entries) => { if (entries[0]) setContainerWidth(entries[0].contentRect.width); });
+    const observer = new ResizeObserver((entries) => {
+      if (entries[0]) setContainerWidth(entries[0].contentRect.width);
+    });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -110,7 +146,13 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const state = loadUiState();
-      saveUiState({ ...state, columnWidths: { ...(state.columnWidths ?? {}), [stateKey]: columnWidths }, columnOrders: { ...(state.columnOrders ?? {}), [stateKey]: normalizeColumnOrder(columnOrder, columns) }, hiddenColumns: { ...(state.hiddenColumns ?? {}), [stateKey]: normalizeHiddenColumns(hiddenColumns, columns) } });
+      const patch = resourceTablePreferencePatch(stateKey, columns, columnWidths, columnOrder, hiddenColumns);
+      saveUiState({
+        ...state,
+        columnWidths: { ...(state.columnWidths ?? {}), ...patch.columnWidths },
+        columnOrders: { ...(state.columnOrders ?? {}), ...patch.columnOrders },
+        hiddenColumns: { ...(state.hiddenColumns ?? {}), ...patch.hiddenColumns },
+      });
     }, 250);
     return () => window.clearTimeout(timer);
   }, [columnWidths, columnOrder, hiddenColumns, columns, stateKey]);
@@ -118,7 +160,15 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
 
   const visibleRows = useMemo(() => {
     const lower = query.trim().toLowerCase();
-    const filtered = lower ? rows.filter((row) => columns.some((column) => String(row[column.key] ?? "").toLowerCase().includes(lower))) : rows;
+    const filtered = lower
+      ? rows.filter((row) =>
+          columns.some((column) =>
+            String(row[column.key] ?? "")
+              .toLowerCase()
+              .includes(lower),
+          ),
+        )
+      : rows;
     return [...filtered].sort((left, right) => compareRows(left, right, sortKey) * sortDirection);
   }, [query, rows, sortKey, sortDirection, columns]);
   useEffect(() => setPageIndex(0), [query, sortKey, sortDirection, pageSize, stateKey]);
@@ -136,36 +186,101 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     return compact ? Math.min(preferred, compactColumnWidth(column.key, narrow)) : preferred;
   };
   const changeSort = (key: string) => {
-    if (key === sortKey) setSortDirection((current) => current === 1 ? -1 : 1);
-    else { setSortKey(key); setSortDirection(1); }
+    if (key === sortKey) setSortDirection((current) => (current === 1 ? -1 : 1));
+    else {
+      setSortKey(key);
+      setSortDirection(1);
+    }
   };
-  const toggleRow = (key: string) => setSelected((current) => { const next = new Set(current); next.has(key) ? next.delete(key) : next.add(key); return next; });
-  const setPageSelected = (checked: boolean) => setSelected((current) => { const next = new Set(current); renderedRows.map(rowKey).forEach((key) => checked ? next.add(key) : next.delete(key)); return next; });
+  const toggleRow = (key: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  const setPageSelected = (checked: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      renderedRows.map(rowKey).forEach((key) => (checked ? next.add(key) : next.delete(key)));
+      return next;
+    });
   const startColumnResize = (event: ReactMouseEvent, column: ResourceTableColumn) => {
-    event.preventDefault(); event.stopPropagation();
-    const startX = event.clientX; const startWidth = widthFor(column);
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = widthFor(column);
     const move = (moveEvent: MouseEvent) => setColumnWidths((current) => ({ ...current, [column.key]: Math.max(48, startWidth + moveEvent.clientX - startX) }));
-    const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
-    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up, { once: true });
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up, { once: true });
   };
-  const startColumnDrag = (event: ReactDragEvent<HTMLTableCellElement>, column: ResourceTableColumn) => { setDraggedColumn(column.key); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", column.key); };
+  const startColumnDrag = (event: ReactDragEvent<HTMLTableCellElement>, column: ResourceTableColumn) => {
+    setDraggedColumn(column.key);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", column.key);
+  };
   const dropColumn = (event: ReactDragEvent<HTMLTableCellElement>, target: ResourceTableColumn) => {
-    event.preventDefault(); const source = event.dataTransfer.getData("text/plain") || draggedColumn;
-    setDraggedColumn(""); setDragOverColumn("");
-    if (source && source !== target.key) setColumnOrder(moveColumnKey(orderColumns(columns, columnOrder).map((column) => column.key), source, target.key));
+    event.preventDefault();
+    const source = event.dataTransfer.getData("text/plain") || draggedColumn;
+    setDraggedColumn("");
+    setDragOverColumn("");
+    if (source && source !== target.key)
+      setColumnOrder(
+        moveColumnKey(
+          orderColumns(columns, columnOrder).map((column) => column.key),
+          source,
+          target.key,
+        ),
+      );
   };
   const toggleColumn = (column: ResourceTableColumn) => {
     const visibleCount = columns.length - hiddenColumns.filter((key) => columns.some((item) => item.key === key)).length;
     if (!hiddenColumnSet.has(column.key) && visibleCount <= 1) return;
-    setHiddenColumns((current) => current.includes(column.key) ? current.filter((key) => key !== column.key) : [...current, column.key]);
+    setHiddenColumns((current) => (current.includes(column.key) ? current.filter((key) => key !== column.key) : [...current, column.key]));
   };
-  const resetColumns = () => { setColumnWidths({}); setColumnOrder([]); setHiddenColumns([]); };
+  const resetColumns = () => {
+    setColumnWidths({});
+    setColumnOrder([]);
+    setHiddenColumns([]);
+  };
 
   return {
-    tableRef, query, setQuery, sortKey, sortDirection, selected, setSelected, pageSize, setPageSize,
-    setPageIndex, columnWidths, orderedColumns, hiddenColumns, visibleColumns, visibleRows, renderedRows,
-    selectedRows, selectedPageRows, totalPages, safePageIndex, pageStart, draggedColumn, setDraggedColumn,
-    dragOverColumn, setDragOverColumn, widthFor, changeSort, toggleRow, setPageSelected, startColumnResize,
-    startColumnDrag, dropColumn, toggleColumn, resetColumns,
+    tableRef,
+    query,
+    setQuery,
+    sortKey,
+    sortDirection,
+    selected,
+    setSelected,
+    pageSize,
+    setPageSize,
+    setPageIndex,
+    columnWidths,
+    orderedColumns,
+    hiddenColumns,
+    visibleColumns,
+    visibleRows,
+    renderedRows,
+    selectedRows,
+    selectedPageRows,
+    totalPages,
+    safePageIndex,
+    pageStart,
+    draggedColumn,
+    setDraggedColumn,
+    dragOverColumn,
+    setDragOverColumn,
+    widthFor,
+    changeSort,
+    toggleRow,
+    setPageSelected,
+    startColumnResize,
+    startColumnDrag,
+    dropColumn,
+    toggleColumn,
+    resetColumns,
   };
 }

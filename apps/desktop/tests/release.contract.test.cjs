@@ -4,14 +4,13 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "../../..");
-const read = (relativePath) =>
-  fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
-const readJson = (relativePath) =>
-  JSON.parse(read(relativePath).replace(/^\uFEFF/, ""));
+const read = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+const readJson = (relativePath) => JSON.parse(read(relativePath).replace(/^\uFEFF/, ""));
 
-test("KubeDeck 2.1.0 release metadata stays synchronized", () => {
-  const expectedVersion = "2.1.0";
+test("KubeDeck release metadata stays synchronized", () => {
   const rootPackage = readJson("package.json");
+  const expectedVersion = rootPackage.version;
+  const contract = readJson("release-contract.json");
   const desktopPackage = readJson("apps/desktop/package.json");
   const lock = readJson("package-lock.json");
   const readme = read("README.md");
@@ -24,12 +23,9 @@ test("KubeDeck 2.1.0 release metadata stays synchronized", () => {
   assert.equal(lock.version, expectedVersion);
   assert.equal(lock.packages[""].version, expectedVersion);
   assert.equal(lock.packages["apps/desktop"].version, expectedVersion);
-  assert.match(rootPackage.scripts["verify:release"], /verify-release\.ps1/);
+  assert.match(rootPackage.scripts["verify:release"], /verify-release\.cjs/);
   assert.match(desktopPackage.scripts["test:gateway"], /--test-concurrency=1/);
-  assert.match(
-    desktopPackage.scripts["test:gateway"],
-    /release\.contract\.test\.cjs/,
-  );
+  assert.match(desktopPackage.scripts["test:gateway"], /release\.contract\.test\.cjs/);
 
   for (const document of [readme, progress, notes, checklist]) {
     assert.match(document, /2\.1\.0/);
@@ -40,4 +36,6 @@ test("KubeDeck 2.1.0 release metadata stays synchronized", () => {
   assert.match(checklist, /Node 49 \/ Python 0/);
   assert.match(checklist, /Port Forward/);
   assert.match(checklist, /LLM/);
+  assert.equal(contract.nodeRoutes, 49);
+  assert.equal(contract.pythonRoutes, 0);
 });

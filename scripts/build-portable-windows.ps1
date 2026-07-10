@@ -12,8 +12,7 @@ Python is not required and npm dependencies are not reinstalled unless
 
 [CmdletBinding()]
 param(
-    [switch]$InstallNpmDeps,
-    [switch]$SkipTypecheck
+    [switch]$InstallNpmDeps
 )
 
 $ErrorActionPreference = "Stop"
@@ -161,6 +160,7 @@ function Ensure-NodePtyElectronModule {
         if (-not (Test-Path -LiteralPath $ElectronBin)) {
             throw "Electron executable is unavailable. Run: npm.cmd ci --no-audit --no-fund"
         }
+        Invoke-Native -FilePath "node" -Arguments @((Join-Path $Root "scripts\ensure-electron.cjs"))
         Write-Info "Rebuilding node-pty for Electron $ElectronVersion win32 x64."
         Invoke-Native -FilePath $ElectronRebuild -Arguments @(
             "--force",
@@ -263,18 +263,8 @@ try {
         Remove-Item -LiteralPath $ReleaseDir -Recurse -Force
     }
 
-    if (-not $SkipTypecheck) {
-        Write-Step "Running TypeScript typecheck"
-        Invoke-Native -FilePath "npm.cmd" -Arguments @("run", "typecheck")
-    }
-
-    Write-Step "Building Electron renderer and main process"
-    Invoke-Native -FilePath "npm.cmd" -Arguments @("run", "build")
-
-    Write-Step "Running Node Gateway contract tests"
-    Invoke-Native -FilePath "npm.cmd" -Arguments @(
-        "--workspace", "apps/desktop", "run", "test:gateway"
-    )
+    Write-Step "Running source verification gate"
+    Invoke-Native -FilePath "npm.cmd" -Arguments @("run", "verify")
 
     Write-Step "Building Windows portable package"
     Push-Location $DesktopDir

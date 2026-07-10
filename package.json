@@ -11,13 +11,25 @@
     "build": "npm --workspace apps/desktop run build",
     "typecheck": "npm --workspace apps/desktop run typecheck",
     "test:renderer": "npm --workspace apps/desktop run test:renderer",
+    "lint": "biome lint apps/desktop/src apps/desktop/tests scripts",
+    "format:check": "biome format biome.json package.json release-contract.json apps/desktop/package.json scripts/ensure-electron.cjs scripts/verify-release.cjs apps/desktop/src/renderer/utils/errors.ts apps/desktop/src/renderer/hooks/usePodDrawerResourceLifecycle.ts apps/desktop/src/renderer/hooks/useResourceTableState.ts apps/desktop/src/renderer/hooks/useResourceWatch.ts apps/desktop/src/renderer/components/LazyPanelBoundary.tsx apps/desktop/tests/renderer-controllers.contract.test.cjs",
+    "verify": "npm run lint && npm run format:check && npm run test:renderer && npm run typecheck && npm run build && npm --workspace apps/desktop run test:gateway",
     "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-portable-windows.ps1",
     "test:gateway": "npm --workspace apps/desktop run build && npm --workspace apps/desktop run test:gateway",
-    "verify:node-only": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify-node-only.ps1",
-    "verify:release": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify-release.ps1",
+    "verify:node-only": "node scripts/verify-release.cjs",
+    "verify:release": "node scripts/verify-release.cjs",
     "package:mac": "bash ./scripts/build-macos.sh"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.3",
     "7zip-bin": "^5.2.0"
+  },
+  "allowScripts": {
+    "electron@31.7.7": true,
+    "esbuild@0.21.5": true,
+    "node-pty@1.1.0": true,
+    "ssh2@1.17.0": true,
+    "cpu-features@0.0.10": true,
+    "fsevents@2.3.3": true
   }
 }

@@ -6,7 +6,6 @@ import { readJsonBody, RequestBodyError, writeJson } from "../http";
 import { clusterCommand, kubeconfigAvailable } from "../kubectl/clusterCommand";
 import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import type { GatewayOptions } from "../types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -116,15 +115,9 @@ export async function writeRemoveCluster(
   clusterId: string,
   configStore: ConfigStore,
   auditStore: AuditStore,
-  options: GatewayOptions,
 ): Promise<void> {
   try {
     const result = configStore.removeCluster(clusterId);
-
-    try {
-    } catch (error) {
-      options.log(`legacy resource cache clear failed cluster=${clusterId}: ${errorMessage(error)}`);
-    }
 
     auditStore.append({
       action: "cluster.remove",

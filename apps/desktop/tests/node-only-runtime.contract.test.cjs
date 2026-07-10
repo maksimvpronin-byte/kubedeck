@@ -25,7 +25,8 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
   );
   const yamlSource = read("apps/desktop/src/main/backend/routes/yaml.ts");
   const builderSource = read("scripts/build-portable-windows.ps1");
-  const verifierSource = read("scripts/verify-node-only.ps1");
+  const verifierSource = read("scripts/verify-release.cjs");
+  const releaseContract = JSON.parse(read("release-contract.json"));
   const setupSource = read("scripts/setup-windows.ps1");
   const electronBuilder = read("apps/desktop/electron-builder.yml");
   const readme = read("README.md");
@@ -33,10 +34,9 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
     "../dist/main/backend/routeOwnership.js",
   );
 
-  assert.equal(rootPackage.version, "2.1.0");
-  assert.equal(desktopPackage.version, "2.1.0");
-  assert.match(rootPackage.scripts["verify:node-only"], /verify-node-only\.ps1/);
-  assert.match(rootPackage.scripts["verify:release"], /verify-release\.ps1/);
+  assert.equal(desktopPackage.version, rootPackage.version);
+  assert.match(rootPackage.scripts["verify:node-only"], /verify-release\.cjs/);
+  assert.match(rootPackage.scripts["verify:release"], /verify-release\.cjs/);
   assert.match(
     desktopPackage.scripts["test:gateway"],
     /--test-concurrency=1/,
@@ -86,8 +86,8 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
     /Python\.Python|pip\s+install|apps[\\/]backend|\bpy\s+-3\b/,
   );
   assert.doesNotMatch(electronBuilder, /build[\\/]backend|to:\s*backend/);
-  assert.match(verifierSource, /Route ownership: Node 49 \/ Python 0/);
-  assert.match(readme, /2\.1\.0/);
+  assert.match(verifierSource, /Node-only ownership/);
+  assert.match(readme, new RegExp(rootPackage.version.replace(/\./g, "\\.")));
   assert.match(readme, /Node-only runtime/);
   assert.doesNotMatch(
     readme,
@@ -95,7 +95,7 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
   );
 
   const ownership = routeOwnershipSummary();
-  assert.equal(ownership.totalExisting, 49);
-  assert.equal(ownership.nodeOwned, 49);
-  assert.equal(ownership.pythonOwned, 0);
+  assert.equal(ownership.totalExisting, releaseContract.nodeRoutes);
+  assert.equal(ownership.nodeOwned, releaseContract.nodeRoutes);
+  assert.equal(ownership.pythonOwned, releaseContract.pythonRoutes);
 });

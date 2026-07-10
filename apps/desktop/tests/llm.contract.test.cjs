@@ -14,7 +14,6 @@ const {
 } = require("../dist/main/backend/llm/context.js");
 const { buildUserPrompt } = require("../dist/main/backend/llm/prompts.js");
 const {
-  buildLlmPrompt,
   handleLlmRequest,
   publicLlmStatus,
 } = require("../dist/main/backend/routes/llm.js");

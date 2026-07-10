@@ -1,8 +1,13 @@
 import { Component } from "react";
 import type { ReactNode } from "react";
 
-interface Props { children: ReactNode }
-interface State { failed: boolean }
+interface Props {
+  children: ReactNode;
+  resetKey: string;
+}
+interface State {
+  failed: boolean;
+}
 
 export class LazyPanelBoundary extends Component<Props, State> {
   state: State = { failed: false };
@@ -13,6 +18,12 @@ export class LazyPanelBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error) {
     console.error("Unable to load KubeDeck panel", error.message);
+  }
+
+  componentDidUpdate(previous: Props) {
+    if (this.state.failed && previous.resetKey !== this.props.resetKey) {
+      this.setState({ failed: false });
+    }
   }
 
   render() {

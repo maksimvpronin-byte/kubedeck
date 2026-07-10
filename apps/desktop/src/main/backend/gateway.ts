@@ -293,7 +293,6 @@ function handleRequest(
       clusterId,
       services.configStore,
       services.auditStore,
-      options,
     ).catch((error) => {
       options.log(`gateway cluster remove failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");

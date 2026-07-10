@@ -54,14 +54,11 @@ printf 'KubeDeck: %s\n' "$ROOT_VERSION"
 step "Cleaning macOS release output"
 rm -rf "$RELEASE_DIR"
 
-step "Running TypeScript typecheck"
-npm run typecheck
+step "Running source verification gate"
+npm run verify
 
-step "Building Electron main process and renderer"
-npm run build
-
-step "Running Node Gateway contract tests"
-npm --workspace apps/desktop run test:gateway
+step "Checking release invariants"
+npm run verify:release
 
 step "Rebuilding node-pty for Electron"
 ELECTRON_VERSION="$(node -p 'require("./apps/desktop/package.json").devDependencies.electron.replace(/^[^0-9]*/, "")')"
@@ -72,6 +69,8 @@ ELECTRON_BIN="$ROOT/node_modules/.bin/electron"
   fail "@electron/rebuild is unavailable. Run: npm ci --no-audit --no-fund"
 [[ -x "$ELECTRON_BIN" ]] ||
   fail "Electron executable is unavailable. Run: npm ci --no-audit --no-fund"
+
+node "$ROOT/scripts/ensure-electron.cjs"
 
 export npm_config_fetch_retries=5
 export npm_config_fetch_retry_mintimeout=20000
@@ -113,6 +112,8 @@ fi
 PACKAGED_SPAWN_HELPER="$RELEASE_DIR/mac-arm64/KubeDeck.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper"
 [[ -x "$PACKAGED_SPAWN_HELPER" ]] ||
   fail "Packaged node-pty spawn-helper is not executable: $PACKAGED_SPAWN_HELPER"
+
+node "$ROOT/scripts/verify-release.cjs" --release-dir "$RELEASE_DIR" --artifact mac
 
 printf '\nBuild completed successfully.\n'
 printf 'DMG: %s\n' "$DMG"

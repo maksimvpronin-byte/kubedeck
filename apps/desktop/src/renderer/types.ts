@@ -1,4 +1,4 @@
-import type { AppConfig, Cluster, ErrorInfo, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "@kubedeck/shared-types";
+import type { ErrorInfo, SshSettings } from "@kubedeck/shared-types";
 
 export type { AppConfig, Cluster, ErrorInfo, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "@kubedeck/shared-types";
 export type AppFolder = "root" | "logs" | "config" | "kubeconfigs";

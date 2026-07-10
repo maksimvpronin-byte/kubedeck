@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiClient, ApiError } from "../api";
+import { ApiClient } from "../api";
 import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, ResourceRow, Settings } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
 import { TerminalTab } from "./TerminalTab";
@@ -18,6 +18,7 @@ import { ResourceSummary } from "./ResourceSummary";
 import { containerNames, downloadTextFile, eventTargetForOpen, formatOperationError, isAbortError } from "./podDrawerHelpers";
 import { availableDrawerTabs, PodDrawerActions, PodDrawerHeader, PodDrawerTabs, type DrawerTab } from "./PodDrawerChrome";
 import { usePodDrawerResourceLifecycle } from "../hooks/usePodDrawerResourceLifecycle";
+import { toErrorInfo } from "../utils/errors";
 
 interface Props {
   api: ApiClient;
@@ -172,7 +173,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
         })
         .catch((err) => {
           if (isAbortError(err)) return;
-          setError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+          setError(toErrorInfo(err));
         })
         .finally(() => {
           if (!controller.signal.aborted) setLogsLoading(false);
@@ -194,7 +195,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       })
       .catch((err) => {
         if (isAbortError(err)) return;
-        setError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+        setError(toErrorInfo(err));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLogsLoading(false);
@@ -235,7 +236,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       });
       downloadTextFile(`${pod.name}.full.log`, text);
     } catch (err) {
-      setError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+      setError(toErrorInfo(err));
     } finally {
       setLogsDownloadLoading(false);
     }
@@ -252,7 +253,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       const result = await api.dryRunYaml(clusterId, yamlDraft);
       setYamlOperationOutput(result || "Server dry-run completed successfully.");
     } catch (err) {
-      const info = err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" };
+      const info = toErrorInfo(err);
       setYamlOperationTitle("Dry-run failed");
       setYamlOperationOutput(formatOperationError(info));
       setError(info);
@@ -288,7 +289,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
         // Keep the submitted YAML as the new clean baseline if refresh fails.
       }
     } catch (err) {
-      const info = err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" };
+      const info = toErrorInfo(err);
       setYamlOperationTitle("Apply failed");
       setYamlOperationOutput(formatOperationError(info));
       setError(info);
@@ -321,7 +322,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       setYamlObjectKey(currentObjectKey);
       setYamlOperationOutput("YAML reloaded from the cluster.");
     } catch (err) {
-      const info = err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" };
+      const info = toErrorInfo(err);
       setYamlOperationTitle("Reload failed");
       setYamlOperationOutput(formatOperationError(info));
       setError(info);
@@ -356,7 +357,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       if (action === "delete" || (resource === "pods" && action === "restart")) onClose();
     } catch (err) {
       setApplyResult(`${label} failed`);
-      setError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+      setError(toErrorInfo(err));
     } finally {
       setLoading(false);
     }
@@ -376,7 +377,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       }, 5000);
       setPortForwardDraft(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+      setError(toErrorInfo(err));
     } finally {
       setLoading(false);
     }

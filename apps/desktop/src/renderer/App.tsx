@@ -61,7 +61,7 @@ export function App() {
   const {
     api, config, setConfig, settings, backendOk, kubectlVersion,
     activeCluster, setActiveCluster, unavailableCluster, setUnavailableCluster,
-    openingClusterId, resourceDefinitions, setResourceDefinitions, runtimeError,
+    openingClusterId, resourceDefinitions, runtimeError,
     renameTarget, renameDraft, setRenameDraft, renaming,
     namespaces, setNamespaces, selectedNamespaces, setNamespaceSelection,
     importKubeconfig, openCluster, startRenameCluster, cancelRenameCluster,
@@ -528,7 +528,7 @@ useEffect(() => {
 
   return (
     <div className="app-shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
-      <LazyPanelBoundary>
+      <LazyPanelBoundary resetKey={`${section}:${resourceTab}:${selectedPod?.uid ?? "none"}`}>
       <Suspense fallback={<div className="panel-loading" role="status">Loading…</div>}>
       <aside className="sidebar">
         <div className="sidebar-resize-handle" onMouseDown={startSidebarResize} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />

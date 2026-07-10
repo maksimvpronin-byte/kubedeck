@@ -1,6 +1,7 @@
 import { Copy, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ApiClient, ApiError } from "../api";
+import { ApiClient } from "../api";
+import { toErrorInfo } from "../utils/errors";
 import type { ErrorInfo, ResourceRow, SecretKeysResponse, SecretRevealResponse } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
 
@@ -48,7 +49,7 @@ export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
       hideTimers.current = {};
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
-      setError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+      setError(toErrorInfo(err));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -65,7 +66,7 @@ export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
       if (hideTimers.current[key]) window.clearTimeout(hideTimers.current[key]);
       hideTimers.current[key] = window.setTimeout(() => hideKey(key), timeoutSeconds * 1000);
     } catch (err) {
-      setError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+      setError(toErrorInfo(err));
     } finally {
       setRevealingKey("");
     }

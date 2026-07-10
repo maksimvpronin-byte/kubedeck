@@ -1,0 +1,5 @@
+{
+  "nodeRoutes": 49,
+  "pythonRoutes": 0,
+  "requiredDocuments": ["README.md", "NODE_MIGRATION_PROGRESS.md", "RELEASE_NOTES_{version}.md", "REGRESSION_CHECKLIST_{version}.md"]
+}

@@ -259,7 +259,7 @@ export async function chatCompletion(
       }),
       signal: controller.signal,
     });
-  } catch (error) {
+  } catch {
     if (controller.signal.aborted) {
       throw new LlmClientError("LLM_TIMEOUT", "LLM request timed out.");
     }

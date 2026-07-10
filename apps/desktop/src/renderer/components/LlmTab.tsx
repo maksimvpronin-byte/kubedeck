@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ApiClient, ApiError } from "../api";
+import { ApiClient } from "../api";
+import { toErrorInfo } from "../utils/errors";
 import type { ErrorInfo, LlmAnalyzeResourceRequest, RelatedLink, ResourceRow, Settings } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
 
@@ -135,7 +136,7 @@ export function LlmTab({
       const result = await api.analyzeResourceWithLlm(request);
       onAnswer(result);
     } catch (err) {
-      onError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+      onError(toErrorInfo(err));
     } finally {
       onLoadingChange(false);
     }
@@ -155,7 +156,7 @@ export function LlmTab({
       setPromptPreview(text);
       setPromptPreviewOpen(true);
     } catch (err) {
-      onError(err instanceof ApiError ? err.info : { code: "ERROR", message: String(err), rawStderr: "", commandPreview: "" });
+      onError(toErrorInfo(err));
     } finally {
       setPromptPreviewLoading(false);
     }
