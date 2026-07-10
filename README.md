@@ -2,7 +2,7 @@
 
 KubeDeck — desktop IDE для работы с Kubernetes на **Windows** и **macOS**.
 
-Текущая версия: **`2.0.6`**.
+Текущая версия: **`2.1.0`**.
 
 Начиная с ветки 2.0 приложение использует **Node-only runtime внутри Electron**. Отдельный Python/FastAPI backend больше не запускается и не входит в сборку.
 
@@ -198,7 +198,7 @@ npm.cmd run verify:node-only
 npm.cmd run verify:release
 ```
 
-Проверяется версия `2.0.6`, release baseline и regression invariants.
+Проверяется версия `2.1.0`, release baseline и regression invariants.
 
 ## Сборка для Windows
 
@@ -237,7 +237,7 @@ Windows-сборщик выполняет:
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.0.6-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.1.0-x64.exe
 ```
 
 ### Windows bootstrap
@@ -275,8 +275,8 @@ macOS-сборщик выполняет:
 Результаты:
 
 ```text
-apps/desktop/release/KubeDeck-2.0.6-arm64.dmg
-apps/desktop/release/KubeDeck-2.0.6-arm64.zip
+apps/desktop/release/KubeDeck-2.1.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.1.0-arm64.zip
 ```
 
 Сборка пока не подписана Apple Developer ID и не notarized. При первом запуске macOS может заблокировать приложение. Используйте:
@@ -372,7 +372,7 @@ LLM-анализ запускается только вручную. Перед 
 - сборки не содержат Python runtime;
 - сборки не содержат встроенный `kubectl`.
 
-## Известные ограничения 2.0.6
+## Известные ограничения 2.1.0
 
 - macOS поддерживается только на Apple Silicon;
 - macOS-сборка пока не подписана и не notarized;
@@ -380,10 +380,10 @@ LLM-анализ запускается только вручную. Перед 
 - приложение использует стандартную Electron icon, пока отдельная иконка KubeDeck не настроена;
 - для работы требуется установленный системный `kubectl`.
 
-## Документация 2.0.6
+## Документация 2.1.0
 
-- [Regression checklist 2.0.6](./REGRESSION_CHECKLIST_2.0.6.md)
-- [Release notes 2.0.6](./RELEASE_NOTES_2.0.6.md)
+- [Regression checklist 2.1.0](./REGRESSION_CHECKLIST_2.1.0.md)
+- [Release notes 2.1.0](./RELEASE_NOTES_2.1.0.md)
 
 ## Основные команды
 

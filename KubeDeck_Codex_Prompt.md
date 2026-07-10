@@ -1,5 +1,7 @@
 # Prompt for Codex / development agent
 
+> Archived bootstrap prompt for the retired Python/FastAPI implementation. Do not use it as current development instructions; see `README.md` and `docs/architecture.md`.
+
 You are a senior full-stack desktop engineer. Build the foundation of **KubeDeck**, a Windows Kubernetes IDE built on top of system `kubectl`.
 
 Read the attached `KubeDeck_Technical_Specification.md` carefully and treat it as the source of truth.

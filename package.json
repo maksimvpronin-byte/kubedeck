@@ -1,11 +1,10 @@
 {
   "name": "kubedeck",
-  "version": "2.0.6",
+  "version": "2.1.0",
   "private": true,
   "workspaces": [
     "apps/desktop",
-    "packages/shared-types",
-    "packages/ui"
+    "packages/shared-types"
   ],
   "scripts": {
     "dev": "npm --workspace apps/desktop run dev",

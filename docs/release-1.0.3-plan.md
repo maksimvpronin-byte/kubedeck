@@ -1,5 +1,7 @@
 # KubeDeck 1.0.3 Current State and Follow-up Plan
 
+> Archived release plan. It describes the retired Python/FastAPI-based 1.0.3 line and must not be used as current build or architecture guidance.
+
 This document tracks the current stabilized `1.0.3` line. Dependency cleanup remains on hold until a dedicated maintenance window is approved.
 
 ## Current fixed constraints

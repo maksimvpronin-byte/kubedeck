@@ -1,5 +1,7 @@
 # KubeDeck 1.0.1 Stabilization Plan
 
+> Archived release plan for the retired Python/FastAPI line. It is not current build guidance.
+
 ## Goal
 
 Version 1.0.1 is a stabilization release for the 1.0.0 foundation build. It focuses on safety gates, version consistency, reproducible packaging inputs, and a small backend regression-test baseline.

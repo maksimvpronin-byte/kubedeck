@@ -1,62 +1,81 @@
-# Security Notes
+# KubeDeck Security Notes
 
-## Local backend exposure
+Документ описывает актуальную модель безопасности Node-only runtime KubeDeck 2.x.
 
-- Backend binds only to `127.0.0.1`.
-- Electron generates a random `KUBEDECK_SESSION_TOKEN` for every desktop session and passes it to the Python backend through the environment.
-- Renderer HTTP calls must include the token as `X-KubeDeck-Token`.
-- Terminal WebSocket calls pass the token as a query parameter.
-- Only `/health` is intentionally public.
-- Standalone backend runs without a token are locked unless `KUBEDECK_ALLOW_UNAUTHENTICATED=1` is set explicitly for development.
+## Trust boundaries
+
+- Electron main process и встроенный Node Gateway считаются privileged runtime.
+- Renderer не имеет Node integration и получает только ограниченный API через preload.
+- Kubernetes clusters, kubeconfig, resource YAML, logs и ответы внешнего LLM считаются недоверенными данными.
+- Локальный gateway доступен только через loopback, но loopback сам по себе не считается аутентификацией.
+
+## Local gateway
+
+- Gateway слушает случайный порт только на `127.0.0.1`.
+- Для каждого запуска Electron генерирует случайный 256-bit session token.
+- Все HTTP endpoints, кроме `GET /health`, требуют `X-KubeDeck-Token`.
+- WebSocket endpoints требуют тот же token в query или header.
+- Сравнение token выполняется через timing-safe comparison.
+- HTTP и WebSocket проверяют Origin; разрешены production file origin и локальный Vite dev server.
+- Gateway и все управляемые дочерние процессы закрываются при завершении приложения.
+
+Session token не должен записываться в логи, audit, config или persistent storage.
+
+## Electron and IPC
+
+BrowserWindow использует `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` и preload bridge с фиксированным набором методов. Renderer navigation ограничена packaged `file:` document либо origin локального Vite dev server; создание новых окон запрещено.
+
+IPC handlers обязаны валидировать enum-like arguments, Kubernetes identifiers, URLs и пути. Renderer не должен получать произвольный filesystem или process API.
+
+Внешнее открытие допускается только для явно разрешённых локальных port-forward URLs; остальные URL отклоняются.
 
 ## Local data
 
-- Imported kubeconfigs are copied into `%APPDATA%\KubeDeck\kubeconfigs\`.
-- Kubeconfig content is not logged.
-- Logs are written under `%APPDATA%\KubeDeck\logs\`.
-- Kubernetes resource data is not persisted to disk.
-- The backend resource cache foundation is in-memory only.
-- Secret reveal/copy audit records include metadata only and do not store decoded secret values.
+- Импортированные kubeconfig копируются в app-data `kubeconfigs/`.
+- Config хранит пути и настройки, но не должен попадать в diagnostic clipboard целиком.
+- Resource cache, decoded Secrets и session state не сохраняются на диск.
+- Secret audit содержит только metadata и никогда не содержит decoded value.
+- Временные terminal scripts удаляются по lifecycle и не должны содержать credentials.
+
+Kubeconfig content, authorization headers, LLM API keys, Secret values и session token запрещено логировать.
 
 ## Redaction
 
-Log and command-preview redaction removes or masks common sensitive markers such as:
+Desktop/backend logging и command preview маскируют строки с распространёнными sensitive markers: token, password, Secret, authorization, API key, private key и certificate data.
 
-- token;
-- password;
-- secret;
-- client key;
-- kubeconfig path in visible command previews.
+Redaction является дополнительной защитой, а не разрешением логировать произвольные payload. Routes для YAML, Secrets, terminal, SSH и LLM должны логировать только безопасные metadata.
 
-## Mutating operations
+## Kubernetes commands
 
-Mutating operations use backend-side confirmation metadata and command previews. Current 1.0.3 UI intentionally does not require manual typed resource-name entry for the common workflows:
+- `kubectl` запускается без shell с массивом аргументов.
+- Resource names, namespaces, container names и actions валидируются.
+- YAML передаётся только через stdin и ограничивается одним объектом на запрос.
+- Команды имеют timeout и output limits.
+- Mutating operations используют confirmation metadata, audit и `kubectl auth can-i`, где это предусмотрено контрактом.
+- Cache инвалидируется после успешных mutations.
 
-- delete uses a standard confirmation dialog;
-- restart uses a confirmation dialog without typing the pod name;
-- redeploy uses a confirmation dialog without typing the deployment name;
-- scale uses a confirmation dialog without typing the deployment name, but replicas are required;
-- YAML apply uses a confirmation dialog without typing the object name;
-- interactive Terminal tab sessions do not require typed pod-name confirmation.
+Command preview не должен раскрывать kubeconfig path или credentials.
 
-Backend confirmation metadata is still sent for mutating operations. Backend-side guards still include payload-size limits, YAML single-object validation, operation metadata checks and `kubectl auth can-i` checks where implemented.
+## Long-running sessions
 
-Relevant mutating endpoints include:
+Watch, Pod Terminal, Node SSH и Port Forward имеют явного владельца lifecycle:
 
-- `PUT /clusters/{cluster_id}/yaml/apply`
-- `POST /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/action`
-- `POST /clusters/{cluster_id}/pods/{namespace}/{name}/exec`
+- session привязана к cluster и локальному gateway;
+- процессы останавливаются при закрытии приложения или удалении cluster;
+- unmanaged external port-forward не останавливаются KubeDeck;
+- managed process проверяется до принудительной остановки;
+- terminal/SSH WebSocket требует token и разрешённый Origin.
 
-YAML apply is intentionally limited to one Kubernetes object per request. The backend parses the YAML payload, extracts `kind`, `metadata.namespace`, and `metadata.name`, and validates the target before running `kubectl apply -f -`.
+## LLM boundary
 
-## Process hardening
+- LLM endpoint настраивается пользователем и является внешней системой.
+- Перед отправкой resource context проходит sanitizer.
+- Secret values, credentials и чувствительные structured fields должны удаляться.
+- API key не возвращается публичными status/config responses и не попадает в audit/logs.
+- Ошибка внешнего LLM не должна включать исходный request payload в log.
 
-KubeDeck does not stop arbitrary `external:<pid>` port-forward processes. External port-forwards are shown as read-only. Managed port-forward cleanup validates that the target process is actually a `kubectl port-forward` process with a kubeconfig argument.
+## Packaging invariants
 
-The desktop process stores backend process metadata as JSON in `%APPDATA%\KubeDeck\backend.pid` and validates the process command line before using `taskkill`.
+Release gate должен подтверждать отсутствие Python/FastAPI runtime, legacy backend executable, встроенного `kubectl`, kubeconfig, config и локальных logs в payload, а также прохождение Node-only и release contract tests.
 
-## Packaging hardening
-
-Current packaging verifies that npm build tools already exist and does not automatically repair `node_modules`. Backend packaging dependencies are installed into an isolated build venv.
-
-Portable packaging does not include `kubectl.exe` and no longer performs bundled-kubectl SHA256 enforcement. Runtime Kubernetes access relies on the configured kubectl path or PATH-based kubectl resolution.
+Unsigned macOS build требует явного пользовательского обхода Gatekeeper и не предоставляет гарантий code signing/notarization.

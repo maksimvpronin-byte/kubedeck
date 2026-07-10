@@ -1,4 +1,6 @@
-# KubeDeck 2.0 — Node API Contract
+# KubeDeck 2.0 — Node API Contract (migration archive)
+
+> Историческая фиксация совместимости на время миграции с Python. Текущие контракты определяются Node route handlers, shared types и `apps/desktop/tests/*.contract.test.cjs`.
 
 **Status:** baseline contract for migration  
 **Source branch:** `dev/2.0.0`  

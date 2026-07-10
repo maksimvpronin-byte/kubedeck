@@ -1,5 +1,7 @@
 # Roadmap after current 1.0.3 stabilization
 
+> Archived roadmap for the retired 1.0.3 line. See `docs/future-development-plan.md` for current planned work.
+
 This roadmap assumes the current project directory stays unchanged and the app version remains `1.0.3` until a deliberate version bump is approved.
 
 ## Work rules

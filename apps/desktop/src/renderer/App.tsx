@@ -1,31 +1,26 @@
 import { ChevronDown, ChevronRight, Search, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { ApiClient } from "./api";
-import { AboutPanel } from "./components/AboutPanel";
-import { AuditPanel } from "./components/AuditPanel";
 import { CommandPalette, type CommandPaletteItem } from "./components/CommandPalette";
 import { ErrorPanel } from "./components/ErrorPanel";
-import { HelpPanel } from "./components/HelpPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
-import { PortForwardsPanel } from "./components/PortForwardsPanel";
-import { ProblemsPanel } from "./components/ProblemsPanel";
-import { PodDrawer } from "./components/PodDrawer";
+import { LazyPanelBoundary } from "./components/LazyPanelBoundary";
 import { ResourceTable } from "./components/ResourceTable";
-import { SettingsPanel } from "./components/SettingsPanel";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
+import { useAppPreferences } from "./hooks/useAppPreferences";
 import { useNamespaceRefresh } from "./hooks/useNamespaceRefresh";
 import { usePersistUiState } from "./hooks/usePersistUiState";
+import { useResourceLoader } from "./hooks/useResourceLoader";
+import { useResourceWatch } from "./hooks/useResourceWatch";
 import { createTranslator } from "./i18n";
 import { brandIcon as Database, isPlaceholderSection, normalizeStoredSection, resourceLabel, resourceTree, sectionForResource, sectionTitle, sections, visibleTabs } from "./navigation";
-import { canDeleteResource, findResourceDefinition, groupCrds, loadNamespaceResourceBatches, normalizeNamespaceSelection, sameResourceIdentity } from "./utils/kubeResources";
+import { canDeleteResource, findResourceDefinition, groupCrds, sameResourceIdentity } from "./utils/kubeResources";
 import type { AppConfig, Cluster, ErrorInfo, GlobalSearchItem, ResourceDefinition, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
-import { asErrorInfo, isAbortError } from "./utils/errors";
+import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
-import { applyLanguagePreference } from "./utils/language";
-import { applyThemePreference, getSystemThemeMedia } from "./utils/theme";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -36,7 +31,13 @@ const initialSelectedNamespaces = initialSection === "nodes"
   ? ["_cluster"]
   : initialUiState.selectedNamespaces ?? [initialUiState.namespace ?? "all"];
 
-const RESOURCE_LOAD_TIMEOUT_MS = 30000;
+const AboutPanel = lazy(() => import("./components/AboutPanel").then((module) => ({ default: module.AboutPanel })));
+const AuditPanel = lazy(() => import("./components/AuditPanel").then((module) => ({ default: module.AuditPanel })));
+const HelpPanel = lazy(() => import("./components/HelpPanel").then((module) => ({ default: module.HelpPanel })));
+const PortForwardsPanel = lazy(() => import("./components/PortForwardsPanel").then((module) => ({ default: module.PortForwardsPanel })));
+const ProblemsPanel = lazy(() => import("./components/ProblemsPanel").then((module) => ({ default: module.ProblemsPanel })));
+const PodDrawer = lazy(() => import("./components/PodDrawer").then((module) => ({ default: module.PodDrawer })));
+const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
 function normalizeConfigSsh(config: AppConfig): AppConfig {
   return {
@@ -53,28 +54,6 @@ type NodeActionKind = "cordon" | "uncordon" | "drain";
 type NodeActionConfirmation = { action: NodeActionKind; rows: ResourceRow[]; commandPreview: string; affectedPods?: ResourceRow[]; previewLoading?: boolean; previewError?: string; };
 
 
-function isClusterUnavailableErrorInfo(info: ErrorInfo) {
-  const text = `${info.code ?? ""} ${info.message ?? ""} ${info.rawStderr ?? ""}`.toLowerCase();
-  return [
-    "connection refused",
-    "connectex",
-    "i/o timeout",
-    "context deadline exceeded",
-    "no route to host",
-    "network is unreachable",
-    "host is unreachable",
-    "unable to connect to the server",
-    "the connection to the server",
-    "tls handshake timeout",
-    "dial tcp",
-    "temporary failure in name resolution",
-    "no such host",
-    "server has asked for the client to provide credentials",
-    "forbidden: user",
-    "unauthorized",
-    "certificate signed by unknown authority",
-  ].some((needle) => text.includes(needle));
-}
 export function App() {
   const [api, setApi] = useState<ApiClient | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -100,7 +79,6 @@ export function App() {
   const [renaming, setRenaming] = useState(false);
   const [runtimeError, setRuntimeError] = useState("");
   const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
-  const [systemLanguageVersion, setSystemLanguageVersion] = useState(0);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
   const keepDrawerSelection = useRef(false);
@@ -110,13 +88,11 @@ export function App() {
       : ["all"],
   );
   const loadResourcesRef = useRef<number | null>(null);
-  const resourceLoadAbortRef = useRef<AbortController | null>(null);
-  const resourceLoadSeqRef = useRef(0);
   const crdLoadedClusterRef = useRef<string | null>(null);
-  const liveRefreshTimerRef = useRef<number | null>(null);
 
   const settings = config?.settings;
   const activeLanguage = languagePreview ?? settings?.language ?? "system";
+  const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
   const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
   const {
     namespaces,
@@ -189,31 +165,9 @@ export function App() {
 
   useEffect(() => {
     return () => {
-      resourceLoadAbortRef.current?.abort();
       if (loadResourcesRef.current !== null) window.clearTimeout(loadResourcesRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    if (!settings) return undefined;
-    const media = getSystemThemeMedia();
-    const applyTheme = () => applyThemePreference(settings.theme, media);
-    applyTheme();
-    if (settings.theme !== "system" || !media) return undefined;
-    media.addEventListener("change", applyTheme);
-    return () => media.removeEventListener("change", applyTheme);
-  }, [settings?.theme]);
-
-  useEffect(() => {
-    const applyLanguage = () => {
-      applyLanguagePreference(activeLanguage);
-      if (activeLanguage === "system") setSystemLanguageVersion((version) => version + 1);
-    };
-    applyLanguage();
-    if (activeLanguage !== "system" || typeof window === "undefined") return undefined;
-    window.addEventListener("languagechange", applyLanguage);
-    return () => window.removeEventListener("languagechange", applyLanguage);
-  }, [activeLanguage]);
 
   usePersistUiState({
     drawerWidth,
@@ -313,69 +267,24 @@ export function App() {
     await reloadConfig();
   }
 
-  const loadResources = useCallback(
-    async (clusterId = activeCluster?.id, resource = resourceTab, ns: string | string[] = selectedNamespaces, silent = false) => {
-      if (!api || !clusterId) return;
-      if (resource === "port-forwards") return;
-
-      const requestId = resourceLoadSeqRef.current + 1;
-      resourceLoadSeqRef.current = requestId;
-      resourceLoadAbortRef.current?.abort();
-      const controller = new AbortController();
-      resourceLoadAbortRef.current = controller;
-      let timedOut = false;
-      const timeoutId = window.setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, RESOURCE_LOAD_TIMEOUT_MS);
-
-      if (!silent) setLoading(true);
-      try {
-        const namespacesToLoad = normalizeNamespaceSelection(ns);
-        const responses = await loadNamespaceResourceBatches(api, clusterId, resource, namespacesToLoad, controller.signal, { useCache: false, forceRefresh: true });
-        if (resourceLoadSeqRef.current !== requestId) return;
-        setRows((current) => ({ ...current, [resource]: responses.flatMap((response) => response.items) })); setError(null); setUnavailableCluster((current) => current?.id === clusterId ? null : current);
-      } catch (err) {
-        if (resourceLoadSeqRef.current !== requestId) return;
-        if (isAbortError(err)) {
-          if (timedOut) {
-            setError({
-              code: "RESOURCE_LOAD_TIMEOUT",
-              message: `${resource} refresh did not finish within ${Math.round(RESOURCE_LOAD_TIMEOUT_MS / 1000)} seconds. Try a narrower namespace or refresh again.`,
-              rawStderr: "",
-              commandPreview: `kubectl get ${resource}`,
-            });
-          }
-          return;
-        }
-        const info = asErrorInfo(err);
-      // KubeDeck 1.0.5 unavailable-cache guard:
-      // a failed live refresh means currently rendered rows are no longer safe
-      // to present as current cluster state. Clear them immediately instead of
-      // leaving cached/stale data on screen.
-      if (isClusterUnavailableErrorInfo(info)) {
-        void api.clearResourceCache(clusterId).catch(() => undefined);
-        setRows({});
-        setNamespaces([]);
-        setUnavailableCluster((current) => current ?? activeCluster ?? null);
-        setActiveCluster((current) => current?.id === clusterId ? null : current);
-      } else {
-        setRows((current) => ({ ...current, [resource]: [] }));
-      }
-      setSelectedPod(null);
-      setBulkDelete(null);
-      setNodeActionConfirmation(null);
-      setError(info);
-      } finally {
-        window.clearTimeout(timeoutId);
-        if (resourceLoadSeqRef.current === requestId) {
-          if (resourceLoadAbortRef.current === controller) resourceLoadAbortRef.current = null;
-          if (!silent) setLoading(false);
-        }
-      }
-    },
-    [api, activeCluster?.id, resourceTab, selectedNamespaces]
-  );
+  const clearPendingResourceActions = useCallback(() => {
+    setBulkDelete(null);
+    setNodeActionConfirmation(null);
+  }, []);
+  const loadResources = useResourceLoader({
+    api,
+    activeCluster,
+    resource: resourceTab,
+    namespaces: selectedNamespaces,
+    setRows,
+    setNamespaces,
+    setActiveCluster,
+    setUnavailableCluster,
+    setSelectedRow: setSelectedPod,
+    clearPendingActions: clearPendingResourceActions,
+    setLoading,
+    setError,
+  });
 
     // KubeDeck 1.0.5 loading guard: if data is already visible, do not let a stale
   // global loading flag keep table actions and Refresh disabled after startup or
@@ -1011,55 +920,15 @@ async function copyBulkDeleteList() {
   ]);
   const isResourceTableView = !["help", "about", "settings", "problems", "audit", "port-forwards"].includes(section) && !isPlaceholderSection(section);
 
-  useEffect(() => {
-    if (!api || !activeCluster || !isResourceTableView || resourceTab === "port-forwards") return undefined;
-    const watchNamespace = isClusterScoped ? "_cluster" : (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "all");
-    let socket: WebSocket | null = null;
-    let autoStartedWatchId: string | null = null;
-    let closed = false;
-
-    const scheduleLiveRefresh = () => {
-      if (liveRefreshTimerRef.current !== null) window.clearTimeout(liveRefreshTimerRef.current);
-      liveRefreshTimerRef.current = window.setTimeout(() => {
-        liveRefreshTimerRef.current = null;
-        if (!closed) void loadResources(activeCluster.id, resourceTab, selectedNamespaces, true);
-      }, 350);
-    };
-
-    void api.startWatch(activeCluster.id, resourceTab, watchNamespace)
-      .then((watch) => {
-        if (closed) {
-          if (!watch.alreadyRunning) void api.stopWatch(watch.id).catch(() => undefined);
-          return;
-        }
-        if (!watch.alreadyRunning) autoStartedWatchId = watch.id;
-      })
-      .catch(() => undefined);
-
-    try {
-      socket = new WebSocket(api.resourceWatchEventsUrl(activeCluster.id, resourceTab, watchNamespace));
-      socket.onmessage = (event) => {
-        const payload = api.parseResourceWatchEvent(String(event.data ?? ""));
-        if (!payload || payload.type !== "resource.changed") return;
-        scheduleLiveRefresh();
-      };
-      socket.onerror = () => {
-        // Silent by design: regular polling remains the fallback if WebSocket is unavailable.
-      };
-    } catch {
-      socket = null;
-    }
-
-    return () => {
-      closed = true;
-      if (liveRefreshTimerRef.current !== null) {
-        window.clearTimeout(liveRefreshTimerRef.current);
-        liveRefreshTimerRef.current = null;
-      }
-      if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
-      if (autoStartedWatchId) void api.stopWatch(autoStartedWatchId).catch(() => undefined);
-    };
-  }, [api, activeCluster?.id, resourceTab, selectedNamespaces, isResourceTableView, isClusterScoped, loadResources]);
+  useResourceWatch({
+    api,
+    clusterId: activeCluster?.id,
+    resource: resourceTab,
+    namespaces: selectedNamespaces,
+    clusterScoped: isClusterScoped,
+    enabled: isResourceTableView,
+    refresh: loadResources,
+  });
 
   function startSidebarResize(event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -1078,6 +947,8 @@ async function copyBulkDeleteList() {
 
   return (
     <div className="app-shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
+      <LazyPanelBoundary>
+      <Suspense fallback={<div className="panel-loading" role="status">Loading…</div>}>
       <aside className="sidebar">
         <div className="sidebar-resize-handle" onMouseDown={startSidebarResize} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />
         <div className="brand">
@@ -1530,6 +1401,8 @@ async function copyBulkDeleteList() {
           </section>
         </div>
       ) : null}
+      </Suspense>
+      </LazyPanelBoundary>
     </div>
   );
 }

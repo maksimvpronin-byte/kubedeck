@@ -1,4 +1,6 @@
-# KubeDeck 2.0 — Node Route Ownership
+# KubeDeck 2.0 — Node Route Ownership (archive)
+
+> Исторический план миграции. Все 49 существующих контрактов перенесены на Node; Python/FastAPI proxy удалён. Актуальный registry находится в `apps/desktop/src/main/backend/routeOwnership.ts`.
 
 **Status:** migration registry design  
 **Source branch:** `dev/2.0.0`  

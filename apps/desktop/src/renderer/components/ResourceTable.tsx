@@ -1,10 +1,12 @@
-import { Columns3, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { RefreshCw, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import type { ResourceRow } from "../types";
 import { loadUiState, saveUiState } from "../uiState";
 import { useUiClock } from "../hooks/useUiClock";
 import { formatElapsed, parseTimestamp } from "../utils/time";
+import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
+import { ResourceTablePagination } from "./ResourceTablePagination";
 
 export interface Column {
   key: string;
@@ -115,7 +117,6 @@ export function ResourceTable({
 
   const tableRef = useRef<HTMLElement | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
-  const columnMenuRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState(columns[0]?.key ?? "name");
@@ -126,7 +127,6 @@ export function ResourceTable({
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadUiState().columnWidths?.[stateKey] ?? {});
   const [columnOrder, setColumnOrder] = useState<string[]>(() => normalizeColumnOrder(loadUiState().columnOrders?.[stateKey] ?? [], columns));
   const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => normalizeHiddenColumns(loadUiState().hiddenColumns?.[stateKey] ?? [], columns));
-  const [columnsOpen, setColumnsOpen] = useState(false);
   const [draggedColumn, setDraggedColumn] = useState("");
   const [dragOverColumn, setDragOverColumn] = useState("");
   const now = useUiClock(columns.some((column) => column.key === "createdAt"), 1000);
@@ -143,15 +143,6 @@ export function ResourceTable({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-
-  useEffect(() => {
-    if (!columnsOpen) return undefined;
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!columnMenuRef.current?.contains(event.target as Node)) setColumnsOpen(false);
-    };
-    window.addEventListener("pointerdown", closeOnOutsideClick);
-    return () => window.removeEventListener("pointerdown", closeOnOutsideClick);
-  }, [columnsOpen]);
 
   const compactTable = containerWidth > 0 && containerWidth < COMPACT_TABLE_WIDTH;
   const narrowTable = containerWidth > 0 && containerWidth < NARROW_TABLE_WIDTH;
@@ -346,36 +337,15 @@ export function ResourceTable({
               <Trash2 size={14} /> {ui.deleteSelected} ({selectedRows.length})
             </button>
           ) : null}
-          <div className="table-columns-menu" ref={columnMenuRef}>
-            <button className="secondary-btn" type="button" onClick={() => setColumnsOpen((current) => !current)}>
-              <Columns3 size={14} /> {ui.columns}
-            </button>
-            {columnsOpen ? (
-              <div className="table-columns-popover">
-                <div className="table-columns-popover-header">
-                  <strong>{ui.columns}</strong>
-                  <button type="button" onClick={resetColumns}>{ui.resetColumns}</button>
-                </div>
-                <div className="table-columns-options">
-                  {orderedColumns.map((column) => {
-                    const checked = !hiddenColumnSet.has(column.key);
-                    const visibleCount = columns.length - hiddenColumns.filter((key) => columns.some((item) => item.key === key)).length;
-                    return (
-                      <label key={column.key}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={checked && visibleCount <= 1}
-                          onChange={() => toggleColumnVisibility(column)}
-                        />
-                        <span>{column.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-          </div>
+          <ResourceTableColumnsMenu
+            columns={columns}
+            orderedColumns={orderedColumns}
+            hiddenColumns={hiddenColumns}
+            label={ui.columns}
+            resetLabel={ui.resetColumns}
+            onToggle={toggleColumnVisibility}
+            onReset={resetColumns}
+          />
           <div className="table-filter">
             <Search size={14} />
             <input ref={filterInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={filterLabel} />
@@ -509,24 +479,18 @@ export function ResourceTable({
         </div>
       ) : null}
 
-      <div className="table-footer">
-        <span>
-          {ui.rows} {visibleRows.length === 0 ? 0 : pageStart + 1}-{Math.min(pageStart + renderedRows.length, visibleRows.length)} {ui.of} {visibleRows.length}
-        </span>
-        <label>
-          {ui.pageSize}{" "}
-          <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPageIndex(0); }}>
-            {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
-          </select>
-        </label>
-        <div className="pagination-actions">
-          <button className="secondary-btn" type="button" onClick={() => setPageIndex(0)} disabled={safePageIndex === 0}>{ui.first}</button>
-          <button className="secondary-btn" type="button" onClick={() => setPageIndex((current) => Math.max(0, current - 1))} disabled={safePageIndex === 0}>{ui.prev}</button>
-          <span>{safePageIndex + 1} / {totalPages}</span>
-          <button className="secondary-btn" type="button" onClick={() => setPageIndex((current) => Math.min(totalPages - 1, current + 1))} disabled={safePageIndex >= totalPages - 1}>{ui.next}</button>
-          <button className="secondary-btn" type="button" onClick={() => setPageIndex(totalPages - 1)} disabled={safePageIndex >= totalPages - 1}>{ui.last}</button>
-        </div>
-      </div>
+      <ResourceTablePagination
+        rowCount={visibleRows.length}
+        pageStart={pageStart}
+        renderedCount={renderedRows.length}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        pageIndex={safePageIndex}
+        totalPages={totalPages}
+        labels={ui}
+        onPageSizeChange={(size) => { setPageSize(size); setPageIndex(0); }}
+        onPageChange={setPageIndex}
+      />
     </section>
   );
 }

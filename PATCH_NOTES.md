@@ -1,5 +1,7 @@
 # KubeDeck 2.0.0-alpha.5 — Node resource lists and snapshot cache
 
+> Архив patch notes промежуточного этапа миграции. Текущий runtime полностью Node-only.
+
 ## Routes migrated to Node
 
 - `GET /clusters/{cluster_id}/resources/{resource}`

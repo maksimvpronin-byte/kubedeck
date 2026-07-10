@@ -1,17 +1,7 @@
-export type Theme = "system" | "dark" | "light";
-export type Language = "system" | "ru" | "en";
-export type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
+import type { AppConfig, Cluster, ErrorInfo, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "@kubedeck/shared-types";
 
-export interface LlmSettings {
-  enabled: boolean;
-  provider: "openai_compatible";
-  baseUrl: string;
-  model: string;
-  apiKey: string;
-  temperature: number;
-  timeoutSeconds: number;
-  maxContextChars: number; maxOutputTokens: number;
-}
+export type { AppConfig, Cluster, ErrorInfo, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "@kubedeck/shared-types";
+export type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
 
 export interface LlmStatus {
   enabled: boolean;
@@ -61,46 +51,6 @@ export interface LlmPromptPreviewResponse {
   truncated: boolean; maxOutputTokens: number;
 }
 
-export type SshAuthMethod = "agent" | "password" | "privateKey";
-
-export interface SshSettings {
-  defaultUsername: string;
-  defaultPort: number;
-  defaultAuthMethod: SshAuthMethod;
-  useJumpHost: boolean;
-  jumpHost: string;
-  jumpPort: number;
-  jumpUsername: string;
-  jumpAuthMethod: SshAuthMethod;
-}
-
-export interface Settings {
-  kubectlPath: string;
-  language: Language;
-  theme: Theme;
-  refreshIntervalSeconds: number;
-  logsTailLines: number;
-  secretRevealTimeoutSeconds: number;
-  restartProblemThreshold: number;
-  terminalFontSize: number;
-  logsSince: string;
-  llm: LlmSettings;
-  ssh: SshSettings;
-}
-
-export interface Cluster {
-  id: string;
-  displayName: string;
-  kubeconfigPath: string;
-  lastOpened: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AppConfig {
-  clusters: Cluster[];
-  settings: Settings;
-}
 
 export interface DesktopInfo {
   appName: string;
@@ -131,13 +81,6 @@ export interface BackendInfo {
     ssh?: SshSettings;
   };
   clusters: number;
-}
-
-export interface ErrorInfo {
-  code: string;
-  message: string;
-  rawStderr: string;
-  commandPreview: string;
 }
 
 export interface ResourceRow {

@@ -1,57 +1,65 @@
 # KubeDeck release checklist
 
-This checklist describes the current 1.0.3 patch workflow. Dependencies are intentionally not refreshed during normal feature/hotfix work.
+Этот checklist описывает актуальный Node-only release workflow. Целевая версия берётся из root и desktop package metadata; документ не фиксирует конкретный patch номер.
 
-## Before packaging
+## Перед сборкой
 
-Check that the project is still on version `1.0.3`:
+1. Убедиться, что версии синхронизированы в `package.json`, `apps/desktop/package.json`, `package-lock.json`, README, Help/About, changelog и release metadata.
+2. Проверить чистоту release branch и отсутствие случайных local artifacts.
+3. Выполнить автоматические проверки:
 
-```powershell
-(Get-Content .\package.json -Raw | ConvertFrom-Json).version
-(Get-Content .\apps\desktop\package.json -Raw | ConvertFrom-Json).version
+```bash
+npm run typecheck
+npm run build
+npm --workspace apps/desktop run test:gateway
 ```
 
-Run validation from the repository root:
+На Windows дополнительно:
 
 ```powershell
-npm.cmd run typecheck
-npm.cmd run build
-py -3 -m compileall .\apps\backend\kubedeck_backend
-py -3 -m pytest .\apps\backend\tests
+npm.cmd run verify:node-only
+npm.cmd run verify:release
 npm.cmd run package:win
 ```
 
-Do not run `npm ci`, `npm audit fix`, Electron/Vite upgrades, or package-lock changes unless the task is explicitly dependency maintenance.
+На macOS:
 
-## After packaging
+```bash
+npm run package:mac
+```
 
-Smoke-test the portable executable:
+Не выполнять dependency upgrades, `npm audit fix` или lockfile refresh как побочный эффект релиза.
 
-1. Start the app and confirm backend status is `ok`.
-2. Open a kubeconfig-backed cluster.
-3. Verify namespace refresh and resource refresh.
-4. Open a Pod drawer.
-5. Check Summary, YAML, Describe, Events, Related, Logs and Terminal.
-6. Verify Terminal opens without typed pod-name confirmation and connects to `kubectl exec`.
-7. Verify Restart pod opens confirmation without typing the pod name.
-8. Verify Delete pod opens standard confirmation without typing the pod name.
-9. Verify Deployment drawer has Logs and can aggregate logs from all selected pods.
-10. Verify Deployment logs pod/container filters work.
-11. Verify YAML Apply opens confirmation without typing the object name and still blocks multi-document YAML.
-12. Verify Secrets drawer tab lists keys without decoded values by default.
-13. Verify Secret Reveal/Hide/Copy works and auto-hide hides revealed values.
-14. Verify CRD definitions are view-only.
-15. Verify CRD instances can open YAML and can be deleted when RBAC allows it.
-16. Verify bulk delete shows the full preview and partial failure reporting.
-17. Verify Global Search with `Ctrl+K`.
-18. Verify Problems dashboard.
-19. Verify Related tab.
-20. Open About and copy diagnostics if needed.
+## Release payload
 
-The About screen exposes local paths for config, kubeconfigs and logs. It must not copy kubeconfig contents or secret values.
+Проверить, что сборка:
 
-## Packaging notes
+- не содержит Python runtime, FastAPI/PyInstaller backend или legacy executable;
+- не содержит встроенный `kubectl`;
+- не содержит local config, kubeconfig, logs или credentials;
+- содержит корректно собранный `node-pty` для целевой платформы;
+- запускает только Electron/Node-owned runtime.
 
-The packaging script currently fails fast when npm build tools are missing. It does not repair `node_modules` automatically.
+## Smoke test
 
-Portable builds must not include root-level `kubectl.exe`. Verify kubectl access through Settings path or PATH-based resolution.
+1. Запустить packaged приложение и проверить `/health` и `/migration/status` (`node-only`, `49 Node / 0 Python`).
+2. Импортировать или открыть kubeconfig-backed cluster.
+3. Проверить namespace selector, resource list, refresh, cache и watch-driven update.
+4. Открыть resource drawer: Summary, YAML, Describe, Events, Related и Logs.
+5. Проверить Global Search и Problems.
+6. Проверить YAML dry-run/apply и отказ для multi-document payload.
+7. Проверить delete/restart/redeploy/scale и RBAC-denied paths.
+8. Проверить Secret reveal/copy/auto-hide и отсутствие value в audit/logs.
+9. Проверить Pod Terminal: input, paste, navigation keys, resize и reconnect.
+10. Проверить Node SSH, включая password/key/jump-host paths, если доступны.
+11. Проверить Port Forward start/open/stop и cleanup при выходе.
+12. Проверить dark/light/system theme и ru/en/system language.
+13. Проверить About diagnostics: они не должны включать kubeconfig content или Secret values.
+
+## После проверки
+
+- заполнить release-specific regression checklist;
+- добавить release notes и changelog entry;
+- зафиксировать platform/architecture и имена artifacts;
+- отметить результаты typecheck, build, tests, packaging и manual smoke;
+- commit/tag выполняются только после успешного release gate.

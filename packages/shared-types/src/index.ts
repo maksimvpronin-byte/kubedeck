@@ -1,11 +1,28 @@
 export type Theme = "system" | "dark" | "light";
 export type Language = "system" | "ru" | "en";
+export type SshAuthMethod = "agent" | "password" | "privateKey";
 
 export interface LlmSettings {
   enabled: boolean;
+  provider: "openai_compatible";
   baseUrl: string;
   model: string;
-  apiKeyRef: string;
+  apiKey: string;
+  temperature: number;
+  timeoutSeconds: number;
+  maxContextChars: number;
+  maxOutputTokens: number;
+}
+
+export interface SshSettings {
+  defaultUsername: string;
+  defaultPort: number;
+  defaultAuthMethod: SshAuthMethod;
+  useJumpHost: boolean;
+  jumpHost: string;
+  jumpPort: number;
+  jumpUsername: string;
+  jumpAuthMethod: SshAuthMethod;
 }
 
 export interface Settings {
@@ -19,6 +36,7 @@ export interface Settings {
   terminalFontSize: number;
   logsSince: string;
   llm: LlmSettings;
+  ssh: SshSettings;
 }
 
 export interface Cluster {
@@ -28,6 +46,11 @@ export interface Cluster {
   lastOpened: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AppConfig {
+  clusters: Cluster[];
+  settings: Settings;
 }
 
 export interface ErrorInfo {
@@ -42,20 +65,7 @@ export type GatewayRouteTransport = "http" | "websocket";
 
 export interface GatewayMigrationStatus {
   mode: "hybrid" | "node-only";
-  gateway: {
-    runtime: "node";
-    version: string;
-    processId: number;
-    nodeVersion: string;
-  };
-  legacyBackend: {
-    enabled: boolean;
-    healthy: boolean;
-    processId?: number;
-  };
-  routes: {
-    totalExisting: number;
-    nodeOwned: number;
-    pythonOwned: number;
-  };
+  gateway: { runtime: "node"; version: string; processId: number; nodeVersion: string };
+  legacyBackend: { enabled: boolean; healthy: boolean; processId?: number };
+  routes: { totalExisting: number; nodeOwned: number; pythonOwned: number };
 }

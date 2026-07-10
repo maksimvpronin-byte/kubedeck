@@ -33,8 +33,8 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
     "../dist/main/backend/routeOwnership.js",
   );
 
-  assert.equal(rootPackage.version, "2.0.6");
-  assert.equal(desktopPackage.version, "2.0.6");
+  assert.equal(rootPackage.version, "2.1.0");
+  assert.equal(desktopPackage.version, "2.1.0");
   assert.match(rootPackage.scripts["verify:node-only"], /verify-node-only\.ps1/);
   assert.match(rootPackage.scripts["verify:release"], /verify-release\.ps1/);
   assert.match(
@@ -72,6 +72,10 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
 
   assert.match(migrationSource, /mode:\s*["']node-only["']/);
   assert.match(migrationSource, /source:\s*["']node["']/);
+  assert.match(mainSource, /contextIsolation:\s*true/);
+  assert.match(mainSource, /nodeIntegration:\s*false/);
+  assert.match(mainSource, /sandbox:\s*true/);
+  assert.match(mainSource, /will-navigate/);
   assert.doesNotMatch(
     builderSource,
     /PyInstaller|pip\s+install|requirements\.txt|apps[\\/]backend|\.build-venv|\bpy\s+-3\b/,
@@ -83,7 +87,7 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
   );
   assert.doesNotMatch(electronBuilder, /build[\\/]backend|to:\s*backend/);
   assert.match(verifierSource, /Route ownership: Node 49 \/ Python 0/);
-  assert.match(readme, /2\.0\.6/);
+  assert.match(readme, /2\.1\.0/);
   assert.match(readme, /Node-only runtime/);
   assert.doesNotMatch(
     readme,

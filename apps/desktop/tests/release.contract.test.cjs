@@ -9,15 +9,15 @@ const read = (relativePath) =>
 const readJson = (relativePath) =>
   JSON.parse(read(relativePath).replace(/^\uFEFF/, ""));
 
-test("KubeDeck 2.0.6 release metadata stays synchronized", () => {
-  const expectedVersion = "2.0.6";
+test("KubeDeck 2.1.0 release metadata stays synchronized", () => {
+  const expectedVersion = "2.1.0";
   const rootPackage = readJson("package.json");
   const desktopPackage = readJson("apps/desktop/package.json");
   const lock = readJson("package-lock.json");
   const readme = read("README.md");
   const progress = read("NODE_MIGRATION_PROGRESS.md");
-  const notes = read("RELEASE_NOTES_2.0.6.md");
-  const checklist = read("REGRESSION_CHECKLIST_2.0.6.md");
+  const notes = read("RELEASE_NOTES_2.1.0.md");
+  const checklist = read("REGRESSION_CHECKLIST_2.1.0.md");
 
   assert.equal(rootPackage.version, expectedVersion);
   assert.equal(desktopPackage.version, expectedVersion);
@@ -32,7 +32,7 @@ test("KubeDeck 2.0.6 release metadata stays synchronized", () => {
   );
 
   for (const document of [readme, progress, notes, checklist]) {
-    assert.match(document, /2\.0\.6/);
+    assert.match(document, /2\.1\.0/);
   }
 
   assert.match(notes, /Node-only/);

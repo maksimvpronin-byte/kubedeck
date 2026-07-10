@@ -109,7 +109,7 @@ async function createWindow() {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -121,6 +121,9 @@ async function createWindow() {
   }
   mainWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
     logDesktop(`renderer console level=${level} ${message} ${sourceId}:${line}`);
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!isAllowedRendererNavigation(url, devUrl)) event.preventDefault();
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:")) {
@@ -147,6 +150,18 @@ function resolveDevServerUrl() {
   } catch {
     logDesktop(`ignored invalid VITE_DEV_SERVER_URL=${value}`);
     return "";
+  }
+}
+
+function isAllowedRendererNavigation(url: string, devUrl: string) {
+  try {
+    const target = new URL(url);
+    if (target.protocol === "file:") return !devUrl && app.isPackaged;
+    if (!devUrl) return false;
+    const developmentOrigin = new URL(devUrl).origin;
+    return target.origin === developmentOrigin;
+  } catch {
+    return false;
   }
 }
 
@@ -196,12 +211,13 @@ ipcMain.handle("kubedeck:getDesktopInfo", () => ({
     kubeconfigs: kubeconfigsDir(),
   },
 }));
-ipcMain.handle("kubedeck:openPodShell", async (_event, request: {
-  clusterId: string;
-  namespace: string;
-  pod: string;
-  container?: string;
-}) => {
+ipcMain.handle("kubedeck:openPodShell", async (_event, rawRequest: unknown) => {
+  if (!rawRequest || typeof rawRequest !== "object") throw new Error("Invalid pod shell request");
+  const request = rawRequest as Record<string, unknown>;
+  if (typeof request.clusterId !== "string" || typeof request.namespace !== "string" || typeof request.pod !== "string") {
+    throw new Error("Invalid pod shell request");
+  }
+  if (request.container !== undefined && typeof request.container !== "string") throw new Error("Invalid pod shell container");
   assertSafeKubernetesName(request.namespace, "namespace");
   assertSafeKubernetesName(request.pod, "pod");
   if (request.container) assertSafeKubernetesName(request.container, "container");

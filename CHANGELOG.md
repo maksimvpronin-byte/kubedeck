@@ -1,4 +1,14 @@
-﻿## 2.0.6 - Pod containers and log viewer polish
+﻿## 2.1.0 - Architecture and security hardening
+
+- Updated active documentation for the Node-only runtime.
+- Extracted resource loading, watch lifecycle and application preferences from `App.tsx`.
+- Split ResourceTable column and pagination UI into focused components.
+- Introduced ordered token/base stylesheets without changing the visual baseline.
+- Made `@kubedeck/shared-types` the shared renderer/main config contract and removed the unused UI workspace.
+- Reduced the main renderer bundle from about 716 KB to about 267 KB with lazy chunks.
+- Enabled the Electron Chromium sandbox and hardened navigation and Pod Shell IPC validation.
+
+## 2.0.6 - Pod containers and log viewer polish
 
 - Bumped KubeDeck release metadata and package versions to `2.0.6`.
 - Added per-container status cubes to the Pods table for multi-container pods.

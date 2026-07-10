@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Текущая проверяемая версия: `2.0.6`
+Текущая проверяемая версия: `2.1.0`
 
 ## Итог
 
@@ -72,6 +72,8 @@
 - проверка отсутствия Python и встроенного kubectl в runtime/release.
 
 ## Следующий этап
+
+`2.1.0` сохраняет Node-only baseline и добавляет декомпозицию renderer orchestration, shared type contracts, bundle splitting и Electron sandbox hardening.
 
 После принятия 2.0.6:
 

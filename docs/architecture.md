@@ -1,108 +1,114 @@
 # KubeDeck Architecture
 
-## Process Model
+Этот документ описывает актуальную Node-only архитектуру KubeDeck 2.x. Историю миграции с Python/FastAPI см. в `NODE_MIGRATION_PROGRESS.md`; она не является описанием текущего runtime.
 
-KubeDeck has two runtime processes:
+## Process model
 
-- Electron main process: owns the desktop window, starts/stops the backend, exposes safe IPC for file dialogs and opening the logs folder.
-- FastAPI backend: owns AppData config, kubeconfig imports, kubectl execution, resource normalization and REST APIs.
+KubeDeck состоит из двух runtime-процессов:
 
-The renderer calls the backend over `http://127.0.0.1:<dynamic-port>`. Electron allocates the backend port at startup and exposes the final URL through preload IPC.
+- Electron main process создаёт окно, владеет локальным Node Gateway, системными диалогами и ограниченным IPC;
+- изолированный React renderer отображает UI и обращается к gateway через HTTP/WebSocket.
+
+Отдельный backend-процесс не запускается. Node Gateway работает внутри Electron main process, слушает случайный порт только на `127.0.0.1` и закрывается вместе с приложением.
+
+Renderer получает `{ baseUrl, token }` через preload bridge. `contextIsolation` включён, `nodeIntegration` выключен. Текущее решение по Chromium sandbox и его ограничения фиксируются в `docs/security.md`.
+
+## Request flow
+
+```text
+React renderer
+  -> preload IPC: получить адрес и session token
+  -> HTTP/WebSocket на 127.0.0.1
+  -> Node Gateway route
+  -> ConfigStore / AuditStore / KubectlRunner / session manager
+  -> системный kubectl, node-pty, ssh2 или внешний LLM endpoint
+```
+
+Все HTTP-запросы, кроме `GET /health`, требуют `X-KubeDeck-Token`. WebSocket использует тот же token. Gateway проверяет Origin, а session token генерируется заново при каждом запуске приложения.
 
 ## Storage
 
-All local state is stored under `%APPDATA%\KubeDeck\`.
+Локальные данные хранятся в каталоге KubeDeck внутри системного app-data:
 
-- `config.json`: clusters and settings.
-- `kubeconfigs\<cluster-id>.yaml`: imported kubeconfigs.
-- `logs\`: desktop, backend and kubectl logs.
+- Windows: `%APPDATA%\KubeDeck`;
+- macOS и fallback окружения: путь вычисляется Electron либо `~/.kubedeck` для standalone Node-контекста.
 
-Kubernetes resources are fetched on demand and kept in renderer/backend memory only. The current resource cache is in-memory; silent refresh can reuse fresh cached resource snapshots while manual refresh bypasses cache.
+Основные данные:
 
-## kubectl Transport
+- `config.json` — настройки и список кластеров;
+- `kubeconfigs/` — импортированные kubeconfig-файлы;
+- `logs/` — desktop/backend diagnostic logs;
+- `terminals/` — временные shell scripts, когда они нужны platform integration.
 
-The backend uses `kubectl` as the primary transport. All kubectl calls pass through `KubectlRunner` and `KubectlCommand`, which provide:
+Resource Snapshot Cache, watch events, terminal, SSH и port-forward sessions хранятся только в памяти процесса.
 
-- command preview;
-- timeout handling;
-- stderr capture;
-- error classification;
-- logging with basic sensitive-line redaction.
+## Backend boundaries
 
-The portable build does not bundle root-level `kubectl.exe`. Runtime resolution uses the configured kubectl path from Settings or `kubectl` from PATH.
+Ключевые модули `apps/desktop/src/main/backend`:
 
-## Backend module split
+- `gateway.ts` — HTTP/WebSocket composition root и lifecycle сервисов;
+- `config/` — пути, валидация и сохранение конфигурации;
+- `kubectl/` — безопасная сборка команд, spawn без shell, timeout и output limits;
+- `routes/` — HTTP handlers по функциональным областям;
+- `cache/` — in-memory snapshots ресурсов;
+- `watch/` — lifecycle `kubectl watch`, invalidation cache и WebSocket events;
+- `terminal/` — интерактивные Pod Terminal sessions через `node-pty`;
+- `ssh/` — Node SSH sessions через `ssh2`;
+- `portForward/` — registry и lifecycle управляемых `kubectl port-forward`;
+- `search/`, `problems/`, `relations/` — diagnostic engines;
+- `llm/` — sanitization, context, prompts и OpenAI-compatible client;
+- `audit/` — bounded metadata audit без содержимого Secret.
 
-Important backend modules:
+`gateway.ts` является composition root, но бизнес-логика и построение kubectl-команд должны оставаться в специализированных модулях.
 
-- `api/runtime.py`: store/runner/config cache and common kubectl runtime helpers.
-- `api/validation.py`: validation, payload limits and confirmation helpers.
-- `api/terminal.py`: pod terminal command and streaming helpers.
-- `api/port_forward.py`: port-forward process discovery, registry and session helpers.
-- `api/search.py`: global search helper logic.
-- `api/problems.py`: Problems dashboard engine helpers.
-- `api/relations.py`: related-resource engine helpers.
-- `api/secrets.py`: Secret reveal/copy helpers and safe audit metadata.
-- `api/workload_logs.py`: Deployment-level aggregated log helpers.
-- `api/resource_cache.py`: in-memory resource cache foundation for discovery and short-lived resource-list snapshots.
-- `api/watch_manager.py`: kubectl watch process lifecycle, cache invalidation counters and event publication.
-- `api/watch_events.py`: lightweight in-process WebSocket event hub for resource-watch notifications.
+## Kubectl transport
 
-## API Surface
+Kubernetes API вызывается через системный `kubectl`, указанный в Settings или доступный через `PATH`. Portable/DMG payload не содержит встроенного kubectl.
 
-Core endpoints include:
+Все команды проходят через `KubectlRunner` и command builders. Они обеспечивают:
 
-- `GET /health`
-- `GET /kubectl/status`
-- `GET /config`
-- `PUT /settings`
-- `GET /clusters`
-- `POST /clusters/import`
-- `PATCH /clusters/{id}`
-- `DELETE /clusters/{id}`
-- `POST /clusters/{id}/open`
-- `POST /clusters/last/open`
-- `GET /clusters/{id}/namespaces`
-- `GET /clusters/{id}/resources/{resource}`
-- `GET /clusters/{id}/resources/{resource}/{namespace}/{name}/{yaml|describe}`
-- `GET /clusters/{id}/resources/{resource}/{namespace}/{name}/related`
-- `GET /clusters/{id}/resources/{resource}/{namespace}/{name}/logs` for supported workloads such as Deployment logs
-- `GET /resource-cache/status`
-- `POST /resource-cache/clear`
+- запуск без shell;
+- timeout и остановку дочерних процессов;
+- ограничение stdout/stderr;
+- безопасный command preview;
+- классификацию ошибок;
+- redaction чувствительных данных;
+- передачу YAML через stdin.
 
-## Current frontend structure
+Долгоживущие watch, terminal и port-forward процессы имеют отдельных владельцев lifecycle и останавливаются при удалении кластера или завершении приложения.
 
-The resource drawer has been split into smaller components:
+## Renderer structure
 
-- `ResourceSummary.tsx`
-- `YamlTab.tsx`
-- `DescribeTab.tsx`
-- `EventsTab.tsx`
-- `RelatedTab.tsx`
-- `LogsTab.tsx`
-- `TerminalTab.tsx`
-- `SecretTab.tsx`
-- `PortForwardModal.tsx`
-- `PodDrawerModals.tsx`
+Renderer находится в `apps/desktop/src/renderer`:
 
-`PodDrawer.tsx` remains the coordinator for drawer state and tab selection.
+- `App.tsx` — composition и orchestration верхнего уровня;
+- `api.ts` — единый HTTP/WebSocket client;
+- `components/` — resource tables, drawer tabs, panels и modals;
+- `hooks/` — UI lifecycle и persisted state;
+- `utils/` — чистые функции;
+- `locales/` — русская и английская локализация;
+- `styles/` — темы и стили приложения.
 
-## Completed watch/cache architecture
+`PodDrawer` координирует вкладки ресурса, а специализированные компоненты владеют Summary, YAML, Describe, Events, Related, Logs, Terminal, Secret и SSH UI.
 
-The current 1.0.3 line has the watch/cache/WebSocket foundation in place:
+## Cache and live refresh
 
-1. cache diagnostics UI;
-2. cache invalidation after mutating actions and YAML apply;
-3. cached discovery/resource definitions;
-4. controlled resource-list cache with manual refresh bypass;
-5. watch manager foundation;
-6. watch diagnostics UI;
-7. watch-driven resource-list cache invalidation;
-8. WebSocket event stream for resource changes;
-9. active-table silent refresh with regular polling fallback.
+Resource list responses могут сохраняться в `ResourceSnapshotCache`. Manual refresh обходит cache. Mutating actions, YAML apply и watch events инвалидируют соответствующие snapshots.
 
-Future dangerous actions should reuse the kubectl command abstraction, command preview, backend confirmation metadata and RBAC checks where applicable.
+Для активной таблицы renderer создаёт watch subscription. `kubectl watch` публикует нормализованные события через локальный WebSocket, после чего renderer выполняет debounced silent refresh. Периодический polling остаётся fallback-механизмом.
 
-## Resource watch live refresh
+## Contract ownership
 
-`kubectl watch` reader threads parse `--output-watch-events=true` JSON lines, invalidate `ResourceSnapshotCache`, and publish lightweight events through an in-process WebSocket hub. The renderer subscribes only for the active cluster/resource/namespace and schedules a debounced silent refresh. This keeps normal HTTP polling as a safe fallback while reducing stale table windows.
+Существующие HTTP/WebSocket маршруты принадлежат Node runtime. `/migration/status` сохранён как release diagnostic и должен сообщать `node-only`, `49 Node / 0 Python` для текущего contract baseline.
+
+Изменение request/response shape требует синхронного обновления типов renderer/main и соответствующего contract test. План 2.1 предусматривает перенос общих публичных контрактов в `@kubedeck/shared-types`.
+
+## Packaging
+
+- Windows: Electron portable x64;
+- macOS: unsigned arm64 DMG и ZIP;
+- main, preload и renderer компилируются из TypeScript;
+- production payload не содержит Python/FastAPI runtime и встроенного kubectl;
+- `node-pty` является platform-native dependency и должен собираться для целевой платформы.
+
+Актуальные команды и release gate описаны в `README.md` и `docs/release-checklist.md`.
