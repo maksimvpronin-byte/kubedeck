@@ -1,0 +1,247 @@
+/* KubeDeck 1.0.4 Patch 2.1: node action confirmation modal */
+.node-action-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.node-action-confirm-modal {
+  width: min(680px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  border: 1px solid var(--border, #233142);
+  border-radius: 14px;
+  background: var(--panel, #0f1720);
+  color: var(--text, #dbe7f3);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+}
+
+.node-action-confirm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid var(--border, #233142);
+}
+
+.node-action-confirm-header h2 {
+  margin: 4px 0 6px;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.node-action-confirm-header p {
+  margin: 0;
+  color: var(--muted, #9fb0c3);
+  font-size: 13px;
+}
+
+.node-action-confirm-kicker,
+.node-action-confirm-label {
+  color: var(--muted, #9fb0c3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.node-action-confirm-section {
+  padding: 16px 20px 0;
+}
+
+.node-action-confirm-node-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.node-action-confirm-node-list code {
+  border: 1px solid var(--border, #233142);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: var(--surface, #111c29);
+  color: var(--text, #dbe7f3);
+  font-size: 12px;
+}
+
+.node-action-confirm-command {
+  margin: 10px 0 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border, #233142);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--code-bg, #07111c);
+  color: var(--text, #dbe7f3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.node-action-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 20px 20px;
+}
+
+/* KubeDeck 1.0.4 Patch 3: node drain preview */
+.node-drain-pod-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border, #233142);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface, #111c29);
+}
+
+.node-drain-pod-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.7fr) minmax(90px, 0.4fr);
+  gap: 10px;
+  align-items: center;
+  color: var(--muted, #9fb0c3);
+  font-size: 12px;
+}
+
+.node-drain-pod-row code {
+  color: var(--text, #dbe7f3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-drain-preview-muted {
+  margin: 10px 0 0;
+  color: var(--muted, #9fb0c3);
+  font-size: 13px;
+}
+
+.node-drain-preview-error {
+  border-color: rgba(248, 113, 113, 0.42);
+}
+
+/* KubeDeck 1.0.4 Patch 4: node SSH drawer tab */
+.node-ssh-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.node-ssh-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.node-ssh-grid label,
+.node-ssh-jump-toggle {
+  display: grid;
+  gap: 5px;
+  color: var(--muted, #9fb0c3);
+  font-size: 12px;
+}
+
+.node-ssh-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.node-ssh-grid input,
+.node-ssh-grid select {
+  width: 100%;
+  border: 1px solid var(--border, #233142);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: var(--surface, #111c29);
+  color: var(--text, #dbe7f3);
+}
+
+.node-ssh-jump-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-ssh-jump-grid {
+  border: 1px solid var(--border, #233142);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.44);
+}
+
+.node-ssh-note {
+  margin: 0;
+  color: var(--muted, #9fb0c3);
+  font-size: 12px;
+}
+
+
+
+/* KubeDeck 1.0.4 Patch 5: SSH defaults settings */
+.settings-card {
+  border: 1px solid var(--border, #233142);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.settings-card h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: var(--text, #dbe7f3);
+}
+
+.settings-hint,
+.settings-warning {
+  margin: 0 0 12px;
+  color: var(--muted, #9fb0c3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-warning {
+  margin: 10px 0 0;
+  color: #fcd34d;
+}
+
+.settings-grid-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-checkbox {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 8px !important;
+  margin: 12px 0;
+}
+
+.settings-checkbox input {
+  width: auto;
+}
+
+.settings-llm-actions {
+  margin-top: 12px;
+}
+
+@media (max-width: 860px) {
+  .settings-grid-two {
+    grid-template-columns: 1fr;
+  }
+}

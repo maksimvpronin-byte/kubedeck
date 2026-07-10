@@ -50,26 +50,7 @@
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Добавлено:
-
-- `RELEASE_NOTES_2.0.6.md`;
-- `REGRESSION_CHECKLIST_2.0.6.md`;
-- `scripts/verify-release.ps1`;
-- root-команда `npm.cmd run verify:release`;
-- release contract test;
-- постоянный последовательный запуск Gateway test suite.
-
-## Обязательная проверка 2.0.6
-
-- `npm.cmd run verify:node-only`;
-- `npm.cmd run verify:release`;
-- TypeScript typecheck;
-- Desktop/Vite build;
-- все Node Gateway contract tests без fail/cancelled;
-- Windows portable build;
-- запуск portable;
-- полный `REGRESSION_CHECKLIST_2.0.6.md`;
-- проверка отсутствия Python и встроенного kubectl в runtime/release.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.1.0.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 

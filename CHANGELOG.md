@@ -1,4 +1,13 @@
-﻿## 2.1.0 - Architecture and security hardening
+﻿## Unreleased - 2.1.x renderer optimization
+
+- Extracted cluster/config/namespace lifecycle into `useClusterController`.
+- Extracted resource navigation and selected-row synchronization into `useResourceNavigation`.
+- Extracted bulk delete and Node actions into `useBulkResourceActions` and focused modal components.
+- Reduced `PodDrawer` chrome responsibilities and moved table state/persistence into dedicated modules.
+- Split the monolithic renderer stylesheet into ordered functional stylesheets with byte-identical cascade output.
+- Added a fast `test:renderer` contract suite for controller and state normalization logic.
+
+## 2.1.0 - Architecture and security hardening
 
 - Updated active documentation for the Node-only runtime.
 - Extracted resource loading, watch lifecycle and application preferences from `App.tsx`.

@@ -1,0 +1,592 @@
+/* KubeDeck 1.0.5 UI hotfix: resource table toolbar */
+.resource-table-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.resource-table-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 2px;
+}
+
+.resource-table-header h2 {
+  margin: 0;
+}
+
+.resource-table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 34px;
+}
+
+.table-columns-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.table-columns-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  max-height: min(360px, calc(100vh - 180px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--border-strong, #334251);
+  border-radius: 8px;
+  background: var(--panel, #151b22);
+  box-shadow: var(--shadow-menu, 0 14px 30px rgba(0, 0, 0, 0.35));
+}
+
+.table-columns-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border, #27313b);
+}
+
+.table-columns-popover-header strong {
+  min-width: 0;
+  color: var(--text, #d8dee9);
+  font-size: 13px;
+}
+
+.table-columns-popover-header button {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.table-columns-options {
+  display: grid;
+  gap: 2px;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+}
+
+.table-columns-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--text, #d8dee9);
+  font-size: 13px;
+}
+
+.table-columns-options label:hover {
+  background: var(--surface-hover, #172331);
+}
+
+.table-columns-options input {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+}
+
+.table-columns-options span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  min-width: 220px;
+  padding: 0 10px;
+  border: 1px solid var(--border, #293241);
+  border-radius: 8px;
+  background: var(--surface-2, rgba(15, 23, 42, 0.55));
+}
+
+.table-filter svg {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+.table-filter input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+}
+
+.table-filter-clear {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #94a3b8);
+}
+
+.table-filter-clear:hover,
+.table-filter-clear:focus-visible {
+  background: var(--surface-hover, rgba(30, 41, 59, 0.72));
+  color: var(--text, #e5e7eb);
+}
+
+.table-filter-clear svg {
+  width: 14px;
+  height: 14px;
+  opacity: 1;
+}
+
+.resource-table-panel .secondary-btn,
+.resource-table-panel .danger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.resource-table-panel .secondary-btn svg,
+.resource-table-panel .danger-btn svg {
+  flex: 0 0 auto;
+}
+
+.resource-table-panel .secondary-btn:disabled,
+.resource-table-panel .danger-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.resource-table th,
+.resource-table td {
+  vertical-align: middle;
+}
+
+.resource-table tbody tr {
+  min-height: 42px;
+}
+
+.container-status-cubes {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.container-status-cube {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong, #334251);
+  border-radius: 4px;
+  background: var(--surface-active, #24313d);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.container-status-cube.is-ready {
+  border-color: var(--success-border, #2f4f3d);
+  background: var(--success-text, #a7f3d0);
+}
+
+.container-status-cube.is-running {
+  border-color: var(--primary-border, #4d94b7);
+  background: var(--primary, #2f6f8f);
+}
+
+.container-status-cube.is-waiting {
+  border-color: var(--warning-border, #7c5a1d);
+  background: var(--warning-text, #fde68a);
+}
+
+.container-status-cube.is-terminated {
+  border-color: var(--danger-border, #6f3c3c);
+  background: var(--danger-text, #ffd0d0);
+}
+
+.container-status-cube.is-unknown {
+  border-color: var(--border-strong, #334251);
+  background: var(--muted-soft, #6f8196);
+}
+
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pagination-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* End KubeDeck 1.0.5 UI hotfix */
+/* KubeDeck 1.0.5 button style hotfix */
+.resource-table-header .resource-table-actions {
+  align-items: center;
+  gap: 8px;
+  --kd-table-action-bg: var(--button-bg, #202a34);
+  --kd-table-action-bg-hover: var(--surface-hover, #172331);
+  --kd-table-action-border: var(--border-strong, #334251);
+  --kd-table-action-border-hover: var(--primary-border, #4d94b7);
+  --kd-table-action-text: var(--text, #d8dee9);
+  --kd-table-action-muted: var(--muted, #94a3b8);
+}
+
+.resource-table-header .resource-table-actions button.secondary-btn,
+.resource-table-header .resource-table-actions button.danger-btn,
+.resource-table-header .resource-table-actions .table-columns-popover-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--kd-table-action-border);
+  background: var(--kd-table-action-bg);
+  color: var(--kd-table-action-text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  box-shadow: none;
+  text-shadow: none;
+  white-space: nowrap;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.resource-table-header .resource-table-actions button.secondary-btn:hover:not(:disabled),
+.resource-table-header .resource-table-actions .table-columns-popover-header button:hover:not(:disabled) {
+  border-color: var(--kd-table-action-border-hover);
+  background: var(--kd-table-action-bg-hover);
+  color: var(--kd-table-action-text);
+}
+
+.resource-table-header .resource-table-actions button.danger-btn {
+  border-color: var(--danger-border, #6f3c3c);
+  background: var(--danger-bg, #301b1f);
+  color: var(--danger-text, #ffd0d0);
+}
+
+.resource-table-header .resource-table-actions button.danger-btn:hover:not(:disabled) {
+  border-color: var(--danger-border, #6f3c3c);
+  background: color-mix(in srgb, var(--danger-bg, #301b1f) 84%, var(--text, #d8dee9));
+  color: var(--danger-text, #ffd0d0);
+}
+
+.resource-table-header .resource-table-actions button.secondary-btn:disabled,
+.resource-table-header .resource-table-actions button.danger-btn:disabled,
+.resource-table-header .resource-table-actions .table-columns-popover-header button:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
+.resource-table-header .resource-table-actions button.secondary-btn svg,
+.resource-table-header .resource-table-actions button.danger-btn svg,
+.resource-table-header .resource-table-actions .table-columns-popover-header button svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.88;
+  flex: 0 0 auto;
+}
+
+.resource-table-header .resource-table-actions .table-filter {
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid rgba(96, 116, 139, 0.36);
+  background: rgba(9, 14, 22, 0.62);
+}
+
+.resource-table-header .resource-table-actions .table-filter:focus-within {
+  border-color: rgba(96, 165, 250, 0.72);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.14);
+}
+
+.resource-table-header .resource-table-actions .table-filter input {
+  font-size: 13px;
+}
+
+.resource-table-header .resource-table-actions .table-filter svg {
+  width: 14px;
+  height: 14px;
+}
+/* End KubeDeck 1.0.5 button style hotfix */
+/* KubeDeck 1.0.5 namespace style hotfix */
+.resource-table td .namespace-pill,
+.resource-table td button.link-button.namespace-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1px solid rgba(96, 165, 250, 0.34);
+  border-radius: 7px;
+  background: rgba(30, 41, 59, 0.48);
+  color: #bfdbfe;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: none;
+  text-shadow: none;
+  cursor: pointer;
+}
+
+.resource-table td .namespace-pill:hover,
+.resource-table td button.link-button.namespace-pill:hover {
+  border-color: rgba(147, 197, 253, 0.62);
+  background: rgba(37, 99, 235, 0.18);
+  color: #dbeafe;
+}
+
+.resource-table td .namespace-pill:focus-visible,
+.resource-table td button.link-button.namespace-pill:focus-visible {
+  outline: none;
+  border-color: rgba(147, 197, 253, 0.78);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+}
+
+.resource-table tr.selected td .namespace-pill,
+.resource-table tr.selected td button.link-button.namespace-pill {
+  border-color: rgba(147, 197, 253, 0.56);
+  background: rgba(59, 130, 246, 0.2);
+  color: #e0f2fe;
+}
+/* End KubeDeck 1.0.5 namespace style hotfix */
+/* KubeDeck 1.0.5 settings feedback hotfix */
+.settings-save-feedback {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin-left: 10px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.settings-save-feedback.success {
+  border: 1px solid rgba(34, 197, 94, 0.38);
+  background: rgba(22, 101, 52, 0.18);
+  color: #86efac;
+}
+
+.settings-save-feedback.error {
+  border: 1px solid rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.22);
+  color: #fecaca;
+}
+/* End KubeDeck 1.0.5 settings feedback hotfix */
+/* KubeDeck 1.0.5 responsive layout hotfix */
+/*
+  Fixes the resource list when the app window is narrow and a right-side
+  resource drawer is open. The resource table must keep its own scroll area,
+  and the footer controls must wrap instead of being clipped outside the left
+  panel.
+*/
+.content {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main-panel,
+.main-panel-resource,
+.main-panel-resource > .table-surface,
+.resource-table-panel {
+  min-width: 0;
+  min-height: 0;
+}
+
+.main-panel-resource {
+  display: flex;
+  flex-direction: column;
+}
+
+.main-panel-resource > .table-surface {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.resource-table-panel {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.resource-table-header {
+  min-width: 0;
+}
+
+.resource-table-header > div:first-child {
+  min-width: 0;
+}
+
+.resource-table-actions {
+  min-width: 0;
+}
+
+.resource-table-actions .table-filter {
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.table-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.resource-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
+}
+
+.resource-table th {
+  position: relative;
+}
+
+.resource-table th[draggable="true"] {
+  cursor: grab;
+}
+
+.resource-table th.dragging-column {
+  opacity: 0.58;
+}
+
+.resource-table th.drag-over-column {
+  box-shadow: inset 3px 0 0 var(--primary-border, #4d94b7);
+}
+
+.column-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+  touch-action: none;
+}
+
+.column-resizer:hover,
+.column-resizer:active {
+  background: rgba(77, 148, 183, 0.78);
+}
+
+.resource-table th,
+.resource-table td {
+  min-width: 0;
+}
+
+.table-footer {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.table-footer > span,
+.table-footer > label,
+.table-footer .pagination-actions {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.table-footer .pagination-actions {
+  min-width: 0;
+}
+
+.drawer {
+  min-width: 340px;
+  max-width: min(920px, 58vw);
+}
+
+@media (max-width: 1280px) {
+  .drawer {
+    width: clamp(340px, 38vw, 500px) !important;
+    min-width: 320px;
+    max-width: 46vw;
+  }
+}
+
+@container (max-width: 820px) {
+  .resource-table-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .resource-table-actions {
+    justify-content: flex-start;
+  }
+
+  .resource-table-actions .table-filter {
+    max-width: none;
+  }
+
+  .table-footer {
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px 12px;
+    flex-wrap: wrap;
+  }
+
+  .table-footer .pagination-actions {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+}
+
+@container (max-width: 620px) {
+  .table-footer > label {
+    order: 2;
+  }
+
+  .table-footer .pagination-actions {
+    order: 3;
+  }
+}
+/* End KubeDeck 1.0.5 responsive layout hotfix */
+

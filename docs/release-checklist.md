@@ -11,6 +11,7 @@
 ```bash
 npm run typecheck
 npm run build
+npm run test:renderer
 npm --workspace apps/desktop run test:gateway
 ```
 

@@ -179,6 +179,12 @@ npm run build
 npm run test:gateway
 ```
 
+### Renderer controller tests
+
+```bash
+npm run test:renderer
+```
+
 ### Node-only verification на Windows
 
 ```powershell

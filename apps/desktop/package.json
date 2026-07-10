@@ -8,6 +8,7 @@
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"tsc -p tsconfig.main.json --watch\" \"wait-on http://127.0.0.1:5173 dist/main/main.js && node scripts/start-electron.cjs\"",
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && vite build",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "test:renderer": "node --test --test-concurrency=1 tests/renderer-controllers.contract.test.cjs",
     "dist:win": "electron-builder --win --x64 --config.npmRebuild=false",
     "test:gateway": "node --test --test-concurrency=1 tests/gateway.contract.test.cjs tests/resource-details.contract.test.cjs tests/resource-discovery-events.contract.test.cjs tests/deployment-logs.contract.test.cjs tests/yaml.contract.test.cjs tests/secrets.contract.test.cjs tests/resource-actions.contract.test.cjs tests/pod-exec.contract.test.cjs tests/resource-lists.contract.test.cjs tests/watch.contract.test.cjs tests/port-forward.contract.test.cjs tests/pod-terminal.contract.test.cjs tests/node-ssh.contract.test.cjs tests/problems.contract.test.cjs tests/search.contract.test.cjs tests/related-resources.contract.test.cjs tests/llm.contract.test.cjs tests/node-only-runtime.contract.test.cjs tests/release.contract.test.cjs",
     "dist:mac": "electron-builder --mac --arm64 --config.npmRebuild=false"

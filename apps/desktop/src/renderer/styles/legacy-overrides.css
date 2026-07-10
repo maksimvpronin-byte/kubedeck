@@ -1,0 +1,1545 @@
+/* KubeDeck 1.0.5 pod restart diagnostics hotfix */
+.summary-card.restart-diagnostics-card {
+  grid-column: 1 / -1;
+  display: block;
+  border-color: rgba(56, 189, 248, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.restart-diagnostics-card strong {
+  white-space: normal;
+}
+
+.restart-diagnostics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.restart-diagnostics-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.restart-count-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--text, #e5e7eb);
+  background: rgba(15, 23, 42, 0.82);
+  font-size: 12px;
+}
+
+.restart-count-badge.is-warning {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.24);
+}
+
+.restart-diagnostics-list {
+  display: grid;
+  gap: 10px;
+}
+
+.restart-diagnostic {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.36);
+}
+
+.restart-diagnostic.is-warning {
+  border-color: rgba(248, 113, 113, 0.48);
+  background: rgba(127, 29, 29, 0.12);
+}
+
+.restart-diagnostic-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.restart-diagnostic-title span {
+  color: #fde68a;
+  font-size: 12px;
+  text-align: right;
+}
+
+.restart-diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.restart-diagnostic-field {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.restart-diagnostic-field span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+}
+
+.restart-diagnostic-field strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text, #e5e7eb);
+  font-size: 13px;
+}
+
+.restart-diagnostic-message,
+.restart-diagnostics-empty,
+.restart-diagnostics-hint {
+  margin: 10px 0 0;
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.restart-diagnostic-message {
+  color: #fecaca;
+}
+/* KubeDeck 1.0.5 summary layout polish hotfix */
+.resource-summary-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+
+.resource-summary-card-grid,
+.resource-summary-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.resource-summary-details-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.resource-summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.resource-summary-section-title {
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.resource-summary-tile {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: rgba(15, 23, 42, 0.48);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.resource-summary-tile.is-compact {
+  padding: 9px 10px;
+}
+
+.resource-summary-tile.is-success {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(6, 78, 59, 0.14);
+}
+
+.resource-summary-tile.is-warning {
+  border-color: rgba(251, 191, 36, 0.38);
+  background: rgba(120, 53, 15, 0.16);
+}
+
+.resource-summary-tile.is-danger {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.14);
+}
+
+.resource-summary-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.resource-summary-value {
+  display: block;
+  max-width: 100%;
+  color: var(--text, #e5e7eb);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.pod-restart-card {
+  min-width: 0;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.64);
+}
+
+.pod-restart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pod-restart-header strong {
+  color: var(--text, #e5e7eb);
+  font-size: 14px;
+}
+
+.pod-restart-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pod-restart-count {
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--text, #e5e7eb);
+  background: rgba(15, 23, 42, 0.82);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pod-restart-count.is-warning {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.24);
+}
+
+.pod-restart-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pod-restart-item {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 9px;
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.34);
+}
+
+.pod-restart-item.is-warning {
+  border-color: rgba(248, 113, 113, 0.46);
+  background: rgba(127, 29, 29, 0.12);
+}
+
+.pod-restart-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.pod-restart-title strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text, #e5e7eb);
+}
+
+.pod-restart-title span {
+  flex: 0 0 auto;
+  max-width: 45%;
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.pod-restart-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 8px;
+}
+
+.pod-restart-field {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.pod-restart-field span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+}
+
+.pod-restart-field strong {
+  display: block;
+  color: var(--text, #e5e7eb);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.pod-restart-message,
+.pod-restart-empty,
+.pod-restart-hint {
+  margin: 10px 0 0;
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.pod-restart-message {
+  color: #fecaca;
+}
+
+@media (max-width: 1120px) {
+  .resource-summary-card-grid,
+  .resource-summary-details-grid,
+  .pod-restart-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .pod-restart-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pod-restart-title span {
+    max-width: 100%;
+    text-align: left;
+  }
+}
+/* KubeDeck 1.0.5 sort indicator hotfix */
+.table-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.table-sort-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-sort-indicator {
+  flex: 0 0 auto;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  border-radius: 999px;
+  padding: 1px 5px;
+  color: #93c5fd;
+  background: rgba(30, 64, 175, 0.16);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+}
+
+/* KubeDeck 1.1.0 drawer button and copy icon polish */
+.drawer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.drawer-title-row h2 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  color: var(--muted, #94a3b8);
+  background: rgba(15, 23, 42, 0.72);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.55);
+  color: var(--text, #e5e7eb);
+  background: rgba(30, 64, 175, 0.22);
+}
+
+.drawer-copy-name-button {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.drawer-actions,
+.llm-actions,
+.llm-toolbar,
+.yaml-actions,
+.logs-actions,
+.settings-actions,
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-actions button:not(.icon-button),
+.llm-actions button:not(.icon-button),
+.llm-toolbar button:not(.icon-button),
+.yaml-actions button:not(.icon-button),
+.logs-actions button:not(.icon-button),
+.settings-actions button:not(.icon-button),
+.modal-actions button:not(.icon-button),
+.drawer .tab-body button:not(.icon-button) {
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(30, 41, 59, 0.82);
+  color: var(--text, #e5e7eb);
+  min-height: 32px;
+  padding: 6px 11px;
+}
+
+.drawer-actions button:not(.icon-button):hover:not(:disabled),
+.llm-actions button:not(.icon-button):hover:not(:disabled),
+.llm-toolbar button:not(.icon-button):hover:not(:disabled),
+.yaml-actions button:not(.icon-button):hover:not(:disabled),
+.logs-actions button:not(.icon-button):hover:not(:disabled),
+.settings-actions button:not(.icon-button):hover:not(:disabled),
+.modal-actions button:not(.icon-button):hover:not(:disabled),
+.drawer .tab-body button:not(.icon-button):hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(14, 165, 233, 0.16);
+}
+
+.drawer-actions button.danger,
+.drawer-actions button.is-danger,
+.drawer-actions button[aria-label="Delete"] {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.26);
+  color: #fecaca;
+}
+
+/* KubeDeck 1.1.0 drawer button style unify v2 */
+:root {
+  --kd-action-bg: rgba(15, 23, 42, 0.82);
+  --kd-action-bg-hover: rgba(30, 41, 59, 0.96);
+  --kd-action-border: rgba(96, 165, 250, 0.34);
+  --kd-action-border-hover: rgba(125, 211, 252, 0.56);
+  --kd-action-text: #e5e7eb;
+  --kd-action-muted: #94a3b8;
+  --kd-action-primary-bg: rgba(14, 116, 144, 0.72);
+  --kd-action-primary-border: rgba(125, 211, 252, 0.66);
+  --kd-action-primary-hover: rgba(8, 145, 178, 0.82);
+}
+
+/* Common drawer/tool buttons: YAML toolbar, logs toolbar, LLM toolbar, modal actions. */
+.drawer :where(
+  .drawer-actions,
+  .yaml-toolbar,
+  .yaml-editor-toolbar,
+  .yaml-actions,
+  .yaml-search-actions,
+  .log-toolbar,
+  .logs-toolbar,
+  .log-controls,
+  .logs-actions,
+  .llm-actions,
+  .llm-header-actions,
+  .llm-toolbar,
+  .modal-actions,
+  .secret-actions,
+  .related-actions
+) button:not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy),
+.drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy),
+.drawer button.kd-action-button,
+.drawer button.kd-secondary-button {
+  min-height: 32px;
+  border: 1px solid var(--kd-action-border) !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  background: var(--kd-action-bg) !important;
+  color: var(--kd-action-text) !important;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.drawer :where(
+  .drawer-actions,
+  .yaml-toolbar,
+  .yaml-editor-toolbar,
+  .yaml-actions,
+  .yaml-search-actions,
+  .log-toolbar,
+  .logs-toolbar,
+  .log-controls,
+  .logs-actions,
+  .llm-actions,
+  .llm-header-actions,
+  .llm-toolbar,
+  .modal-actions,
+  .secret-actions,
+  .related-actions
+) button:not(:disabled):not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy):hover,
+.drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:not(:disabled):not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy):hover,
+.drawer button.kd-action-button:not(:disabled):hover,
+.drawer button.kd-secondary-button:not(:disabled):hover {
+  border-color: var(--kd-action-border-hover) !important;
+  background: var(--kd-action-bg-hover) !important;
+  color: #ffffff !important;
+}
+
+.drawer :where(
+  .drawer-actions,
+  .yaml-toolbar,
+  .yaml-editor-toolbar,
+  .yaml-actions,
+  .yaml-search-actions,
+  .log-toolbar,
+  .logs-toolbar,
+  .log-controls,
+  .logs-actions,
+  .llm-actions,
+  .llm-header-actions,
+  .llm-toolbar,
+  .modal-actions,
+  .secret-actions,
+  .related-actions
+) button:disabled,
+.drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Primary operation buttons inside drawer tools, without changing destructive buttons. */
+.drawer button.primary,
+.drawer button.is-primary,
+.drawer button[data-variant="primary"],
+.drawer .llm-actions button:first-child:not(:disabled),
+.drawer .llm-header-actions button:first-child:not(:disabled),
+.drawer .yaml-actions button:last-child:not(:disabled) {
+  border-color: var(--kd-action-primary-border) !important;
+  background: var(--kd-action-primary-bg) !important;
+  color: #f8fafc !important;
+}
+
+.drawer button.primary:not(:disabled):hover,
+.drawer button.is-primary:not(:disabled):hover,
+.drawer button[data-variant="primary"]:not(:disabled):hover,
+.drawer .llm-actions button:first-child:not(:disabled):hover,
+.drawer .llm-header-actions button:first-child:not(:disabled):hover,
+.drawer .yaml-actions button:last-child:not(:disabled):hover {
+  border-color: rgba(186, 230, 253, 0.82) !important;
+  background: var(--kd-action-primary-hover) !important;
+}
+
+/* Keep dangerous actions visually dangerous. */
+.drawer button.danger,
+.drawer button.is-danger,
+.drawer button[data-variant="danger"] {
+  border-color: rgba(248, 113, 113, 0.48) !important;
+  background: rgba(127, 29, 29, 0.26) !important;
+  color: #fecaca !important;
+}
+
+.drawer button.danger:not(:disabled):hover,
+.drawer button.is-danger:not(:disabled):hover,
+.drawer button[data-variant="danger"]:not(:disabled):hover {
+  border-color: rgba(252, 165, 165, 0.72) !important;
+  background: rgba(153, 27, 27, 0.36) !important;
+  color: #fee2e2 !important;
+}
+
+/* Header copy icon near resource name. */
+.resource-title-row,
+.drawer-resource-title,
+.drawer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.resource-title-copy,
+.copy-name-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border: 1px solid rgba(96, 165, 250, 0.28) !important;
+  border-radius: 7px !important;
+  padding: 0 !important;
+  background: rgba(15, 23, 42, 0.68) !important;
+  color: var(--kd-action-muted) !important;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.resource-title-copy:not(:disabled):hover,
+.copy-name-icon:not(:disabled):hover {
+  border-color: rgba(125, 211, 252, 0.62) !important;
+  background: rgba(30, 41, 59, 0.92) !important;
+  color: #e0f2fe !important;
+}
+/* End KubeDeck 1.1.0 drawer button style unify v2 */
+
+/* KubeDeck drawer button style unify v3 start */
+/* Keep drawer action buttons visually consistent across Summary/LLM/YAML/Logs. */
+.pod-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button),
+.pod-drawer .resource-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button),
+.pod-drawer .llm-actions button:not(.danger):not(.danger-button),
+.pod-drawer .llm-toolbar button:not(.danger):not(.danger-button),
+.pod-drawer .llm-panel button:not(.danger):not(.danger-button),
+.pod-drawer .yaml-toolbar button:not(.danger):not(.danger-button),
+.pod-drawer .yaml-actions button:not(.danger):not(.danger-button),
+.pod-drawer .logs-toolbar button:not(.danger):not(.danger-button),
+.pod-drawer .logs-actions button:not(.danger):not(.danger-button),
+.pod-drawer .drawer-tab-panel button:not(.danger):not(.danger-button):not(.tab),
+.pod-drawer .drawer-content button.primary:not(.danger):not(.danger-button),
+.pod-drawer .drawer-content button.secondary:not(.danger):not(.danger-button),
+.pod-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button),
+.resource-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button),
+.resource-drawer .resource-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button),
+.resource-drawer .llm-actions button:not(.danger):not(.danger-button),
+.resource-drawer .llm-toolbar button:not(.danger):not(.danger-button),
+.resource-drawer .llm-panel button:not(.danger):not(.danger-button),
+.resource-drawer .yaml-toolbar button:not(.danger):not(.danger-button),
+.resource-drawer .yaml-actions button:not(.danger):not(.danger-button),
+.resource-drawer .logs-toolbar button:not(.danger):not(.danger-button),
+.resource-drawer .logs-actions button:not(.danger):not(.danger-button),
+.resource-drawer .drawer-content button.primary:not(.danger):not(.danger-button),
+.resource-drawer .drawer-content button.secondary:not(.danger):not(.danger-button),
+.resource-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button) {
+  appearance: none !important;
+  background: #101923 !important;
+  border: 1px solid #2b5c92 !important;
+  border-radius: 6px !important;
+  color: #eef6ff !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+  min-height: 30px !important;
+  padding: 6px 12px !important;
+  line-height: 1.1 !important;
+}
+
+.pod-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
+.pod-drawer .resource-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
+.pod-drawer .llm-actions button:not(.danger):not(.danger-button):hover,
+.pod-drawer .llm-toolbar button:not(.danger):not(.danger-button):hover,
+.pod-drawer .llm-panel button:not(.danger):not(.danger-button):hover,
+.pod-drawer .yaml-toolbar button:not(.danger):not(.danger-button):hover,
+.pod-drawer .yaml-actions button:not(.danger):not(.danger-button):hover,
+.pod-drawer .logs-toolbar button:not(.danger):not(.danger-button):hover,
+.pod-drawer .logs-actions button:not(.danger):not(.danger-button):hover,
+.pod-drawer .drawer-tab-panel button:not(.danger):not(.danger-button):not(.tab):hover,
+.pod-drawer .drawer-content button.primary:not(.danger):not(.danger-button):hover,
+.pod-drawer .drawer-content button.secondary:not(.danger):not(.danger-button):hover,
+.pod-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button):hover,
+.resource-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
+.resource-drawer .resource-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
+.resource-drawer .llm-actions button:not(.danger):not(.danger-button):hover,
+.resource-drawer .llm-toolbar button:not(.danger):not(.danger-button):hover,
+.resource-drawer .llm-panel button:not(.danger):not(.danger-button):hover,
+.resource-drawer .yaml-toolbar button:not(.danger):not(.danger-button):hover,
+.resource-drawer .yaml-actions button:not(.danger):not(.danger-button):hover,
+.resource-drawer .logs-toolbar button:not(.danger):not(.danger-button):hover,
+.resource-drawer .logs-actions button:not(.danger):not(.danger-button):hover,
+.resource-drawer .drawer-content button.primary:not(.danger):not(.danger-button):hover,
+.resource-drawer .drawer-content button.secondary:not(.danger):not(.danger-button):hover,
+.resource-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button):hover {
+  background: #142235 !important;
+  border-color: #3b82c4 !important;
+  color: #ffffff !important;
+}
+
+.pod-drawer .drawer-content button:disabled,
+.resource-drawer .drawer-content button:disabled {
+  background: #17202b !important;
+  border-color: #2a3747 !important;
+  color: #7f8da0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.75 !important;
+}
+
+.pod-drawer .drawer-content button.danger,
+.pod-drawer .drawer-content button.danger-button,
+.resource-drawer .drawer-content button.danger,
+.resource-drawer .drawer-content button.danger-button {
+  background: #24141a !important;
+  border: 1px solid #7f2d3a !important;
+  color: #ffd7dc !important;
+}
+
+.pod-drawer .drawer-content button.danger:hover,
+.pod-drawer .drawer-content button.danger-button:hover,
+.resource-drawer .drawer-content button.danger:hover,
+.resource-drawer .drawer-content button.danger-button:hover {
+  background: #341923 !important;
+  border-color: #b64859 !important;
+  color: #ffffff !important;
+}
+
+.pod-drawer .copy-resource-name-button,
+.resource-drawer .copy-resource-name-button {
+  align-items: center !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  color: #9fb5cf !important;
+  display: inline-flex !important;
+  height: 26px !important;
+  justify-content: center !important;
+  margin-left: 6px !important;
+  padding: 2px 6px !important;
+  width: 28px !important;
+}
+
+.pod-drawer .copy-resource-name-button:hover,
+.resource-drawer .copy-resource-name-button:hover {
+  background: #142235 !important;
+  border-color: #2b5c92 !important;
+  color: #ffffff !important;
+}
+/* KubeDeck drawer button style unify v3 end */
+
+/* KubeDeck 1.1.0 LLM button style force START */
+/* Force LLM drawer buttons to use the same compact dark-outline style as drawer action buttons. */
+.llm-tab .llm-tab-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.llm-tab .llm-tab-actions > button,
+.llm-tab .llm-tab-actions > button.primary,
+.llm-tab .llm-tab-actions > button.secondary,
+.drawer .llm-tab .llm-tab-actions > button,
+.drawer .llm-tab .llm-tab-actions > button.primary,
+.drawer .llm-tab .llm-tab-actions > button.secondary {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  line-height: 28px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(96, 165, 250, 0.55) !important;
+  border-radius: 7px !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+  background-image: none !important;
+  color: var(--text, #e5e7eb) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  cursor: pointer !important;
+}
+
+.llm-tab .llm-tab-actions > button:hover:not(:disabled),
+.llm-tab .llm-tab-actions > button.primary:hover:not(:disabled),
+.llm-tab .llm-tab-actions > button.secondary:hover:not(:disabled),
+.drawer .llm-tab .llm-tab-actions > button:hover:not(:disabled),
+.drawer .llm-tab .llm-tab-actions > button.primary:hover:not(:disabled),
+.drawer .llm-tab .llm-tab-actions > button.secondary:hover:not(:disabled) {
+  border-color: rgba(125, 211, 252, 0.75) !important;
+  background: rgba(30, 41, 59, 0.86) !important;
+  color: #f8fafc !important;
+}
+
+.llm-tab .llm-tab-actions > button:disabled,
+.drawer .llm-tab .llm-tab-actions > button:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
+/* Keep the dangerous drawer buttons visually dangerous, not converted to LLM style. */
+.drawer .action-bar button.danger,
+.drawer .drawer-actions button.danger,
+.drawer button.danger {
+  border-color: rgba(248, 113, 113, 0.55) !important;
+  background: rgba(127, 29, 29, 0.24) !important;
+  color: #fecaca !important;
+}
+/* KubeDeck 1.1.0 LLM button style force END */
+
+/* KubeDeck 1.1.1 button consistency pass: drawer action rows and terminals. */
+.pod-drawer .drawer-actions,
+.resource-drawer .drawer-actions,
+.drawer .drawer-actions,
+.terminal-toolbar {
+  --kd-action-bg: var(--button-bg);
+  --kd-action-bg-hover: var(--surface-hover);
+  --kd-action-border: var(--border-strong);
+  --kd-action-border-hover: var(--primary-border);
+  --kd-action-text: var(--text);
+  --kd-action-primary-bg: var(--primary);
+  --kd-action-primary-border: var(--primary-border);
+  --kd-action-primary-hover: var(--primary-hover);
+}
+
+.pod-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button),
+.resource-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button),
+.drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):not(.copy-name-icon):not(.resource-title-copy) {
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 12px !important;
+  border: 1px solid var(--kd-action-border) !important;
+  border-radius: 8px !important;
+  background: var(--kd-action-bg) !important;
+  color: var(--kd-action-text) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, opacity 120ms ease !important;
+}
+
+.pod-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):hover:not(:disabled),
+.resource-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):hover:not(:disabled),
+.drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):not(.copy-name-icon):not(.resource-title-copy):hover:not(:disabled) {
+  border-color: var(--kd-action-border-hover) !important;
+  background: var(--kd-action-bg-hover) !important;
+  color: var(--text-strong) !important;
+}
+
+.pod-drawer .drawer-actions button.danger,
+.pod-drawer .drawer-actions button.danger-button,
+.resource-drawer .drawer-actions button.danger,
+.resource-drawer .drawer-actions button.danger-button,
+.drawer .drawer-actions button.danger,
+.drawer .drawer-actions button.danger-button {
+  border-color: var(--danger-border) !important;
+  background: var(--danger-bg) !important;
+  color: var(--danger-text) !important;
+}
+
+.pod-drawer .drawer-actions button.danger:hover:not(:disabled),
+.pod-drawer .drawer-actions button.danger-button:hover:not(:disabled),
+.resource-drawer .drawer-actions button.danger:hover:not(:disabled),
+.resource-drawer .drawer-actions button.danger-button:hover:not(:disabled),
+.drawer .drawer-actions button.danger:hover:not(:disabled),
+.drawer .drawer-actions button.danger-button:hover:not(:disabled) {
+  border-color: var(--danger-border) !important;
+  background: color-mix(in srgb, var(--danger-bg) 82%, var(--text) 18%) !important;
+  color: var(--danger-text) !important;
+}
+
+.pod-drawer .drawer-actions button:disabled,
+.resource-drawer .drawer-actions button:disabled,
+.drawer .drawer-actions button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.48 !important;
+}
+
+/* KubeDeck 1.1.1 related tab hotfix */
+.related-toolbar {
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.related-toolbar .compact-select {
+  min-width: 185px;
+}
+
+.related-relation-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.relation-summary-chip,
+.related-sources .pill,
+.related-group > header span {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 22px;
+  margin: 0;
+  padding: 2px 9px;
+  border: 1px solid #324252;
+  border-radius: 999px;
+  background: #111820;
+  color: #d8dee9 !important;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.related-diagnostics {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #26313b;
+  border-radius: 8px;
+  background: #0c1218;
+  padding: 10px;
+}
+
+.related-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.related-sources .muted {
+  flex: 0 0 auto;
+  margin: 0 2px 0 0;
+}
+
+.related-errors {
+  border-top: 1px solid #26313b;
+  padding-top: 8px;
+  color: #cbd5e1;
+}
+
+.related-errors summary {
+  cursor: pointer;
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+.related-errors ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.related-group-list {
+  display: grid;
+  gap: 12px;
+}
+
+.related-group {
+  border: 1px solid #25303a;
+  border-radius: 8px;
+  background: #0f151c;
+  overflow: hidden;
+}
+
+.related-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #25303a;
+  background: #121b24;
+}
+
+.related-group > header h3 {
+  margin: 0;
+  color: #bfdbfe;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.related-group .event-list {
+  padding: 10px;
+}
+
+.related-card-polished {
+  display: grid;
+  gap: 8px;
+}
+
+.related-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.related-card-main strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.related-card-main .related-namespace {
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  color: #94a3b8 !important;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.related-relation-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.related-relation-row .relation-badge {
+  display: inline-flex !important;
+  align-items: center;
+  width: auto;
+  min-height: 22px;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid #324252;
+  border-radius: 999px;
+  background: #0f1720;
+  color: #cbd5e1 !important;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.related-relation-row code {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid #26313b;
+  border-radius: 6px;
+  background: #070a0d;
+  color: #94a3b8;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.relation-owner,
+.relation-selector,
+.relation-storage,
+.relation-rbac,
+.relation-config {
+  border-color: #365c72;
+  background: rgba(77, 148, 183, 0.14);
+  color: #dbeafe !important;
+}
+/* KubeDeck 1.1.1 related visual compact fix */
+.related-diagnostics {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 0 0 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.related-sources {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.related-sources .muted {
+  margin: 0 !important;
+  color: #8fa3b8 !important;
+  font-size: 12px !important;
+}
+
+.related-sources .pill,
+.relation-summary-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  width: auto !important;
+  min-height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #a9c4dc !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  white-space: nowrap !important;
+}
+
+.related-sources .pill:not(:last-child)::after,
+.relation-summary-chip:not(:last-child)::after {
+  content: "\00b7";
+  display: inline-block;
+  margin-left: 8px;
+  color: #4b6075;
+  font-weight: 400;
+}
+
+.related-relation-summary {
+  gap: 8px !important;
+  padding: 0 !important;
+}
+
+.related-group-list {
+  display: grid !important;
+  gap: 0 !important;
+}
+
+.related-group {
+  border: 0 !important;
+  border-top: 1px solid #24313e !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+.related-group:first-child {
+  border-top: 0 !important;
+}
+
+.related-group > header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 12px 0 7px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.related-group > header h3 {
+  margin: 0 !important;
+  color: #9fcef7 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+.related-group > header span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  width: auto !important;
+  min-height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #7f9ab4 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.related-group .event-list {
+  display: grid !important;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+.related-group .event-list .event-item.related-card-polished,
+.related-card-polished {
+  display: grid !important;
+  gap: 4px !important;
+  padding: 8px 0 10px !important;
+  border: 0 !important;
+  border-top: 1px solid rgba(57, 73, 90, 0.45) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.related-group .event-list .event-item.related-card-polished:first-child,
+.related-card-polished:first-child {
+  border-top: 1px solid rgba(57, 73, 90, 0.45) !important;
+}
+
+.related-group .event-list .event-item.related-card-polished:hover,
+.related-card-polished:hover {
+  background: rgba(96, 165, 250, 0.035) !important;
+}
+
+.related-card-main {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+}
+
+.related-card-main strong {
+  display: block !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  color: #d8e7f7 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  white-space: nowrap !important;
+}
+
+.related-card-main .related-namespace {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #8aa3bd !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  white-space: nowrap !important;
+}
+
+.related-relation-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+  color: #7f95aa !important;
+  font-size: 12px !important;
+}
+
+.related-relation-row .relation-badge,
+.relation-owner,
+.relation-selector,
+.relation-storage,
+.relation-rbac,
+.relation-config {
+  display: inline-flex !important;
+  align-items: center !important;
+  width: auto !important;
+  min-height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #9dbad3 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  white-space: nowrap !important;
+}
+
+.related-relation-row .relation-badge::after {
+  content: "";
+}
+
+.related-relation-row code {
+  display: inline-block !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #7f95aa !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.related-relation-row code::before {
+  content: "\00b7  ";
+  color: #4b6075;
+}
+
+/* KUBEDECK 1.1.1 RELATED CLEANUP START */
+/* Keep Related focused on the actual resource graph. Hide debug/export UI. */
+.related-toolbar .icon-text {
+  display: none !important;
+}
+
+.related-relation-summary,
+.related-diagnostics {
+  display: none !important;
+}
+
+.related-toolbar {
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-bottom: 12px !important;
+}
+
+.related-toolbar .compact-select {
+  margin: 0 !important;
+}
+
+.related-toolbar .compact-select select {
+  min-width: 146px;
+}
+
+.related-group-list {
+  margin-top: 6px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.related-group {
+  border: 1px solid rgba(148, 163, 184, 0.14) !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  overflow: hidden !important;
+}
+
+.related-group > header {
+  min-height: 38px !important;
+  padding: 0 12px !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+  background: rgba(15, 23, 42, 0.22) !important;
+}
+
+.related-group > header h3 {
+  margin: 0 !important;
+  font-size: 12px !important;
+  letter-spacing: 0.06em !important;
+}
+
+.related-group > header span {
+  min-width: 22px !important;
+  height: 22px !important;
+  padding: 0 7px !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid rgba(125, 211, 252, 0.35) !important;
+  background: rgba(15, 23, 42, 0.3) !important;
+  color: #dbeafe !important;
+  font-size: 12px !important;
+}
+
+.related-group .event-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+.related-card,
+.related-card-polished {
+  width: 100% !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 11px 12px !important;
+}
+
+.related-card:last-child,
+.related-card-polished:last-child {
+  border-bottom: 0 !important;
+}
+
+.related-card:hover:not(:disabled),
+.related-card-polished:hover:not(:disabled) {
+  background: rgba(30, 41, 59, 0.32) !important;
+}
+
+.related-card-main {
+  gap: 12px !important;
+}
+
+.related-card-main strong {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+.related-namespace {
+  margin-left: auto !important;
+  color: #93c5fd !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+}
+
+.related-relation-row {
+  margin-top: 6px !important;
+  gap: 8px !important;
+}
+
+.relation-badge {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  color: #dbeafe !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.related-relation-row code {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  background: rgba(2, 6, 23, 0.32) !important;
+}
+/* KUBEDECK 1.1.1 RELATED CLEANUP END */
+
+:root[data-theme="light"] .settings-card,
+:root[data-theme="light"] .resource-table-panel,
+:root[data-theme="light"] .cache-diagnostics,
+:root[data-theme="light"] .watch-diagnostics,
+:root[data-theme="light"] .problems-panel,
+:root[data-theme="light"] .audit-panel,
+:root[data-theme="light"] .llm-panel,
+:root[data-theme="light"] .help-page,
+:root[data-theme="light"] .about-page {
+  border-color: var(--border) !important;
+  background: var(--panel) !important;
+  color: var(--text) !important;
+}
+
+:root[data-theme="light"] .drawer-actions,
+:root[data-theme="light"] .terminal-toolbar,
+:root[data-theme="light"] .settings-actions,
+:root[data-theme="light"] .llm-actions,
+:root[data-theme="light"] .resource-actions,
+:root[data-theme="light"] .resource-table-actions {
+  --kd-action-bg: #eef3f8;
+  --kd-action-bg-hover: #e1ebf5;
+  --kd-action-border: #b7c4d4;
+  --kd-action-border-hover: #2d84a8;
+  --kd-action-text: var(--text);
+  --kd-action-muted: var(--muted);
+  --kd-action-primary-bg: var(--primary);
+  --kd-action-primary-border: var(--primary-border);
+  --kd-action-primary-hover: var(--primary-hover);
+}
+
+:root[data-theme="light"] .resource-summary-card,
+:root[data-theme="light"] .problem-card,
+:root[data-theme="light"] .watch-card,
+:root[data-theme="light"] .cache-card,
+:root[data-theme="light"] .port-forward-card,
+:root[data-theme="light"] .product-meta div,
+:root[data-theme="light"] .related-group,
+:root[data-theme="light"] .related-card,
+:root[data-theme="light"] .related-card-polished {
+  border-color: var(--border) !important;
+  background: var(--panel-muted) !important;
+  color: var(--text) !important;
+}
+
+:root[data-theme="light"] .related-card:hover:not(:disabled),
+:root[data-theme="light"] .related-card-polished:hover:not(:disabled),
+:root[data-theme="light"] .resource-summary-card:hover {
+  background: var(--surface-hover) !important;
+}
+
+:root[data-theme="light"] .related-group > header,
+:root[data-theme="light"] .resource-table-panel .table-toolbar,
+:root[data-theme="light"] .watch-diagnostics header,
+:root[data-theme="light"] .cache-diagnostics header {
+  border-color: var(--border) !important;
+  background: var(--panel-muted) !important;
+  color: var(--text) !important;
+}
+
+:root[data-theme="light"] .related-group > header span,
+:root[data-theme="light"] .relation-badge,
+:root[data-theme="light"] .related-namespace {
+  color: var(--primary) !important;
+}
+
+:root[data-theme="light"] .related-relation-row code,
+:root[data-theme="light"] .terminal-command-preview,
+:root[data-theme="light"] .yaml-operation-output,
+:root[data-theme="light"] .command-preview-block,
+:root[data-theme="light"] .code-block,
+:root[data-theme="light"] .describe-viewer {
+  border-color: var(--border) !important;
+  background: var(--code-bg) !important;
+  color: var(--text) !important;
+}
+
+:root[data-theme="light"] .terminal-screen,
+:root[data-theme="light"] .xterm-host {
+  border-color: var(--border) !important;
+}
+
+:root[data-theme="light"] .settings-hint,
+:root[data-theme="light"] .settings-warning,
+:root[data-theme="light"] .muted,
+:root[data-theme="light"] .status-line,
+:root[data-theme="light"] .terminal-muted,
+:root[data-theme="light"] .resource-table-header span,
+:root[data-theme="light"] .related-card span,
+:root[data-theme="light"] .related-card p,
+:root[data-theme="light"] .related-card-polished span {
+  color: var(--muted) !important;
+}
+
+:root[data-theme="light"] .settings-save-feedback.success {
+  border-color: var(--success-border) !important;
+  background: var(--success-bg) !important;
+  color: var(--success-text) !important;
+}
+
+:root[data-theme="light"] .settings-save-feedback.error,
+:root[data-theme="light"] .error-panel {
+  border-color: var(--danger-border) !important;
+  background: var(--error-bg) !important;
+  color: var(--error-text) !important;
+}

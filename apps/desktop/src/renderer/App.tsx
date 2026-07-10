@@ -1,22 +1,24 @@
 import { ChevronDown, ChevronRight, Search, X } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import { ApiClient } from "./api";
 import { CommandPalette, type CommandPaletteItem } from "./components/CommandPalette";
+import { BulkActionModals } from "./components/BulkActionModals";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
 import { LazyPanelBoundary } from "./components/LazyPanelBoundary";
 import { ResourceTable } from "./components/ResourceTable";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
 import { useAppPreferences } from "./hooks/useAppPreferences";
-import { useNamespaceRefresh } from "./hooks/useNamespaceRefresh";
+import { useBulkResourceActions } from "./hooks/useBulkResourceActions";
+import { useClusterController } from "./hooks/useClusterController";
 import { usePersistUiState } from "./hooks/usePersistUiState";
 import { useResourceLoader } from "./hooks/useResourceLoader";
+import { useResourceNavigation } from "./hooks/useResourceNavigation";
 import { useResourceWatch } from "./hooks/useResourceWatch";
 import { createTranslator } from "./i18n";
-import { brandIcon as Database, isPlaceholderSection, normalizeStoredSection, resourceLabel, resourceTree, sectionForResource, sectionTitle, sections, visibleTabs } from "./navigation";
-import { canDeleteResource, findResourceDefinition, groupCrds, sameResourceIdentity } from "./utils/kubeResources";
-import type { AppConfig, Cluster, ErrorInfo, GlobalSearchItem, ResourceDefinition, ResourceRow, Section, Settings } from "./types";
+import { brandIcon as Database, isPlaceholderSection, normalizeStoredSection, resourceLabel, resourceTree, sectionTitle, sections, visibleTabs } from "./navigation";
+import { canDeleteResource, findResourceDefinition, groupCrds } from "./utils/kubeResources";
+import type { ErrorInfo, GlobalSearchItem, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
@@ -39,87 +41,60 @@ const ProblemsPanel = lazy(() => import("./components/ProblemsPanel").then((modu
 const PodDrawer = lazy(() => import("./components/PodDrawer").then((module) => ({ default: module.PodDrawer })));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
-function normalizeConfigSsh(config: AppConfig): AppConfig {
-  return {
-    ...config,
-    settings: normalizeSettingsSsh(config.settings),
-  };
-}
-
-type BulkDeleteFailure = {
-  row: ResourceRow;
-  message: string;
-};
-type NodeActionKind = "cordon" | "uncordon" | "drain";
-type NodeActionConfirmation = { action: NodeActionKind; rows: ResourceRow[]; commandPreview: string; affectedPods?: ResourceRow[]; previewLoading?: boolean; previewError?: string; };
-
-
 export function App() {
-  const [api, setApi] = useState<ApiClient | null>(null);
-  const [config, setConfig] = useState<AppConfig | null>(null);
-  const [backendOk, setBackendOk] = useState(false);
-  const [kubectlVersion, setKubectlVersion] = useState("");
-  const [activeCluster, setActiveCluster] = useState<Cluster | null>(null);
-  const [unavailableCluster, setUnavailableCluster] = useState<Cluster | null>(null);
   const [section, setSection] = useState<Section>(initialSection);
   const [resourceTab, setResourceTab] = useState(initialResourceTab);
-  const [resourceDefinitions, setResourceDefinitions] = useState<ResourceDefinition[]>([]);
   const [rows, setRows] = useState<Record<string, ResourceRow[]>>({ pods: [], deployments: [], services: [], events: [] });
   const [loading, setLoading] = useState(false);
-  const [openingClusterId, setOpeningClusterId] = useState<string | null>(null);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [selectedPod, setSelectedPod] = useState<ResourceRow | null>(null);
   const [selectedResource, setSelectedResource] = useState("pods");
   const [drawerWidth, setDrawerWidth] = useState(initialUiState.drawerWidth ?? 520);
   const [sidebarWidth, setSidebarWidth] = useState(initialUiState.sidebarWidth ?? 236);
-  const [bulkDelete, setBulkDelete] = useState<{ resource: string; rows: ResourceRow[] } | null>(null); const [nodeActionConfirmation, setNodeActionConfirmation] = useState<NodeActionConfirmation | null>(null); 
-  const [bulkActionMessage, setBulkActionMessage] = useState("");
-  const [renameTarget, setRenameTarget] = useState<Cluster | null>(null);
-  const [renameDraft, setRenameDraft] = useState("");
-  const [renaming, setRenaming] = useState(false);
-  const [runtimeError, setRuntimeError] = useState("");
   const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
-  const keepDrawerSelection = useRef(false);
-  const lastNamespacedSelectionRef = useRef<string[]>(
-    initialSelectedNamespaces.length > 0 && !initialSelectedNamespaces.includes("_cluster")
-      ? initialSelectedNamespaces
-      : ["all"],
-  );
   const loadResourcesRef = useRef<number | null>(null);
+  const actionReloadRef = useRef<(clusterId: string, resource: string, namespaces: string[]) => Promise<void>>(async () => undefined);
   const crdLoadedClusterRef = useRef<string | null>(null);
 
-  const settings = config?.settings;
+  const {
+    api, config, setConfig, settings, backendOk, kubectlVersion,
+    activeCluster, setActiveCluster, unavailableCluster, setUnavailableCluster,
+    openingClusterId, resourceDefinitions, setResourceDefinitions, runtimeError,
+    renameTarget, renameDraft, setRenameDraft, renaming,
+    namespaces, setNamespaces, selectedNamespaces, setNamespaceSelection,
+    importKubeconfig, openCluster, startRenameCluster, cancelRenameCluster,
+    confirmRenameCluster, removeCluster,
+  } = useClusterController({
+    initialSelectedNamespaces,
+    setRows,
+    setSelectedRow: setSelectedPod,
+    setLoading,
+    setError,
+  });
   const activeLanguage = languagePreview ?? settings?.language ?? "system";
   const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
   const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
-  const {
-    namespaces,
-    setNamespaces,
-    selectedNamespaces,
-    setNamespaceSelection,
-  } = useNamespaceRefresh({
+  const reloadActionResources = useCallback(
+    (clusterId: string, resource: string, targetNamespaces: string[]) => actionReloadRef.current(clusterId, resource, targetNamespaces),
+    [],
+  );
+  const bulkActions = useBulkResourceActions({
     api,
-    activeClusterId: activeCluster?.id,
-    settings,
-    initialSelectedNamespaces,
-    onError: setError,
+    activeCluster,
+    resourceDefinitions,
+    selectedResource,
+    selectedRow: selectedPod,
+    selectedNamespaces,
+    setRows,
+    setSelectedRow: setSelectedPod,
+    setError,
+    reloadResources: reloadActionResources,
+    t,
   });
   const namespace = selectedNamespaces.length === 1 ? selectedNamespaces[0] : selectedNamespaces.join(",");
 
-  useEffect(() => {
-    if (selectedNamespaces.length > 0 && !selectedNamespaces.includes("_cluster")) {
-      lastNamespacedSelectionRef.current = selectedNamespaces;
-    }
-  }, [selectedNamespaces]);
-
-  function restoreLastNamespacedSelection() {
-    const remembered = lastNamespacedSelectionRef.current.length > 0
-      ? lastNamespacedSelectionRef.current
-      : ["all"];
-    setNamespaceSelection(remembered);
-  }
   const {
     query: globalSearch,
     setQuery: setGlobalSearch,
@@ -128,40 +103,6 @@ export function App() {
     results: globalSearchResults,
     loading: globalSearchLoading,
   } = useGlobalSearch({ api, activeClusterId: activeCluster?.id, namespace, onError: setError });
-
-  useEffect(() => {
-    if (!window.kubedeck) {
-      setRuntimeError(t("app.electronRequired"));
-      return;
-    }
-    window.kubedeck.getBackendAuth().then(({ baseUrl, token }) => {
-      const client = new ApiClient(baseUrl, token);
-      setApi(client);
-      client
-        .health()
-        .then(() => setBackendOk(true))
-        .catch((err) => setError(asErrorInfo(err)));
-      client
-        .config()
-        .then((next) => setConfig(normalizeConfigSsh(next)))
-        .catch((err) => setError(asErrorInfo(err)));
-      client
-        .kubectlStatus()
-        .then((status) => setKubectlVersion(status.version.gitVersion ?? "ok"))
-        .catch((err) => setError(asErrorInfo(err)));
-      client
-        .openLastCluster()
-        .then((result) => {
-          if (result.cluster) {
-            setActiveCluster(result.cluster);
-            setUnavailableCluster(null);
-            setNamespaces((result.namespaces ?? []).map((item) => item.metadata.name));
-            client.resourceDefinitions(result.cluster.id).then((defs) => setResourceDefinitions(defs.items)).catch(() => setResourceDefinitions([]));
-          }
-        })
-        .catch((err) => setError(asErrorInfo(err)));
-    });
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -180,97 +121,6 @@ export function App() {
     selectedNamespaces,
   });
 
-  useEffect(() => {
-    if (!config || !activeCluster) return;
-    if (!config.clusters.some((cluster) => cluster.id === activeCluster.id)) {
-      setActiveCluster(null);
-      setUnavailableCluster(null);
-      setNamespaces([]);
-      setRows({});
-      setSelectedPod(null);
-    }
-  }, [config, activeCluster?.id]);
-
-  async function reloadConfig() {
-    if (!api) return;
-    setConfig(normalizeConfigSsh(await api.config()));
-  }
-
-  async function importKubeconfig() {
-    if (!api) return;
-    const source = await window.kubedeck.selectKubeconfig();
-    if (!source) return;
-    try {
-      await api.importCluster(source);
-      await reloadConfig();
-      setError(null);
-    } catch (err) {
-      setError(asErrorInfo(err));
-      throw err;
-    }
-  }
-
-  async function openCluster(cluster: Cluster) {
-    if (!api) return;
-    setLoading(true);
-    setOpeningClusterId(cluster.id); try { await api.clearResourceCache(cluster.id).catch(() => undefined);
-      const result = await api.openCluster(cluster.id);
-      setActiveCluster(result.cluster);
-      setUnavailableCluster(null);
-      setNamespaces(result.namespaces.map((item) => item.metadata.name));
-      setError(null);
-      setResourceDefinitions((await api.resourceDefinitions(result.cluster.id)).items);
-      await loadResources(result.cluster.id, resourceTab, selectedNamespaces);
-      await reloadConfig();
-    } catch (err) {
-      setActiveCluster(null);
-      setUnavailableCluster(cluster);
-      setNamespaces([]);
-      setRows({});
-      setError(asErrorInfo(err));
-    } finally {
-      setLoading(false);
-      setOpeningClusterId(null);
-    }
-  }
-
-  function startRenameCluster(cluster: Cluster) {
-    setRenameTarget(cluster);
-    setRenameDraft(cluster.displayName);
-  }
-
-  async function confirmRenameCluster() {
-    if (!api || !renameTarget) return;
-    const name = renameDraft.trim();
-    if (!name) return;
-    setRenaming(true);
-    try {
-      const renamed = await api.renameCluster(renameTarget.id, name);
-      if (activeCluster?.id === renamed.id) setActiveCluster(renamed);
-      if (unavailableCluster?.id === renamed.id) setUnavailableCluster(renamed);
-      await reloadConfig();
-      setRenameTarget(null);
-      setRenameDraft("");
-      setError(null);
-    } catch (err) {
-      setError(asErrorInfo(err));
-    } finally {
-      setRenaming(false);
-    }
-  }
-
-  async function removeCluster(cluster: Cluster) {
-    if (!api || !window.confirm(`Remove ${cluster.displayName}?`)) return;
-    await api.removeCluster(cluster.id);
-    if (activeCluster?.id === cluster.id) setActiveCluster(null);
-    if (unavailableCluster?.id === cluster.id) setUnavailableCluster(null);
-    await reloadConfig();
-  }
-
-  const clearPendingResourceActions = useCallback(() => {
-    setBulkDelete(null);
-    setNodeActionConfirmation(null);
-  }, []);
   const loadResources = useResourceLoader({
     api,
     activeCluster,
@@ -281,10 +131,13 @@ export function App() {
     setActiveCluster,
     setUnavailableCluster,
     setSelectedRow: setSelectedPod,
-    clearPendingActions: clearPendingResourceActions,
+    clearPendingActions: bulkActions.clearPendingActions,
     setLoading,
     setError,
   });
+  actionReloadRef.current = async (clusterId, resource, targetNamespaces) => {
+    await loadResources(clusterId, resource, targetNamespaces);
+  };
 
     // KubeDeck 1.0.5 loading guard: if data is already visible, do not let a stale
   // global loading flag keep table actions and Refresh disabled after startup or
@@ -308,47 +161,37 @@ const debouncedLoadResources = useCallback(
     },
     [loadResources, activeCluster?.id, resourceTab, selectedNamespaces]
   );
+  const {
+    openResourceLocator,
+    openRelatedResource,
+    consumeKeepSelection,
+    keepCurrentSelection,
+    restoreNamespacedSelection,
+  } = useResourceNavigation({
+    api,
+    activeCluster,
+    resourceTab,
+    selectedResource,
+    namespace,
+    selectedNamespaces,
+    resourceDefinitions,
+    rows,
+    selectedRow: selectedPod,
+    setRows,
+    setSelectedRow: setSelectedPod,
+    setSelectedResource,
+    setResourceTab,
+    setSection,
+    setExpandedSections,
+    setNamespaceSelection,
+    setError,
+  });
 
-    useEffect(() => {
-    if (!api || !unavailableCluster || openingClusterId) return;
-    let cancelled = false;
-    let running = false;
-    const retryUnavailableCluster = async () => {
-      if (running) return;
-      running = true;
-      try {
-        const result = await api.openCluster(unavailableCluster.id);
-        if (cancelled) return;
-        setActiveCluster(result.cluster);
-        setUnavailableCluster(null);
-        setNamespaces((result.namespaces ?? []).map((item) => item.metadata.name));
-        setError(null);
-        api.resourceDefinitions(result.cluster.id)
-          .then((defs) => setResourceDefinitions(defs.items))
-          .catch(() => setResourceDefinitions([]));
-        await loadResources(result.cluster.id, resourceTab, selectedNamespaces, true);
-        void reloadConfig();
-      } catch {
-        // The cluster is still unavailable. Keep the retry screen visible and retry later.
-      } finally {
-        running = false;
-      }
-    };
-    const timer = window.setInterval(() => { void retryUnavailableCluster(); }, 10000);
-    void retryUnavailableCluster();
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [api, unavailableCluster?.id, openingClusterId, resourceTab, selectedNamespaces, loadResources]);
 useEffect(() => {
     if (activeCluster) debouncedLoadResources(activeCluster.id, resourceTab, selectedNamespaces);
-    if (keepDrawerSelection.current) {
-      keepDrawerSelection.current = false;
-      return;
-    }
+    if (consumeKeepSelection()) return;
     setSelectedPod(null);
-  }, [resourceTab, selectedNamespaces, activeCluster?.id, debouncedLoadResources]);
+  }, [resourceTab, selectedNamespaces, activeCluster?.id, debouncedLoadResources, consumeKeepSelection]);
 
   useEffect(() => {
     if (!activeCluster || !api) return;
@@ -374,275 +217,13 @@ useEffect(() => {
     return () => window.clearInterval(timer);
   }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources]);
 
-  useEffect(() => {
-    if (!selectedPod) return;
-    const latest = (rows[selectedResource] ?? []).find((row) =>
-      row.uid === selectedPod.uid ||
-      (row.name === selectedPod.name && String(row.namespace ?? "") === String(selectedPod.namespace ?? ""))
-    );
-    if (latest && latest !== selectedPod) setSelectedPod(latest);
-  }, [rows, selectedResource, selectedPod?.uid]);
-
-  async function openResourceLocator(locator: ResourceRow) {
-    if (!api || !activeCluster) {
-      setSelectedPod(locator);
-      return;
-    }
-    const resource = String(locator.resource || selectedResource || resourceTab);
-    if (!resource) return;
-    const definition = findResourceDefinition(resourceDefinitions, resource);
-    const nextSection = sectionForResource(resource) ?? (locator.crdInstance ? "crd" : "workloads");
-    const locatorNamespace = String(locator.namespace || "");
-    const nextNamespace = definition && !definition.namespaced
-    ? "_cluster"
-    : locatorNamespace && locatorNamespace !== "_cluster"
-      ? locatorNamespace
-      : namespace === "_cluster"
-        ? (lastNamespacedSelectionRef.current.length === 1 ? lastNamespacedSelectionRef.current[0] : "all")
-        : namespace || "all";
-
-    setSection(nextSection);
-    if (resourceTree[nextSection]) {
-      setExpandedSections((current) => new Set(current).add(nextSection));
-    }
-    keepDrawerSelection.current = true;
-    setResourceTab(resource);
-    setSelectedResource(resource);
-    setSelectedPod(locator);
-    if (definition && !definition.namespaced) {
-    setNamespaceSelection("_cluster");
-  } else if (nextNamespace && nextNamespace !== "all") {
-    setNamespaceSelection(nextNamespace);
-  } else if (selectedNamespaces.includes("_cluster")) {
-    restoreLastNamespacedSelection();
-  }
-
-    try {
-      const response = await api.resources(activeCluster.id, resource, nextNamespace);
-      const found = response.items.find((item) => sameResourceIdentity(locator, item));
-      setRows((current) => ({ ...current, [resource]: response.items }));
-      if (found) {
-        setSelectedPod(found);
-        setError(null);
-        return;
-      }
-      setError({
-        code: "PARTIAL_RESULT",
-        message: `${resource}/${String(locator.name || "unknown")} was opened from search data, but the live resource list did not contain it. It may have been deleted or filtered by namespace.`,
-        rawStderr: "",
-        commandPreview: "",
-      });
-    } catch (err) {
-      setError(asErrorInfo(err));
-    }
-  }
-
-  async function openRelatedResource(resource: string, relatedNamespace: string, name: string) {
-    await openResourceLocator({
-      uid: `${resource}:${relatedNamespace || "_cluster"}:${name}`,
-      resource,
-      namespace: relatedNamespace || "_cluster",
-      name,
-    });
-  }
-
-  async function confirmBulkDelete() {
-    if (!api || !activeCluster || !bulkDelete) return;
-    const target = bulkDelete;
-
-    // Close the confirmation dialog immediately. Bulk deletes can wait for
-    // Kubernetes graceful termination on every selected object, so keeping the
-    // modal open makes the UI look stuck even though the request was accepted.
-    setBulkDelete(null);
-    setBulkActionMessage(`${t("bulkDelete.requested")}: ${target.rows.length} ${target.resource}`);
-    setError(null);
-
-    const deletingKeys = new Set(target.rows.map(resourceIdentityLabel));
-    setRows((current) => {
-      const existingRows = current[target.resource];
-      if (!existingRows) return current;
-      return {
-        ...current,
-        [target.resource]: existingRows.map((row) => deletingKeys.has(resourceIdentityLabel(row)) ? markDeletingRow(target.resource, row) : row),
-      };
-    });
-    if (selectedResource === target.resource && selectedPod && deletingKeys.has(resourceIdentityLabel(selectedPod))) {
-      setSelectedPod(markDeletingRow(target.resource, selectedPod));
-    }
-
-    const deletedRows: ResourceRow[] = [];
-    const failures: BulkDeleteFailure[] = [];
-    try {
-      for (const row of target.rows) {
-        try {
-          await api.resourceAction(activeCluster.id, target.resource, namespaceForAction(target.resource, row), row.name, "delete");
-          deletedRows.push(row);
-        } catch (err) {
-          const info = asErrorInfo(err);
-          failures.push({ row, message: info.message || info.code || "Delete failed" });
-        }
-      }
-
-      if (deletedRows.length > 0) {
-        const deletedKeys = new Set(deletedRows.map((row) => `${row.namespace ?? "_cluster"}/${row.name}`));
-        if (selectedResource === target.resource && selectedPod && deletedKeys.has(`${selectedPod.namespace ?? "_cluster"}/${selectedPod.name}`)) {
-          setSelectedPod(null);
-        }
-        try {
-          await loadResources(activeCluster.id, target.resource, selectedNamespaces);
-        } catch (err) {
-          setError(asErrorInfo(err));
-        }
-      }
-
-      if (failures.length > 0) {
-        const message = `${t("bulkDelete.partialResult")}. ${t("bulkDelete.deleted")}: ${deletedRows.length}. ${t("bulkDelete.failed")}: ${failures.length}.`;
-        setBulkActionMessage(message);
-        setError({
-          code: "PARTIAL_RESULT",
-          message,
-          rawStderr: failures.map((item) => `${target.resource} ${resourceIdentityLabel(item.row)} РІР‚вЂќ ${item.message}`).join("\n"),
-          commandPreview: "",
-        });
-        return;
-      }
-
-      setBulkActionMessage(`${t("bulkDelete.completed")}. ${t("bulkDelete.deleted")}: ${deletedRows.length}.`);
-      setError(null);
-    } catch (err) {
-      setBulkActionMessage(t("bulkDelete.failedMessage"));
-      setError(asErrorInfo(err));
-    }
-  }  async function runBulkNodeAction(action: NodeActionKind, selectedRows: ResourceRow[]) {
-    if (!api || !activeCluster || selectedRows.length === 0) return;
-
-    const commandPreview = selectedRows
-      .map((row) =>
-        action === "drain"
-          ? `kubectl drain ${row.name} --ignore-daemonsets --delete-emptydir-data --timeout=300s`
-          : `kubectl ${action} ${row.name}`,
-      )
-      .join("\n");
-
-    if (action !== "drain") {
-      setNodeActionConfirmation({ action, rows: selectedRows, commandPreview });
-      return;
-    }
-
-    const nodeNames = new Set(selectedRows.map((row) => String(row.name)));
-    setNodeActionConfirmation({ action, rows: selectedRows, commandPreview, affectedPods: [], previewLoading: true });
-
-    try {
-      const response = await api.resources(activeCluster.id, "pods", "all", undefined, { useCache: false, forceRefresh: true });
-      const affectedPods = response.items
-        .filter((pod) => nodeNames.has(String(pod.node ?? "")))
-        .sort((a, b) => `${a.namespace ?? ""}/${a.name}`.localeCompare(`${b.namespace ?? ""}/${b.name}`, undefined, { numeric: true }));
-      setNodeActionConfirmation({ action, rows: selectedRows, commandPreview, affectedPods, previewLoading: false });
-    } catch (err) {
-      const info = asErrorInfo(err);
-      setNodeActionConfirmation({
-        action,
-        rows: selectedRows,
-        commandPreview,
-        affectedPods: [],
-        previewLoading: false,
-        previewError: info.message || info.code || "Failed to load affected pods preview",
-      });
-    }
-  }
-
-
-
-  async function confirmBulkNodeAction() {
-    if (!api || !activeCluster || !nodeActionConfirmation) return;
-
-    const target = nodeActionConfirmation;
-    const action = target.action;
-    const actionLabel = nodeActionLabel(action);
-    const commandPreview = target.commandPreview;
-
-    setNodeActionConfirmation(null);
-    setBulkActionMessage(`${actionLabel} requested: ${target.rows.length} node(s)`);
-    setError(null);
-
-    const completedRows: ResourceRow[] = [];
-    const failures: BulkDeleteFailure[] = [];
-
-    for (const row of target.rows) {
-      try {
-        await api.resourceAction(activeCluster.id, "nodes", "_cluster", row.name, action);
-        completedRows.push(row);
-      } catch (err) {
-        const info = asErrorInfo(err);
-        failures.push({ row, message: info.message || info.code || `${actionLabel} failed` });
-      }
-    }
-
-    try {
-      await loadResources(activeCluster.id, "nodes", ["_cluster"]);
-    } catch (err) {
-      setError(asErrorInfo(err));
-    }
-
-    if (failures.length > 0) {
-      const message = `${actionLabel} partial result. Completed: ${completedRows.length}. Failed: ${failures.length}.`;
-      setBulkActionMessage(message);
-      setError({
-        code: "PARTIAL_RESULT",
-        message,
-        rawStderr: failures.map((item) => `nodes ${resourceIdentityLabel(item.row)} - ${item.message}`).join("\n"),
-        commandPreview,
-      });
-      return;
-    }
-
-    setBulkActionMessage(`${actionLabel} completed. Nodes: ${completedRows.length}.`);
-    setError(null);
-  }
-
-  function closeNodeActionConfirmation() {
-    setNodeActionConfirmation(null);
-  }
-
-  function nodeActionLabel(action: NodeActionKind) {
-    if (action === "cordon") return "Cordon";
-    if (action === "uncordon") return "Uncordon";
-    return "Drain";
-  }
-
-  function nodeActionTitle(action: NodeActionKind) {
-    if (action === "cordon") return "Cordon selected nodes";
-    if (action === "uncordon") return "Uncordon selected nodes";
-    return "Drain selected nodes";
-  }
-
-
-
-async function copyBulkDeleteList() {
-    if (!bulkDelete || typeof navigator === "undefined" || !navigator.clipboard) return;
-    try {
-      await navigator.clipboard.writeText(bulkDeleteListText(bulkDelete.resource, bulkDelete.rows));
-    } catch (err) {
-      setError(asErrorInfo(err));
-    }
-  }
-
-  function closeBulkDeleteModal() {
-    setBulkDelete(null);
-  }
-
-  function namespaceForAction(resource: string, row: ResourceRow) {
-    const definition = findResourceDefinition(resourceDefinitions, resource);
-    if (definition && !definition.namespaced) return "_cluster";
-    return String(row.namespace || "_cluster");
-  }
-
   async function saveSettings(next: Settings) {
     if (!api) return;
     try {
       const normalized = normalizeSettingsSsh(next);
       saveStoredSshDefaults(normalized.ssh);
-      setConfig(normalizeConfigSsh(await api.updateSettings(normalized)));
+      const updated = await api.updateSettings(normalized);
+      setConfig({ ...updated, settings: normalizeSettingsSsh(updated.settings) });
       setLanguagePreview(null);
       setError(null);
     } catch (err) {
@@ -677,37 +258,37 @@ async function copyBulkDeleteList() {
 
   if (next === "rbac") {
     setResourceTab("serviceaccounts");
-    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
     return;
   }
 
   if (next === "workloads") {
     setResourceTab("pods");
-    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
     return;
   }
 
   if (next === "network") {
     setResourceTab("services");
-    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
     return;
   }
 
   if (next === "storage") {
     setResourceTab("persistentvolumeclaims");
-    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
     return;
   }
 
   if (next === "config") {
     setResourceTab("configmaps");
-    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
     return;
   }
 
   if (next === "events") {
     setResourceTab("events");
-    if (selectedNamespaces.includes("_cluster")) restoreLastNamespacedSelection();
+    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
   }
 }
 
@@ -746,7 +327,7 @@ async function copyBulkDeleteList() {
     if (definition && !definition.namespaced) {
     setNamespaceSelection("_cluster");
   } else if (selectedNamespaces.includes("_cluster")) {
-    restoreLastNamespacedSelection();
+    restoreNamespacedSelection();
   }
   }
 
@@ -823,7 +404,7 @@ async function copyBulkDeleteList() {
         category: t("command.category.open"),
         keywords: `${resourceTab} ${rowName} ${rowNamespace} ${String(row.kind ?? "")} ${String(row.status ?? "")} ${String(row.phase ?? "")}`,
         run: () => {
-          keepDrawerSelection.current = true;
+          keepCurrentSelection();
           setSelectedResource(resourceTab);
           setSelectedPod(row);
           if (rowNamespace && rowNamespace !== "_cluster" && namespace !== "_cluster") setNamespaceSelection(rowNamespace);
@@ -1106,10 +687,10 @@ async function copyBulkDeleteList() {
               </section>
             ) : null}
             <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
-            {bulkActionMessage ? (
+            {bulkActions.message ? (
               <section className="action-status-panel">
-                <span>{bulkActionMessage}</span>
-                <button type="button" onClick={() => setBulkActionMessage("")}>{t("common.close")}</button>
+                <span>{bulkActions.message}</span>
+                <button type="button" onClick={bulkActions.clearMessage}>{t("common.close")}</button>
               </section>
             ) : null}
             {section === "help" ? (
@@ -1172,7 +753,7 @@ async function copyBulkDeleteList() {
                     rows={activeRows}
                     columns={columns}
                     loading={loading}
-                    onRefresh={() => loadResources()} onBulkCordon={resourceTab === "nodes" ? (selectedRows) => { void runBulkNodeAction("cordon", selectedRows); } : undefined} onBulkUncordon={resourceTab === "nodes" ? (selectedRows) => { void runBulkNodeAction("uncordon", selectedRows); } : undefined} onBulkDrain={resourceTab === "nodes" ? (selectedRows) => { void runBulkNodeAction("drain", selectedRows); } : undefined}
+                    onRefresh={() => loadResources()} onBulkCordon={resourceTab === "nodes" ? (selectedRows) => { void bulkActions.requestNodeAction("cordon", selectedRows); } : undefined} onBulkUncordon={resourceTab === "nodes" ? (selectedRows) => { void bulkActions.requestNodeAction("uncordon", selectedRows); } : undefined} onBulkDrain={resourceTab === "nodes" ? (selectedRows) => { void bulkActions.requestNodeAction("drain", selectedRows); } : undefined}
                     onOpen={(row) => {
                       if (resourceTab === "events") {
                         const involved = eventInvolvedLocator(row);
@@ -1186,7 +767,7 @@ async function copyBulkDeleteList() {
                     }}
                     selectedRow={selectedResource === resourceTab ? selectedPod : null}
                     onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
-                    onBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition) ? (selectedRows) => { setBulkActionMessage(""); setBulkDelete({ resource: resourceTab, rows: selectedRows }); } : undefined}
+                    onBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition) ? (selectedRows) => bulkActions.requestBulkDelete(resourceTab, selectedRows) : undefined}
                     filterLabel={t("resources.filter")}
                     refreshLabel={t("resources.refresh")}
                     labels={{
@@ -1243,7 +824,7 @@ async function copyBulkDeleteList() {
           <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="rename-cluster-title">
             <header>
               <h2 id="rename-cluster-title">{t("clusters.renameTitle")}</h2>
-              <button className="icon-button" onClick={() => setRenameTarget(null)} disabled={renaming} title={t("common.close")}>
+              <button className="icon-button" onClick={cancelRenameCluster} disabled={renaming} title={t("common.close")}>
                 <X size={16} />
               </button>
             </header>
@@ -1256,13 +837,13 @@ async function copyBulkDeleteList() {
                   onChange={(event) => setRenameDraft(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") confirmRenameCluster();
-                    if (event.key === "Escape") setRenameTarget(null);
+                    if (event.key === "Escape") cancelRenameCluster();
                   }}
                 />
               </label>
             </div>
             <footer>
-              <button onClick={() => setRenameTarget(null)} disabled={renaming}>{t("common.cancel")}</button>
+              <button onClick={cancelRenameCluster} disabled={renaming}>{t("common.cancel")}</button>
               <button className="primary" onClick={confirmRenameCluster} disabled={renaming || !renameDraft.trim()}>
                 {renaming ? t("common.renaming") : t("common.rename")}
               </button>
@@ -1286,153 +867,22 @@ async function copyBulkDeleteList() {
           }}
         />
       ) : null}
-      {nodeActionConfirmation ? (
-        <div
-          className="node-action-confirm-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeNodeActionConfirmation();
-          }}
-        >
-          <div
-            className="node-action-confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="node-action-confirm-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="node-action-confirm-header">
-              <div>
-                <div className="node-action-confirm-kicker">Node action</div>
-                <h2 id="node-action-confirm-title">
-                  {nodeActionTitle(nodeActionConfirmation.action)}
-                </h2>
-                <p>
-                  {nodeActionConfirmation.rows.length} node(s) selected. Review the command preview before confirming.
-                </p>
-              </div>
-              <button className="icon-button" type="button" aria-label="Close" onClick={closeNodeActionConfirmation}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="node-action-confirm-section">
-              <div className="node-action-confirm-label">Affected nodes</div>
-              <div className="node-action-confirm-node-list">
-                {nodeActionConfirmation.rows.map((row) => (
-                  <code key={resourceIdentityLabel(row)}>{String(row.name)}</code>
-                ))}
-              </div>
-            </div>
-
-            {nodeActionConfirmation.action === "drain" ? (
-              <div className="node-action-confirm-section">
-                <div className="node-action-confirm-label">Affected pods preview</div>
-                {nodeActionConfirmation.previewLoading ? (
-                  <p className="node-drain-preview-muted">Loading pods on selected nodes...</p>
-                ) : nodeActionConfirmation.previewError ? (
-                  <pre className="node-action-confirm-command node-drain-preview-error">{nodeActionConfirmation.previewError}</pre>
-                ) : nodeActionConfirmation.affectedPods && nodeActionConfirmation.affectedPods.length > 0 ? (
-                  <div className="node-drain-pod-list">
-                    {nodeActionConfirmation.affectedPods.map((pod) => (
-                      <div className="node-drain-pod-row" key={resourceIdentityLabel(pod)}>
-                        <code>{String(pod.namespace ?? "_cluster")}/{String(pod.name)}</code>
-                        <span>{String(pod.node ?? "")}</span>
-                        <span>{String(pod.status ?? pod.phase ?? "")}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="node-drain-preview-muted">No pods were found on the selected node(s).</p>
-                )}
-              </div>
-            ) : null}
-
-            <div className="node-action-confirm-section">
-              <div className="node-action-confirm-label">Command preview</div>
-              <pre className="node-action-confirm-command">{nodeActionConfirmation.commandPreview}</pre>
-            </div>
-
-            <div className="node-action-confirm-actions">
-              <button className="secondary" type="button" onClick={closeNodeActionConfirmation}>
-                Cancel
-              </button>
-              <button
-                className="primary"
-                type="button"
-                onClick={() => {
-                  void confirmBulkNodeAction();
-                }}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null} {bulkDelete ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="confirm-modal bulk-delete-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-delete-title">
-            <header>
-              <h2 id="bulk-delete-title">{t("bulkDelete.title")}</h2>
-              <button className="icon-button" onClick={closeBulkDeleteModal} title={t("common.close")}>
-                <X size={16} />
-              </button>
-            </header>
-            <div className="confirm-body">
-              <p>{t("bulkDelete.text")} <strong>{bulkDelete.rows.length}</strong>. {t("bulkDelete.warning")}</p>
-              <div className="bulk-delete-meta" aria-label="Bulk delete scope">
-                <span>{t("bulkDelete.resource")}: <strong>{bulkDelete.resource}</strong></span>
-                <span>{t("bulkDelete.namespaces")}: <strong>{bulkDeleteNamespaceSummary(bulkDelete.rows)}</strong></span>
-              </div>
-              <div className="bulk-delete-list-header">
-                <span>{t("bulkDelete.resources")}</span>
-                <button type="button" onClick={() => void copyBulkDeleteList()}>{t("bulkDelete.copyList")}</button>
-              </div>
-              <pre className="bulk-delete-list">{bulkDeleteListText(bulkDelete.resource, bulkDelete.rows)}</pre>
-            </div>
-            <footer>
-              <button onClick={closeBulkDeleteModal}>
-                {t("common.cancel")}
-              </button>
-              <button className="danger" onClick={confirmBulkDelete}>
-                {t("common.delete")}
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
+      <BulkActionModals
+        bulkDelete={bulkActions.bulkDelete}
+        nodeAction={bulkActions.nodeActionConfirmation}
+        t={t}
+        onCloseBulkDelete={bulkActions.closeBulkDelete}
+        onCopyBulkDelete={() => { void bulkActions.copyBulkDeleteList(); }}
+        onConfirmBulkDelete={() => { void bulkActions.confirmBulkDelete(); }}
+        onCloseNodeAction={bulkActions.closeNodeAction}
+        onConfirmNodeAction={() => { void bulkActions.confirmNodeAction(); }}
+      />
       </Suspense>
       </LazyPanelBoundary>
     </div>
   );
 }
 
-
-function resourceIdentityLabel(row: ResourceRow) {
-  return `${row.namespace || "_cluster"}/${row.name}`;
-}
-
-function markDeletingRow(resource: string, row: ResourceRow): ResourceRow {
-  const next: ResourceRow = {
-    ...row,
-    deletionTimestamp: typeof row.deletionTimestamp === "string" && row.deletionTimestamp ? row.deletionTimestamp : new Date().toISOString(),
-    status: "Terminating",
-  };
-  if (resource === "pods" || resource === "pod") {
-    next.phase = "Terminating";
-  }
-  return next;
-}
-
-function bulkDeleteListText(resource: string, rows: ResourceRow[]) {
-  return rows.map((row) => `${resource} ${resourceIdentityLabel(row)}`).join("\n");
-}
-
-function bulkDeleteNamespaceSummary(rows: ResourceRow[]) {
-  const namespaces = Array.from(new Set(rows.map((row) => row.namespace || "_cluster"))).sort();
-  if (namespaces.length <= 3) return namespaces.join(", ");
-  return `${namespaces.slice(0, 3).join(", ")} +${namespaces.length - 3}`;
-}
 
 function eventInvolvedLocator(row: ResourceRow): ResourceRow | null {
   const objectText = readRowString(row, "object") || readRowString(row, "involvedObject");
