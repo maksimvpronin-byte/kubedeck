@@ -56,8 +56,8 @@ Total existing contracts:  49 Python / 0 Node
 | `2.0.0-alpha.2` | Config, Settings, Cluster management and Audit move to Node |
 | `2.0.0-alpha.3` | Kubectl runtime and bounded read-only Kubernetes routes move to Node |
 | `2.0.0-alpha.4` | Mutating operations, confirmations, auth checks and Secret operations move to Node |
-| `2.0.0-beta.1` | Cache, watch, terminal, deployment logs, port-forward and SSH move to Node |
-| `2.0.0-beta.2` | Relations, Problems, Search and LLM move to Node |
+| `2.0.5` | Cache, watch, terminal, deployment logs, port-forward and SSH move to Node |
+| `2.0.5` | Relations, Problems, Search and LLM move to Node |
 | `2.0.0-rc.1` | Legacy proxy and Python backend are removed |
 | `2.0.0` | Node is the sole owner of all routes |
 
@@ -121,8 +121,8 @@ The registry is configuration, not advisory documentation. Node Gateway routing 
 | GET | `/app/info` | Python | `alpha.2` | Depends on Node runtime metadata and config |
 | GET | `/config` | Python | `alpha.2` | ConfigStore foundation |
 | PUT | `/settings` | Python | `alpha.2` | Config validation/persistence |
-| GET | `/resource-cache/status` | Python | `beta.1` | Must move with cache/watch implementation |
-| POST | `/resource-cache/clear` | Python | `beta.1` | Must invalidate Node-owned cache |
+| GET | `/resource-cache/status` | Python | `2.0.5` | Must move with cache/watch implementation |
+| POST | `/resource-cache/clear` | Python | `2.0.5` | Must invalidate Node-owned cache |
 | GET | `/kubectl/status` | Python | `alpha.3` | First consumer of Node Kubectl Runtime |
 | GET | `/clusters` | Python | `alpha.2` | ClusterStore |
 | POST | `/clusters/import` | Python | `alpha.2` | Kubeconfig file management |
@@ -137,13 +137,13 @@ The registry is configuration, not advisory documentation. Node Gateway routing 
 
 | Method | Path | Baseline owner | Target release | Reason |
 |---|---|---|---|---|
-| GET | `/llm/status` | Python | `beta.2` | Move with complete LLM module |
-| POST | `/llm/test` | Python | `beta.2` | LLM client |
-| POST | `/llm/preview-resource-prompt` | Python | `beta.2` | Context builder and sanitizer |
-| POST | `/llm/analyze-resource` | Python | `beta.2` | LLM client/context/prompts |
-| GET | `/clusters/{cluster_id}/problems` | Python | `beta.2` | Problems Engine |
-| GET | `/clusters/{cluster_id}/search` | Python | `beta.2` | Search Engine and discovery |
-| GET | `/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related` | Python | `beta.2` | Relations Engine |
+| GET | `/llm/status` | Python | `2.0.5` | Move with complete LLM module |
+| POST | `/llm/test` | Python | `2.0.5` | LLM client |
+| POST | `/llm/preview-resource-prompt` | Python | `2.0.5` | Context builder and sanitizer |
+| POST | `/llm/analyze-resource` | Python | `2.0.5` | LLM client/context/prompts |
+| GET | `/clusters/{cluster_id}/problems` | Python | `2.0.5` | Problems Engine |
+| GET | `/clusters/{cluster_id}/search` | Python | `2.0.5` | Search Engine and discovery |
+| GET | `/clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related` | Python | `2.0.5` | Relations Engine |
 
 ### 5.3 YAML and mutating operations
 
@@ -169,23 +169,23 @@ The registry is configuration, not advisory documentation. Node Gateway routing 
 | GET | `/clusters/{cluster_id}/pods/{namespace}/{name}/yaml` | Python | `alpha.3` | Bounded text kubectl command |
 | GET | `/clusters/{cluster_id}/pods/{namespace}/{name}/describe` | Python | `alpha.3` | Bounded text kubectl command |
 | GET | `/clusters/{cluster_id}/pods/{namespace}/{name}/logs` | Python | `alpha.3` | Bounded HTTP logs |
-| GET | `/clusters/{cluster_id}/deployments/{namespace}/{name}/log-targets` | Python | `beta.1` | Move with workload-log process lifecycle |
-| GET | `/clusters/{cluster_id}/deployments/{namespace}/{name}/logs` | Python | `beta.1` | Multi-Pod workload logs |
+| GET | `/clusters/{cluster_id}/deployments/{namespace}/{name}/log-targets` | Python | `2.0.5` | Move with workload-log process lifecycle |
+| GET | `/clusters/{cluster_id}/deployments/{namespace}/{name}/logs` | Python | `2.0.5` | Multi-Pod workload logs |
 
 ### 5.5 Streaming and long-running processes
 
 | Method | Path | Transport | Baseline owner | Target release | Reason |
 |---|---|---|---|---|---|
-| WS | `/clusters/{cluster_id}/pods/{namespace}/{name}/terminal` | WebSocket | Python | `beta.1` | PTY/pipes/process cleanup |
-| GET | `/port-forwards` | HTTP | Python | `beta.1` | PortForward Registry |
-| POST | `/clusters/{cluster_id}/port-forwards` | HTTP | Python | `beta.1` | Long-running kubectl process |
-| DELETE | `/port-forwards/{session_id}` | HTTP | Python | `beta.1` | Process ownership and cleanup |
-| GET | `/watches/status` | HTTP | Python | `beta.1` | Watch Manager |
-| POST | `/clusters/{cluster_id}/watches` | HTTP | Python | `beta.1` | Long-running kubectl watch |
-| DELETE | `/watches/{watch_id}` | HTTP | Python | `beta.1` | Watch process cleanup |
-| POST | `/watches/stop-all` | HTTP | Python | `beta.1` | Watch process cleanup |
-| WS | `/clusters/{cluster_id}/resources/{resource}/watch-events` | WebSocket | Python | `beta.1` | Event Hub fan-out |
-| WS | `/clusters/{cluster_id}/nodes/{name}/ssh` | WebSocket | Python | `beta.1` | SSH channel lifecycle |
+| WS | `/clusters/{cluster_id}/pods/{namespace}/{name}/terminal` | WebSocket | Python | `2.0.5` | PTY/pipes/process cleanup |
+| GET | `/port-forwards` | HTTP | Python | `2.0.5` | PortForward Registry |
+| POST | `/clusters/{cluster_id}/port-forwards` | HTTP | Python | `2.0.5` | Long-running kubectl process |
+| DELETE | `/port-forwards/{session_id}` | HTTP | Python | `2.0.5` | Process ownership and cleanup |
+| GET | `/watches/status` | HTTP | Python | `2.0.5` | Watch Manager |
+| POST | `/clusters/{cluster_id}/watches` | HTTP | Python | `2.0.5` | Long-running kubectl watch |
+| DELETE | `/watches/{watch_id}` | HTTP | Python | `2.0.5` | Watch process cleanup |
+| POST | `/watches/stop-all` | HTTP | Python | `2.0.5` | Watch process cleanup |
+| WS | `/clusters/{cluster_id}/resources/{resource}/watch-events` | WebSocket | Python | `2.0.5` | Event Hub fan-out |
+| WS | `/clusters/{cluster_id}/nodes/{name}/ssh` | WebSocket | Python | `2.0.5` | SSH channel lifecycle |
 
 ---
 
@@ -200,8 +200,8 @@ The counts below describe the planned ownership of the **49 existing contracts**
 | `alpha.2` | 10 | 39 | App info, config/settings, cluster store subset, audit |
 | `alpha.3` | 21 | 28 | Kubectl status, cluster open/namespaces, read-only resources |
 | `alpha.4` | 28 | 21 | YAML, resource actions, exec, Secrets |
-| `beta.1` | 42 | 7 | Cache, logs, terminal, port-forward, watch, SSH |
-| `beta.2` | 49 | 0 | LLM, Problems, Search, Relations |
+| `2.0.5` | 42 | 7 | Cache, logs, terminal, port-forward, watch, SSH |
+| `2.0.5` | 49 | 0 | LLM, Problems, Search, Relations |
 | `rc.1` | 49 | 0 | Proxy and Python process removed |
 
 Count changes must be generated from the registry in CI rather than manually maintained once implementation begins.

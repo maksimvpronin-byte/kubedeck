@@ -24,6 +24,8 @@ import { loadUiState } from "./uiState";
 import { asErrorInfo, isAbortError } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
+import { applyLanguagePreference } from "./utils/language";
+import { applyThemePreference, getSystemThemeMedia } from "./utils/theme";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -97,6 +99,8 @@ export function App() {
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [runtimeError, setRuntimeError] = useState("");
+  const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
+  const [systemLanguageVersion, setSystemLanguageVersion] = useState(0);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
   const keepDrawerSelection = useRef(false);
@@ -112,7 +116,8 @@ export function App() {
   const liveRefreshTimerRef = useRef<number | null>(null);
 
   const settings = config?.settings;
-  const t = useMemo(() => createTranslator(settings?.language ?? "system"), [settings?.language]);
+  const activeLanguage = languagePreview ?? settings?.language ?? "system";
+  const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
   const {
     namespaces,
     setNamespaces,
@@ -190,9 +195,25 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!settings) return;
-    document.documentElement.dataset.theme = settings.theme;
-  }, [settings]);
+    if (!settings) return undefined;
+    const media = getSystemThemeMedia();
+    const applyTheme = () => applyThemePreference(settings.theme, media);
+    applyTheme();
+    if (settings.theme !== "system" || !media) return undefined;
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [settings?.theme]);
+
+  useEffect(() => {
+    const applyLanguage = () => {
+      applyLanguagePreference(activeLanguage);
+      if (activeLanguage === "system") setSystemLanguageVersion((version) => version + 1);
+    };
+    applyLanguage();
+    if (activeLanguage !== "system" || typeof window === "undefined") return undefined;
+    window.addEventListener("languagechange", applyLanguage);
+    return () => window.removeEventListener("languagechange", applyLanguage);
+  }, [activeLanguage]);
 
   usePersistUiState({
     drawerWidth,
@@ -713,6 +734,7 @@ async function copyBulkDeleteList() {
       const normalized = normalizeSettingsSsh(next);
       saveStoredSshDefaults(normalized.ssh);
       setConfig(normalizeConfigSsh(await api.updateSettings(normalized)));
+      setLanguagePreview(null);
       setError(null);
     } catch (err) {
       setError(asErrorInfo(err));
@@ -1153,6 +1175,8 @@ async function copyBulkDeleteList() {
             disabled={isClusterScoped}
             allLabel={t("resources.allNamespaces")}
             clusterScopedLabel={t("resources.clusterScoped")}
+            searchLabel={t("resources.namespaceSearch")}
+            emptySearchLabel={t("resources.namespaceSearchEmpty")}
             onChange={setNamespaceSelection}
           />
           <label className="global-search" title="Ctrl+K">
@@ -1225,6 +1249,7 @@ async function copyBulkDeleteList() {
                 api={api}
                 settings={config.settings}
                 save={saveSettings}
+                onLanguagePreview={setLanguagePreview}
                 t={t}
                 clusters={clusters}
                 activeCluster={activeCluster}
@@ -1308,6 +1333,8 @@ async function copyBulkDeleteList() {
                       emptyFilteredTitle: t("resources.emptyFilteredTitle"),
                       emptyFilteredText: t("resources.emptyFilteredText"),
                       clearFilter: t("resources.clearFilter"),
+                      columns: t("resources.columns"),
+                      resetColumns: t("resources.resetColumns"),
                     }}
                     stateKey={resourceTab}
                   />

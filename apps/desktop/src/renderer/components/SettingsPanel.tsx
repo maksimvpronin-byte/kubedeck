@@ -3,6 +3,7 @@ import { ApiError, type ApiClient } from "../api";
 import type { Cluster, ErrorInfo, Settings, SshAuthMethod } from "../types";
 import { normalizeRefreshIntervalSeconds, REFRESH_INTERVAL_OPTIONS_SECONDS } from "../utils/refresh";
 import { normalizeSettingsSsh, normalizeSshPort, normalizeSshSettings, saveStoredSshDefaults } from "../utils/sshDefaults";
+import { applyThemePreference } from "../utils/theme";
 import { ClusterPanel } from "./ClusterPanel";
 import { ResourceCacheDiagnostics } from "./ResourceCacheDiagnostics";
 import { WatchDiagnostics } from "./WatchDiagnostics";
@@ -11,6 +12,7 @@ export function SettingsPanel({
   api,
   settings,
   save,
+  onLanguagePreview,
   t,
   clusters,
   activeCluster,
@@ -26,6 +28,7 @@ export function SettingsPanel({
   api: ApiClient | null;
   settings: Settings;
   save: (settings: Settings) => void | Promise<void>;
+  onLanguagePreview: (language: Settings["language"] | null) => void;
   t: (key: string) => string;
   clusters: Cluster[];
   activeCluster: Cluster | null;
@@ -40,17 +43,29 @@ export function SettingsPanel({
 }) {
   const [draft, setDraft] = useState<Settings>(() => normalizeSettings(settings));
   useEffect(() => setDraft(normalizeSettings(settings)), [settings]);
-    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
   const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [llmTestMessage, setLlmTestMessage] = useState("");
+
+  useEffect(() => {
+    applyThemePreference(draft.theme);
+    return () => {
+      applyThemePreference(settings.theme);
+    };
+  }, [draft.theme, settings.theme]);
+
+  useEffect(() => {
+    onLanguagePreview(draft.language);
+    return () => onLanguagePreview(null);
+  }, [draft.language, onLanguagePreview]);
 
   useEffect(() => {
     if (saveStatus !== "saved") return undefined;
     const timer = window.setTimeout(() => setSaveStatus("idle"), 2500);
     return () => window.clearTimeout(timer);
   }, [saveStatus]);
-const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshIntervalSeconds);
+  const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshIntervalSeconds);
   const sshSettings = normalizeSshSettings(draft.ssh);
   const llmSettings = normalizeLlmSettings(draft.llm);
   const setSshSettings = (patch: Partial<Settings["ssh"]>) => setDraft({ ...draft, ssh: normalizeSshSettings({ ...sshSettings, ...patch }) });
@@ -114,8 +129,8 @@ const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshInt
         {t("settings.language")}
         <select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as Settings["language"] })}>
           <option value="system">{t("settings.language.system")}</option>
-          <option value="ru">ru</option>
-          <option value="en">en</option>
+          <option value="ru">{t("settings.language.ru")}</option>
+          <option value="en">{t("settings.language.en")}</option>
         </select>
       </label>
       <label>

@@ -1,6 +1,6 @@
 {
   "name": "kubedeck",
-  "version": "2.0.0-beta.1",
+  "version": "2.0.5",
   "private": true,
   "workspaces": [
     "apps/desktop",
@@ -14,7 +14,7 @@
     "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-portable-windows.ps1",
     "test:gateway": "npm --workspace apps/desktop run build && npm --workspace apps/desktop run test:gateway",
     "verify:node-only": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify-node-only.ps1",
-    "verify:beta1": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify-beta1.ps1",
+    "verify:release": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify-release.ps1",
     "package:mac": "bash ./scripts/build-macos.sh"
   },
   "devDependencies": {

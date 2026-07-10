@@ -1,4 +1,11 @@
-﻿## 1.1.2 - Windows portable builder cleanup
+﻿## 2.0.5 - Stable Node-only desktop release
+
+- Promoted KubeDeck to stable `2.0.5`.
+- Renamed release verification to `verify:release` and synchronized release contract tests.
+- Updated README, release notes, regression checklist, package metadata, lockfile, Help version and build artifact paths.
+- Included the accumulated UX fixes for pod terminal, themes, languages, filters, namespaces, resource-table columns and button styling.
+
+## 1.1.2 - Windows portable builder cleanup
 
 - Added a canonical Windows portable builder.
 - Updated package:win to use scripts/build-portable-windows.ps1.
@@ -308,5 +315,3 @@
 - Restored visible YAML editor content after the drawer fill-layout change.
 - Kept the drawer outer scrollbar suppressed while allowing YAML to scroll inside the editor.
 - Did not change backend, dependencies, package manifests, or application version.
-
-

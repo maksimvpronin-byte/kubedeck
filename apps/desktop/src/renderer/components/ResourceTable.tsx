@@ -1,6 +1,6 @@
-import { RefreshCw, Search, Trash2 } from "lucide-react";
+import { Columns3, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import type { ResourceRow } from "../types";
 import { loadUiState, saveUiState } from "../uiState";
 import { useUiClock } from "../hooks/useUiClock";
@@ -70,6 +70,8 @@ interface Props {
     emptyFilteredTitle: string;
     emptyFilteredText: string;
     clearFilter: string;
+    columns: string;
+    resetColumns: string;
   }>;
 }
 
@@ -107,9 +109,13 @@ export function ResourceTable({
     emptyFilteredTitle: labels?.emptyFilteredTitle ?? "No rows match the filter",
     emptyFilteredText: labels?.emptyFilteredText ?? "Clear the filter or change the search text.",
     clearFilter: labels?.clearFilter ?? "Clear filter",
+    columns: labels?.columns ?? "Columns",
+    resetColumns: labels?.resetColumns ?? "Reset columns",
   };
 
   const tableRef = useRef<HTMLElement | null>(null);
+  const filterInputRef = useRef<HTMLInputElement | null>(null);
+  const columnMenuRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState(columns[0]?.key ?? "name");
@@ -118,6 +124,11 @@ export function ResourceTable({
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadUiState().columnWidths?.[stateKey] ?? {});
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => normalizeColumnOrder(loadUiState().columnOrders?.[stateKey] ?? [], columns));
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => normalizeHiddenColumns(loadUiState().hiddenColumns?.[stateKey] ?? [], columns));
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [draggedColumn, setDraggedColumn] = useState("");
+  const [dragOverColumn, setDragOverColumn] = useState("");
   const now = useUiClock(columns.some((column) => column.key === "createdAt"), 1000);
 
   useEffect(() => {
@@ -133,16 +144,31 @@ export function ResourceTable({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!columnsOpen) return undefined;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!columnMenuRef.current?.contains(event.target as Node)) setColumnsOpen(false);
+    };
+    window.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => window.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [columnsOpen]);
+
   const compactTable = containerWidth > 0 && containerWidth < COMPACT_TABLE_WIDTH;
   const narrowTable = containerWidth > 0 && containerWidth < NARROW_TABLE_WIDTH;
+  const orderedColumns = useMemo(() => orderColumns(columns, columnOrder), [columns, columnOrder]);
+  const hiddenColumnSet = useMemo(() => new Set(hiddenColumns), [hiddenColumns]);
+  const userVisibleColumns = useMemo(() => {
+    const filtered = orderedColumns.filter((column) => !hiddenColumnSet.has(column.key));
+    return filtered.length > 0 ? filtered : orderedColumns.slice(0, 1);
+  }, [orderedColumns, hiddenColumnSet]);
 
   const visibleColumns = useMemo(() => {
-    if (!compactTable) return columns;
+    if (!compactTable) return userVisibleColumns;
     const hidden = new Set(COMPACT_HIDDEN_COLUMNS);
     if (narrowTable) NARROW_HIDDEN_COLUMNS.forEach((key) => hidden.add(key));
-    const filtered = columns.filter((column) => !hidden.has(column.key));
-    return filtered.length >= Math.min(3, columns.length) ? filtered : columns;
-  }, [columns, compactTable, narrowTable]);
+    const filtered = userVisibleColumns.filter((column) => !hidden.has(column.key));
+    return filtered.length >= Math.min(3, userVisibleColumns.length) ? filtered : userVisibleColumns;
+  }, [userVisibleColumns, compactTable, narrowTable]);
 
   useEffect(() => {
     if (visibleColumns.length === 0) return;
@@ -160,10 +186,18 @@ export function ResourceTable({
           ...(state.columnWidths ?? {}),
           [stateKey]: columnWidths,
         },
+        columnOrders: {
+          ...(state.columnOrders ?? {}),
+          [stateKey]: normalizeColumnOrder(columnOrder, columns),
+        },
+        hiddenColumns: {
+          ...(state.hiddenColumns ?? {}),
+          [stateKey]: normalizeHiddenColumns(hiddenColumns, columns),
+        },
       });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [columnWidths, stateKey]);
+  }, [columnWidths, columnOrder, hiddenColumns, columns, stateKey]);
 
   useEffect(() => {
     const visibleKeys = new Set(rows.map(rowKey));
@@ -241,6 +275,38 @@ export function ResourceTable({
     window.addEventListener("mouseup", onUp, { once: true });
   }
 
+  function startColumnDrag(event: ReactDragEvent<HTMLTableCellElement>, column: Column) {
+    setDraggedColumn(column.key);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", column.key);
+  }
+
+  function dropColumn(event: ReactDragEvent<HTMLTableCellElement>, target: Column) {
+    event.preventDefault();
+    const sourceKey = event.dataTransfer.getData("text/plain") || draggedColumn;
+    setDraggedColumn("");
+    setDragOverColumn("");
+    if (!sourceKey || sourceKey === target.key) return;
+    const baseOrder = orderColumns(columns, columnOrder).map((column) => column.key);
+    setColumnOrder(moveColumnKey(baseOrder, sourceKey, target.key));
+  }
+
+  function toggleColumnVisibility(column: Column) {
+    const visibleCount = columns.length - hiddenColumns.filter((key) => columns.some((item) => item.key === key)).length;
+    if (!hiddenColumnSet.has(column.key) && visibleCount <= 1) return;
+    setHiddenColumns((current) => (
+      current.includes(column.key)
+        ? current.filter((key) => key !== column.key)
+        : [...current, column.key]
+    ));
+  }
+
+  function resetColumns() {
+    setColumnWidths({});
+    setColumnOrder([]);
+    setHiddenColumns([]);
+  }
+
   const allPageSelected = renderedRows.length > 0 && selectedPageRows.length === renderedRows.length;
   const nodeActionsVisible = selectedRows.length > 0 && Boolean(onBulkCordon || onBulkUncordon || onBulkDrain);
   const controlsDisabled = loading && rows.length === 0;
@@ -280,9 +346,53 @@ export function ResourceTable({
               <Trash2 size={14} /> {ui.deleteSelected} ({selectedRows.length})
             </button>
           ) : null}
+          <div className="table-columns-menu" ref={columnMenuRef}>
+            <button className="secondary-btn" type="button" onClick={() => setColumnsOpen((current) => !current)}>
+              <Columns3 size={14} /> {ui.columns}
+            </button>
+            {columnsOpen ? (
+              <div className="table-columns-popover">
+                <div className="table-columns-popover-header">
+                  <strong>{ui.columns}</strong>
+                  <button type="button" onClick={resetColumns}>{ui.resetColumns}</button>
+                </div>
+                <div className="table-columns-options">
+                  {orderedColumns.map((column) => {
+                    const checked = !hiddenColumnSet.has(column.key);
+                    const visibleCount = columns.length - hiddenColumns.filter((key) => columns.some((item) => item.key === key)).length;
+                    return (
+                      <label key={column.key}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={checked && visibleCount <= 1}
+                          onChange={() => toggleColumnVisibility(column)}
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
           <div className="table-filter">
             <Search size={14} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={filterLabel} />
+            <input ref={filterInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={filterLabel} />
+            {hasFilter ? (
+              <button
+                type="button"
+                className="table-filter-clear"
+                aria-label={ui.clearFilter}
+                title={ui.clearFilter}
+                onClick={() => {
+                  setQuery("");
+                  filterInputRef.current?.focus();
+                }}
+              >
+                <X size={14} />
+              </button>
+            ) : null}
           </div>
           <button className="secondary-btn" type="button" onClick={onRefresh} disabled={controlsDisabled}>
             <RefreshCw size={14} /> {refreshLabel}
@@ -317,8 +427,24 @@ export function ResourceTable({
                 />
               </th>
               {visibleColumns.map((column) => (
-                <th key={column.key}>
-                  <button type="button" className="table-sort-button" onClick={() => changeSort(column.key)}>
+                <th
+                  key={column.key}
+                  draggable
+                  className={`${draggedColumn === column.key ? "dragging-column" : ""} ${dragOverColumn === column.key && draggedColumn !== column.key ? "drag-over-column" : ""}`.trim()}
+                  onDragStart={(event) => startColumnDrag(event, column)}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setDragOverColumn(column.key);
+                  }}
+                  onDragLeave={() => setDragOverColumn((current) => current === column.key ? "" : current)}
+                  onDrop={(event) => dropColumn(event, column)}
+                  onDragEnd={() => {
+                    setDraggedColumn("");
+                    setDragOverColumn("");
+                  }}
+                >
+                  <button type="button" className="table-sort-button" draggable={false} onClick={() => changeSort(column.key)}>
                     <span className="table-sort-label">{column.label}</span>
                     {sortKey === column.key ? (
                       <span className="table-sort-indicator" aria-hidden="true">
@@ -326,7 +452,12 @@ export function ResourceTable({
                       </span>
                     ) : null}
                   </button>
-                  <span className="column-resizer" onMouseDown={(event) => startColumnResize(event, column)} />
+                  <span
+                    className="column-resizer"
+                    draggable={false}
+                    onDragStart={(event) => event.preventDefault()}
+                    onMouseDown={(event) => startColumnResize(event, column)}
+                  />
                 </th>
               ))}
             </tr>
@@ -414,6 +545,34 @@ function compareRows(a: ResourceRow, b: ResourceRow, key: string) {
 
 function dateValue(value: unknown) {
   return parseTimestamp(value);
+}
+
+function orderColumns(columns: Column[], order: string[]) {
+  const byKey = new Map(columns.map((column) => [column.key, column]));
+  const ordered = order.flatMap((key) => {
+    const column = byKey.get(key);
+    if (!column) return [];
+    byKey.delete(key);
+    return [column];
+  });
+  return [...ordered, ...columns.filter((column) => byKey.has(column.key))];
+}
+
+function normalizeColumnOrder(order: string[], columns: Column[]) {
+  return orderColumns(columns, order).map((column) => column.key);
+}
+
+function normalizeHiddenColumns(hidden: string[], columns: Column[]) {
+  const known = new Set(columns.map((column) => column.key));
+  const normalized = Array.from(new Set(hidden.filter((key) => known.has(key))));
+  return normalized.length >= columns.length ? normalized.slice(0, -1) : normalized;
+}
+
+function moveColumnKey(order: string[], sourceKey: string, targetKey: string) {
+  const current = order.filter((key) => key !== sourceKey);
+  const targetIndex = current.indexOf(targetKey);
+  if (targetIndex < 0) return order;
+  return [...current.slice(0, targetIndex), sourceKey, ...current.slice(targetIndex)];
 }
 
 function compactColumnWidth(key: string, narrow: boolean) {

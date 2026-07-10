@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-Validates KubeDeck 2.0.0-beta.1 release-readiness invariants.
+Validates KubeDeck 2.0.5 release-readiness invariants.
 #>
 
 [CmdletBinding()]
@@ -11,7 +11,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ExpectedVersion = "2.0.0-beta.1"
+$ExpectedVersion = "2.0.5"
 
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Split-Path -Parent $PSScriptRoot
@@ -66,12 +66,12 @@ $Versions = @(
     } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
 if ($Versions | Where-Object { $_ -ne $ExpectedVersion }) {
-    throw "Beta version mismatch. Expected $ExpectedVersion; found: $($Versions -join ', ')"
+    throw "Release version mismatch. Expected $ExpectedVersion; found: $($Versions -join ', ')"
 }
-Write-Check "Beta version consistency: $ExpectedVersion"
+Write-Check "Release version consistency: $ExpectedVersion"
 
-if (-not $RootPackage.scripts.'verify:beta1') {
-    throw "Root package.json is missing scripts.verify:beta1"
+if (-not $RootPackage.scripts.'verify:release') {
+    throw "Root package.json is missing scripts.verify:release"
 }
 
 $GatewayScript = [string]$DesktopPackage.scripts.'test:gateway'
@@ -81,26 +81,26 @@ if ($GatewayScript -notmatch '--test-concurrency=1') {
 if ($GatewayScript -notmatch 'node-only-runtime\.contract\.test\.cjs') {
     throw "test:gateway is missing node-only-runtime.contract.test.cjs"
 }
-if ($GatewayScript -notmatch 'beta1-release\.contract\.test\.cjs') {
-    throw "test:gateway is missing beta1-release.contract.test.cjs"
+if ($GatewayScript -notmatch 'release\.contract\.test\.cjs') {
+    throw "test:gateway is missing release.contract.test.cjs"
 }
 Write-Check "Gateway test suite is deterministic and includes release contracts"
 
 $RequiredDocuments = @(
     "README.md",
     "NODE_MIGRATION_PROGRESS.md",
-    "RELEASE_NOTES_2.0.0-beta.1.md",
-    "BETA_REGRESSION_CHECKLIST.md"
+    "RELEASE_NOTES_2.0.5.md",
+    "REGRESSION_CHECKLIST_2.0.5.md"
 )
 foreach ($Relative in $RequiredDocuments) {
     if (-not (Test-Path -LiteralPath (Join-Path $Root $Relative))) {
-        throw "Required beta document is missing: $Relative"
+        throw "Required release document is missing: $Relative"
     }
 }
 
 $Readme = Read-Text -Path (Join-Path $Root "README.md")
-$ReleaseNotes = Read-Text -Path (Join-Path $Root "RELEASE_NOTES_2.0.0-beta.1.md")
-$Checklist = Read-Text -Path (Join-Path $Root "BETA_REGRESSION_CHECKLIST.md")
+$ReleaseNotes = Read-Text -Path (Join-Path $Root "RELEASE_NOTES_2.0.5.md")
+$Checklist = Read-Text -Path (Join-Path $Root "REGRESSION_CHECKLIST_2.0.5.md")
 if ($Readme -notmatch [regex]::Escape($ExpectedVersion)) {
     throw "README does not mention $ExpectedVersion"
 }
@@ -110,12 +110,12 @@ if ($ReleaseNotes -notmatch 'Node-only' -or $ReleaseNotes -notmatch '49') {
 if ($Checklist -notmatch 'Node 49 / Python 0' -or $Checklist -notmatch 'Port Forward') {
     throw "Regression checklist is incomplete"
 }
-Write-Check "Beta release notes and regression checklist are present"
+Write-Check "Release notes and regression checklist are present"
 
 if ($ReleaseDir) {
     $ExpectedArtifact = Join-Path ([System.IO.Path]::GetFullPath($ReleaseDir)) "KubeDeck-Portable-$ExpectedVersion-x64.exe"
     if (-not (Test-Path -LiteralPath $ExpectedArtifact)) {
-        throw "Expected beta portable artifact is missing: $ExpectedArtifact"
+        throw "Expected portable artifact is missing: $ExpectedArtifact"
     }
     Write-Check "Expected portable artifact exists: $(Split-Path -Leaf $ExpectedArtifact)"
 }

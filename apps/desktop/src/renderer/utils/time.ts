@@ -9,8 +9,9 @@ export function formatElapsed(ms: number): string {
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
+  if (days > 0) return `${days}d`;
   const time = [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
-  return days > 0 ? `${days}d ${time}` : time;
+  return time;
 }
 
 export function formatAge(value: unknown, now: number): string {

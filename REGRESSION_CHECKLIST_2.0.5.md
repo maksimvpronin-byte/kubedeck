@@ -1,14 +1,14 @@
-# KubeDeck 2.0.0-beta.1 — Regression Checklist
+# KubeDeck 2.0.5 — Regression Checklist
 
 Дата проверки: ____________________  
 Проверяющий: ____________________  
 Коммит: ____________________  
-Portable: `KubeDeck-Portable-2.0.0-beta.1-x64.exe`
+Portable: `KubeDeck-Portable-2.0.5-x64.exe`
 
 ## 1. Автоматические проверки
 
 - [ ] `npm.cmd run verify:node-only` проходит.
-- [ ] `npm.cmd run verify:beta1` проходит.
+- [ ] `npm.cmd run verify:release` проходит.
 - [ ] TypeScript typecheck проходит.
 - [ ] Desktop/Vite build проходит.
 - [ ] Gateway tests: fail `0`, cancelled `0`.
@@ -112,7 +112,7 @@ Portable: `KubeDeck-Portable-2.0.0-beta.1-x64.exe`
 
 - [ ] Блокирующих дефектов нет.
 - [ ] Некритичные дефекты записаны отдельными задачами.
-- [ ] Beta 1 принята как baseline для подготовки `2.0.0-rc.1`.
+- [ ] KubeDeck `2.0.5` принят как стабильный релиз.
 
 Комментарий:
 

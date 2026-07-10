@@ -8,6 +8,8 @@ export interface UiState {
   namespace?: string;
   selectedNamespaces?: string[];
   columnWidths?: Record<string, Record<string, number>>;
+  columnOrders?: Record<string, string[]>;
+  hiddenColumns?: Record<string, string[]>;
 }
 
 const key = "kubedeck.uiState.v1";

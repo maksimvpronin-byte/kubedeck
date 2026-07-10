@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Текущая проверяемая версия: `2.0.0-beta.1`
+Текущая проверяемая версия: `2.0.5`
 
 ## Итог
 
@@ -46,39 +46,39 @@
 - `/migration/status`: Node 49, Python 0, mode `node-only`;
 - portable не содержит Python backend payload и встроенный `kubectl.exe`.
 
-## Beta 1 — release baseline
+## 2.0.5 — stable release baseline
 
-`2.0.0-beta.1` не добавляет новые API/UI-функции. Этап фиксирует проверенный Node-only baseline для расширенного ручного regression test.
+`2.0.5` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
 Добавлено:
 
-- `RELEASE_NOTES_2.0.0-beta.1.md`;
-- `BETA_REGRESSION_CHECKLIST.md`;
-- `scripts/verify-beta1.ps1`;
-- root-команда `npm.cmd run verify:beta1`;
+- `RELEASE_NOTES_2.0.5.md`;
+- `REGRESSION_CHECKLIST_2.0.5.md`;
+- `scripts/verify-release.ps1`;
+- root-команда `npm.cmd run verify:release`;
 - release contract test;
 - постоянный последовательный запуск Gateway test suite.
 
-## Обязательная проверка Beta 1
+## Обязательная проверка 2.0.5
 
 - `npm.cmd run verify:node-only`;
-- `npm.cmd run verify:beta1`;
+- `npm.cmd run verify:release`;
 - TypeScript typecheck;
 - Desktop/Vite build;
 - все Node Gateway contract tests без fail/cancelled;
 - Windows portable build;
 - запуск portable;
-- полный `BETA_REGRESSION_CHECKLIST.md`;
+- полный `REGRESSION_CHECKLIST_2.0.5.md`;
 - проверка отсутствия Python и встроенного kubectl в runtime/release.
 
 ## Следующий этап
 
-После принятия Beta 1:
+После принятия 2.0.5:
 
-1. commit и push beta baseline;
+1. commit и push stable baseline;
 2. закрыть ручной regression checklist;
-3. исправлять найденные дефекты отдельными небольшими beta-патчами;
-4. после стабилизации подготовить `2.0.0-rc.1`.
+3. исправлять найденные дефекты отдельными небольшими patch-релизами;
+4. готовить следующий стабильный patch/minor-релиз по итогам проверки.
 
 ## Правила работы
 

@@ -7,6 +7,7 @@ import type { ResourceRow } from "../types";
 
 type TerminalShell = "auto" | "sh" | "bash" | "ash";
 type TerminalMessage = { type: string; data?: string; transport?: "pty" | "pipes"; commandPreview?: string };
+type TerminalSize = { cols: number; rows: number };
 
 interface TerminalTabProps {
   api: ApiClient;
@@ -32,6 +33,8 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
   const copyTimerRef = useRef<number | null>(null);
   const lastCopiedSelectionRef = useRef("");
   const reconnectTimerRef = useRef<number | null>(null);
+  const lastResizeRef = useRef<TerminalSize | null>(null);
+  const firstOutputFitRef = useRef(false);
   const containersKey = containers.join("\u0000");
 
   useEffect(() => {
@@ -41,7 +44,6 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
   useEffect(() => {
     const terminal = new XTerm({
       cursorBlink: true,
-      convertEol: true,
       fontFamily: 'Consolas, "Cascadia Mono", "Liberation Mono", monospace',
       fontSize: 13,
       scrollback: 5000,
@@ -103,7 +105,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     const fitAndResize = () => {
       try {
         fit.fit();
-        sendTerminalResize(socketRef.current, terminal);
+        sendTerminalResizeIfChanged(socketRef.current, terminal, lastResizeRef);
       } catch {
         // xterm can briefly be detached while drawer is resizing/closing.
       }
@@ -139,8 +141,9 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
   useEffect(() => {
     const timer = window.setTimeout(() => {
       window.requestAnimationFrame(() => {
-        fitRef.current?.fit();
-        if (terminalRef.current) sendTerminalResize(socketRef.current, terminalRef.current);
+        const terminal = terminalRef.current;
+        const fit = fitRef.current;
+        if (terminal && fit) fitAndResizeTerminal(fit, socketRef.current, terminal, lastResizeRef);
       });
     }, 0);
     return () => window.clearTimeout(timer);
@@ -163,9 +166,11 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     const terminal = terminalRef.current;
     const fit = fitRef.current;
     if (!terminal || !fit) return;
+    lastResizeRef.current = null;
+    firstOutputFitRef.current = false;
     window.requestAnimationFrame(() => {
       fit.fit();
-      sendTerminalResize(socketRef.current, terminal);
+      sendTerminalResizeIfChanged(socketRef.current, terminal, lastResizeRef);
     });
     const socket = new WebSocket(api.podTerminalUrl(clusterId, String(pod.namespace), pod.name, selectedContainer, shell));
     socketRef.current = socket;
@@ -180,12 +185,20 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       setStatus("Connected");
       terminal.clear();
       terminal.focus();
-      sendTerminalResize(socket, terminal);
+      fitAndResizeTerminal(fit, socket, terminal, lastResizeRef);
+      window.setTimeout(() => fitAndResizeTerminal(fit, socket, terminal, lastResizeRef), 50);
+      window.setTimeout(() => fitAndResizeTerminal(fit, socket, terminal, lastResizeRef), 180);
     };
     socket.onmessage = (event) => {
       if (socketRef.current !== socket) return;
       const message = parseTerminalMessage(event.data);
-      if (message.type === "output") terminal.write(message.data || "");
+      if (message.type === "output") {
+        terminal.write(message.data || "");
+        if (!firstOutputFitRef.current) {
+          firstOutputFitRef.current = true;
+          window.setTimeout(() => fitAndResizeTerminal(fit, socket, terminal, lastResizeRef), 50);
+        }
+      }
       if (message.type === "status") {
         if (message.transport) setTransport(message.transport);
         setStatus(statusText(message.data || "Connected", message.transport));
@@ -318,9 +331,33 @@ function sendTerminalInput(socket: WebSocket | null, data: string) {
   socket.send(JSON.stringify({ type: "input", data }));
 }
 
-function sendTerminalResize(socket: WebSocket | null, terminal: XTerm) {
+function fitAndResizeTerminal(
+  fit: FitAddon,
+  socket: WebSocket | null,
+  terminal: XTerm,
+  lastSizeRef: { current: TerminalSize | null },
+) {
+  try {
+    fit.fit();
+    sendTerminalResizeIfChanged(socket, terminal, lastSizeRef);
+  } catch {
+    // xterm can briefly report an invalid viewport while the drawer is resizing.
+  }
+}
+
+function sendTerminalResizeIfChanged(
+  socket: WebSocket | null,
+  terminal: XTerm,
+  lastSizeRef: { current: TerminalSize | null },
+) {
   if (socket?.readyState !== WebSocket.OPEN) return;
-  socket.send(JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
+  const cols = terminal.cols;
+  const rows = terminal.rows;
+  if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols <= 0 || rows <= 0) return;
+  const lastSize = lastSizeRef.current;
+  if (lastSize && lastSize.cols === cols && lastSize.rows === rows) return;
+  lastSizeRef.current = { cols, rows };
+  socket.send(JSON.stringify({ type: "resize", cols, rows }));
 }
 
 function copyTerminalSelection(terminal: XTerm | null, lastCopiedRef?: { current: string }, force = false) {

@@ -9,30 +9,30 @@ const read = (relativePath) =>
 const readJson = (relativePath) =>
   JSON.parse(read(relativePath).replace(/^\uFEFF/, ""));
 
-test("KubeDeck 2.0.0-beta.1 release metadata stays synchronized", () => {
-  const expectedVersion = "2.0.0-beta.1";
+test("KubeDeck 2.0.5 release metadata stays synchronized", () => {
+  const expectedVersion = "2.0.5";
   const rootPackage = readJson("package.json");
   const desktopPackage = readJson("apps/desktop/package.json");
   const lock = readJson("package-lock.json");
   const readme = read("README.md");
   const progress = read("NODE_MIGRATION_PROGRESS.md");
-  const notes = read("RELEASE_NOTES_2.0.0-beta.1.md");
-  const checklist = read("BETA_REGRESSION_CHECKLIST.md");
+  const notes = read("RELEASE_NOTES_2.0.5.md");
+  const checklist = read("REGRESSION_CHECKLIST_2.0.5.md");
 
   assert.equal(rootPackage.version, expectedVersion);
   assert.equal(desktopPackage.version, expectedVersion);
   assert.equal(lock.version, expectedVersion);
   assert.equal(lock.packages[""].version, expectedVersion);
   assert.equal(lock.packages["apps/desktop"].version, expectedVersion);
-  assert.match(rootPackage.scripts["verify:beta1"], /verify-beta1\.ps1/);
+  assert.match(rootPackage.scripts["verify:release"], /verify-release\.ps1/);
   assert.match(desktopPackage.scripts["test:gateway"], /--test-concurrency=1/);
   assert.match(
     desktopPackage.scripts["test:gateway"],
-    /beta1-release\.contract\.test\.cjs/,
+    /release\.contract\.test\.cjs/,
   );
 
   for (const document of [readme, progress, notes, checklist]) {
-    assert.match(document, /2\.0\.0-beta\.1/);
+    assert.match(document, /2\.0\.5/);
   }
 
   assert.match(notes, /Node-only/);
