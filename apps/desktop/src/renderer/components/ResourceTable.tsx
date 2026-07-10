@@ -593,6 +593,7 @@ function defaultColumnWidth(key: string) {
   const widths: Record<string, number> = {
     namespace: 120,
     name: 180,
+    containers: 132,
     message: 260,
     labels: 180,
     createdAt: 110,
@@ -616,11 +617,76 @@ function formatCell(row: ResourceRow, key: string, now: number): ReactNode {
       </span>
     );
   }
+  if (key === "containers") return renderContainerStatus(row);
   if (key !== "createdAt") return String(row[key] ?? "");
   const createdAt = String(row.createdAt ?? "");
   const createdMs = Date.parse(createdAt);
   if (!Number.isFinite(createdMs)) return createdAt;
   return formatElapsed(Math.max(0, now - createdMs));
+}
+
+function renderContainerStatus(row: ResourceRow): ReactNode {
+  const containers = normalizeContainerStatusItems(row);
+  if (containers.length === 0) return "";
+
+  return (
+    <span className="container-status-cubes" aria-label={containers.map((container) => container.title).join("; ")}>
+      {containers.map((container) => (
+        <span
+          key={container.name}
+          className={`container-status-cube is-${container.tone}`}
+          title={container.title}
+          aria-label={container.title}
+        />
+      ))}
+    </span>
+  );
+}
+
+type ContainerTone = "ready" | "running" | "waiting" | "terminated" | "unknown";
+
+interface ContainerStatusItem {
+  name: string;
+  tone: ContainerTone;
+  title: string;
+}
+
+function normalizeContainerStatusItems(row: ResourceRow): ContainerStatusItem[] {
+  const rawStates = row.containerStates;
+  if (Array.isArray(rawStates) && rawStates.length > 0) {
+    return rawStates.flatMap((item, index) => {
+      if (!item || typeof item !== "object") return [];
+      const record = item as Record<string, unknown>;
+      const name = String(record.name || `container-${index + 1}`);
+      const state = String(record.state || "unknown").toLowerCase();
+      const ready = record.ready === true;
+      const reason = String(record.reason || "");
+      const restartCount = Number(record.restartCount ?? 0);
+      const tone = containerTone(state, ready);
+      const details = [
+        ready ? "ready" : "not ready",
+        state && state !== "unknown" ? state : "",
+        reason,
+        Number.isFinite(restartCount) && restartCount > 0 ? `${restartCount} restarts` : "",
+      ].filter(Boolean).join(", ");
+      return [{ name, tone, title: `${name}: ${details || "unknown"}` }];
+    });
+  }
+
+  const rawContainers = row.containers;
+  if (!Array.isArray(rawContainers)) return [];
+  return rawContainers.flatMap((name, index) => {
+    const label = String(name || `container-${index + 1}`);
+    return label ? [{ name: label, tone: "unknown" as const, title: `${label}: unknown` }] : [];
+  });
+}
+
+function containerTone(state: string, ready: boolean): ContainerTone {
+  if (ready) return "ready";
+  if (state === "terminated") return "terminated";
+  if (state === "waiting") return "waiting";
+  if (state === "running") return "running";
+  return "unknown";
 }
 
 function rowHealthClass(row: ResourceRow) {

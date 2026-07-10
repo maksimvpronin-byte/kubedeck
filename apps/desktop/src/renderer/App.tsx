@@ -954,6 +954,7 @@ async function copyBulkDeleteList() {
       { key: "name", label: t("col.name") },
       { key: "phase", label: t("col.phase") },
       { key: "ready", label: t("col.ready") },
+      { key: "containers", label: t("col.containers") },
       { key: "restarts", label: t("col.restarts") },
       { key: "cpuUsage", label: t("col.cpu") },
       { key: "memoryUsage", label: t("col.memory") },

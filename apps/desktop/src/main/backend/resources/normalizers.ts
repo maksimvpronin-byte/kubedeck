@@ -123,6 +123,29 @@ export function podRestartDiagnostics(
   return diagnostics;
 }
 
+function containerStateSummary(containerName: string, status: JsonObject | undefined): JsonObject {
+  const state = record(status?.state);
+  const waiting = record(state.waiting);
+  const running = record(state.running);
+  const terminated = record(state.terminated);
+  const ready = status?.ready === true;
+
+  let currentState = "unknown";
+  if (Object.keys(waiting).length > 0) currentState = "waiting";
+  else if (Object.keys(terminated).length > 0) currentState = "terminated";
+  else if (Object.keys(running).length > 0) currentState = ready ? "ready" : "running";
+  else if (ready) currentState = "ready";
+
+  return {
+    name: containerName,
+    ready,
+    state: currentState,
+    reason: text(waiting.reason) || text(terminated.reason),
+    message: text(waiting.message) || text(terminated.message),
+    restartCount: Math.trunc(numberValue(status?.restartCount)),
+  };
+}
+
 function firstRestartDiagnosticValue(
   diagnostics: RestartDiagnostic[],
   key: keyof RestartDiagnostic,
@@ -149,12 +172,28 @@ export function podSummary(item: JsonObject): ResourceRow {
   const spec = record(item.spec);
   const containerStatuses = records(status.containerStatuses);
   const specContainers = records(spec.containers);
+  const containerStatusByName = new Map(containerStatuses.map((container) => [text(container.name), container]));
   const restarts = containerStatuses.reduce(
     (total, container) => total + Math.trunc(numberValue(container.restartCount)),
     0,
   );
   const restartDiagnostics = podRestartDiagnostics(containerStatuses);
   const ready = containerStatuses.filter((container) => container.ready === true).length;
+  const desiredContainers = Math.max(containerStatuses.length, specContainers.length);
+
+  const containerStates: JsonObject[] = [];
+  const seenContainers = new Set<string>();
+  for (const container of specContainers) {
+    const name = text(container.name);
+    if (!name) continue;
+    seenContainers.add(name);
+    containerStates.push(containerStateSummary(name, containerStatusByName.get(name)));
+  }
+  for (const container of containerStatuses) {
+    const name = text(container.name);
+    if (!name || seenContainers.has(name)) continue;
+    containerStates.push(containerStateSummary(name, container));
+  }
 
   const containerProblems: string[] = [];
   for (const container of containerStatuses) {
@@ -185,7 +224,7 @@ export function podSummary(item: JsonObject): ResourceRow {
     ...base,
     phase: deleting ? "Terminating" : text(status.phase),
     status: deleting ? "Terminating" : text(status.phase),
-    ready: `${ready}/${containerStatuses.length}`,
+    ready: `${ready}/${desiredContainers}`,
     restarts,
     node: text(spec.nodeName),
     serviceAccountName: text(spec.serviceAccountName, "default"),
@@ -195,6 +234,7 @@ export function podSummary(item: JsonObject): ResourceRow {
     containerProblems: containerProblems.join("; "),
     conditions: conditionSummary.join("; "),
     containers: specContainers.map((container) => text(container.name)).filter(Boolean),
+    containerStates,
     restartDiagnostics,
     lastRestartReason: firstRestartDiagnosticValue(
       restartDiagnostics,

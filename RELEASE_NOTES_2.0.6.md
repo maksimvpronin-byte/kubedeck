@@ -1,10 +1,10 @@
-# KubeDeck 2.0.5 — Release Notes
+# KubeDeck 2.0.6 — Release Notes
 
 Дата: 2026-07-10
 
 ## Статус
 
-Стабильный релиз KubeDeck 2.0.5 фиксирует проверенный **Node-only** runtime baseline и включает UX-доработки, выполненные после первичной стабилизации 2.0.
+Стабильный релиз KubeDeck 2.0.6 фиксирует проверенный **Node-only** runtime baseline и включает UX-доработки, выполненные после первичной стабилизации 2.0.
 
 - Backend contracts: **49 Node / 0 Python**.
 - Runtime: Node.js внутри Electron main process.
@@ -27,15 +27,14 @@
 - OpenAI-compatible LLM status/test/preview/analyze;
 - Node-only build, verification и portable packaging.
 
-## Изменения относительно 2.0 baseline
+## Изменения в 2.0.6
 
-- версия повышена до `2.0.5`;
-- Gateway tests закреплены с `--test-concurrency=1`;
-- добавлен release contract;
-- добавлен автоматический `verify:release`;
-- добавлен полный ручной regression checklist;
+- версия повышена до `2.0.6`;
 - документация и имена portable/mac artifacts синхронизированы со стабильной версией;
-- включены исправления pod terminal, тем, языков, фильтров, namespaces, колонок таблиц и общего стиля кнопок.
+- в таблицу Pods добавлена колонка контейнеров со статусными кубиками для multi-container pods;
+- Pod readiness теперь учитывает `spec.containers`, если `containerStatuses` еще не доступны;
+- просмотрщик Logs больше не переносит длинные строки автоматически и использует горизонтальную прокрутку;
+- release verifier, release contract и regression checklist синхронизированы с `2.0.6`.
 
 ## Известные ограничения
 
@@ -47,7 +46,7 @@
 ## Артефакт
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.0.5-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.0.6-x64.exe
 ```
 
 ## Критерии принятия
@@ -55,5 +54,5 @@ apps\desktop\release\KubeDeck-Portable-2.0.5-x64.exe
 - все автоматические проверки проходят без fail/cancelled;
 - portable запускается без Python;
 - `Node 49 / Python 0`;
-- пройден `REGRESSION_CHECKLIST_2.0.5.md`;
+- пройден `REGRESSION_CHECKLIST_2.0.6.md`;
 - в release отсутствуют Python runtime, backend executable и `kubectl.exe`.

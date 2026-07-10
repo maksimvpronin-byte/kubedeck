@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Текущая проверяемая версия: `2.0.5`
+Текущая проверяемая версия: `2.0.6`
 
 ## Итог
 
@@ -46,20 +46,20 @@
 - `/migration/status`: Node 49, Python 0, mode `node-only`;
 - portable не содержит Python backend payload и встроенный `kubectl.exe`.
 
-## 2.0.5 — stable release baseline
+## 2.0.6 — stable release baseline
 
-`2.0.5` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
+`2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
 Добавлено:
 
-- `RELEASE_NOTES_2.0.5.md`;
-- `REGRESSION_CHECKLIST_2.0.5.md`;
+- `RELEASE_NOTES_2.0.6.md`;
+- `REGRESSION_CHECKLIST_2.0.6.md`;
 - `scripts/verify-release.ps1`;
 - root-команда `npm.cmd run verify:release`;
 - release contract test;
 - постоянный последовательный запуск Gateway test suite.
 
-## Обязательная проверка 2.0.5
+## Обязательная проверка 2.0.6
 
 - `npm.cmd run verify:node-only`;
 - `npm.cmd run verify:release`;
@@ -68,12 +68,12 @@
 - все Node Gateway contract tests без fail/cancelled;
 - Windows portable build;
 - запуск portable;
-- полный `REGRESSION_CHECKLIST_2.0.5.md`;
+- полный `REGRESSION_CHECKLIST_2.0.6.md`;
 - проверка отсутствия Python и встроенного kubectl в runtime/release.
 
 ## Следующий этап
 
-После принятия 2.0.5:
+После принятия 2.0.6:
 
 1. commit и push stable baseline;
 2. закрыть ручной regression checklist;

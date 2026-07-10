@@ -95,6 +95,16 @@ test("resource normalizers preserve KubeDeck row contracts", () => {
   assert.equal(pod.name, "demo");
   assert.equal(pod.ready, "1/1");
   assert.equal(pod.restarts, 2);
+  assert.deepEqual(pod.containerStates, [
+    {
+      name: "main",
+      ready: true,
+      state: "ready",
+      reason: "",
+      message: "",
+      restartCount: 2,
+    },
+  ]);
   assert.equal(pod.lastRestartReason, "Error");
   assert.equal(pod.lastRestartExitCode, 1);
   assert.equal(pod.ports, "8080/TCP");
@@ -135,6 +145,61 @@ test("resource normalizers preserve KubeDeck row contracts", () => {
   assert.equal(crdRows[0].crdInstance, true);
   assert.equal(crdRows[0].resource, "widgets.example.io");
   assert.equal(crdRows[0].apiVersion, "example.io/v1");
+});
+
+test("pod summary exposes per-container table indicators", () => {
+  const pod = podSummary({
+    metadata: {
+      uid: "multi-pod-uid",
+      name: "multi",
+      namespace: "default",
+      creationTimestamp: "2026-07-10T00:00:00Z",
+    },
+    spec: {
+      containers: [
+        { name: "api" },
+        { name: "sidecar" },
+      ],
+    },
+    status: {
+      phase: "Running",
+      containerStatuses: [
+        {
+          name: "api",
+          ready: true,
+          restartCount: 0,
+          state: { running: { startedAt: "2026-07-10T00:00:10Z" } },
+        },
+        {
+          name: "sidecar",
+          ready: false,
+          restartCount: 1,
+          state: { waiting: { reason: "CrashLoopBackOff", message: "back-off restarting failed container" } },
+        },
+      ],
+    },
+  });
+
+  assert.equal(pod.ready, "1/2");
+  assert.deepEqual(pod.containers, ["api", "sidecar"]);
+  assert.deepEqual(pod.containerStates, [
+    {
+      name: "api",
+      ready: true,
+      state: "ready",
+      reason: "",
+      message: "",
+      restartCount: 0,
+    },
+    {
+      name: "sidecar",
+      ready: false,
+      state: "waiting",
+      reason: "CrashLoopBackOff",
+      message: "back-off restarting failed container",
+      restartCount: 1,
+    },
+  ]);
 });
 
 test("resource cache expires, tracks hits, and clears by cluster", () => {

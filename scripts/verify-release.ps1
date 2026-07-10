@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-Validates KubeDeck 2.0.5 release-readiness invariants.
+Validates KubeDeck 2.0.6 release-readiness invariants.
 #>
 
 [CmdletBinding()]
@@ -11,7 +11,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ExpectedVersion = "2.0.5"
+$ExpectedVersion = "2.0.6"
 
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Split-Path -Parent $PSScriptRoot
@@ -89,8 +89,8 @@ Write-Check "Gateway test suite is deterministic and includes release contracts"
 $RequiredDocuments = @(
     "README.md",
     "NODE_MIGRATION_PROGRESS.md",
-    "RELEASE_NOTES_2.0.5.md",
-    "REGRESSION_CHECKLIST_2.0.5.md"
+    "RELEASE_NOTES_2.0.6.md",
+    "REGRESSION_CHECKLIST_2.0.6.md"
 )
 foreach ($Relative in $RequiredDocuments) {
     if (-not (Test-Path -LiteralPath (Join-Path $Root $Relative))) {
@@ -99,8 +99,8 @@ foreach ($Relative in $RequiredDocuments) {
 }
 
 $Readme = Read-Text -Path (Join-Path $Root "README.md")
-$ReleaseNotes = Read-Text -Path (Join-Path $Root "RELEASE_NOTES_2.0.5.md")
-$Checklist = Read-Text -Path (Join-Path $Root "REGRESSION_CHECKLIST_2.0.5.md")
+$ReleaseNotes = Read-Text -Path (Join-Path $Root "RELEASE_NOTES_2.0.6.md")
+$Checklist = Read-Text -Path (Join-Path $Root "REGRESSION_CHECKLIST_2.0.6.md")
 if ($Readme -notmatch [regex]::Escape($ExpectedVersion)) {
     throw "README does not mention $ExpectedVersion"
 }

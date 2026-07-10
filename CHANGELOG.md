@@ -1,9 +1,10 @@
-﻿## 2.0.5 - Stable Node-only desktop release
+﻿## 2.0.6 - Pod containers and log viewer polish
 
-- Promoted KubeDeck to stable `2.0.5`.
-- Renamed release verification to `verify:release` and synchronized release contract tests.
-- Updated README, release notes, regression checklist, package metadata, lockfile, Help version and build artifact paths.
-- Included the accumulated UX fixes for pod terminal, themes, languages, filters, namespaces, resource-table columns and button styling.
+- Bumped KubeDeck release metadata and package versions to `2.0.6`.
+- Added per-container status cubes to the Pods table for multi-container pods.
+- Updated Pod readiness normalization to use `spec.containers` when `containerStatuses` are not available yet.
+- Changed the Logs viewer to keep each log entry on one line with horizontal scrolling instead of automatic wrapping.
+- Updated README, release notes, regression checklist, release verifier and build artifact paths.
 
 ## 1.1.2 - Windows portable builder cleanup
 

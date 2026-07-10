@@ -166,6 +166,7 @@
     "col.namespace":  "Namespace",
     "col.phase":  "Фаза",
     "col.ready":  "Ready",
+    "col.containers":  "Контейнеры",
     "col.restarts":  "Рестарты",
     "col.cpu":  "CPU",
     "col.memory":  "Память",

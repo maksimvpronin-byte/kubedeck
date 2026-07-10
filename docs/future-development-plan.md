@@ -32,7 +32,9 @@ UI-эргономика списков ресурсов и терминала.
 - DONE: добавить настройку видимости колонок таблиц ресурсов через popover `Columns`.
 - DONE: привести action-кнопки таблиц, настроек и модалок к единому стилю.
 - DONE: привести кнопки terminal toolbar и drawer actions к общему стилю.
-- DONE: поднять версию продукта до стабильной `2.0.5` и убрать beta release metadata.
+- DONE: поднять версию продукта до стабильной `2.0.6` и убрать beta release metadata.
+- DONE: добавить в таблицу Pods отдельную колонку контейнеров со статусными кубиками для multi-container pods.
+- DONE: отключить автоматический перенос строк в просмотрщике Logs и оставить горизонтальную прокрутку для длинных log lines.
 
 ## Ближайшие задачи
 
@@ -86,4 +88,6 @@ UI-эргономика списков ресурсов и терминала.
 - 2026-07-09: добавлена настройка видимости колонок таблиц ресурсов: кнопка `Columns` открывает popover с чекбоксами, скрытые колонки сохраняются в `localStorage` по `stateKey`, `Reset columns` сбрасывает видимость/порядок/ширины текущей таблицы; файлы `ResourceTable.tsx`, `uiState.ts`, `App.tsx`, `app.css`, `ru.json`, `en.json`, `future-development-plan.md`; проверки: `npm run typecheck`, `npm run build`.
 - 2026-07-09: унифицирован стиль action-кнопок: `Columns`, `Refresh`, bulk actions, reset в popover, settings/modal/row actions используют общий радиус, вес, hover и theme-токены; файлы `app.css`, `future-development-plan.md`; проверки: `npm run typecheck`, `npm run build`.
 - 2026-07-09: вторым проходом унифицированы кнопки drawer actions и terminal toolbar: `Restart/Delete/Terminal/Port forward`, `Connect/Disconnect/Reconnect/Clear` используют общий размер, радиус, hover, disabled и theme-токены; файлы `app.css`, `future-development-plan.md`; проверки: `npm run typecheck`, `npm run build`.
-- 2026-07-10: версия продукта поднята до стабильной `2.0.5`: обновлены package metadata, lockfile, README, release notes, regression checklist, release verifier, contract tests, Help version и build artifact paths; проверки: `npm run typecheck`, `npm run build`.
+- 2026-07-10: версия продукта поднята до стабильной `2.0.6`: обновлены package metadata, lockfile, README, release notes, regression checklist, release verifier, contract tests, Help version и build artifact paths; проверки: `npm run typecheck`, `npm run build`.
+- 2026-07-10: в таблицу Pods добавлена колонка `Контейнеры` со статусными кубиками по каждому контейнеру pod, backend normalizer теперь отдает `containerStates`, а `ready` учитывает `spec.containers`, если `containerStatuses` еще пуст; файлы `normalizers.ts`, `ResourceTable.tsx`, `App.tsx`, `app.css`, `ru.json`, `en.json`, `resource-lists.contract.test.cjs`, `future-development-plan.md`; проверки: `npm run typecheck`, `npm run build`, `node --test --test-concurrency=1 apps/desktop/tests/resource-lists.contract.test.cjs`.
+- 2026-07-10: просмотрщик Logs переведен с `pre-wrap` на `pre`, длинные строки больше не переносятся и доступны через нижний горизонтальный scroll; файлы `app.css`, `future-development-plan.md`; проверки: `npm run typecheck`, `npm run build`, `node --test --test-concurrency=1 apps/desktop/tests/resource-details.contract.test.cjs apps/desktop/tests/deployment-logs.contract.test.cjs`.
