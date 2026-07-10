@@ -48,7 +48,7 @@ Node Gateway слушает случайный локальный порт на 
 ### Общие
 
 - Git;
-- Node.js 20 или новее;
+- Node.js 22.12 или новее;
 - npm;
 - системный `kubectl` либо полный путь к нему в Settings;
 - доступ к Kubernetes API через kubeconfig.
@@ -59,7 +59,7 @@ Python, FastAPI, PyInstaller и встроенный `kubectl` не требую
 
 - Windows 10/11 x64;
 - PowerShell 5.1 или новее;
-- Node.js 20+;
+- Node.js 22.12+;
 - npm;
 - `kubectl` в `PATH` или путь к нему в настройках KubeDeck.
 
@@ -74,7 +74,7 @@ kubectl version --client
 
 - Mac с Apple Silicon (`arm64`);
 - macOS с установленными Xcode Command Line Tools;
-- Node.js 20+, рекомендуется Node.js 22;
+- Node.js 22.12+;
 - npm;
 - Homebrew;
 - `kubectl`;

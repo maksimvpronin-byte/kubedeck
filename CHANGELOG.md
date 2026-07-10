@@ -1,5 +1,9 @@
 ﻿## Unreleased - 2.1.x renderer optimization
 
+- Upgraded the desktop runtime from Electron 31.7.7 to Electron 43.1.0 (Chromium 150, Node 24.18).
+- Raised build and CI prerequisites to Node.js 22.12 and retained sandbox/context-isolation/navigation security invariants.
+- Kept node-pty 1.1.0 after successful Electron 43 ABI/runtime and macOS packaged PTY validation.
+- Updated the Electron recovery helper for the new `@electron-internal/extract-zip` package layout.
 - Extracted cluster/config/namespace lifecycle into `useClusterController`.
 - Extracted resource navigation and selected-row synchronization into `useResourceNavigation`.
 - Extracted bulk delete and Node actions into `useBulkResourceActions` and focused modal components.

@@ -10,6 +10,7 @@
 - [x] `npm run test:renderer`; 5/5 focused controller tests.
 - [x] Release contracts: `node-only`, Node 49 / Python 0.
 - [x] macOS release validator: payload не содержит Python runtime и встроенный kubectl.
+- [x] Electron 43.1.0 runtime: Chromium 150.0.7871.47, Node 24.18.0, node-pty arm64 load.
 
 ## Desktop runtime
 
@@ -51,3 +52,5 @@
 - 2026-07-10 packaged macOS run: desktop/gateway startup and clean shutdown; saved cluster open; namespaces, Pod list and watch refresh; Logs, Events, Describe, YAML, Related and Pod Terminal PTY observed in `desktop.log`.
 - 2026-07-10 post-refactor gates: renderer 5/5, typecheck, build and gateway 69/69; automated visual browser was unavailable before user acceptance.
 - 2026-07-10 user acceptance: packaged macOS UI and interactive scenarios confirmed working; Windows acceptance deferred.
+- 2026-07-10 Electron upgrade smoke: packaged Electron 43 startup/shutdown, cluster open, watch, Pod Terminal PTY, Logs, Events, Describe, YAML and Related observed; DMG 116 MB, ZIP 112 MB.
+- 2026-07-10 user acceptance: rebuilt Electron 43 macOS application launched and functional UI/interactive flows confirmed working.

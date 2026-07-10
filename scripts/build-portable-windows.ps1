@@ -242,6 +242,10 @@ try {
     Assert-Command -Name "node"
     Assert-Command -Name "npm.cmd"
     Assert-Command -Name "powershell.exe"
+    $NodeVersionParts = @((& node -p "process.versions.node").Trim().Split('.') | ForEach-Object { [int]$_ })
+    if ($NodeVersionParts[0] -lt 22 -or ($NodeVersionParts[0] -eq 22 -and $NodeVersionParts[1] -lt 12)) {
+        throw "Node.js 22.12 or newer is required for Electron 43 tooling."
+    }
     Write-Ok "Required commands OK. Python is not required."
 
     Write-Step "Checking npm dependencies"

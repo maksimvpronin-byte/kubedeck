@@ -30,8 +30,8 @@ require_command xcode-select
 require_command kubectl
 xcode-select -p >/dev/null 2>&1 || fail "Xcode Command Line Tools are not installed."
 
-NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
-(( NODE_MAJOR >= 20 )) || fail "Node.js 20 or newer is required."
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)' ||
+  fail "Node.js 22.12 or newer is required for Electron 43 tooling."
 
 ROOT_VERSION="$(node -p 'require("./package.json").version')"
 DESKTOP_VERSION="$(node -p 'require("./apps/desktop/package.json").version')"

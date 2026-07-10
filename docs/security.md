@@ -23,6 +23,8 @@ Session token не должен записываться в логи, audit, con
 
 ## Electron and IPC
 
+Текущий desktop runtime: Electron 43.1.0 с Chromium 150 и Node 24.18. Поддерживаемая ветка Electron используется вместе с `contextIsolation`, Chromium sandbox и отключённым `nodeIntegration`.
+
 BrowserWindow использует `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` и preload bridge с фиксированным набором методов. Renderer navigation ограничена packaged `file:` document либо origin локального Vite dev server; создание новых окон запрещено.
 
 IPC handlers обязаны валидировать enum-like arguments, Kubernetes identifiers, URLs и пути. Renderer не должен получать произвольный filesystem или process API.

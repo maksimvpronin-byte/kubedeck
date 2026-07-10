@@ -4,6 +4,8 @@
 
 KubeDeck 2.1.0 — Node-only architecture hardening release. Все 49 backend-контрактов остаются Node-owned; Python/FastAPI runtime и встроенный kubectl отсутствуют.
 
+Актуальный desktop baseline: Electron 43.1.0, Chromium 150.0.7871.47 и Node 24.18.0. Для install/build tooling требуется Node.js 22.12+.
+
 ## Основные изменения
 
 - актуализированы architecture, security, API и release документы;

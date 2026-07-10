@@ -112,7 +112,7 @@ npm run verify
 
 Готово: чистый checkout автоматически подтверждает typecheck, build и все contract tests.
 
-Заметка о выполнении: `.github/workflows/verify.yml` запускает clean `npm ci` и общий gate на Node 20 для push/main, pull request и ручного запуска; platform packaging не блокирует быстрый source job. Reviewed install scripts закреплены через pinned `allowScripts`; platform builders точечно восстанавливают Electron, если npm не завершил postinstall.
+Заметка о выполнении: `.github/workflows/verify.yml` запускает clean `npm ci` и общий gate на Node 22.12 для push/main, pull request и ручного запуска; platform packaging не блокирует быстрый source job. Reviewed install scripts закреплены через pinned `allowScripts`; platform builders точечно восстанавливают Electron, если npm не завершил postinstall.
 
 ## 8. Финальная подготовка к Electron upgrade — DONE
 

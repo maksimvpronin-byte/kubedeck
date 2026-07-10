@@ -2,7 +2,13 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { downloadArtifact } = require("@electron/get");
-const extract = require("extract-zip");
+const extract = (() => {
+  try {
+    return require("@electron-internal/extract-zip").extract;
+  } catch {
+    return require("extract-zip");
+  }
+})();
 
 const root = path.resolve(__dirname, "..");
 const electronRoot = path.join(root, "node_modules/electron");
