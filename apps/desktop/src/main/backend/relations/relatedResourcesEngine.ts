@@ -2,6 +2,7 @@ import { KubectlError } from "../kubectl/errors";
 import { deduplicateRelatedLinks, relatedLink, type RelatedLink } from "./relatedResourceLinks";
 import { endpointAddressLinks, endpointSliceAddressDetail, endpointSliceAddressLinks, endpointSliceServiceName } from "./relatedEndpointLinks";
 import { bindingHasServiceAccountSubject, roleRefDetail, roleReferenceLinks, serviceAccountSecretLinks, subjectLinks, subjectsDetail } from "./relatedRbacLinks";
+import { podUsesConfigResource, podUsesPvc } from "./relatedPodUsage";
 import { metadata, metadataName, metadataNamespace, record, records, type SafeLoad, text, type UnknownRecord } from "./relatedResourceValues";
 
 export { deduplicateRelatedLinks, relatedLink } from "./relatedResourceLinks";
@@ -148,32 +149,6 @@ async function ownerReferenceLinksForPod(pod: UnknownRecord, namespace: string, 
     }
   }
   return links;
-}
-
-function podUsesPvc(pod: UnknownRecord, claimName: string): boolean {
-  return records(record(pod.spec).volumes).some((volume) => text(record(volume.persistentVolumeClaim).claimName) === claimName);
-}
-
-function podUsesConfigResource(pod: UnknownRecord, refKind: "configMap" | "secret", name: string): string {
-  const spec = record(pod.spec);
-  const volumeField = refKind === "configMap" ? "configMap" : "secret";
-  const nameField = refKind === "configMap" ? "name" : "secretName";
-  for (const volume of records(spec.volumes)) {
-    if (text(record(volume[volumeField])[nameField]) === name) return "mounted by pod";
-  }
-  const containers = [...records(spec.containers), ...records(spec.initContainers)];
-  for (const container of containers) {
-    for (const envFrom of records(container.envFrom)) {
-      const ref = record(envFrom[`${refKind}Ref`]);
-      if (text(ref.name) === name) return "used by envFrom";
-    }
-    for (const env of records(container.env)) {
-      const valueFrom = record(env.valueFrom);
-      const ref = record(valueFrom[`${refKind}KeyRef`]);
-      if (text(ref.name) === name) return "used by environment variable";
-    }
-  }
-  return "";
 }
 
 function errorInfo(error: unknown, resource: string, namespace: string): Record<string, unknown> {
