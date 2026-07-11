@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import type { CommandPaletteItem } from "./components/CommandPalette";
 import { AppCommandPalette } from "./components/AppCommandPalette";
+import { UnavailableClusterPanel } from "./components/UnavailableClusterPanel";
 import { BulkActionModals } from "./components/BulkActionModals";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
@@ -764,18 +765,18 @@ export function App() {
                   <PlaceholderSection section={section} t={t} />
                 ) : (
                   <>
-                    {unavailableCluster && error ? (
-                      <section className="unavailable-panel">
-                        <h2>{t("cluster.unavailable")}</h2>
-                        <p>{unavailableCluster.displayName}</p>
-                        <div className="row-actions">
-                          <button className="primary" disabled={openingClusterId === unavailableCluster.id} onClick={() => openCluster(unavailableCluster)}>
-                            {openingClusterId === unavailableCluster.id ? t("clusters.opening") : t("common.retry")}
-                          </button>
-                          <button onClick={() => removeCluster(unavailableCluster)}>{t("clusters.remove")}</button>
-                        </div>
-                      </section>
-                    ) : null}
+                    <UnavailableClusterPanel
+                      visible={Boolean(unavailableCluster && error)}
+                      displayName={unavailableCluster?.displayName ?? ""}
+                      opening={Boolean(unavailableCluster && openingClusterId === unavailableCluster.id)}
+                      t={t}
+                      onRetry={() => {
+                        if (unavailableCluster) void openCluster(unavailableCluster);
+                      }}
+                      onRemove={() => {
+                        if (unavailableCluster) void removeCluster(unavailableCluster);
+                      }}
+                    />
                     {activeCluster ? (
                       <ResourceTable
                         title={sectionTitle(section, resourceTab, t)}
