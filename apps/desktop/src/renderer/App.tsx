@@ -7,6 +7,7 @@ import { ErrorPanel } from "./components/ErrorPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
 import { LazyPanelBoundary } from "./components/LazyPanelBoundary";
 import { ResourceTable } from "./components/ResourceTable";
+import { PlaceholderSection } from "./components/PlaceholderSection";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
 import { useAppPreferences } from "./hooks/useAppPreferences";
 import { useBulkResourceActions } from "./hooks/useBulkResourceActions";
@@ -23,15 +24,12 @@ import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
+import { eventInvolvedLocator } from "./utils/eventResourceLocator";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
-const initialResourceTab = initialUiState.section === "overview" || initialSection === "nodes"
-  ? "nodes"
-  : initialUiState.resourceTab ?? "pods";
-const initialSelectedNamespaces = initialSection === "nodes"
-  ? ["_cluster"]
-  : initialUiState.selectedNamespaces ?? [initialUiState.namespace ?? "all"];
+const initialResourceTab = initialUiState.section === "overview" || initialSection === "nodes" ? "nodes" : (initialUiState.resourceTab ?? "pods");
+const initialSelectedNamespaces = initialSection === "nodes" ? ["_cluster"] : (initialUiState.selectedNamespaces ?? [initialUiState.namespace ?? "all"]);
 
 const AboutPanel = lazy(() => import("./components/AboutPanel").then((module) => ({ default: module.AboutPanel })));
 const AuditPanel = lazy(() => import("./components/AuditPanel").then((module) => ({ default: module.AuditPanel })));
@@ -59,13 +57,33 @@ export function App() {
   const crdLoadedClusterRef = useRef<string | null>(null);
 
   const {
-    api, config, setConfig, settings, backendOk, kubectlVersion,
-    activeCluster, setActiveCluster, unavailableCluster, setUnavailableCluster,
-    openingClusterId, resourceDefinitions, runtimeError,
-    renameTarget, renameDraft, setRenameDraft, renaming,
-    namespaces, setNamespaces, selectedNamespaces, setNamespaceSelection,
-    importKubeconfig, openCluster, startRenameCluster, cancelRenameCluster,
-    confirmRenameCluster, removeCluster,
+    api,
+    config,
+    setConfig,
+    settings,
+    backendOk,
+    kubectlVersion,
+    activeCluster,
+    setActiveCluster,
+    unavailableCluster,
+    setUnavailableCluster,
+    openingClusterId,
+    resourceDefinitions,
+    runtimeError,
+    renameTarget,
+    renameDraft,
+    setRenameDraft,
+    renaming,
+    namespaces,
+    setNamespaces,
+    selectedNamespaces,
+    setNamespaceSelection,
+    importKubeconfig,
+    openCluster,
+    startRenameCluster,
+    cancelRenameCluster,
+    confirmRenameCluster,
+    removeCluster,
   } = useClusterController({
     initialSelectedNamespaces,
     setRows,
@@ -76,10 +94,7 @@ export function App() {
   const activeLanguage = languagePreview ?? settings?.language ?? "system";
   const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
   const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
-  const reloadActionResources = useCallback(
-    (clusterId: string, resource: string, targetNamespaces: string[]) => actionReloadRef.current(clusterId, resource, targetNamespaces),
-    [],
-  );
+  const reloadActionResources = useCallback((clusterId: string, resource: string, targetNamespaces: string[]) => actionReloadRef.current(clusterId, resource, targetNamespaces), []);
   const bulkActions = useBulkResourceActions({
     api,
     activeCluster,
@@ -139,7 +154,7 @@ export function App() {
     await loadResources(clusterId, resource, targetNamespaces);
   };
 
-    // KubeDeck 1.0.5 loading guard: if data is already visible, do not let a stale
+  // KubeDeck 1.0.5 loading guard: if data is already visible, do not let a stale
   // global loading flag keep table actions and Refresh disabled after startup or
   // temporary cluster unavailability.
   useEffect(() => {
@@ -152,22 +167,16 @@ export function App() {
     }, 700);
     return () => window.clearTimeout(timer);
   }, [loading, rows, resourceTab, section]);
-const debouncedLoadResources = useCallback(
+  const debouncedLoadResources = useCallback(
     (clusterId = activeCluster?.id, resource = resourceTab, ns: string | string[] = selectedNamespaces, silent = false) => {
       if (loadResourcesRef.current !== null) window.clearTimeout(loadResourcesRef.current);
       loadResourcesRef.current = window.setTimeout(() => {
         loadResources(clusterId, resource, ns, silent);
       }, 100);
     },
-    [loadResources, activeCluster?.id, resourceTab, selectedNamespaces]
+    [loadResources, activeCluster?.id, resourceTab, selectedNamespaces],
   );
-  const {
-    openResourceLocator,
-    openRelatedResource,
-    consumeKeepSelection,
-    keepCurrentSelection,
-    restoreNamespacedSelection,
-  } = useResourceNavigation({
+  const { openResourceLocator, openRelatedResource, consumeKeepSelection, keepCurrentSelection, restoreNamespacedSelection } = useResourceNavigation({
     api,
     activeCluster,
     resourceTab,
@@ -187,7 +196,7 @@ const debouncedLoadResources = useCallback(
     setError,
   });
 
-useEffect(() => {
+  useEffect(() => {
     if (activeCluster) debouncedLoadResources(activeCluster.id, resourceTab, selectedNamespaces);
     if (consumeKeepSelection()) return;
     setSelectedPod(null);
@@ -197,7 +206,8 @@ useEffect(() => {
     if (!activeCluster || !api) return;
     if (crdLoadedClusterRef.current === activeCluster.id && (rows.customresourcedefinitions ?? []).length > 0) return;
     crdLoadedClusterRef.current = activeCluster.id;
-    api.resources(activeCluster.id, "customresourcedefinitions", "_cluster")
+    api
+      .resources(activeCluster.id, "customresourcedefinitions", "_cluster")
       .then((response) => {
         setRows((current) => ({ ...current, customresourcedefinitions: response.items }));
       })
@@ -232,65 +242,65 @@ useEffect(() => {
   }
 
   function selectSection(next: Section) {
-  setSection(next);
+    setSection(next);
 
-  if (resourceTree[next]) {
-    setExpandedSections((current) => new Set(current).add(next));
-  }
+    if (resourceTree[next]) {
+      setExpandedSections((current) => new Set(current).add(next));
+    }
 
-  if (next === "nodes") {
-    setResourceTab("nodes");
-    setNamespaceSelection("_cluster");
-    return;
-  }
+    if (next === "nodes") {
+      setResourceTab("nodes");
+      setNamespaceSelection("_cluster");
+      return;
+    }
 
-  if (next === "namespaces") {
-    setResourceTab("namespaces");
-    setNamespaceSelection("_cluster");
-    return;
-  }
+    if (next === "namespaces") {
+      setResourceTab("namespaces");
+      setNamespaceSelection("_cluster");
+      return;
+    }
 
-  if (next === "crd") {
-    setResourceTab("customresourcedefinitions");
-    setNamespaceSelection("_cluster");
-    return;
-  }
+    if (next === "crd") {
+      setResourceTab("customresourcedefinitions");
+      setNamespaceSelection("_cluster");
+      return;
+    }
 
-  if (next === "rbac") {
-    setResourceTab("serviceaccounts");
-    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
-    return;
-  }
+    if (next === "rbac") {
+      setResourceTab("serviceaccounts");
+      if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
+      return;
+    }
 
-  if (next === "workloads") {
-    setResourceTab("pods");
-    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
-    return;
-  }
+    if (next === "workloads") {
+      setResourceTab("pods");
+      if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
+      return;
+    }
 
-  if (next === "network") {
-    setResourceTab("services");
-    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
-    return;
-  }
+    if (next === "network") {
+      setResourceTab("services");
+      if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
+      return;
+    }
 
-  if (next === "storage") {
-    setResourceTab("persistentvolumeclaims");
-    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
-    return;
-  }
+    if (next === "storage") {
+      setResourceTab("persistentvolumeclaims");
+      if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
+      return;
+    }
 
-  if (next === "config") {
-    setResourceTab("configmaps");
-    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
-    return;
-  }
+    if (next === "config") {
+      setResourceTab("configmaps");
+      if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
+      return;
+    }
 
-  if (next === "events") {
-    setResourceTab("events");
-    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
+    if (next === "events") {
+      setResourceTab("events");
+      if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
+    }
   }
-}
 
   function toggleSection(sectionId: Section) {
     setExpandedSections((current) => {
@@ -325,10 +335,10 @@ useEffect(() => {
     }
     const definition = findResourceDefinition(resourceDefinitions, resource);
     if (definition && !definition.namespaced) {
-    setNamespaceSelection("_cluster");
-  } else if (selectedNamespaces.includes("_cluster")) {
-    restoreNamespacedSelection();
-  }
+      setNamespaceSelection("_cluster");
+    } else if (selectedNamespaces.includes("_cluster")) {
+      restoreNamespacedSelection();
+    }
   }
 
   function openGlobalSearchResult(result: GlobalSearchItem) {
@@ -389,7 +399,9 @@ useEffect(() => {
         subtitle: cluster.id === activeCluster?.id ? t("command.currentCluster") : t("command.openCluster"),
         category: t("command.category.cluster"),
         keywords: `${cluster.displayName} ${cluster.kubeconfigPath}`,
-        run: () => { void openCluster(cluster); },
+        run: () => {
+          void openCluster(cluster);
+        },
       });
     }
 
@@ -415,9 +427,7 @@ useEffect(() => {
     for (const result of globalSearchResults) {
       const resource = String(result.resource || "");
       const resultNamespace = String(result.namespace || "");
-      const matchedFields = Array.isArray(result.matchedFields) && result.matchedFields.length
-        ? ` Р’В· match: ${result.matchedFields.join(", ")}`
-        : "";
+      const matchedFields = Array.isArray(result.matchedFields) && result.matchedFields.length ? ` Р’В· match: ${result.matchedFields.join(", ")}` : "";
       items.push({
         id: `global:${resource}:${resultNamespace}:${result.name}:${result.uid}`,
         title: String(result.title || result.name || resource),
@@ -438,7 +448,12 @@ useEffect(() => {
       { key: "kubeletVersion", label: t("col.kubernetes") },
       { key: "createdAt", label: t("col.age") },
     ],
-    namespaces: [ { key: "name", label: t("col.name") }, { key: "status", label: t("col.status") }, { key: "namespaceResources", label: "CPU/RAM" }, { key: "createdAt", label: t("col.age") }, ],
+    namespaces: [
+      { key: "name", label: t("col.name") },
+      { key: "status", label: t("col.status") },
+      { key: "namespaceResources", label: "CPU/RAM" },
+      { key: "createdAt", label: t("col.age") },
+    ],
     pods: [
       { key: "namespace", label: t("col.namespace") },
       { key: "name", label: t("col.name") },
@@ -484,21 +499,25 @@ useEffect(() => {
       { key: "createdAt", label: t("col.age") },
     ],
   };
-  const columns = tableColumns[resourceTab] ?? (isCrdInstanceTab ? [
-    ...(isClusterScoped ? [] : [{ key: "namespace", label: t("col.namespace") }]),
-    { key: "kind", label: t("col.kind") },
-    { key: "name", label: t("col.name") },
-    { key: "apiVersion", label: "API Version" },
-    { key: "status", label: t("col.status") },
-    { key: "createdAt", label: t("col.age") },
-  ] : [
-    { key: "namespace", label: t("col.namespace") },
-    { key: "kind", label: t("col.kind") },
-    { key: "name", label: t("col.name") },
-    { key: "status", label: t("col.status") },
-    { key: "type", label: t("col.type") },
-    { key: "createdAt", label: t("col.age") },
-  ]);
+  const columns =
+    tableColumns[resourceTab] ??
+    (isCrdInstanceTab
+      ? [
+          ...(isClusterScoped ? [] : [{ key: "namespace", label: t("col.namespace") }]),
+          { key: "kind", label: t("col.kind") },
+          { key: "name", label: t("col.name") },
+          { key: "apiVersion", label: "API Version" },
+          { key: "status", label: t("col.status") },
+          { key: "createdAt", label: t("col.age") },
+        ]
+      : [
+          { key: "namespace", label: t("col.namespace") },
+          { key: "kind", label: t("col.kind") },
+          { key: "name", label: t("col.name") },
+          { key: "status", label: t("col.status") },
+          { key: "type", label: t("col.type") },
+          { key: "createdAt", label: t("col.age") },
+        ]);
   const isResourceTableView = !["help", "about", "settings", "problems", "audit", "port-forwards"].includes(section) && !isPlaceholderSection(section);
 
   useResourceWatch({
@@ -529,426 +548,393 @@ useEffect(() => {
   return (
     <div className="app-shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
       <LazyPanelBoundary resetKey={`${section}:${resourceTab}:${selectedPod?.uid ?? "none"}`}>
-      <Suspense fallback={<div className="panel-loading" role="status">Loading…</div>}>
-      <aside className="sidebar">
-        <div className="sidebar-resize-handle" onMouseDown={startSidebarResize} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />
-        <div className="brand">
-          <Database size={22} />
-          <strong>KubeDeck</strong>
-        </div>
-        <nav>
-          {sections.map((item) => {
-            const Icon = item.icon;
-            const children = resourceTree[item.id] ?? [];
-            const expanded = expandedSections.has(item.id);
-            return (
-              <div className="nav-group" key={item.id}>
-                <button
-                  className={section === item.id || (item.id === "network" && section === "port-forwards") ? "active" : ""}
-                  onClick={() => children.length ? toggleSection(item.id) : selectSection(item.id)}
-                  aria-expanded={children.length ? expanded : undefined}
-                >
-                  <Icon size={17} />
-                  {t(item.label)}
-                  {children.length ? (
-                    <span className="nav-expander">
-                      {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </span>
-                  ) : null}
-                </button>
-                {item.id === "crd" && expanded ? (
-                  <div className="nav-children">
+        <Suspense
+          fallback={
+            <div className="panel-loading" role="status">
+              Loading…
+            </div>
+          }
+        >
+          <aside className="sidebar">
+            <div className="sidebar-resize-handle" onMouseDown={startSidebarResize} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />
+            <div className="brand">
+              <Database size={22} />
+              <strong>KubeDeck</strong>
+            </div>
+            <nav>
+              {sections.map((item) => {
+                const Icon = item.icon;
+                const children = resourceTree[item.id] ?? [];
+                const expanded = expandedSections.has(item.id);
+                return (
+                  <div className="nav-group" key={item.id}>
                     <button
-                      className={section === "crd" && resourceTab === "customresourcedefinitions" ? "active child" : "child"}
-                      onClick={() => selectTreeResource("crd", "customresourcedefinitions")}
+                      className={section === item.id || (item.id === "network" && section === "port-forwards") ? "active" : ""}
+                      onClick={() => (children.length ? toggleSection(item.id) : selectSection(item.id))}
+                      aria-expanded={children.length ? expanded : undefined}
                     >
-                      {t("crd.definitions")}
+                      <Icon size={17} />
+                      {t(item.label)}
+                      {children.length ? <span className="nav-expander">{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span> : null}
                     </button>
-                    {crdGroups.map((group) => (
-                      <div className="nav-subgroup" key={group.group}>
-                        <button className="nav-subgroup-header" onClick={() => toggleCrdGroup(group.group)} title={group.group}>
-                          {expandedCrdGroups.has(group.group) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                          <span>{group.group}</span>
+                    {item.id === "crd" && expanded ? (
+                      <div className="nav-children">
+                        <button
+                          className={section === "crd" && resourceTab === "customresourcedefinitions" ? "active child" : "child"}
+                          onClick={() => selectTreeResource("crd", "customresourcedefinitions")}
+                        >
+                          {t("crd.definitions")}
                         </button>
-                        {expandedCrdGroups.has(group.group) ? (
-                          <div className="nav-subgroup-items">
-                            {group.items.map((crd) => (
-                              <button
-                                key={crd.resource}
-                                className={section === "crd" && resourceTab === crd.resource ? "active child" : "child"}
-                                onClick={() => selectTreeResource("crd", crd.resource)}
-                                title={`${crd.kind} (${crd.resource})`}
-                              >
-                                {crd.kind || crd.plural}
-                              </button>
-                            ))}
+                        {crdGroups.map((group) => (
+                          <div className="nav-subgroup" key={group.group}>
+                            <button className="nav-subgroup-header" onClick={() => toggleCrdGroup(group.group)} title={group.group}>
+                              {expandedCrdGroups.has(group.group) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                              <span>{group.group}</span>
+                            </button>
+                            {expandedCrdGroups.has(group.group) ? (
+                              <div className="nav-subgroup-items">
+                                {group.items.map((crd) => (
+                                  <button
+                                    key={crd.resource}
+                                    className={section === "crd" && resourceTab === crd.resource ? "active child" : "child"}
+                                    onClick={() => selectTreeResource("crd", crd.resource)}
+                                    title={`${crd.kind} (${crd.resource})`}
+                                  >
+                                    {crd.kind || crd.plural}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
-                        ) : null}
+                        ))}
                       </div>
-                    ))}
+                    ) : children.length && expanded ? (
+                      <div className="nav-children">
+                        {children.map((resource) => (
+                          <button
+                            key={`${item.id}-${resource}`}
+                            className={(section === item.id || (item.id === "network" && section === "port-forwards")) && resourceTab === resource ? "active child" : "child"}
+                            onClick={() => selectTreeResource(item.id, resource)}
+                          >
+                            {resourceLabel(resource)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                ) : children.length && expanded ? (
-                  <div className="nav-children">
-                    {children.map((resource) => (
-                      <button
-                        key={`${item.id}-${resource}`}
-                        className={(section === item.id || (item.id === "network" && section === "port-forwards")) && resourceTab === resource ? "active child" : "child"}
-                        onClick={() => selectTreeResource(item.id, resource)}
-                      >
-                        {resourceLabel(resource)}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </nav>
-      </aside>
-      <main className={resourceTabs.length > 1 ? "workspace" : "workspace workspace-no-tabs"}>
-        <header className="topbar">
-          <select
-            value={activeCluster?.id ?? ""}
-            onChange={(event) => {
-              const cluster = clusters.find((item) => item.id === event.target.value);
-              if (cluster) openCluster(cluster);
-            }}
-            disabled={!clusters.length || Boolean(openingClusterId)}
-          >
-            {!clusters.length ? <option value="">{t("clusters.none")}</option> : null}
-            {clusters.map((cluster) => (
-              <option value={cluster.id} key={cluster.id}>
-                {cluster.displayName}
-              </option>
-            ))}
-          </select>
-          <NamespaceSelector
-            namespaces={namespaces}
-            selected={isClusterScoped ? ["_cluster"] : selectedNamespaces}
-            disabled={isClusterScoped}
-            allLabel={t("resources.allNamespaces")}
-            clusterScopedLabel={t("resources.clusterScoped")}
-            searchLabel={t("resources.namespaceSearch")}
-            emptySearchLabel={t("resources.namespaceSearchEmpty")}
-            onChange={setNamespaceSelection}
-          />
-          <label className="global-search" title="Ctrl+K">
-            <Search size={16} />
-            <input
-              value={globalSearch}
-              placeholder={`${t("app.search")} / Ctrl+K`}
-              onFocus={() => setCommandPaletteOpen(true)}
-              onChange={(event) => {
-                setGlobalSearch(event.target.value);
-                setCommandPaletteOpen(true);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") setCommandPaletteOpen(true);
-                if (event.key === "Escape") setCommandPaletteOpen(false);
-              }}
-            />
-          </label>
-          <div className="status-line">
-            <span>{t("status.backend")}: {backendOk ? t("common.ok") : "..."}</span>
-            <span>{t("status.kubectl")}: {kubectlVersion || "..."}</span>
-          </div>
-        </header>
-        {resourceTabs.length > 1 ? (
-          <section className="tabs">
-            {resourceTabs.map((tab) => (
-              <button
-                className={resourceTab === tab ? "active" : ""}
-                onClick={() => {
-                  setResourceTab(tab);
-                  if (tab === "nodes") setSection("nodes");
-                  if (tab === "events") setSection("events");
-                  if (tab === "services") setSection("network");
-                  if (tab === "namespaces") setSection("namespaces");
-                  if (["serviceaccounts", "roles", "rolebindings", "clusterroles", "clusterrolebindings"].includes(tab)) setSection("rbac");
-                  if (tab === "pods" || tab === "deployments") setSection("workloads");
+                );
+              })}
+            </nav>
+          </aside>
+          <main className={resourceTabs.length > 1 ? "workspace" : "workspace workspace-no-tabs"}>
+            <header className="topbar">
+              <select
+                value={activeCluster?.id ?? ""}
+                onChange={(event) => {
+                  const cluster = clusters.find((item) => item.id === event.target.value);
+                  if (cluster) openCluster(cluster);
                 }}
-                key={tab}
+                disabled={!clusters.length || Boolean(openingClusterId)}
               >
-                {resourceLabel(tab)}
-              </button>
-            ))}
-          </section>
-        ) : null}
-        <section className="content">
-          <div className={isResourceTableView ? "main-panel main-panel-resource" : "main-panel"}>
-            {runtimeError ? (
-              <section className="error-panel">
-                <div className="error-header">
-                  <div>
-                    <strong>{t("app.desktopRuntimeUnavailable")}</strong>
-                    <p>{runtimeError}</p>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-            <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
-            {bulkActions.message ? (
-              <section className="action-status-panel">
-                <span>{bulkActions.message}</span>
-                <button type="button" onClick={bulkActions.clearMessage}>{t("common.close")}</button>
-              </section>
-            ) : null}
-            {section === "help" ? (
-              <HelpPanel t={t} />
-            ) : section === "about" ? (
-              <AboutPanel api={api} config={config} activeCluster={activeCluster} backendOk={backendOk} kubectlVersion={kubectlVersion} t={t} onError={setError} />
-            ) : section === "settings" && config ? (
-              <SettingsPanel
-                api={api}
-                settings={config.settings}
-                save={saveSettings}
-                onLanguagePreview={setLanguagePreview}
-                t={t}
-                clusters={clusters}
-                activeCluster={activeCluster}
-                selectedNamespaces={selectedNamespaces}
-                resourceTab={resourceTab}
-                openingClusterId={openingClusterId}
-                importKubeconfig={importKubeconfig}
-                openCluster={openCluster}
-                renameCluster={startRenameCluster}
-                removeCluster={removeCluster}
-                onError={setError}
+                {!clusters.length ? <option value="">{t("clusters.none")}</option> : null}
+                {clusters.map((cluster) => (
+                  <option value={cluster.id} key={cluster.id}>
+                    {cluster.displayName}
+                  </option>
+                ))}
+              </select>
+              <NamespaceSelector
+                namespaces={namespaces}
+                selected={isClusterScoped ? ["_cluster"] : selectedNamespaces}
+                disabled={isClusterScoped}
+                allLabel={t("resources.allNamespaces")}
+                clusterScopedLabel={t("resources.clusterScoped")}
+                searchLabel={t("resources.namespaceSearch")}
+                emptySearchLabel={t("resources.namespaceSearchEmpty")}
+                onChange={setNamespaceSelection}
               />
-            ) : section === "problems" ? (
-              <ProblemsPanel
-                api={api}
-                cluster={activeCluster}
-                settings={settings}
-                copyLabel={t("error.copy")}
-                t={t}
-                onError={setError}
-                onOpenResource={(row) => {
-                  void openResourceLocator(row);
-                }}
-              />
-            ) : section === "audit" ? (
-              <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={setError} />
-            ) : section === "port-forwards" ? (
-              <PortForwardsPanel api={api} cluster={activeCluster} copyLabel={t("error.copy")} t={t} onError={setError} />
-            ) : isPlaceholderSection(section) ? (
-              <PlaceholderSection section={section} t={t} />
-            ) : (
-              <>
-                {unavailableCluster && error ? (
-                  <section className="unavailable-panel">
-                    <h2>{t("cluster.unavailable")}</h2>
-                    <p>{unavailableCluster.displayName}</p>
-                    <div className="row-actions">
-                      <button className="primary" disabled={openingClusterId === unavailableCluster.id} onClick={() => openCluster(unavailableCluster)}>
-                        {openingClusterId === unavailableCluster.id ? t("clusters.opening") : t("common.retry")}
-                      </button>
-                      <button onClick={() => removeCluster(unavailableCluster)}>{t("clusters.remove")}</button>
-                    </div>
-                  </section>
-                ) : null}
-                {activeCluster ? (
-                  <ResourceTable
-                    title={sectionTitle(section, resourceTab, t)}
-                    rows={activeRows}
-                    columns={columns}
-                    loading={loading}
-                    onRefresh={() => loadResources()} onBulkCordon={resourceTab === "nodes" ? (selectedRows) => { void bulkActions.requestNodeAction("cordon", selectedRows); } : undefined} onBulkUncordon={resourceTab === "nodes" ? (selectedRows) => { void bulkActions.requestNodeAction("uncordon", selectedRows); } : undefined} onBulkDrain={resourceTab === "nodes" ? (selectedRows) => { void bulkActions.requestNodeAction("drain", selectedRows); } : undefined}
-                    onOpen={(row) => {
-                      if (resourceTab === "events") {
-                        const involved = eventInvolvedLocator(row);
-                        if (involved) {
-                          void openResourceLocator(involved);
-                          return;
-                        }
-                      }
-                      setSelectedPod(row);
-                      setSelectedResource(resourceTab);
-                    }}
-                    selectedRow={selectedResource === resourceTab ? selectedPod : null}
-                    onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
-                    onBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition) ? (selectedRows) => bulkActions.requestBulkDelete(resourceTab, selectedRows) : undefined}
-                    filterLabel={t("resources.filter")}
-                    refreshLabel={t("resources.refresh")}
-                    labels={{
-                      shownOf: t("resources.shownOf"),
-                      page: t("resources.page"),
-                      deleteSelected: t("resources.deleteSelected"),
-                      rows: t("resources.rows"),
-                      of: t("resources.of"),
-                      pageSize: t("resources.pageSize"),
-                      first: t("pagination.first"),
-                      prev: t("pagination.prev"),
-                      next: t("pagination.next"),
-                      last: t("pagination.last"),
-                      emptyTitle: t("resources.emptyTitle"),
-                      emptyText: t("resources.emptyText"),
-                      emptyFilteredTitle: t("resources.emptyFilteredTitle"),
-                      emptyFilteredText: t("resources.emptyFilteredText"),
-                      clearFilter: t("resources.clearFilter"),
-                      columns: t("resources.columns"),
-                      resetColumns: t("resources.resetColumns"),
-                    }}
-                    stateKey={resourceTab}
-                  />
-                ) : null}
-              </>
-            )}
-          </div>
-          {api && activeCluster ? (
-            <PodDrawer
-              api={api}
-              clusterId={activeCluster.id}
-              pod={selectedPod}
-              resource={selectedResource}
-              canLogs={selectedResource === "pods" || selectedResource === "deployments" || selectedResource === "deployments.apps"}
-              width={drawerWidth}
-              onResize={setDrawerWidth}
-              onActionComplete={() => loadResources(activeCluster.id, selectedResource, selectedNamespaces)}
-              onOpenRelated={openRelatedResource}
-              onPortForwardStarted={() => {
-                setSection("port-forwards");
-                setResourceTab("port-forwards");
-              }}
-              onClose={() => setSelectedPod(null)}
-              copyLabel={t("error.copy")}
-              settings={settings}
-              t={t}
-              labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
-            />
-          ) : null}
-        </section>
-      </main>
-      {renameTarget ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="rename-cluster-title">
-            <header>
-              <h2 id="rename-cluster-title">{t("clusters.renameTitle")}</h2>
-              <button className="icon-button" onClick={cancelRenameCluster} disabled={renaming} title={t("common.close")}>
-                <X size={16} />
-              </button>
-            </header>
-            <div className="confirm-body">
-              <label className="confirm-field">
-                {t("clusters.name")}
+              <label className="global-search" title="Ctrl+K">
+                <Search size={16} />
                 <input
-                  autoFocus
-                  value={renameDraft}
-                  onChange={(event) => setRenameDraft(event.target.value)}
+                  value={globalSearch}
+                  placeholder={`${t("app.search")} / Ctrl+K`}
+                  onFocus={() => setCommandPaletteOpen(true)}
+                  onChange={(event) => {
+                    setGlobalSearch(event.target.value);
+                    setCommandPaletteOpen(true);
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter") confirmRenameCluster();
-                    if (event.key === "Escape") cancelRenameCluster();
+                    if (event.key === "Enter") setCommandPaletteOpen(true);
+                    if (event.key === "Escape") setCommandPaletteOpen(false);
                   }}
                 />
               </label>
+              <div className="status-line">
+                <span>
+                  {t("status.backend")}: {backendOk ? t("common.ok") : "..."}
+                </span>
+                <span>
+                  {t("status.kubectl")}: {kubectlVersion || "..."}
+                </span>
+              </div>
+            </header>
+            {resourceTabs.length > 1 ? (
+              <section className="tabs">
+                {resourceTabs.map((tab) => (
+                  <button
+                    className={resourceTab === tab ? "active" : ""}
+                    onClick={() => {
+                      setResourceTab(tab);
+                      if (tab === "nodes") setSection("nodes");
+                      if (tab === "events") setSection("events");
+                      if (tab === "services") setSection("network");
+                      if (tab === "namespaces") setSection("namespaces");
+                      if (["serviceaccounts", "roles", "rolebindings", "clusterroles", "clusterrolebindings"].includes(tab)) setSection("rbac");
+                      if (tab === "pods" || tab === "deployments") setSection("workloads");
+                    }}
+                    key={tab}
+                  >
+                    {resourceLabel(tab)}
+                  </button>
+                ))}
+              </section>
+            ) : null}
+            <section className="content">
+              <div className={isResourceTableView ? "main-panel main-panel-resource" : "main-panel"}>
+                {runtimeError ? (
+                  <section className="error-panel">
+                    <div className="error-header">
+                      <div>
+                        <strong>{t("app.desktopRuntimeUnavailable")}</strong>
+                        <p>{runtimeError}</p>
+                      </div>
+                    </div>
+                  </section>
+                ) : null}
+                <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
+                {bulkActions.message ? (
+                  <section className="action-status-panel">
+                    <span>{bulkActions.message}</span>
+                    <button type="button" onClick={bulkActions.clearMessage}>
+                      {t("common.close")}
+                    </button>
+                  </section>
+                ) : null}
+                {section === "help" ? (
+                  <HelpPanel t={t} />
+                ) : section === "about" ? (
+                  <AboutPanel api={api} config={config} activeCluster={activeCluster} backendOk={backendOk} kubectlVersion={kubectlVersion} t={t} onError={setError} />
+                ) : section === "settings" && config ? (
+                  <SettingsPanel
+                    api={api}
+                    settings={config.settings}
+                    save={saveSettings}
+                    onLanguagePreview={setLanguagePreview}
+                    t={t}
+                    clusters={clusters}
+                    activeCluster={activeCluster}
+                    selectedNamespaces={selectedNamespaces}
+                    resourceTab={resourceTab}
+                    openingClusterId={openingClusterId}
+                    importKubeconfig={importKubeconfig}
+                    openCluster={openCluster}
+                    renameCluster={startRenameCluster}
+                    removeCluster={removeCluster}
+                    onError={setError}
+                  />
+                ) : section === "problems" ? (
+                  <ProblemsPanel
+                    api={api}
+                    cluster={activeCluster}
+                    settings={settings}
+                    copyLabel={t("error.copy")}
+                    t={t}
+                    onError={setError}
+                    onOpenResource={(row) => {
+                      void openResourceLocator(row);
+                    }}
+                  />
+                ) : section === "audit" ? (
+                  <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={setError} />
+                ) : section === "port-forwards" ? (
+                  <PortForwardsPanel api={api} cluster={activeCluster} copyLabel={t("error.copy")} t={t} onError={setError} />
+                ) : isPlaceholderSection(section) ? (
+                  <PlaceholderSection section={section} t={t} />
+                ) : (
+                  <>
+                    {unavailableCluster && error ? (
+                      <section className="unavailable-panel">
+                        <h2>{t("cluster.unavailable")}</h2>
+                        <p>{unavailableCluster.displayName}</p>
+                        <div className="row-actions">
+                          <button className="primary" disabled={openingClusterId === unavailableCluster.id} onClick={() => openCluster(unavailableCluster)}>
+                            {openingClusterId === unavailableCluster.id ? t("clusters.opening") : t("common.retry")}
+                          </button>
+                          <button onClick={() => removeCluster(unavailableCluster)}>{t("clusters.remove")}</button>
+                        </div>
+                      </section>
+                    ) : null}
+                    {activeCluster ? (
+                      <ResourceTable
+                        title={sectionTitle(section, resourceTab, t)}
+                        rows={activeRows}
+                        columns={columns}
+                        loading={loading}
+                        onRefresh={() => loadResources()}
+                        onBulkCordon={
+                          resourceTab === "nodes"
+                            ? (selectedRows) => {
+                                void bulkActions.requestNodeAction("cordon", selectedRows);
+                              }
+                            : undefined
+                        }
+                        onBulkUncordon={
+                          resourceTab === "nodes"
+                            ? (selectedRows) => {
+                                void bulkActions.requestNodeAction("uncordon", selectedRows);
+                              }
+                            : undefined
+                        }
+                        onBulkDrain={
+                          resourceTab === "nodes"
+                            ? (selectedRows) => {
+                                void bulkActions.requestNodeAction("drain", selectedRows);
+                              }
+                            : undefined
+                        }
+                        onOpen={(row) => {
+                          if (resourceTab === "events") {
+                            const involved = eventInvolvedLocator(row);
+                            if (involved) {
+                              void openResourceLocator(involved);
+                              return;
+                            }
+                          }
+                          setSelectedPod(row);
+                          setSelectedResource(resourceTab);
+                        }}
+                        selectedRow={selectedResource === resourceTab ? selectedPod : null}
+                        onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
+                        onBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition) ? (selectedRows) => bulkActions.requestBulkDelete(resourceTab, selectedRows) : undefined}
+                        filterLabel={t("resources.filter")}
+                        refreshLabel={t("resources.refresh")}
+                        labels={{
+                          shownOf: t("resources.shownOf"),
+                          page: t("resources.page"),
+                          deleteSelected: t("resources.deleteSelected"),
+                          rows: t("resources.rows"),
+                          of: t("resources.of"),
+                          pageSize: t("resources.pageSize"),
+                          first: t("pagination.first"),
+                          prev: t("pagination.prev"),
+                          next: t("pagination.next"),
+                          last: t("pagination.last"),
+                          emptyTitle: t("resources.emptyTitle"),
+                          emptyText: t("resources.emptyText"),
+                          emptyFilteredTitle: t("resources.emptyFilteredTitle"),
+                          emptyFilteredText: t("resources.emptyFilteredText"),
+                          clearFilter: t("resources.clearFilter"),
+                          columns: t("resources.columns"),
+                          resetColumns: t("resources.resetColumns"),
+                        }}
+                        stateKey={resourceTab}
+                      />
+                    ) : null}
+                  </>
+                )}
+              </div>
+              {api && activeCluster ? (
+                <PodDrawer
+                  api={api}
+                  clusterId={activeCluster.id}
+                  pod={selectedPod}
+                  resource={selectedResource}
+                  canLogs={selectedResource === "pods" || selectedResource === "deployments" || selectedResource === "deployments.apps"}
+                  width={drawerWidth}
+                  onResize={setDrawerWidth}
+                  onActionComplete={() => loadResources(activeCluster.id, selectedResource, selectedNamespaces)}
+                  onOpenRelated={openRelatedResource}
+                  onPortForwardStarted={() => {
+                    setSection("port-forwards");
+                    setResourceTab("port-forwards");
+                  }}
+                  onClose={() => setSelectedPod(null)}
+                  copyLabel={t("error.copy")}
+                  settings={settings}
+                  t={t}
+                  labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
+                />
+              ) : null}
+            </section>
+          </main>
+          {renameTarget ? (
+            <div className="modal-backdrop" role="presentation">
+              <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="rename-cluster-title">
+                <header>
+                  <h2 id="rename-cluster-title">{t("clusters.renameTitle")}</h2>
+                  <button className="icon-button" onClick={cancelRenameCluster} disabled={renaming} title={t("common.close")}>
+                    <X size={16} />
+                  </button>
+                </header>
+                <div className="confirm-body">
+                  <label className="confirm-field">
+                    {t("clusters.name")}
+                    <input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(event) => setRenameDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") confirmRenameCluster();
+                        if (event.key === "Escape") cancelRenameCluster();
+                      }}
+                    />
+                  </label>
+                </div>
+                <footer>
+                  <button onClick={cancelRenameCluster} disabled={renaming}>
+                    {t("common.cancel")}
+                  </button>
+                  <button className="primary" onClick={confirmRenameCluster} disabled={renaming || !renameDraft.trim()}>
+                    {renaming ? t("common.renaming") : t("common.rename")}
+                  </button>
+                </footer>
+              </section>
             </div>
-            <footer>
-              <button onClick={cancelRenameCluster} disabled={renaming}>{t("common.cancel")}</button>
-              <button className="primary" onClick={confirmRenameCluster} disabled={renaming || !renameDraft.trim()}>
-                {renaming ? t("common.renaming") : t("common.rename")}
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
-      {commandPaletteOpen ? (
-        <CommandPalette
-          query={globalSearch}
-          items={commandItems}
-          loading={globalSearchLoading}
-          placeholder={t("app.search")}
-          onQueryChange={setGlobalSearch}
-          t={t}
-          onClose={() => setCommandPaletteOpen(false)}
-          onRun={(item) => {
-            setCommandPaletteOpen(false);
-            setGlobalSearch("");
-            void item.run();
-          }}
-        />
-      ) : null}
-      <BulkActionModals
-        bulkDelete={bulkActions.bulkDelete}
-        nodeAction={bulkActions.nodeActionConfirmation}
-        t={t}
-        onCloseBulkDelete={bulkActions.closeBulkDelete}
-        onCopyBulkDelete={() => { void bulkActions.copyBulkDeleteList(); }}
-        onConfirmBulkDelete={() => { void bulkActions.confirmBulkDelete(); }}
-        onCloseNodeAction={bulkActions.closeNodeAction}
-        onConfirmNodeAction={() => { void bulkActions.confirmNodeAction(); }}
-      />
-      </Suspense>
+          ) : null}
+          {commandPaletteOpen ? (
+            <CommandPalette
+              query={globalSearch}
+              items={commandItems}
+              loading={globalSearchLoading}
+              placeholder={t("app.search")}
+              onQueryChange={setGlobalSearch}
+              t={t}
+              onClose={() => setCommandPaletteOpen(false)}
+              onRun={(item) => {
+                setCommandPaletteOpen(false);
+                setGlobalSearch("");
+                void item.run();
+              }}
+            />
+          ) : null}
+          <BulkActionModals
+            bulkDelete={bulkActions.bulkDelete}
+            nodeAction={bulkActions.nodeActionConfirmation}
+            t={t}
+            onCloseBulkDelete={bulkActions.closeBulkDelete}
+            onCopyBulkDelete={() => {
+              void bulkActions.copyBulkDeleteList();
+            }}
+            onConfirmBulkDelete={() => {
+              void bulkActions.confirmBulkDelete();
+            }}
+            onCloseNodeAction={bulkActions.closeNodeAction}
+            onConfirmNodeAction={() => {
+              void bulkActions.confirmNodeAction();
+            }}
+          />
+        </Suspense>
       </LazyPanelBoundary>
     </div>
-  );
-}
-
-
-function eventInvolvedLocator(row: ResourceRow): ResourceRow | null {
-  const objectText = readRowString(row, "object") || readRowString(row, "involvedObject");
-  const parsed = parseKindName(objectText);
-  const kind = readRowString(row, "involvedKind") || parsed.kind;
-  const name = readRowString(row, "involvedName") || parsed.name;
-  const resource = resourceForKubernetesKind(kind);
-  if (!resource || !name) return null;
-  return {
-    uid: `${resource}:${readRowString(row, "involvedNamespace") || readRowString(row, "namespace") || "_cluster"}:${name}`,
-    resource,
-    kind,
-    name,
-    namespace: readRowString(row, "involvedNamespace") || readRowString(row, "namespace") || "_cluster",
-  };
-}
-
-function parseKindName(value: string) {
-  const [kind = "", ...nameParts] = value.split("/");
-  return { kind, name: nameParts.join("/") };
-}
-
-function readRowString(row: ResourceRow, key: string) {
-  const value = row[key];
-  if (value === null || value === undefined) return "";
-  return String(value);
-}
-
-function resourceForKubernetesKind(kind: string) {
-  const map: Record<string, string> = {
-    Pod: "pods",
-    ReplicaSet: "replicasets",
-    Deployment: "deployments",
-    StatefulSet: "statefulsets",
-    DaemonSet: "daemonsets",
-    Job: "jobs",
-    CronJob: "cronjobs",
-    Service: "services",
-    ConfigMap: "configmaps",
-    Secret: "secrets",
-    ServiceAccount: "serviceaccounts",
-    Role: "roles",
-    RoleBinding: "rolebindings",
-    ClusterRole: "clusterroles",
-    ClusterRoleBinding: "clusterrolebindings",
-    Node: "nodes",
-    Ingress: "ingresses",
-    Endpoints: "endpoints",
-    EndpointSlice: "endpointslices",
-    PersistentVolumeClaim: "persistentvolumeclaims",
-    PersistentVolume: "persistentvolumes",
-    StorageClass: "storageclasses",
-    Namespace: "namespaces",
-  };
-  return map[kind];
-}
-
-function PlaceholderSection({ section, t }: { section: Section; t: (key: string) => string }) {
-  const notes: Record<string, string> = {
-    problems: "Problems engine placeholder. Live diagnostics will be added in the next stage.",
-    terminal: "Pod terminal is planned for a later stage.",
-  };
-  return (
-    <section className="placeholder-page">
-      <h2>{t(`nav.${section}`)}</h2>
-      <p>{notes[section]}</p>
-    </section>
   );
 }

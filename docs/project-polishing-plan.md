@@ -116,7 +116,7 @@
 
 Критерий готовности: ответственность файлов стала уже, дублирование уменьшилось, поведение UI и gateway не изменилось, полный `verify` проходит.
 
-Результат: выполняется с 2026-07-11. Разделение `relatedResourcesEngine.ts` завершено: value helpers, link model, kind mapping, Endpoints, RBAC, Pod usage, Pod references и owner-chain вынесены в специализированные модули. Публичные exports и поведение сохранены. Финальная проверка подпункта: полный `npm run verify` — lint/format, renderer 9/9, typecheck, production build и gateway 69/69 успешно. Остальные подпункты шага 7 ещё не выполнены.
+Результат: выполняется с 2026-07-11. Разделение `relatedResourcesEngine.ts` завершено и проверено полным `npm run verify`. Работа над `App.tsx` начата: Event resource locator вынесен в `utils/eventResourceLocator.ts`, placeholder UI — в `components/PlaceholderSection.tsx`; состояние и поведение UI не менялись. Проверка подшага: lint/format, renderer 9/9, typecheck, production build и gateway 69/69 успешно. Остальная координация `App.tsx` и следующие подпункты шага 7 ещё не выполнены.
 
 ## Шаг 8. Финальный аудит и завершение
 
