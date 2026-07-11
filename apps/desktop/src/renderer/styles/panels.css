@@ -1760,31 +1760,3 @@
   }
 }
 
-.related-toolbar {
-  align-items: end;
-}
-
-.related-relation-summary {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 0 14px;
-}
-
-.relation-summary-chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #334251;
-  border-radius: 999px;
-  background: #111820;
-  color: #cbd5e1;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.relation-config {
-  border-color: rgba(147, 197, 253, 0.35);
-  color: #93c5fd;
-}
-

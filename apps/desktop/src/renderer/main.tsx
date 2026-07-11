@@ -7,6 +7,7 @@ import "./styles/layout.css";
 import "./styles/drawer.css";
 import "./styles/terminal.css";
 import "./styles/panels.css";
+import "./styles/related-panel.css";
 import "./styles/modals.css";
 import "./styles/resource-table.css";
 import "./styles/legacy-overrides.css";
