@@ -116,7 +116,7 @@
 
 Критерий готовности: ответственность файлов стала уже, дублирование уменьшилось, поведение UI и gateway не изменилось, полный `verify` проходит.
 
-Результат: выполняется с 2026-07-11. Разделение `relatedResourcesEngine.ts` завершено и проверено полным `npm run verify`. Работа над `App.tsx` начата: Event resource locator вынесен в `utils/eventResourceLocator.ts`, placeholder UI — в `components/PlaceholderSection.tsx`; состояние и поведение UI не менялись. Проверка подшага: lint/format, renderer 9/9, typecheck, production build и gateway 69/69 успешно. Остальная координация `App.tsx` и следующие подпункты шага 7 ещё не выполнены.
+Результат: выполняется с 2026-07-11. Разделение `relatedResourcesEngine.ts` завершено. Из `App.tsx` вынесены Event locator, placeholder UI и управляемое модальное окно переименования кластера `RenameClusterModal`; состояние и операции остались у `App`, поведение UI не менялось. После каждого подшага полный `npm run verify` проходит: renderer 9/9, gateway 69/69. Остальная координация `App.tsx` и следующие подпункты шага 7 ещё не выполнены.
 
 ## Шаг 8. Финальный аудит и завершение
 

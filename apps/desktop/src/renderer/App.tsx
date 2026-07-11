@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { CommandPalette, type CommandPaletteItem } from "./components/CommandPalette";
@@ -8,6 +8,7 @@ import { NamespaceSelector } from "./components/NamespaceSelector";
 import { LazyPanelBoundary } from "./components/LazyPanelBoundary";
 import { ResourceTable } from "./components/ResourceTable";
 import { PlaceholderSection } from "./components/PlaceholderSection";
+import { RenameClusterModal } from "./components/RenameClusterModal";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
 import { useAppPreferences } from "./hooks/useAppPreferences";
 import { useBulkResourceActions } from "./hooks/useBulkResourceActions";
@@ -867,40 +868,15 @@ export function App() {
               ) : null}
             </section>
           </main>
-          {renameTarget ? (
-            <div className="modal-backdrop" role="presentation">
-              <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="rename-cluster-title">
-                <header>
-                  <h2 id="rename-cluster-title">{t("clusters.renameTitle")}</h2>
-                  <button className="icon-button" onClick={cancelRenameCluster} disabled={renaming} title={t("common.close")}>
-                    <X size={16} />
-                  </button>
-                </header>
-                <div className="confirm-body">
-                  <label className="confirm-field">
-                    {t("clusters.name")}
-                    <input
-                      autoFocus
-                      value={renameDraft}
-                      onChange={(event) => setRenameDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") confirmRenameCluster();
-                        if (event.key === "Escape") cancelRenameCluster();
-                      }}
-                    />
-                  </label>
-                </div>
-                <footer>
-                  <button onClick={cancelRenameCluster} disabled={renaming}>
-                    {t("common.cancel")}
-                  </button>
-                  <button className="primary" onClick={confirmRenameCluster} disabled={renaming || !renameDraft.trim()}>
-                    {renaming ? t("common.renaming") : t("common.rename")}
-                  </button>
-                </footer>
-              </section>
-            </div>
-          ) : null}
+          <RenameClusterModal
+            open={Boolean(renameTarget)}
+            draft={renameDraft}
+            renaming={renaming}
+            t={t}
+            onDraftChange={setRenameDraft}
+            onCancel={cancelRenameCluster}
+            onConfirm={confirmRenameCluster}
+          />
           {commandPaletteOpen ? (
             <CommandPalette
               query={globalSearch}
