@@ -1,4 +1,16 @@
 import { KubectlError } from "../kubectl/errors";
+import {
+  metadata,
+  metadataName,
+  metadataNamespace,
+  record,
+  records,
+  type SafeLoad,
+  text,
+  type UnknownRecord,
+} from "./relatedResourceValues";
+
+export { metadataName } from "./relatedResourceValues";
 
 export interface RelatedLink {
   key: string;
@@ -24,41 +36,6 @@ export interface RelatedResourcesContext {
     resource: string,
     namespace: string,
   ) => Promise<Array<Record<string, unknown>>>;
-}
-
-type UnknownRecord = Record<string, unknown>;
-
-type SafeLoad = (
-  resource: string,
-  namespace: string,
-) => Promise<Array<UnknownRecord>>;
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function record(value: unknown): UnknownRecord {
-  return isRecord(value) ? value : {};
-}
-
-function records(value: unknown): UnknownRecord[] {
-  return Array.isArray(value) ? value.filter(isRecord) : [];
-}
-
-function text(value: unknown): string {
-  return value === undefined || value === null ? "" : String(value);
-}
-
-function metadata(item: UnknownRecord): UnknownRecord {
-  return record(item.metadata);
-}
-
-export function metadataName(item: UnknownRecord): string {
-  return text(metadata(item).name);
-}
-
-function metadataNamespace(item: UnknownRecord, fallback = "_cluster"): string {
-  return text(metadata(item).namespace) || fallback;
 }
 
 function normalizedNamespace(value: string): string {
