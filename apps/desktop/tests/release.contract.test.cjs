@@ -15,8 +15,8 @@ test("KubeDeck release metadata stays synchronized", () => {
   const lock = readJson("package-lock.json");
   const readme = read("README.md");
   const progress = read("NODE_MIGRATION_PROGRESS.md");
-  const notes = read("RELEASE_NOTES_2.1.0.md");
-  const checklist = read("REGRESSION_CHECKLIST_2.1.0.md");
+  const notes = read("RELEASE_NOTES_2.2.0.md");
+  const checklist = read("REGRESSION_CHECKLIST_2.2.0.md");
   const windowsVersionScript = read("scripts/set-version.ps1");
 
   assert.equal(rootPackage.version, expectedVersion);
@@ -29,7 +29,7 @@ test("KubeDeck release metadata stays synchronized", () => {
   assert.match(desktopPackage.scripts["test:gateway"], /release\.contract\.test\.cjs/);
 
   for (const document of [readme, progress, notes, checklist]) {
-    assert.match(document, /2\.1\.0/);
+    assert.match(document, /2\.2\.0/);
   }
 
   assert.match(notes, /Node-only/);

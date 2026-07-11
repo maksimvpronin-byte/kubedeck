@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-06-22  
 Ветка: `dev/2.0.0`  
-Текущая проверяемая версия: `2.1.0`
+Текущая проверяемая версия: `2.2.0`
 
 ## Итог
 
@@ -50,11 +50,11 @@
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.1.0.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.2.0.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.1.0` сохраняет Node-only baseline и добавляет декомпозицию renderer orchestration, shared type contracts, bundle splitting и Electron sandbox hardening.
+`2.2.0` сохраняет Node-only baseline и добавляет Electron 43, обновлённый build pipeline, декомпозицию renderer/Gateway orchestration и функциональные CSS-слои.
 
 После принятия 2.0.6:
 

@@ -1,8 +1,8 @@
-# KubeDeck 2.1.0 — Release Notes
+# KubeDeck 2.2.0 — Release Notes
 
-Дата подготовки: 2026-07-10
+Дата подготовки: 2026-07-12
 
-KubeDeck 2.1.0 — Node-only architecture hardening release. Все 49 backend-контрактов остаются Node-owned; Python/FastAPI runtime и встроенный kubectl отсутствуют.
+KubeDeck 2.2.0 — Electron 43, build tooling и maintainability hardening release. Все 49 backend-контрактов остаются Node-owned, поэтому runtime является Node-only; Python/FastAPI runtime и встроенный kubectl отсутствуют.
 
 Актуальный desktop baseline: Electron 43.1.0, Chromium 150.0.7871.47 и Node 24.18.0. Для install/build tooling требуется Node.js 22.12+.
 
@@ -29,9 +29,9 @@ npm run build
 npm --workspace apps/desktop run test:gateway
 ```
 
-Platform packaging и ручной smoke фиксируются отдельно в `REGRESSION_CHECKLIST_2.1.0.md`.
+Platform packaging и ручной smoke фиксируются отдельно в `REGRESSION_CHECKLIST_2.2.0.md`.
 
 ## Artifacts
 
-- Windows x64: `apps\desktop\release\KubeDeck-Portable-2.1.0-x64.exe`;
-- macOS arm64: `apps/desktop/release/KubeDeck-2.1.0-arm64.dmg` и `.zip`.
+- Windows x64: `apps\desktop\release\KubeDeck-Portable-2.2.0-x64.exe`;
+- macOS arm64: `apps/desktop/release/KubeDeck-2.2.0-arm64.dmg` и `.zip`.

@@ -1,4 +1,4 @@
-# KubeDeck 2.1.0 — Regression Checklist
+# KubeDeck 2.2.0 — Regression Checklist
 
 Дата: 2026-07-10
 
@@ -45,7 +45,7 @@
 
 ## Acceptance
 
-- [x] KubeDeck `2.1.0` принят как стабильный релиз.
+- [x] KubeDeck `2.2.0` принят как стабильный релиз на macOS; Windows smoke отложен.
 
 ## Evidence
 

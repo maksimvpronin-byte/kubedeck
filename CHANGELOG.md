@@ -1,4 +1,4 @@
-﻿## Unreleased - 2.1.x renderer optimization
+﻿## 2.2.0 - Runtime and maintainability hardening
 
 - Upgraded the desktop runtime from Electron 31.7.7 to Electron 43.1.0 (Chromium 150, Node 24.18).
 - Upgraded electron-builder to 26.15.3 and Vite to 8.1.4; the final npm audit reports zero known vulnerabilities.
