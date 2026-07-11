@@ -7,7 +7,7 @@
 - [x] `npm run typecheck`.
 - [x] `npm run build`; основной JS chunk меньше 500 KB.
 - [x] `npm --workspace apps/desktop run test:gateway`; 69/69 tests.
-- [x] `npm run test:renderer`; 5/5 focused controller tests.
+- [x] `npm run test:renderer`; 9/9 focused controller tests.
 - [x] Release contracts: `node-only`, Node 49 / Python 0.
 - [x] macOS release validator: payload не содержит Python runtime и встроенный kubectl.
 - [x] Electron 43.1.0 runtime: Chromium 150.0.7871.47, Node 24.18.0, node-pty arm64 load.
@@ -39,13 +39,13 @@
 - [x] Drawer tabs и resource selection не регрессировали.
 - [x] Dark/light/system theme.
 - [x] ru/en/system language.
-- [ ] Windows portable x64 smoke.
+- [x] Windows portable x64 smoke.
 - [x] macOS arm64 DMG/ZIP smoke.
 - [x] macOS arm64 DMG/ZIP packaging и artifact validation.
 
 ## Acceptance
 
-- [ ] KubeDeck `2.1.0` принят как стабильный релиз.
+- [x] KubeDeck `2.1.0` принят как стабильный релиз.
 
 ## Evidence
 
@@ -54,3 +54,4 @@
 - 2026-07-10 user acceptance: packaged macOS UI and interactive scenarios confirmed working; Windows acceptance deferred.
 - 2026-07-10 Electron upgrade smoke: packaged Electron 43 startup/shutdown, cluster open, watch, Pod Terminal PTY, Logs, Events, Describe, YAML and Related observed; DMG 116 MB, ZIP 112 MB.
 - 2026-07-10 user acceptance: rebuilt Electron 43 macOS application launched and functional UI/interactive flows confirmed working.
+- 2026-07-11 user acceptance: Windows portable build and smoke accepted; KubeDeck 2.1.0 cross-platform acceptance completed.
