@@ -10,6 +10,7 @@ import "./styles/port-forward-panel.css";
 import "./styles/command-palette.css";
 import "./styles/audit-panel.css";
 import "./styles/diagnostics-panels.css";
+import "./styles/problems-panel.css";
 import "./styles/panels.css";
 import "./styles/related-panel.css";
 import "./styles/modals.css";
