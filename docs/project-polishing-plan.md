@@ -107,7 +107,7 @@
 
 Рефакторинг выполнять по одному файлу, отдельными небольшими коммитами, без изменения поведения.
 
-- [ ] Разделить `relatedResourcesEngine.ts` по ответственностям и сохранить контрактные тесты.
+- [x] Разделить `relatedResourcesEngine.ts` по ответственностям и сохранить контрактные тесты.
 - [ ] Упростить `App.tsx`, вынеся оставшуюся координацию в компоненты или хуки.
 - [ ] Выделить общую инфраструктуру из `nodeSshWebSocket.ts` и `podTerminalWebSocket.ts`, не смешивая протоколы SSH и Pod Terminal.
 - [ ] Разделить `panels.css` по компонентам или функциональным областям.
@@ -116,7 +116,7 @@
 
 Критерий готовности: ответственность файлов стала уже, дублирование уменьшилось, поведение UI и gateway не изменилось, полный `verify` проходит.
 
-Результат: выполняется с 2026-07-11. Из `relatedResourcesEngine.ts` вынесены value helpers, link model, kind mapping, Endpoints и RBAC builders. Обратный поиск использования PVC/ConfigMap/Secret подами вынесен в `relatedPodUsage.ts`. Публичные exports сохранены; lint, focused related-resources 6/6 и production build проходят. Для закрытия пункта остаются Pod reference и owner-chain builders.
+Результат: выполняется с 2026-07-11. Разделение `relatedResourcesEngine.ts` завершено: value helpers, link model, kind mapping, Endpoints, RBAC, Pod usage, Pod references и owner-chain вынесены в специализированные модули. Публичные exports и поведение сохранены. Финальная проверка подпункта: полный `npm run verify` — lint/format, renderer 9/9, typecheck, production build и gateway 69/69 успешно. Остальные подпункты шага 7 ещё не выполнены.
 
 ## Шаг 8. Финальный аудит и завершение
 

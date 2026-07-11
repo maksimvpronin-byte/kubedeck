@@ -3,6 +3,7 @@ import { deduplicateRelatedLinks, relatedLink, type RelatedLink } from "./relate
 import { endpointAddressLinks, endpointSliceAddressDetail, endpointSliceAddressLinks, endpointSliceServiceName } from "./relatedEndpointLinks";
 import { bindingHasServiceAccountSubject, roleRefDetail, roleReferenceLinks, serviceAccountSecretLinks, subjectLinks, subjectsDetail } from "./relatedRbacLinks";
 import { podUsesConfigResource, podUsesPvc } from "./relatedPodUsage";
+import { ownerReferenceLinksForPod, podReferenceLinks } from "./relatedPodLinks";
 import { metadata, metadataName, metadataNamespace, record, records, type SafeLoad, text, type UnknownRecord } from "./relatedResourceValues";
 
 export { deduplicateRelatedLinks, relatedLink } from "./relatedResourceLinks";
@@ -60,95 +61,6 @@ function ingressBackendServices(specValue: unknown): string[] {
     for (const path of records(http.paths)) collectBackend(path.backend);
   }
   return [...names];
-}
-
-function containerConfigLinks(containerValue: unknown, namespace: string): RelatedLink[] {
-  const container = record(containerValue);
-  if (Object.keys(container).length === 0) return [];
-  const links: RelatedLink[] = [];
-  const containerName = text(container.name);
-  const detailPrefix = containerName ? `container ${containerName}` : "container";
-  for (const envFrom of records(container.envFrom)) {
-    const configMapRef = record(envFrom.configMapRef);
-    if (text(configMapRef.name)) {
-      links.push(relatedLink("configmaps", namespace, text(configMapRef.name), "ConfigMap", "envFrom config", detailPrefix));
-    }
-    const secretRef = record(envFrom.secretRef);
-    if (text(secretRef.name)) {
-      links.push(relatedLink("secrets", namespace, text(secretRef.name), "Secret", "envFrom secret", detailPrefix));
-    }
-  }
-  for (const env of records(container.env)) {
-    const valueFrom = record(env.valueFrom);
-    const configMapKeyRef = record(valueFrom.configMapKeyRef);
-    if (text(configMapKeyRef.name)) {
-      const key = text(configMapKeyRef.key);
-      links.push(relatedLink("configmaps", namespace, text(configMapKeyRef.name), "ConfigMap", "env key config", key ? `${detailPrefix}, key ${key}` : detailPrefix));
-    }
-    const secretKeyRef = record(valueFrom.secretKeyRef);
-    if (text(secretKeyRef.name)) {
-      const key = text(secretKeyRef.key);
-      links.push(relatedLink("secrets", namespace, text(secretKeyRef.name), "Secret", "env key secret", key ? `${detailPrefix}, key ${key}` : detailPrefix));
-    }
-  }
-  return links;
-}
-
-function podReferenceLinks(pod: UnknownRecord, namespace: string): RelatedLink[] {
-  const links: RelatedLink[] = [];
-  const spec = record(pod.spec);
-  for (const secret of records(spec.imagePullSecrets)) {
-    if (text(secret.name)) {
-      links.push(relatedLink("secrets", namespace, text(secret.name), "Secret", "imagePull secret"));
-    }
-  }
-  for (const volume of records(spec.volumes)) {
-    const detail = text(volume.name);
-    const pvc = record(volume.persistentVolumeClaim);
-    if (text(pvc.claimName)) {
-      links.push(relatedLink("persistentvolumeclaims", namespace, text(pvc.claimName), "PersistentVolumeClaim", "mounted volume", detail));
-    }
-    const configMap = record(volume.configMap);
-    if (text(configMap.name)) {
-      links.push(relatedLink("configmaps", namespace, text(configMap.name), "ConfigMap", "mounted config", detail));
-    }
-    const secret = record(volume.secret);
-    if (text(secret.secretName)) {
-      links.push(relatedLink("secrets", namespace, text(secret.secretName), "Secret", "mounted secret", detail));
-    }
-  }
-  const containers = [...records(spec.containers), ...records(spec.initContainers)];
-  for (const container of containers) {
-    links.push(...containerConfigLinks(container, namespace));
-  }
-  return links;
-}
-
-async function ownerReferenceLinksForPod(pod: UnknownRecord, namespace: string, safeLoad: SafeLoad): Promise<RelatedLink[]> {
-  const links: RelatedLink[] = [];
-  for (const owner of records(metadata(pod).ownerReferences)) {
-    const kind = text(owner.kind);
-    const ownerName = text(owner.name);
-    if (!ownerName) continue;
-    if (kind === "ReplicaSet") {
-      const replicaSets = await safeLoad("replicasets", namespace);
-      const replicaSet = replicaSets.find((item) => metadataName(item) === ownerName);
-      if (!replicaSet) continue;
-      const deploymentOwner = records(metadata(replicaSet).ownerReferences).find((candidate) => text(candidate.kind) === "Deployment" && text(candidate.name));
-      if (deploymentOwner) {
-        links.push(relatedLink("deployments", namespace, text(deploymentOwner.name), "Deployment", "controls pod via ReplicaSet", ownerName));
-      }
-    } else if (kind === "Job") {
-      const jobs = await safeLoad("jobs", namespace);
-      const job = jobs.find((item) => metadataName(item) === ownerName);
-      if (!job) continue;
-      const cronJobOwner = records(metadata(job).ownerReferences).find((candidate) => text(candidate.kind) === "CronJob" && text(candidate.name));
-      if (cronJobOwner) {
-        links.push(relatedLink("cronjobs", namespace, text(cronJobOwner.name), "CronJob", "controls pod via Job", ownerName));
-      }
-    }
-  }
-  return links;
 }
 
 function errorInfo(error: unknown, resource: string, namespace: string): Record<string, unknown> {
