@@ -1,71 +1,3 @@
-@media (max-width: 720px) {
-  .port-forward-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.port-forward-form {
-  display: grid;
-  grid-template-columns: 1.1fr 150px minmax(220px, 1.6fr) 130px 130px auto;
-  gap: 10px;
-  align-items: end;
-  padding: 14px;
-}
-
-.port-forward-form label {
-  display: grid;
-  gap: 6px;
-  color: #b8c4d2;
-  font-size: 13px;
-}
-
-.port-forward-list {
-  display: grid;
-  gap: 8px;
-  padding: 0 14px 14px;
-}
-
-.port-forward-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid #27313b;
-  border-radius: 8px;
-  background: #111820;
-  padding: 10px;
-}
-
-.port-forward-card span,
-.port-forward-card code,
-.port-forward-card a {
-  display: block;
-  color: #94a3b8;
-  font-size: 12px;
-  margin-top: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.port-forward-card a {
-  color: #8bd3ff;
-  text-decoration: none;
-}
-
-.port-forward-card a:hover {
-  text-decoration: underline;
-}
-
-.port-forward-card button {
-  border: 1px solid #334251;
-  background: #202a34;
-  color: #d8dee9;
-  border-radius: 6px;
-  min-height: 32px;
-  padding: 0 10px;
-}
-
 .spin {
   animation: spin 1s linear infinite;
 }
@@ -1759,4 +1691,3 @@
     justify-content: flex-start;
   }
 }
-
