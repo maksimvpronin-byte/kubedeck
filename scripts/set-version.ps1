@@ -88,8 +88,6 @@ Write-Host "==> Setting KubeDeck version to $Version"
 Update-PackageJsonVersion -Path ".\package.json" -Version $Version
 Update-PackageJsonVersion -Path ".\apps\desktop\package.json" -Version $Version
 Update-PackageJsonVersion -Path ".\packages\shared-types\package.json" -Version $Version
-Update-PackageJsonVersion -Path ".\packages\ui\package.json" -Version $Version
-Update-PyProjectVersion -Path ".\apps\backend\pyproject.toml" -Version $Version
 
 Write-Host "==> Removing UTF-8 BOM from config files"
 @(
@@ -97,9 +95,7 @@ Write-Host "==> Removing UTF-8 BOM from config files"
     ".\package-lock.json",
     ".\apps\desktop\package.json",
     ".\packages\shared-types\package.json",
-    ".\packages\ui\package.json",
-    ".\apps\backend\pyproject.toml",
-    ".\apps\desktop\vite.config.ts"
+    ".\apps\desktop\vite.config.mts"
 ) | ForEach-Object { Remove-Utf8BomIfPresent -Path $_ }
 
 Write-Host "==> Updating package-lock.json"
@@ -109,6 +105,6 @@ Write-Host "==> Removing UTF-8 BOM from package-lock.json"
 Remove-Utf8BomIfPresent -Path ".\package-lock.json"
 
 Write-Host "==> Version check"
-Select-String -Path .\package.json,.\apps\desktop\package.json,.\packages\shared-types\package.json,.\packages\ui\package.json,.\apps\backend\pyproject.toml -Pattern '"version"|version ='
+Select-String -Path .\package.json,.\apps\desktop\package.json,.\packages\shared-types\package.json -Pattern '"version"'
 
 Write-Host "==> Done"

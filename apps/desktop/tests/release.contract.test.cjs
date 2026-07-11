@@ -17,6 +17,7 @@ test("KubeDeck release metadata stays synchronized", () => {
   const progress = read("NODE_MIGRATION_PROGRESS.md");
   const notes = read("RELEASE_NOTES_2.1.0.md");
   const checklist = read("REGRESSION_CHECKLIST_2.1.0.md");
+  const windowsVersionScript = read("scripts/set-version.ps1");
 
   assert.equal(rootPackage.version, expectedVersion);
   assert.equal(desktopPackage.version, expectedVersion);
@@ -38,4 +39,6 @@ test("KubeDeck release metadata stays synchronized", () => {
   assert.match(checklist, /LLM/);
   assert.equal(contract.nodeRoutes, 49);
   assert.equal(contract.pythonRoutes, 0);
+  assert.match(windowsVersionScript, /vite\.config\.mts/);
+  assert.doesNotMatch(windowsVersionScript, /packages\\ui|apps\\backend|vite\.config\.ts/);
 });

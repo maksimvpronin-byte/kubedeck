@@ -1,6 +1,11 @@
 ﻿## Unreleased - 2.1.x renderer optimization
 
 - Upgraded the desktop runtime from Electron 31.7.7 to Electron 43.1.0 (Chromium 150, Node 24.18).
+- Upgraded electron-builder to 26.15.3 and Vite to 8.1.4; the final npm audit reports zero known vulnerabilities.
+- Added validated local Electron cache reuse to make repeat macOS packaging resilient to download timeouts.
+- Updated the Windows versioning script for `vite.config.mts` and removed stale Python/UI workspace paths; added a release contract against regression.
+- Split related-resource, WebSocket, App coordination and legacy CSS responsibilities into focused modules without changing public contracts.
+- Deferred React 19, TypeScript 7 and other nonessential major dependency upgrades to isolated future work.
 - Raised build and CI prerequisites to Node.js 22.12 and retained sandbox/context-isolation/navigation security invariants.
 - Kept node-pty 1.1.0 after successful Electron 43 ABI/runtime and macOS packaged PTY validation.
 - Updated the Electron recovery helper for the new `@electron-internal/extract-zip` package layout.
