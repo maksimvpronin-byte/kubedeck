@@ -28,6 +28,7 @@ import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
 import { eventInvolvedLocator } from "./utils/eventResourceLocator";
+import { createResourceTableLabels } from "./utils/resourceTableLabels";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -821,25 +822,7 @@ export function App() {
                         onBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition) ? (selectedRows) => bulkActions.requestBulkDelete(resourceTab, selectedRows) : undefined}
                         filterLabel={t("resources.filter")}
                         refreshLabel={t("resources.refresh")}
-                        labels={{
-                          shownOf: t("resources.shownOf"),
-                          page: t("resources.page"),
-                          deleteSelected: t("resources.deleteSelected"),
-                          rows: t("resources.rows"),
-                          of: t("resources.of"),
-                          pageSize: t("resources.pageSize"),
-                          first: t("pagination.first"),
-                          prev: t("pagination.prev"),
-                          next: t("pagination.next"),
-                          last: t("pagination.last"),
-                          emptyTitle: t("resources.emptyTitle"),
-                          emptyText: t("resources.emptyText"),
-                          emptyFilteredTitle: t("resources.emptyFilteredTitle"),
-                          emptyFilteredText: t("resources.emptyFilteredText"),
-                          clearFilter: t("resources.clearFilter"),
-                          columns: t("resources.columns"),
-                          resetColumns: t("resources.resetColumns"),
-                        }}
+                        labels={createResourceTableLabels(t)}
                         stateKey={resourceTab}
                       />
                     ) : null}

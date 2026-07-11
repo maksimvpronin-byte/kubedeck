@@ -116,7 +116,7 @@
 
 Критерий готовности: ответственность файлов стала уже, дублирование уменьшилось, поведение UI и gateway не изменилось, полный `verify` проходит.
 
-Результат: выполняется с 2026-07-11. Разделение `relatedResourcesEngine.ts` завершено. Из `App.tsx` вынесены Event locator, placeholder UI, rename modal, Command Palette и `UnavailableClusterPanel`; состояние и операции остались у `App`, поведение UI не менялось. После каждого подшага полный `npm run verify` проходит: renderer 9/9, gateway 69/69. Остальная координация `App.tsx` и следующие подпункты шага 7 ещё не выполнены.
+Результат: выполняется с 2026-07-11. Разделение `relatedResourcesEngine.ts` завершено. Из `App.tsx` вынесены Event locator, placeholder UI, rename modal, Command Palette, unavailable cluster panel и формирование labels таблицы ресурсов. Состояние и операции остались у `App`, поведение UI не менялось. После каждого подшага полный `npm run verify` проходит: renderer 9/9, gateway 69/69. Остальная координация `App.tsx` и следующие подпункты шага 7 ещё не выполнены.
 
 ## Шаг 8. Финальный аудит и завершение
 
