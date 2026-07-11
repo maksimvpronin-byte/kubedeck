@@ -97,7 +97,13 @@ export npm_config_fetch_retries=5
 export npm_config_fetch_retry_mintimeout=20000
 export npm_config_fetch_retry_maxtimeout=120000
 export npm_config_fetch_timeout=300000
-npm --workspace apps/desktop run dist:mac
+ELECTRON_CACHE_ZIP="$HOME/Library/Caches/electron/electron-v${ELECTRON_VERSION}-darwin-arm64.zip"
+BUILDER_ARGS=()
+if [[ -f "$ELECTRON_CACHE_ZIP" ]] && unzip -tqq "$ELECTRON_CACHE_ZIP" >/dev/null 2>&1; then
+  printf 'Using cached Electron archive: %s\n' "$ELECTRON_CACHE_ZIP"
+  BUILDER_ARGS+=("--config.electronDist=$ELECTRON_CACHE_ZIP")
+fi
+npm --workspace apps/desktop run dist:mac -- "${BUILDER_ARGS[@]}"
 
 step "Validating release artifacts"
 DMG="$RELEASE_DIR/KubeDeck-${ROOT_VERSION}-arm64.dmg"
