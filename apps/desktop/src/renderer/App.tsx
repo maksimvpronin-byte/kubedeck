@@ -1,7 +1,8 @@
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import { CommandPalette, type CommandPaletteItem } from "./components/CommandPalette";
+import type { CommandPaletteItem } from "./components/CommandPalette";
+import { AppCommandPalette } from "./components/AppCommandPalette";
 import { BulkActionModals } from "./components/BulkActionModals";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
@@ -877,22 +878,16 @@ export function App() {
             onCancel={cancelRenameCluster}
             onConfirm={confirmRenameCluster}
           />
-          {commandPaletteOpen ? (
-            <CommandPalette
-              query={globalSearch}
-              items={commandItems}
-              loading={globalSearchLoading}
-              placeholder={t("app.search")}
-              onQueryChange={setGlobalSearch}
-              t={t}
-              onClose={() => setCommandPaletteOpen(false)}
-              onRun={(item) => {
-                setCommandPaletteOpen(false);
-                setGlobalSearch("");
-                void item.run();
-              }}
-            />
-          ) : null}
+          <AppCommandPalette
+            open={commandPaletteOpen}
+            query={globalSearch}
+            items={commandItems}
+            loading={globalSearchLoading}
+            placeholder={t("app.search")}
+            t={t}
+            onQueryChange={setGlobalSearch}
+            onClose={() => setCommandPaletteOpen(false)}
+          />
           <BulkActionModals
             bulkDelete={bulkActions.bulkDelete}
             nodeAction={bulkActions.nodeActionConfirmation}
