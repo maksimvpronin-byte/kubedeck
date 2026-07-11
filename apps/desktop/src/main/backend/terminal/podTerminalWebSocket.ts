@@ -4,7 +4,7 @@ import fs from "node:fs";
 import type { IncomingMessage } from "node:http";
 import path from "node:path";
 import type { Duplex } from "node:stream";
-import { WebSocket, WebSocketServer, type RawData } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 
 import type { AuditStore } from "../audit/auditStore";
 import { writePolicyViolation } from "../auth";
@@ -14,6 +14,7 @@ import { buildKubectlCommand, type BuiltKubectlCommand } from "../kubectl/comman
 import { KubectlError, sanitizeKubectlText, truncateKubectlText } from "../kubectl/errors";
 import type { KubectlRunner, SpawnProcess } from "../kubectl/runner";
 import { RequestValidationError, validateIdentifier } from "../validation";
+import { clampInteger, rawDataByteLength, rawDataText, safeSend } from "../webSocketMessages";
 
 const MAX_CLIENT_MESSAGE_BYTES = 256 * 1024;
 const AUTH_TIMEOUT_SECONDS = 15;
@@ -26,14 +27,7 @@ const MIN_COLS = 20;
 const MAX_COLS = 500;
 const STOP_TIMEOUT_MS = 1200;
 const ERROR_TEXT_LIMIT = 12_000;
-const EXTRA_PTY_PATH_DIRS = [
-  "/opt/homebrew/bin",
-  "/usr/local/bin",
-  "/usr/bin",
-  "/bin",
-  "/usr/sbin",
-  "/sbin",
-];
+const EXTRA_PTY_PATH_DIRS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 
 type TerminalShell = "auto" | "sh" | "bash" | "ash";
 type TerminalTransport = "pty" | "pipes";
@@ -74,11 +68,7 @@ interface PtySpawnOptions {
   env: Record<string, string>;
 }
 
-export type TerminalPtyFactory = (
-  file: string,
-  args: string[],
-  options: PtySpawnOptions,
-) => PtyProcessLike;
+export type TerminalPtyFactory = (file: string, args: string[], options: PtySpawnOptions) => PtyProcessLike;
 
 interface TerminalSession {
   id: string;
@@ -105,49 +95,28 @@ function decodePart(value: string, field: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} is not valid URL encoding`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
   }
 }
 
 function normalizeShell(value: string): TerminalShell {
   const shell = (value || "auto").trim().toLowerCase();
   if (!["auto", "sh", "bash", "ash"].includes(shell)) {
-    throw new RequestValidationError(
-      400,
-      "INVALID_SHELL",
-      "Shell must be auto, sh, bash, or ash",
-    );
+    throw new RequestValidationError(400, "INVALID_SHELL", "Shell must be auto, sh, bash, or ash");
   }
   return shell as TerminalShell;
 }
 
-export function matchPodTerminalWebSocket(
-  request: IncomingMessage,
-): PodTerminalTarget | null {
+export function matchPodTerminalWebSocket(request: IncomingMessage): PodTerminalTarget | null {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
-  const match = url.pathname.match(
-    /^\/clusters\/([^/]+)\/pods\/([^/]+)\/([^/]+)\/terminal$/,
-  );
+  const match = url.pathname.match(/^\/clusters\/([^/]+)\/pods\/([^/]+)\/([^/]+)\/terminal$/);
   if (!match) return null;
   const containerText = url.searchParams.get("container")?.trim() ?? "";
   return {
-    clusterId: validateIdentifier(
-      decodePart(match[1], "cluster_id"),
-      "cluster_id",
-      128,
-    ),
-    namespace: validateIdentifier(
-      decodePart(match[2], "namespace"),
-      "namespace",
-    ),
+    clusterId: validateIdentifier(decodePart(match[1], "cluster_id"), "cluster_id", 128),
+    namespace: validateIdentifier(decodePart(match[2], "namespace"), "namespace"),
     name: validateIdentifier(decodePart(match[3], "name"), "name"),
-    container: containerText
-      ? validateIdentifier(containerText, "container", 253)
-      : "",
+    container: containerText ? validateIdentifier(containerText, "container", 253) : "",
     shell: normalizeShell(url.searchParams.get("shell") ?? "auto"),
     cols: clampInteger(url.searchParams.get("cols") ?? undefined, DEFAULT_COLS, MIN_COLS, MAX_COLS),
     rows: clampInteger(url.searchParams.get("rows") ?? undefined, DEFAULT_ROWS, MIN_ROWS, MAX_ROWS),
@@ -172,44 +141,13 @@ export function terminalShellCommand(shell: TerminalShell): string {
   );
 }
 
-function terminalCommand(
-  configStore: ConfigStore,
-  target: PodTerminalTarget,
-  useTty: boolean,
-) {
+function terminalCommand(configStore: ConfigStore, target: PodTerminalTarget, useTty: boolean) {
   const args = ["exec", "-i"];
   if (useTty) args.push("-t");
   args.push(target.name, "-n", target.namespace);
   if (target.container) args.push("-c", target.container);
   args.push("--", "sh", "-c", terminalShellCommand(target.shell));
   return clusterCommand(configStore, target.clusterId, args, 0, 0);
-}
-
-function rawDataByteLength(data: RawData): number {
-  if (typeof data === "string") return Buffer.byteLength(data, "utf8");
-  if (Buffer.isBuffer(data)) return data.length;
-  if (Array.isArray(data)) {
-    return data.reduce((total, item) => total + item.length, 0);
-  }
-  return data.byteLength;
-}
-
-function rawDataText(data: RawData): string {
-  if (typeof data === "string") return data;
-  if (Buffer.isBuffer(data)) return data.toString("utf8");
-  if (Array.isArray(data)) return Buffer.concat(data).toString("utf8");
-  return Buffer.from(data).toString("utf8");
-}
-
-function clampInteger(
-  value: unknown,
-  fallback: number,
-  minimum: number,
-  maximum: number,
-): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(maximum, Math.max(minimum, Math.trunc(parsed)));
 }
 
 function processEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
@@ -270,7 +208,7 @@ function buildPtyCommand(built: BuiltKubectlCommand): PtyCommand {
 
   return {
     executable: shellPath,
-    args: ["-lc", "exec \"$@\"", "kubedeck-pty", built.executable, ...built.args],
+    args: ["-lc", 'exec "$@"', "kubedeck-pty", built.executable, ...built.args],
     environment,
   };
 }
@@ -284,22 +222,9 @@ function loadNodePty(log: (message: string) => void): TerminalPtyFactory | null 
     if (typeof module.spawn === "function") return module.spawn.bind(module);
     log("node terminal pty unavailable: node-pty does not export spawn");
   } catch (error) {
-    log(
-      `node terminal pty unavailable: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    log(`node terminal pty unavailable: ${error instanceof Error ? error.message : String(error)}`);
   }
   return null;
-}
-
-function safeSend(socket: WebSocket, payload: unknown): void {
-  if (socket.readyState !== WebSocket.OPEN) return;
-  try {
-    socket.send(JSON.stringify(payload));
-  } catch {
-    // Closing a terminal socket is best-effort and must not crash Gateway.
-  }
 }
 
 function terminalErrorText(error: unknown): string {
@@ -311,34 +236,17 @@ function terminalErrorText(error: unknown): string {
   return String(error);
 }
 
-async function verifyTerminalAuthorization(
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-  target: PodTerminalTarget,
-): Promise<string> {
-  const command = clusterCommand(
-    configStore,
-    target.clusterId,
-    ["auth", "can-i", "create", "pods/exec", "-n", target.namespace],
-    AUTH_TIMEOUT_SECONDS,
-    AUTH_MAX_OUTPUT_BYTES,
-  );
+async function verifyTerminalAuthorization(configStore: ConfigStore, runner: KubectlRunner, target: PodTerminalTarget): Promise<string> {
+  const command = clusterCommand(configStore, target.clusterId, ["auth", "can-i", "create", "pods/exec", "-n", target.namespace], AUTH_TIMEOUT_SECONDS, AUTH_MAX_OUTPUT_BYTES);
   const result = await runner.run(command);
   const output = result.stdout.trim().toLowerCase();
   if (!new Set(["yes", "y"]).has(output)) {
-    throw new RequestValidationError(
-      403,
-      "KUBECTL_AUTH_DENIED",
-      `kubectl auth can-i create pods/exec returned ${output || "no"}`,
-    );
+    throw new RequestValidationError(403, "KUBECTL_AUTH_DENIED", `kubectl auth can-i create pods/exec returned ${output || "no"}`);
   }
   return result.commandPreview;
 }
 
-function waitForChildClose(
-  child: ChildProcessWithoutNullStreams,
-  timeoutMs: number,
-): Promise<void> {
+function waitForChildClose(child: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<void> {
   if (child.exitCode !== null) return Promise.resolve();
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, timeoutMs);
@@ -369,28 +277,17 @@ export class PodTerminalWebSocketServer {
     options: PodTerminalWebSocketOptions = {},
   ) {
     this.spawnProcess = options.spawnProcess ?? (spawn as SpawnProcess);
-    this.ptyFactory =
-      options.ptyFactory === undefined
-        ? loadNodePty(log)
-        : options.ptyFactory;
+    this.ptyFactory = options.ptyFactory === undefined ? loadNodePty(log) : options.ptyFactory;
     this.stopTimeoutMs = options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
   }
 
-  handleUpgrade(
-    request: IncomingMessage,
-    socket: Duplex,
-    head: Buffer,
-  ): boolean {
+  handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): boolean {
     let target: PodTerminalTarget | null;
     try {
       target = matchPodTerminalWebSocket(request);
     } catch (error) {
       if (this.isTerminalPath(request)) {
-        writePolicyViolation(
-          request,
-          socket,
-          error instanceof Error ? error.message : "Invalid terminal route",
-        );
+        writePolicyViolation(request, socket, error instanceof Error ? error.message : "Invalid terminal route");
         return true;
       }
       return false;
@@ -411,12 +308,8 @@ export class PodTerminalWebSocketServer {
   }
 
   async stopCluster(clusterId: string): Promise<number> {
-    const sessions = [...this.sessions.values()].filter(
-      (session) => session.target.clusterId === clusterId,
-    );
-    await Promise.all(
-      sessions.map((session) => session.stop("Cluster was removed")),
-    );
+    const sessions = [...this.sessions.values()].filter((session) => session.target.clusterId === clusterId);
+    await Promise.all(sessions.map((session) => session.stop("Cluster was removed")));
     return sessions.length;
   }
 
@@ -424,9 +317,7 @@ export class PodTerminalWebSocketServer {
     if (this.closed) return;
     this.closed = true;
     const sessions = [...this.sessions.values()];
-    await Promise.all(
-      sessions.map((session) => session.stop("KubeDeck is shutting down")),
-    );
+    await Promise.all(sessions.map((session) => session.stop("KubeDeck is shutting down")));
     this.sessions.clear();
     for (const socket of this.server.clients) {
       try {
@@ -451,10 +342,7 @@ export class PodTerminalWebSocketServer {
     } catch (error) {
       safeSend(socket, {
         type: "error",
-        data:
-          error instanceof RequestValidationError
-            ? error.message
-            : terminalErrorText(error),
+        data: error instanceof RequestValidationError ? error.message : terminalErrorText(error),
       });
       socket.close(1008, "Terminal authorization failed");
       return;
@@ -477,15 +365,10 @@ export class PodTerminalWebSocketServer {
     try {
       session = this.startPtySession(id, socket, target);
     } catch (error) {
-      this.log(
-        `node terminal pty start failed: ${terminalErrorText(error)}`,
-      );
+      this.log(`node terminal pty start failed: ${terminalErrorText(error)}`);
       safeSend(socket, {
         type: "error",
-        data: truncateKubectlText(
-          sanitizeKubectlText(terminalErrorText(error)),
-          ERROR_TEXT_LIMIT,
-        ),
+        data: truncateKubectlText(sanitizeKubectlText(terminalErrorText(error)), ERROR_TEXT_LIMIT),
       });
       socket.close(1011, "Terminal PTY failed");
       return;
@@ -506,9 +389,7 @@ export class PodTerminalWebSocketServer {
         transport: session.transport,
       },
     });
-    this.log(
-      `node terminal opened cluster=${target.clusterId} namespace=${target.namespace} pod=${target.name} transport=${session.transport}`,
-    );
+    this.log(`node terminal opened cluster=${target.clusterId} namespace=${target.namespace} pod=${target.name} transport=${session.transport}`);
     safeSend(socket, {
       type: "status",
       data: "connected",
@@ -517,25 +398,17 @@ export class PodTerminalWebSocketServer {
     });
   }
 
-  private startPtySession(
-    id: string,
-    socket: WebSocket,
-    target: PodTerminalTarget,
-  ): TerminalSession {
+  private startPtySession(id: string, socket: WebSocket, target: PodTerminalTarget): TerminalSession {
     const command = terminalCommand(this.configStore, target, true);
     const built = buildKubectlCommand(command);
     const ptyCommand = buildPtyCommand(built);
-    const pty = (this.ptyFactory as TerminalPtyFactory)(
-      ptyCommand.executable,
-      ptyCommand.args,
-      {
-        name: "xterm-256color",
-        cols: target.cols,
-        rows: target.rows,
-        cwd: process.cwd(),
-        env: processEnvironment(ptyCommand.environment),
-      },
-    );
+    const pty = (this.ptyFactory as TerminalPtyFactory)(ptyCommand.executable, ptyCommand.args, {
+      name: "xterm-256color",
+      cols: target.cols,
+      rows: target.rows,
+      cwd: process.cwd(),
+      env: processEnvironment(ptyCommand.environment),
+    });
     let finished = false;
     let stopping: Promise<void> | null = null;
     const dataSubscription = pty.onData((data) => {
@@ -591,11 +464,7 @@ export class PodTerminalWebSocketServer {
     };
   }
 
-  private startPipeSession(
-    id: string,
-    socket: WebSocket,
-    target: PodTerminalTarget,
-  ): TerminalSession {
+  private startPipeSession(id: string, socket: WebSocket, target: PodTerminalTarget): TerminalSession {
     const command = terminalCommand(this.configStore, target, false);
     const built = buildKubectlCommand(command);
     const child = this.spawnPipeProcess(built);
@@ -645,13 +514,7 @@ export class PodTerminalWebSocketServer {
     child.on("error", (error: NodeJS.ErrnoException) => {
       safeSend(socket, {
         type: "error",
-        data:
-          error.code === "ENOENT"
-            ? `kubectl not found: ${command.kubectlPath}`
-            : truncateKubectlText(
-                sanitizeKubectlText(error.message),
-                ERROR_TEXT_LIMIT,
-              ),
+        data: error.code === "ENOENT" ? `kubectl not found: ${command.kubectlPath}` : truncateKubectlText(sanitizeKubectlText(error.message), ERROR_TEXT_LIMIT),
       });
       void finish("Terminal process error", false);
     });
@@ -662,10 +525,7 @@ export class PodTerminalWebSocketServer {
       if (error.code !== "EPIPE") {
         safeSend(socket, {
           type: "error",
-          data: truncateKubectlText(
-            sanitizeKubectlText(error.message),
-            ERROR_TEXT_LIMIT,
-          ),
+          data: truncateKubectlText(sanitizeKubectlText(error.message), ERROR_TEXT_LIMIT),
         });
       }
     });
@@ -701,9 +561,7 @@ export class PodTerminalWebSocketServer {
     };
   }
 
-  private spawnPipeProcess(
-    built: BuiltKubectlCommand,
-  ): ChildProcessWithoutNullStreams {
+  private spawnPipeProcess(built: BuiltKubectlCommand): ChildProcessWithoutNullStreams {
     return this.spawnProcess(built.executable, built.args, {
       shell: false,
       windowsHide: true,
@@ -737,10 +595,7 @@ export class PodTerminalWebSocketServer {
       return;
     }
     if (type === "resize") {
-      handlers.resize(
-        clampInteger(payload.cols, DEFAULT_COLS, MIN_COLS, MAX_COLS),
-        clampInteger(payload.rows, DEFAULT_ROWS, MIN_ROWS, MAX_ROWS),
-      );
+      handlers.resize(clampInteger(payload.cols, DEFAULT_COLS, MIN_COLS, MAX_COLS), clampInteger(payload.rows, DEFAULT_ROWS, MIN_ROWS, MAX_ROWS));
       return;
     }
     if (type === "close") {
@@ -750,14 +605,7 @@ export class PodTerminalWebSocketServer {
     safeSend(socket, { type: "error", data: "Unsupported terminal message" });
   }
 
-  private completeSession(
-    id: string,
-    target: PodTerminalTarget,
-    built: BuiltKubectlCommand,
-    transport: TerminalTransport,
-    reason: string,
-    socket: WebSocket,
-  ): void {
+  private completeSession(id: string, target: PodTerminalTarget, built: BuiltKubectlCommand, transport: TerminalTransport, reason: string, socket: WebSocket): void {
     const existed = this.sessions.delete(id);
     if (!existed) return;
     this.auditStore.append({
@@ -783,16 +631,12 @@ export class PodTerminalWebSocketServer {
         socket.terminate();
       }
     }
-    this.log(
-      `node terminal closed cluster=${target.clusterId} namespace=${target.namespace} pod=${target.name} transport=${transport}`,
-    );
+    this.log(`node terminal closed cluster=${target.clusterId} namespace=${target.namespace} pod=${target.name} transport=${transport}`);
   }
 
   private isTerminalPath(request: IncomingMessage): boolean {
     try {
-      return new URL(request.url ?? "/", "http://127.0.0.1").pathname.endsWith(
-        "/terminal",
-      );
+      return new URL(request.url ?? "/", "http://127.0.0.1").pathname.endsWith("/terminal");
     } catch {
       return false;
     }
