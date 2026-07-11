@@ -8,7 +8,7 @@ import { BulkActionModals } from "./components/BulkActionModals";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
 import { LazyPanelBoundary } from "./components/LazyPanelBoundary";
-import { ResourceTable } from "./components/ResourceTable";
+import { AppResourceTable } from "./components/AppResourceTable";
 import { PlaceholderSection } from "./components/PlaceholderSection";
 import { RenameClusterModal } from "./components/RenameClusterModal";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
@@ -27,8 +27,6 @@ import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
-import { createResourceTableLabels } from "./utils/resourceTableLabels";
-import { createNodeBulkActions, openResourceTableRow } from "./utils/resourceTableActions";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -779,26 +777,26 @@ export function App() {
                       }}
                     />
                     {activeCluster ? (
-                      <ResourceTable
+                      <AppResourceTable
                         title={sectionTitle(section, resourceTab, t)}
                         rows={activeRows}
                         columns={columns}
                         loading={loading}
-                        onRefresh={() => loadResources()}
-                        {...createNodeBulkActions(resourceTab, bulkActions.requestNodeAction)}
-                        onOpen={(row) =>
-                          openResourceTableRow(resourceTab, row, openResourceLocator, (selectedRow, resource) => {
-                            setSelectedPod(selectedRow);
-                            setSelectedResource(resource);
-                          })
-                        }
+                        resource={resourceTab}
+                        onRefresh={() => {
+                          void loadResources();
+                        }}
+                        onNodeAction={bulkActions.requestNodeAction}
+                        onOpenLocator={openResourceLocator}
+                        onSelect={(selectedRow, resource) => {
+                          setSelectedPod(selectedRow);
+                          setSelectedResource(resource);
+                        }}
                         selectedRow={selectedResource === resourceTab ? selectedPod : null}
                         onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
-                        onBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition) ? (selectedRows) => bulkActions.requestBulkDelete(resourceTab, selectedRows) : undefined}
-                        filterLabel={t("resources.filter")}
-                        refreshLabel={t("resources.refresh")}
-                        labels={createResourceTableLabels(t)}
-                        stateKey={resourceTab}
+                        canBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition)}
+                        onBulkDelete={bulkActions.requestBulkDelete}
+                        t={t}
                       />
                     ) : null}
                   </>
