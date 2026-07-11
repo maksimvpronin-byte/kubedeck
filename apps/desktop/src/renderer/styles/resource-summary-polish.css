@@ -1,0 +1,348 @@
+/* KubeDeck 1.0.5 pod restart diagnostics hotfix */
+.summary-card.restart-diagnostics-card {
+  grid-column: 1 / -1;
+  display: block;
+  border-color: rgba(56, 189, 248, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.restart-diagnostics-card strong {
+  white-space: normal;
+}
+
+.restart-diagnostics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.restart-diagnostics-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.restart-count-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--text, #e5e7eb);
+  background: rgba(15, 23, 42, 0.82);
+  font-size: 12px;
+}
+
+.restart-count-badge.is-warning {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.24);
+}
+
+.restart-diagnostics-list {
+  display: grid;
+  gap: 10px;
+}
+
+.restart-diagnostic {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.36);
+}
+
+.restart-diagnostic.is-warning {
+  border-color: rgba(248, 113, 113, 0.48);
+  background: rgba(127, 29, 29, 0.12);
+}
+
+.restart-diagnostic-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.restart-diagnostic-title span {
+  color: #fde68a;
+  font-size: 12px;
+  text-align: right;
+}
+
+.restart-diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.restart-diagnostic-field {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.restart-diagnostic-field span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+}
+
+.restart-diagnostic-field strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text, #e5e7eb);
+  font-size: 13px;
+}
+
+.restart-diagnostic-message,
+.restart-diagnostics-empty,
+.restart-diagnostics-hint {
+  margin: 10px 0 0;
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.restart-diagnostic-message {
+  color: #fecaca;
+}
+/* KubeDeck 1.0.5 summary layout polish hotfix */
+.resource-summary-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+
+.resource-summary-card-grid,
+.resource-summary-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.resource-summary-details-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.resource-summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.resource-summary-section-title {
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.resource-summary-tile {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: rgba(15, 23, 42, 0.48);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.resource-summary-tile.is-compact {
+  padding: 9px 10px;
+}
+
+.resource-summary-tile.is-success {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(6, 78, 59, 0.14);
+}
+
+.resource-summary-tile.is-warning {
+  border-color: rgba(251, 191, 36, 0.38);
+  background: rgba(120, 53, 15, 0.16);
+}
+
+.resource-summary-tile.is-danger {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.14);
+}
+
+.resource-summary-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.resource-summary-value {
+  display: block;
+  max-width: 100%;
+  color: var(--text, #e5e7eb);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.pod-restart-card {
+  min-width: 0;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.64);
+}
+
+.pod-restart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pod-restart-header strong {
+  color: var(--text, #e5e7eb);
+  font-size: 14px;
+}
+
+.pod-restart-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pod-restart-count {
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--text, #e5e7eb);
+  background: rgba(15, 23, 42, 0.82);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pod-restart-count.is-warning {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.24);
+}
+
+.pod-restart-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pod-restart-item {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 9px;
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.34);
+}
+
+.pod-restart-item.is-warning {
+  border-color: rgba(248, 113, 113, 0.46);
+  background: rgba(127, 29, 29, 0.12);
+}
+
+.pod-restart-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.pod-restart-title strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text, #e5e7eb);
+}
+
+.pod-restart-title span {
+  flex: 0 0 auto;
+  max-width: 45%;
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.pod-restart-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 8px;
+}
+
+.pod-restart-field {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.pod-restart-field span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+}
+
+.pod-restart-field strong {
+  display: block;
+  color: var(--text, #e5e7eb);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.pod-restart-message,
+.pod-restart-empty,
+.pod-restart-hint {
+  margin: 10px 0 0;
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.pod-restart-message {
+  color: #fecaca;
+}
+
+@media (max-width: 1120px) {
+  .resource-summary-card-grid,
+  .resource-summary-details-grid,
+  .pod-restart-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .pod-restart-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pod-restart-title span {
+    max-width: 100%;
+    text-align: left;
+  }
+}
