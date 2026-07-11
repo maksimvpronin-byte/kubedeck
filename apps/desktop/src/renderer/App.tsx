@@ -27,8 +27,8 @@ import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
-import { eventInvolvedLocator } from "./utils/eventResourceLocator";
 import { createResourceTableLabels } from "./utils/resourceTableLabels";
+import { createNodeBulkActions, openResourceTableRow } from "./utils/resourceTableActions";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -785,38 +785,13 @@ export function App() {
                         columns={columns}
                         loading={loading}
                         onRefresh={() => loadResources()}
-                        onBulkCordon={
-                          resourceTab === "nodes"
-                            ? (selectedRows) => {
-                                void bulkActions.requestNodeAction("cordon", selectedRows);
-                              }
-                            : undefined
+                        {...createNodeBulkActions(resourceTab, bulkActions.requestNodeAction)}
+                        onOpen={(row) =>
+                          openResourceTableRow(resourceTab, row, openResourceLocator, (selectedRow, resource) => {
+                            setSelectedPod(selectedRow);
+                            setSelectedResource(resource);
+                          })
                         }
-                        onBulkUncordon={
-                          resourceTab === "nodes"
-                            ? (selectedRows) => {
-                                void bulkActions.requestNodeAction("uncordon", selectedRows);
-                              }
-                            : undefined
-                        }
-                        onBulkDrain={
-                          resourceTab === "nodes"
-                            ? (selectedRows) => {
-                                void bulkActions.requestNodeAction("drain", selectedRows);
-                              }
-                            : undefined
-                        }
-                        onOpen={(row) => {
-                          if (resourceTab === "events") {
-                            const involved = eventInvolvedLocator(row);
-                            if (involved) {
-                              void openResourceLocator(involved);
-                              return;
-                            }
-                          }
-                          setSelectedPod(row);
-                          setSelectedResource(resourceTab);
-                        }}
                         selectedRow={selectedResource === resourceTab ? selectedPod : null}
                         onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
                         onBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition) ? (selectedRows) => bulkActions.requestBulkDelete(resourceTab, selectedRows) : undefined}
