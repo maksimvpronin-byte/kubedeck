@@ -116,7 +116,7 @@
 
 Критерий готовности: ответственность файлов стала уже, дублирование уменьшилось, поведение UI и gateway не изменилось, полный `verify` проходит.
 
-Результат: выполняется с 2026-07-11. Из `relatedResourcesEngine.ts` вынесены низкоуровневые преобразования и типы загрузчика в `relatedResourceValues.ts`, модель ссылок — в `relatedResourceLinks.ts`, таблицы resource/kind — в `relatedResourceKinds.ts`, построение связей Endpoints/EndpointSlice — в `relatedEndpointLinks.ts`. Прежние публичные exports сохранены. Проверки после каждого подшага: production build и related-resources contract 6/6 — успешно. Основная оркестрация, Pod и RBAC builders разделяются следующими подшагами.
+Результат: выполняется с 2026-07-11. Из `relatedResourcesEngine.ts` вынесены преобразования и типы загрузчика в `relatedResourceValues.ts`, модель ссылок — в `relatedResourceLinks.ts`, таблицы resource/kind — в `relatedResourceKinds.ts`, Endpoints builders — в `relatedEndpointLinks.ts`, ServiceAccount/RBAC builders — в `relatedRbacLinks.ts`. Прежние публичные exports сохранены. Проверки после RBAC-подшага: lint, renderer 9/9, typecheck, production build, gateway 69/69 и focused related-resources 6/6 — успешно. Для закрытия пункта остаются Pod builders.
 
 ## Шаг 8. Финальный аудит и завершение
 
