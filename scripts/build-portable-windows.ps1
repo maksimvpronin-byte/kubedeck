@@ -87,12 +87,15 @@ function Assert-VersionConsistency {
 
 function Test-NpmDependenciesReady {
     param([Parameter(Mandatory = $true)][string]$Root)
-    foreach ($RelativeBin in @(
-        "node_modules\.bin\tsc.cmd",
-        "node_modules\.bin\vite.cmd",
-        "node_modules\.bin\electron-builder.cmd"
-    )) {
-        if (-not (Test-Path -LiteralPath (Join-Path $Root $RelativeBin))) {
+    $RequiredBins = @(
+        @("node_modules\.bin\biome.cmd"),
+        @("node_modules\.bin\tsc.cmd", "apps\desktop\node_modules\.bin\tsc.cmd"),
+        @("node_modules\.bin\vite.cmd", "apps\desktop\node_modules\.bin\vite.cmd"),
+        @("node_modules\.bin\electron-builder.cmd", "apps\desktop\node_modules\.bin\electron-builder.cmd")
+    )
+    foreach ($Candidates in $RequiredBins) {
+        $Found = $Candidates | Where-Object { Test-Path -LiteralPath (Join-Path $Root $_) }
+        if (-not $Found) {
             return $false
         }
     }
@@ -118,25 +121,25 @@ function Ensure-NpmDependencies {
     }
 }
 
-function Ensure-RollupNativeModule {
+function Ensure-RolldownNativeModule {
     param([Parameter(Mandatory = $true)][string]$Root)
     Push-Location $Root
     try {
-        & node -e "require('rollup')" 2>$null
+        & node -e "require('rolldown')" 2>$null
         if ($LASTEXITCODE -eq 0) {
-            Write-Ok "Rollup native module OK."
+            Write-Ok "Rolldown native module OK."
             return
         }
-        $RollupVersion = (& node -p "require('./node_modules/rollup/package.json').version").Trim()
-        if (-not $RollupVersion) {
-            throw "Unable to determine installed Rollup version."
+        $RolldownVersion = (& node -p "require('./node_modules/rolldown/package.json').version").Trim()
+        if (-not $RolldownVersion) {
+            throw "Unable to determine installed Rolldown version."
         }
-        Write-Info "Repairing missing Rollup Windows optional dependency for version $RollupVersion."
+        Write-Info "Repairing missing Rolldown Windows optional dependency for version $RolldownVersion."
         Invoke-Native -FilePath "npm.cmd" -Arguments @(
             "install",
             "--no-save",
             "--package-lock=false",
-            "@rollup/rollup-win32-x64-msvc@$RollupVersion"
+            "@rolldown/binding-win32-x64-msvc@$RolldownVersion"
         )
     }
     finally {
@@ -257,7 +260,7 @@ try {
         throw "Missing repair script: $Repair7zipScript"
     }
     & $Repair7zipScript
-    Ensure-RollupNativeModule -Root $Root
+    Ensure-RolldownNativeModule -Root $Root
     Ensure-NodePtyElectronModule -Root $Root
 
     Write-Step "Cleaning packaging output"
