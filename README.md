@@ -1,69 +1,64 @@
-# KubeDeck 2.0
+# KubeDeck 2.2.0
 
-KubeDeck — desktop IDE для работы с Kubernetes на **Windows** и **macOS**.
+[English](./README.md) | [Русский](./README.ru.md)
 
-Текущая версия: **`2.2.0`**.
+KubeDeck is a desktop Kubernetes IDE for Windows and macOS. It combines resource browsing, diagnostics, YAML workflows, logs, terminals, SSH, port forwarding, and optional local LLM analysis in one Electron application.
 
-Начиная с ветки 2.0 приложение использует **Node-only runtime внутри Electron**. Отдельный Python/FastAPI backend больше не запускается и не входит в сборку.
+KubeDeck uses a **Node-only runtime inside Electron**. It does not start or package a Python/FastAPI backend, and it does not bundle `kubectl`.
 
-## Поддерживаемые платформы
+## Highlights
 
-| Платформа | Архитектура | Формат сборки | Статус |
+- multiple kubeconfig files and clusters;
+- namespace filtering and global search;
+- built-in Kubernetes resources and CRDs;
+- YAML view, edit, dry-run, and apply;
+- Describe, Events, Related Resources, and Problems views;
+- Pod and Deployment logs;
+- Pod Terminal, Node SSH, and Port Forward;
+- delete, restart, redeploy, scale, cordon, uncordon, and drain actions;
+- protected Kubernetes Secret viewing;
+- metrics and resource snapshot caching;
+- optional OpenAI-compatible local LLM analysis;
+- English and Russian UI;
+- dark, light, and system themes.
+
+## Supported platforms
+
+| Platform | Architecture | Package | Status |
 |---|---:|---|---|
-| Windows 10/11 | x64 | Portable EXE | Поддерживается |
-| macOS | Apple Silicon (`arm64`) | DMG и ZIP | Поддерживается, сборка неподписанная |
-| macOS Intel | x64 | — | Пока не поддерживается |
-| Linux | — | — | Пока не поддерживается |
+| Windows 10/11 | x64 | Portable EXE | Supported |
+| macOS | Apple Silicon (`arm64`) | DMG and ZIP | Supported, unsigned |
+| macOS Intel | x64 | — | Not supported yet |
+| Linux | — | — | Not supported yet |
 
-## Архитектура
+## Architecture
 
-| Слой | Технологии | Назначение |
+| Layer | Technology | Responsibility |
 |---|---|---|
-| Desktop UI | Electron, React, TypeScript | Окно приложения, таблицы ресурсов, drawer, YAML, логи и терминалы |
-| Runtime | Node.js внутри Electron main process | REST/WebSocket API, kubectl runtime, cache, watch, search, relations, diagnostics и LLM |
-| Kubernetes CLI | Системный `kubectl` | Доступ к Kubernetes API |
-| Native terminal | `node-pty` | Pod Terminal и интерактивные терминальные сессии |
-| SSH | `ssh2` | Подключение к Kubernetes nodes |
+| Desktop UI | Electron, React, TypeScript | Resource tables, drawers, YAML, logs, and terminals |
+| Runtime | Node.js in the Electron main process | Local REST/WebSocket gateway, kubectl execution, cache, watch, search, diagnostics, and LLM integration |
+| Kubernetes CLI | System `kubectl` | Kubernetes API access |
+| Native terminal | `node-pty` | Pod Terminal and interactive sessions |
+| SSH | `ssh2` | Kubernetes node connections |
 
-Node Gateway слушает случайный локальный порт на `127.0.0.1`. Каждый HTTP/WebSocket-запрос требует session token.
+The local Gateway listens on a random `127.0.0.1` port. Every HTTP and WebSocket request requires a session token.
 
-## Основные возможности
-
-- работа с несколькими kubeconfig и кластерами;
-- namespace selector и Global Search;
-- стандартные Kubernetes-ресурсы и CRD;
-- просмотр, редактирование, dry-run и apply YAML;
-- Describe, Events, Related Resources и Problems;
-- Pod и Deployment logs;
-- Pod Terminal, Node SSH и Port Forward;
-- delete, restart, redeploy, scale, cordon, uncordon и drain;
-- просмотр Kubernetes Secrets с защитой от случайной утечки;
-- metrics и Resource Snapshot Cache;
-- локальный анализ через OpenAI-compatible LLM;
-- русский и английский интерфейс;
-- dark, light и system theme.
-
-## Требования
-
-### Общие
+## Requirements
 
 - Git;
-- Node.js 22.12 или новее;
+- Node.js 22.12 or newer;
 - npm;
-- системный `kubectl` либо полный путь к нему в Settings;
-- доступ к Kubernetes API через kubeconfig.
+- a system `kubectl`, either in `PATH` or configured by absolute path in KubeDeck Settings;
+- access to a Kubernetes cluster through kubeconfig.
 
-Python, FastAPI, PyInstaller и встроенный `kubectl` не требуются.
+Python, FastAPI, PyInstaller, and a bundled `kubectl` are not required.
 
 ### Windows
 
 - Windows 10/11 x64;
-- PowerShell 5.1 или новее;
-- Node.js 22.12+;
-- npm;
-- `kubectl` в `PATH` или путь к нему в настройках KubeDeck.
+- PowerShell 5.1 or newer.
 
-Установка `kubectl`:
+Install `kubectl` if necessary:
 
 ```powershell
 winget install -e --id Kubernetes.kubectl
@@ -72,65 +67,105 @@ kubectl version --client
 
 ### macOS
 
-- Mac с Apple Silicon (`arm64`);
-- macOS с установленными Xcode Command Line Tools;
-- Node.js 22.12+;
-- npm;
+- Apple Silicon Mac;
+- Xcode Command Line Tools;
 - Homebrew;
-- `kubectl`;
-- `p7zip`.
-
-Установка зависимостей:
+- `kubectl` and `p7zip`.
 
 ```bash
 xcode-select --install
 brew install node@22 kubectl p7zip
 ```
 
-Для Homebrew на Apple Silicon типовой путь к `kubectl`:
+## Getting started
 
-```text
-/opt/homebrew/bin/kubectl
-```
-
-## Установка npm-зависимостей
-
-Из корня проекта:
+Clone the repository and install the locked dependencies from the project root.
 
 ### Windows
 
 ```powershell
+git clone https://github.com/maksimvpronin-byte/kubedeck.git
+cd kubedeck
 npm.cmd ci --no-audit --no-fund
+npm.cmd run dev
 ```
+
+Use `npm.cmd` in PowerShell to avoid the `npm.ps1` execution-policy restriction found on some Windows systems.
 
 ### macOS
 
 ```bash
+git clone https://github.com/maksimvpronin-byte/kubedeck.git
+cd kubedeck
 npm ci --no-audit --no-fund
+npm run dev
 ```
 
-Повторная установка не требуется, если `node_modules` уже исправен и соответствует текущей платформе.
+Do not reuse `node_modules` across operating systems: KubeDeck includes the native `node-pty` dependency.
 
-`node_modules`, созданный на Windows, нельзя переносить на macOS и наоборот: проект содержит нативную зависимость `node-pty`.
+## Verification
 
-## Устранение проблем npm
+Run the complete source gate:
 
-### Ошибка `ECONNRESET` при `npm ci`
+```bash
+npm run verify
+```
 
-Если установка зависимостей завершается ошибкой:
+Individual commands:
+
+| Task | Command |
+|---|---|
+| Lint | `npm run lint` |
+| Format check | `npm run format:check` |
+| TypeScript check | `npm run typecheck` |
+| Renderer tests | `npm run test:renderer` |
+| Gateway tests | `npm run test:gateway` |
+| Production build | `npm run build` |
+| Node-only release check | `npm run verify:node-only` |
+
+## Windows portable build
+
+```powershell
+npm.cmd run package:win
+```
+
+If dependencies have not been installed yet:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\build-portable-windows.ps1 `
+  -InstallNpmDeps
+```
+
+The builder verifies the Node-only release contract, repairs required native helpers, runs the complete source gate, builds the portable package, and validates the release payload.
+
+Output:
 
 ```text
-npm error code ECONNRESET
-npm error network read ECONNRESET
+apps\desktop\release\KubeDeck-Portable-2.2.0-x64.exe
 ```
 
-соединение с npm registry было прервано. Предупреждения `deprecated` сами по себе не останавливают установку или сборку.
+## macOS Apple Silicon build
 
-На Windows повторите установку с проверкой кеша, увеличенными таймаутами и дополнительными попытками:
+```bash
+npm run package:mac
+```
+
+Outputs:
+
+```text
+apps/desktop/release/KubeDeck-2.2.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.2.0-arm64.zip
+```
+
+The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
+
+## Network troubleshooting
+
+An `ECONNRESET` or `fetch failed` error during `npm ci` or Electron download means the network, proxy, or registry connection was interrupted. Retry with cache verification and longer npm timeouts:
 
 ```powershell
 npm.cmd cache verify
-
 npm.cmd ci `
   --no-audit `
   --no-fund `
@@ -141,198 +176,22 @@ npm.cmd ci `
   --fetch-timeout=300000
 ```
 
-После успешной установки зависимостей запустите сборку:
+If Node.js must use proxy variables for an Electron download, enable environment proxy support only for that download process. Do not leave it enabled for the local Gateway test suite.
 
-```powershell
-npm.cmd run package:win
-```
+## kubectl and kubeconfig
 
-Обновление npm для устранения `ECONNRESET` не требуется.
-
-## Dev-режим
-
-Из корня проекта:
-
-```bash
-npm run dev
-```
-
-Dev-режим запускает Vite, TypeScript watch и Electron. Отдельного backend-процесса нет.
-
-## Проверки
-
-### TypeScript
-
-```bash
-npm run typecheck
-```
-
-### Production build
-
-```bash
-npm run build
-```
-
-### Node Gateway contract tests
-
-```bash
-npm run test:gateway
-```
-
-### Renderer controller tests
-
-```bash
-npm run test:renderer
-```
-
-### Node-only verification на Windows
-
-```powershell
-npm.cmd run verify:node-only
-```
-
-Проверяются:
-
-- отсутствие legacy Python/FastAPI runtime;
-- согласованность версий root и desktop package;
-- Node-владение backend-маршрутами;
-- отсутствие Python runtime и встроенного `kubectl.exe` в release payload.
-
-### Release verification на Windows
-
-```powershell
-npm.cmd run verify:release
-```
-
-Проверяется версия `2.2.0`, release baseline и regression invariants.
-
-## Сборка для Windows
-
-Основная команда:
-
-```powershell
-npm.cmd run package:win
-```
-
-Она запускает:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\build-portable-windows.ps1
-```
-
-Если npm-зависимости ещё не установлены:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\build-portable-windows.ps1 `
-  -InstallNpmDeps
-```
-
-Windows-сборщик выполняет:
-
-1. Node-only verification;
-2. проверку версий;
-3. TypeScript typecheck;
-4. Electron/Vite production build;
-5. Node Gateway contract tests;
-6. восстановление необходимых electron-builder helpers;
-7. portable packaging;
-8. проверку release payload.
-
-Результат:
-
-```text
-apps\desktop\release\KubeDeck-Portable-2.2.0-x64.exe
-```
-
-### Windows bootstrap
-
-Для уже скачанного репозитория:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\setup-windows.ps1 `
-  -Build
-```
-
-Bootstrap проверяет Git, Node.js, npm и `kubectl`. Python не устанавливается.
-
-## Сборка для macOS Apple Silicon
-
-Основная команда:
-
-```bash
-npm run package:mac
-```
-
-macOS-сборщик выполняет:
-
-1. проверку macOS и архитектуры `arm64`;
-2. проверку Node.js, npm, Xcode Command Line Tools, `kubectl` и `7za`;
-3. проверку согласованности версий;
-4. TypeScript typecheck;
-5. Electron/Vite production build;
-6. Node Gateway contract tests;
-7. пересборку `node-pty` под текущую версию Electron;
-8. создание неподписанных DMG и ZIP;
-9. проверку готовых артефактов.
-
-Результаты:
-
-```text
-apps/desktop/release/KubeDeck-2.2.0-arm64.dmg
-apps/desktop/release/KubeDeck-2.2.0-arm64.zip
-```
-
-Сборка пока не подписана Apple Developer ID и не notarized. При первом запуске macOS может заблокировать приложение. Используйте:
-
-1. Finder → Applications;
-2. Control-click по KubeDeck;
-3. Open.
-
-## kubectl
-
-KubeDeck намеренно не включает `kubectl` в сборку.
-
-Используется один из вариантов:
-
-1. `kubectl` из системного `PATH`;
-2. полный путь, указанный в Settings.
-
-Проверка:
+KubeDeck uses either `kubectl` from `PATH` or an absolute executable path configured in Settings.
 
 ```bash
 kubectl version --client
-```
-
-На macOS файл должен иметь право на выполнение:
-
-```bash
-chmod +x /path/to/kubectl
-```
-
-Рекомендуемый путь при установке через Homebrew:
-
-```text
-/opt/homebrew/bin/kubectl
-```
-
-## Kubeconfig
-
-Kubeconfig импортируется через интерфейс KubeDeck и копируется в каталог приложения.
-
-Перед импортом рекомендуется проверить конфигурацию системным `kubectl`:
-
-```bash
 kubectl --kubeconfig /path/to/config get nodes
 ```
 
-KubeDeck не изменяет исходный kubeconfig-файл.
+Kubeconfig files imported through the UI are copied into the application data directory. The original file is not modified.
 
-## Данные и логи
+## Application data
 
-### Windows
+Windows:
 
 ```text
 %APPDATA%\KubeDeck\
@@ -343,7 +202,7 @@ KubeDeck не изменяет исходный kubeconfig-файл.
     └── kubectl.log
 ```
 
-### macOS
+macOS:
 
 ```text
 ~/Library/Application Support/KubeDeck/
@@ -354,50 +213,18 @@ KubeDeck не изменяет исходный kubeconfig-файл.
     └── kubectl.log
 ```
 
-Старый `backend.log` может остаться после обновления с предыдущей версии, но Node-only runtime его больше не создаёт.
+## Security
 
-## Local LLM
+- the Gateway is bound only to `127.0.0.1`;
+- every HTTP and WebSocket request requires a session token;
+- Kubernetes Secrets and the LLM API key are not logged;
+- destructive operations require confirmation;
+- commands are spawned with argument arrays instead of shell interpolation;
+- LLM context is sanitized before it is sent;
+- release packages contain neither Python runtime nor bundled `kubectl`.
 
-Поддерживается OpenAI-compatible Chat Completions API, например LM Studio или Ollama.
+## Documentation
 
-LLM-анализ запускается только вручную. Перед отправкой контекст очищается от:
-
-- Kubernetes Secret data;
-- tokens;
-- passwords;
-- private keys;
-- других чувствительных значений.
-
-## Безопасность
-
-- Gateway доступен только на `127.0.0.1`;
-- каждый HTTP/WebSocket-запрос требует session token;
-- Kubernetes Secrets и LLM API key не логируются;
-- опасные операции требуют подтверждения;
-- команды запускаются через аргументы процесса без shell-интерполяции;
-- сборки не содержат Python runtime;
-- сборки не содержат встроенный `kubectl`.
-
-## Известные ограничения 2.2.0
-
-- macOS поддерживается только на Apple Silicon;
-- macOS-сборка пока не подписана и не notarized;
-- Linux-сборка пока отсутствует;
-- приложение использует стандартную Electron icon, пока отдельная иконка KubeDeck не настроена;
-- для работы требуется установленный системный `kubectl`.
-
-## Документация 2.2.0
-
-- [Regression checklist 2.2.0](./REGRESSION_CHECKLIST_2.2.0.md)
 - [Release notes 2.2.0](./RELEASE_NOTES_2.2.0.md)
-
-## Основные команды
-
-| Задача | Команда |
-|---|---|
-| Dev-режим | `npm run dev` |
-| TypeScript check | `npm run typecheck` |
-| Production build | `npm run build` |
-| Gateway tests | `npm run test:gateway` |
-| Windows portable | `npm run package:win` |
-| macOS ARM64 DMG/ZIP | `npm run package:mac` |
+- [Regression checklist 2.2.0](./REGRESSION_CHECKLIST_2.2.0.md)
+- [Node migration status](./NODE_MIGRATION_PROGRESS.md)
