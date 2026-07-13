@@ -1,14 +1,14 @@
 # KubeDeck 2.0 — миграция backend на Node завершена
 
-Дата обновления: 2026-06-22  
-Ветка: `dev/2.0.0`  
-Текущая проверяемая версия: `2.2.0`
+Дата обновления: 2026-07-13
+Ветка: `main`
+Текущая проверяемая версия: `2.3.0`
 
 ## Итог
 
 Все существующие backend-контракты перенесены из Python/FastAPI в Node.js внутри Electron main process.
 
-- Node routes: **49**.
+- Node routes: **50**.
 - Python routes: **0**.
 - Runtime mode: **node-only**.
 - Legacy HTTP/WebSocket proxy: удалён.
@@ -43,18 +43,18 @@
 - process-heavy Watch и Port Forward тесты проходят без cancelled;
 - Windows portable собирается;
 - приложение запускается без `python.exe`/`pythonw.exe`;
-- `/migration/status`: Node 49, Python 0, mode `node-only`;
+- `/migration/status`: Node 50, Python 0, mode `node-only`;
 - portable не содержит Python backend payload и встроенный `kubectl.exe`.
 
 ## 2.0.6 — stable release baseline
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.2.0.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.3.0.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.2.0` сохраняет Node-only baseline и добавляет Electron 43, обновлённый build pipeline, декомпозицию renderer/Gateway orchestration и функциональные CSS-слои.
+`2.3.0` сохраняет Node-only baseline, запрещает передачу Kubernetes-логов в LLM и добавляет персистентную ручную сортировку кластеров.
 
 После принятия 2.0.6:
 
@@ -65,7 +65,7 @@
 
 ## Правила работы
 
-- Работа ведётся в ветке `dev/2.0.0`.
+- Стабильные изменения выпускаются из ветки `main`.
 - Один ZIP-патч — один логический этап.
 - Перед ZIP-патчем согласуется план.
 - Не выполнять `npm ci` без необходимости.

@@ -76,6 +76,7 @@ export function App() {
     renameDraft,
     setRenameDraft,
     renaming,
+    reorderingClusters,
     namespaces,
     setNamespaces,
     selectedNamespaces,
@@ -86,6 +87,7 @@ export function App() {
     cancelRenameCluster,
     confirmRenameCluster,
     removeCluster,
+    reorderClusters,
   } = useClusterController({
     initialSelectedNamespaces,
     setRows,
@@ -742,6 +744,8 @@ export function App() {
                     openCluster={openCluster}
                     renameCluster={startRenameCluster}
                     removeCluster={removeCluster}
+                    reorderClusters={reorderClusters}
+                    reorderingClusters={reorderingClusters}
                     onError={setError}
                   />
                 ) : section === "problems" ? (

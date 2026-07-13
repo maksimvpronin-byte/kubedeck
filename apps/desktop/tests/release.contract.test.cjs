@@ -15,8 +15,8 @@ test("KubeDeck release metadata stays synchronized", () => {
   const lock = readJson("package-lock.json");
   const readme = read("README.md");
   const progress = read("NODE_MIGRATION_PROGRESS.md");
-  const notes = read("RELEASE_NOTES_2.2.0.md");
-  const checklist = read("REGRESSION_CHECKLIST_2.2.0.md");
+  const notes = read(`RELEASE_NOTES_${expectedVersion}.md`);
+  const checklist = read(`REGRESSION_CHECKLIST_${expectedVersion}.md`);
   const windowsVersionScript = read("scripts/set-version.ps1");
 
   assert.equal(rootPackage.version, expectedVersion);
@@ -29,15 +29,15 @@ test("KubeDeck release metadata stays synchronized", () => {
   assert.match(desktopPackage.scripts["test:gateway"], /release\.contract\.test\.cjs/);
 
   for (const document of [readme, progress, notes, checklist]) {
-    assert.match(document, /2\.2\.0/);
+    assert.ok(document.includes(expectedVersion));
   }
 
   assert.match(notes, /Node-only/);
-  assert.match(notes, /49/);
-  assert.match(checklist, /Node 49 \/ Python 0/);
-  assert.match(checklist, /Port Forward/);
+  assert.match(notes, /50/);
+  assert.match(checklist, /Node 50 \/ Python 0/);
+  assert.match(checklist, /cluster/i);
   assert.match(checklist, /LLM/);
-  assert.equal(contract.nodeRoutes, 49);
+  assert.equal(contract.nodeRoutes, 50);
   assert.equal(contract.pythonRoutes, 0);
   assert.match(windowsVersionScript, /vite\.config\.mts/);
   assert.doesNotMatch(windowsVersionScript, /packages\\ui|apps\\backend|vite\.config\.ts/);

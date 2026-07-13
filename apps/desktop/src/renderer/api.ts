@@ -142,6 +142,10 @@ export class ApiClient {
     return this.request<Cluster>(`/clusters/${id}`, { method: "PATCH", body: JSON.stringify({ displayName }) });
   }
 
+  reorderClusters(clusterIds: string[]) {
+    return this.request<{ clusters: Cluster[] }>("/clusters/order", { method: "PUT", body: JSON.stringify({ clusterIds }) });
+  }
+
   removeCluster(id: string) {
     return this.request<{ ok: boolean }>(`/clusters/${id}`, { method: "DELETE" });
   }

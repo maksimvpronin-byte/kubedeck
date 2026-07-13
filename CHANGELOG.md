@@ -1,4 +1,13 @@
-﻿## 2.2.0 - Runtime and maintainability hardening
+﻿## 2.3.0 - LLM log privacy and cluster ordering
+
+- Removed Kubernetes current/previous log collection from LLM preview and analysis.
+- Added a fail-closed Gateway boundary that rejects legacy LLM payloads containing `logs` or `previousLogs` before provider invocation.
+- Documented the security policy: YAML, Describe, Events and Related Resources remain available to LLM analysis, while Kubernetes log streams never enter its context.
+- Added persistent manual cluster ordering with drag-and-drop and accessible move up/down controls.
+- Added `PUT /clusters/order` with exact-permutation validation, atomic config persistence and audit metadata without kubeconfig paths.
+- Added renderer and Gateway contracts for log non-disclosure, order persistence, validation, rollback and accessibility.
+
+## 2.2.0 - Runtime and maintainability hardening
 
 - Upgraded the desktop runtime from Electron 31.7.7 to Electron 43.1.0 (Chromium 150, Node 24.18).
 - Upgraded electron-builder to 26.15.3 and Vite to 8.1.4; the final npm audit reports zero known vulnerabilities.

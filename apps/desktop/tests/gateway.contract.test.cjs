@@ -268,8 +268,8 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
     headers: authHeaders,
   });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.totalExisting, 49);
-  assert.equal(migration.routes.nodeOwned, 49);
+  assert.equal(migration.routes.totalExisting, 50);
+  assert.equal(migration.routes.nodeOwned, 50);
   assert.equal(migration.routes.pythonOwned, 0);
 
   const kubectlStatus = await fetch(`${gateway.baseUrl}/kubectl/status`, {
@@ -368,6 +368,74 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   assert.equal((await unavailableOpen.json()).detail.code, "CLUSTER_UNAVAILABLE");
 
   const configPath = path.join(appDataRoot, "config.json");
+  const desiredOrder = [unavailableCluster.id, goodCluster.id, missingFileCluster.id];
+  const reorderResponse = await fetch(`${gateway.baseUrl}/clusters/order`, {
+    method: "PUT",
+    headers: authHeaders,
+    body: JSON.stringify({ clusterIds: desiredOrder }),
+  });
+  assert.equal(reorderResponse.status, 200);
+  const reordered = await reorderResponse.json();
+  assert.deepEqual(reordered.clusters.map((cluster) => cluster.id), desiredOrder);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(configPath, "utf8")).clusters.map((cluster) => cluster.id),
+    desiredOrder,
+  );
+
+  const invalidReorder = await fetch(`${gateway.baseUrl}/clusters/order`, {
+    method: "PUT",
+    headers: authHeaders,
+    body: JSON.stringify({
+      clusterIds: [unavailableCluster.id, unavailableCluster.id, missingFileCluster.id],
+    }),
+  });
+  assert.equal(invalidReorder.status, 422);
+  assert.equal((await invalidReorder.json()).detail.code, "INVALID_CLUSTER_ORDER");
+
+  const renameAfterReorder = await fetch(`${gateway.baseUrl}/clusters/${goodCluster.id}`, {
+    method: "PATCH",
+    headers: authHeaders,
+    body: JSON.stringify({ displayName: "Renamed good cluster" }),
+  });
+  assert.equal(renameAfterReorder.status, 200);
+
+  const reopenAfterReorder = await fetch(`${gateway.baseUrl}/clusters/${goodCluster.id}/open`, {
+    method: "POST",
+    headers: authHeaders,
+  });
+  assert.equal(reopenAfterReorder.status, 200);
+
+  const listAfterRenameAndOpen = await fetch(`${gateway.baseUrl}/clusters`, {
+    headers: authHeaders,
+  });
+  assert.deepEqual(
+    (await listAfterRenameAndOpen.json()).clusters.map((cluster) => cluster.id),
+    desiredOrder,
+  );
+
+  const removeAfterReorder = await fetch(
+    `${gateway.baseUrl}/clusters/${unavailableCluster.id}`,
+    { method: "DELETE", headers: authHeaders },
+  );
+  assert.equal(removeAfterReorder.status, 200);
+
+  const importAfterReorder = await fetch(`${gateway.baseUrl}/clusters/import`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ sourcePath: goodSource, displayName: "Newest cluster" }),
+  });
+  assert.equal(importAfterReorder.status, 200);
+  const newestCluster = await importAfterReorder.json();
+  const finalClusterList = await fetch(`${gateway.baseUrl}/clusters`, { headers: authHeaders });
+  assert.deepEqual(
+    (await finalClusterList.json()).clusters.map((cluster) => cluster.id),
+    [goodCluster.id, missingFileCluster.id, newestCluster.id],
+  );
+
+  const auditText = fs.readFileSync(path.join(appDataRoot, "logs", "audit.jsonl"), "utf8");
+  assert.match(auditText, /"action":"cluster.reorder"/);
+  assert.doesNotMatch(auditText, new RegExp(unavailableCluster.kubeconfigPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+
   const badConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
   badConfig.settings.kubectlPath = path.join(appDataRoot, "missing", "kubectl.exe");
   fs.writeFileSync(configPath, JSON.stringify(badConfig, null, 2) + "\n", "utf8");

@@ -255,6 +255,13 @@ export class ClusterNotFoundError extends Error {
   }
 }
 
+export class InvalidClusterOrderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidClusterOrderError";
+  }
+}
+
 function managedPath(pathname: string, baseDirectory: string): boolean {
   if (!fs.existsSync(pathname)) return false;
 
@@ -341,6 +348,38 @@ export class ConfigStore {
 
   listClusters(): Cluster[] {
     return this.load().clusters;
+  }
+
+  reorderClusters(clusterIds: string[]): Cluster[] {
+    const config = this.load();
+    const currentIds = config.clusters.map((cluster) => cluster.id);
+    const requestedIds = clusterIds.map((clusterId) => String(clusterId).trim());
+    const requestedSet = new Set(requestedIds);
+
+    if (requestedIds.some((clusterId) => !clusterId)) {
+      throw new InvalidClusterOrderError("clusterIds must contain non-empty strings");
+    }
+    if (requestedSet.size !== requestedIds.length) {
+      throw new InvalidClusterOrderError("clusterIds must not contain duplicates");
+    }
+    if (
+      requestedIds.length !== currentIds.length ||
+      currentIds.some((clusterId) => !requestedSet.has(clusterId))
+    ) {
+      throw new InvalidClusterOrderError(
+        "clusterIds must contain every configured cluster exactly once",
+      );
+    }
+
+    const byId = new Map(config.clusters.map((cluster) => [cluster.id, cluster]));
+    config.clusters = requestedIds.map((clusterId) => {
+      const cluster = byId.get(clusterId);
+      if (!cluster) {
+        throw new InvalidClusterOrderError(`Unknown cluster id: ${clusterId}`);
+      }
+      return cluster;
+    });
+    return this.save(config).clusters;
   }
 
   getCluster(clusterId: string, config = this.load()): Cluster {

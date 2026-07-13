@@ -12,7 +12,6 @@ interface Props {
   settings?: Settings;
   yaml: string;
   describe: string;
-  logs: string;
   events: ResourceRow[];
   relatedLinks: RelatedLink[];
   loading: boolean;
@@ -38,7 +37,6 @@ export function LlmTab({
   settings,
   yaml,
   describe,
-  logs,
   events,
   relatedLinks,
   loading,
@@ -66,13 +64,11 @@ export function LlmTab({
   async function buildFreshRequest(): Promise<LlmAnalyzeResourceRequest> {
     const namespace = typeof row.namespace === "string" && row.namespace ? row.namespace : "_cluster";
     const name = row.name;
-    const [freshYaml, freshDescribe, freshEvents, freshRelated, freshLogs, freshPreviousLogs] = await Promise.all([
+    const [freshYaml, freshDescribe, freshEvents, freshRelated] = await Promise.all([
       safeText(api.resourceText(clusterId, resource, namespace, name, "yaml"), yaml),
       safeText(api.resourceText(clusterId, resource, namespace, name, "describe"), describe),
       safeItems(api.resourceEvents(clusterId, resource, namespace, name), events),
       safeRelated(api.relatedResources(clusterId, resource, namespace, name), relatedLinks),
-      fetchResourceLogs(namespace, name, false, logs),
-      fetchResourceLogs(namespace, name, true, ""),
     ]);
 
     return {
@@ -85,8 +81,6 @@ export function LlmTab({
       yaml: freshYaml,
       events: freshEvents,
       describe: freshDescribe,
-      logs: freshLogs,
-      previousLogs: freshPreviousLogs,
       relatedResources: freshRelated,
       language: settings?.language,
     };
@@ -116,16 +110,6 @@ export function LlmTab({
     } catch {
       return fallback;
     }
-  }
-
-  async function fetchResourceLogs(namespace: string, name: string, previous: boolean, fallback: string) {
-    if (isDeploymentResource(resource)) {
-      return safeText(api.deploymentLogs(clusterId, namespace, name, { tail: 300, previous, timestamps: true }), fallback);
-    }
-    if (isPodResource(resource)) {
-      return safeText(api.podLogs(clusterId, namespace, name, { tail: 300, previous, timestamps: true }), fallback);
-    }
-    return fallback;
   }
 
   async function analyze() {
@@ -221,12 +205,4 @@ export function LlmTab({
       )}
     </section>
   );
-}
-
-function isPodResource(resource: string) {
-  return resource === "pods" || resource === "pod";
-}
-
-function isDeploymentResource(resource: string) {
-  return resource === "deployments" || resource === "deployments.apps" || resource === "deployment";
 }

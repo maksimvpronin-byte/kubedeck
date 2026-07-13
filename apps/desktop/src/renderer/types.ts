@@ -30,8 +30,6 @@ export interface LlmAnalyzeResourceRequest {
   yaml?: string;
   events?: ResourceRow[];
   describe?: string;
-  logs?: string;
-  previousLogs?: string;
   relatedResources?: RelatedLink[];
   userRequest?: string;
   language?: string;

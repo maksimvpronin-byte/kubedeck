@@ -36,7 +36,7 @@ ws://127.0.0.1:<port>/clusters/<cluster>/pods/<namespace>/<pod>/terminal?token=<
 ## Route groups
 
 - application/config: health, app info, migration status, config, audit;
-- clusters/kubectl: import, rename, remove, open, namespaces, kubectl status;
+- clusters/kubectl: import, persistent manual ordering (`PUT /clusters/order`), rename, remove, open, namespaces, kubectl status;
 - resources: discovery, lists, YAML, Describe, Events, logs и related resources;
 - mutations: YAML dry-run/apply, resource actions и Pod exec;
 - diagnostics: Problems, Global Search, cache и watch status;

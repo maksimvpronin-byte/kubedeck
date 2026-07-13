@@ -37,6 +37,39 @@ test("cluster controller detects removal of the active cluster", () => {
   assert.equal(model.isActiveClusterConfigured({ clusters: [{ id: "cluster-b" }], settings: {} }, active), false);
 });
 
+test("cluster ordering helper moves items without mutating the source", () => {
+  const model = loadTypeScript("components/ClusterPanel.tsx", {
+    "lucide-react": {
+      ChevronDown: () => null,
+      ChevronUp: () => null,
+      GripVertical: () => null,
+      Plus: () => null,
+    },
+  });
+  const clusters = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  assert.deepEqual(
+    model.moveCluster(clusters, 2, 0).map((cluster) => cluster.id),
+    ["c", "a", "b"],
+  );
+  assert.deepEqual(
+    model.moveCluster(clusters, 0, 1).map((cluster) => cluster.id),
+    ["b", "a", "c"],
+  );
+  assert.deepEqual(
+    clusters.map((cluster) => cluster.id),
+    ["a", "b", "c"],
+  );
+  assert.equal(model.moveCluster(clusters, 0, 0), clusters);
+  assert.equal(model.moveCluster(clusters, -1, 0), clusters);
+});
+
+test("LLM renderer never fetches or submits Kubernetes logs", () => {
+  const source = fs.readFileSync(path.join(rendererRoot, "components/LlmTab.tsx"), "utf8");
+  assert.doesNotMatch(source, /\.podLogs\(|\.deploymentLogs\(/);
+  assert.doesNotMatch(source, /previousLogs\s*:/);
+  assert.doesNotMatch(source, /logs\s*:/);
+});
+
 test("resource navigation resolves cluster and namespace scope", () => {
   const model = loadTypeScript("hooks/useResourceNavigation.ts", {
     "../navigation": {

@@ -1,4 +1,4 @@
-# KubeDeck 2.2.0
+# KubeDeck 2.3.0
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -8,7 +8,7 @@ KubeDeck uses a **Node-only runtime inside Electron**. It does not start or pack
 
 ## Highlights
 
-- multiple kubeconfig files and clusters;
+- multiple kubeconfig files and clusters with persistent manual ordering;
 - namespace filtering and global search;
 - built-in Kubernetes resources and CRDs;
 - YAML view, edit, dry-run, and apply;
@@ -18,7 +18,7 @@ KubeDeck uses a **Node-only runtime inside Electron**. It does not start or pack
 - delete, restart, redeploy, scale, cordon, uncordon, and drain actions;
 - protected Kubernetes Secret viewing;
 - metrics and resource snapshot caching;
-- optional OpenAI-compatible local LLM analysis;
+- optional OpenAI-compatible local LLM analysis that never receives Kubernetes logs;
 - English and Russian UI;
 - dark, light, and system themes.
 
@@ -142,7 +142,7 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.2.0-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.3.0-x64.exe
 ```
 
 ## macOS Apple Silicon build
@@ -154,8 +154,8 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.2.0-arm64.dmg
-apps/desktop/release/KubeDeck-2.2.0-arm64.zip
+apps/desktop/release/KubeDeck-2.3.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.3.0-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
@@ -225,6 +225,6 @@ macOS:
 
 ## Documentation
 
-- [Release notes 2.2.0](./RELEASE_NOTES_2.2.0.md)
-- [Regression checklist 2.2.0](./REGRESSION_CHECKLIST_2.2.0.md)
+- [Release notes 2.3.0](./RELEASE_NOTES_2.3.0.md)
+- [Regression checklist 2.3.0](./REGRESSION_CHECKLIST_2.3.0.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)

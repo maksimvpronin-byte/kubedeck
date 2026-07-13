@@ -24,6 +24,8 @@ export function SettingsPanel({
   openCluster,
   renameCluster,
   removeCluster,
+  reorderClusters,
+  reorderingClusters,
   onError,
 }: {
   api: ApiClient | null;
@@ -40,6 +42,8 @@ export function SettingsPanel({
   openCluster: (cluster: Cluster) => void;
   renameCluster: (cluster: Cluster) => void;
   removeCluster: (cluster: Cluster) => void;
+  reorderClusters: (clusters: Cluster[]) => void | Promise<void>;
+  reorderingClusters: boolean;
   onError: (error: ErrorInfo | null) => void;
 }) {
   const [draft, setDraft] = useState<Settings>(() => normalizeSettings(settings));
@@ -279,6 +283,8 @@ export function SettingsPanel({
         openCluster={openCluster}
         renameCluster={renameCluster}
         removeCluster={removeCluster}
+        reorderClusters={reorderClusters}
+        reorderingClusters={reorderingClusters}
         t={t}
       />
     </section>

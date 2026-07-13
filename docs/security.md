@@ -71,7 +71,9 @@ Watch, Pod Terminal, Node SSH и Port Forward имеют явного владе
 ## LLM boundary
 
 - LLM endpoint настраивается пользователем и является внешней системой.
-- Перед отправкой resource context проходит sanitizer.
+- KubeDeck не запрашивает и не отправляет в LLM текущие, previous или агрегированные Kubernetes log streams.
+- Renderer не добавляет логи в LLM-запрос, а gateway отклоняет legacy-поля `logs` и `previousLogs` до построения prompt.
+- Перед отправкой оставшийся разрешённый resource context проходит sanitizer; sanitizer не заменяет запрет передачи логов.
 - Secret values, credentials и чувствительные structured fields должны удаляться.
 - API key не возвращается публичными status/config responses и не попадает в audit/logs.
 - Ошибка внешнего LLM не должна включать исходный request payload в log.

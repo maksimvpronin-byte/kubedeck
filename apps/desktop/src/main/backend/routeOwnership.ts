@@ -10,6 +10,7 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "GET", path: "/kubectl/status", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3", sourceModule: "routes_core.py" },
   { method: "GET", path: "/clusters", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2.1", migratedIn: "2.0.0-alpha.2.1", sourceModule: "routes_clusters.py" },
   { method: "POST", path: "/clusters/import", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2.1", migratedIn: "2.0.0-alpha.2.1", sourceModule: "routes_clusters.py" },
+  { method: "PUT", path: "/clusters/order", transport: "http", owner: "node", targetRelease: "2.3.0", migratedIn: "2.3.0", sourceModule: "routes/clusters.ts" },
   { method: "PATCH", path: "/clusters/{cluster_id}", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2.1", migratedIn: "2.0.0-alpha.2.1", sourceModule: "routes_clusters.py" },
   { method: "DELETE", path: "/clusters/{cluster_id}", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2.1", migratedIn: "2.0.0-alpha.2.1", sourceModule: "routes_clusters.py" },
   { method: "POST", path: "/clusters/last/open", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3", sourceModule: "routes_clusters.py" },

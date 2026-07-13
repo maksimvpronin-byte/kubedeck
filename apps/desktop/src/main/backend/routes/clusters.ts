@@ -1,6 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AuditStore } from "../audit/auditStore";
-import { ClusterNotFoundError, ConfigStore } from "../config/configStore";
+import {
+  ClusterNotFoundError,
+  ConfigStore,
+  InvalidClusterOrderError,
+} from "../config/configStore";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
 import { clusterCommand, kubeconfigAvailable } from "../kubectl/clusterCommand";
@@ -28,6 +32,43 @@ function decodeItems(value: Record<string, unknown>): unknown[] {
 
 export function writeClusters(response: ServerResponse, configStore: ConfigStore): void {
   writeJson(response, { clusters: configStore.listClusters() });
+}
+
+export async function writeReorderClusters(
+  request: IncomingMessage,
+  response: ServerResponse,
+  configStore: ConfigStore,
+  auditStore: AuditStore,
+): Promise<void> {
+  try {
+    const body = await readJsonBody(request);
+    if (
+      !isRecord(body) ||
+      !Array.isArray(body.clusterIds) ||
+      body.clusterIds.some((clusterId) => typeof clusterId !== "string")
+    ) {
+      writeError(response, 422, "INVALID_CLUSTER_ORDER", "clusterIds must be an array of strings");
+      return;
+    }
+
+    const clusters = configStore.reorderClusters(body.clusterIds);
+    auditStore.append({
+      action: "cluster.reorder",
+      status: "success",
+      extra: { clusterIds: clusters.map((cluster) => cluster.id) },
+    });
+    writeJson(response, { clusters });
+  } catch (error) {
+    if (writeBodyError(response, error)) return;
+
+    const message = errorMessage(error);
+    auditStore.append({ action: "cluster.reorder", status: "failed", message });
+    if (error instanceof InvalidClusterOrderError) {
+      writeError(response, 422, "INVALID_CLUSTER_ORDER", message);
+      return;
+    }
+    writeError(response, 500, "CLUSTER_REORDER_FAILED", "Unable to save cluster order");
+  }
 }
 
 export async function writeImportCluster(

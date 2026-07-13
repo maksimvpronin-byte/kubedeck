@@ -29,6 +29,7 @@ import {
   writeOpenCluster,
   writeOpenLastCluster,
   writeRemoveCluster,
+  writeReorderClusters,
   writeRenameCluster,
 } from "./routes/clusters";
 import { writeConfig, writeSettings } from "./routes/config";
@@ -213,6 +214,19 @@ function handleRequest(
     ).catch((error) => {
       options.log(`gateway cluster import failed: ${String(error)}`);
       writeError(response, 500, "IMPORT_FAILED", "Unable to import cluster");
+    });
+    return;
+  }
+
+  if (request.method === "PUT" && pathname === "/clusters/order") {
+    void writeReorderClusters(
+      request,
+      response,
+      services.configStore,
+      services.auditStore,
+    ).catch((error) => {
+      options.log(`gateway cluster reorder failed: ${String(error)}`);
+      writeError(response, 500, "CLUSTER_REORDER_FAILED", "Unable to save cluster order");
     });
     return;
   }

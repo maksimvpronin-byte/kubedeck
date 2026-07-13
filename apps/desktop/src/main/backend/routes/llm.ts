@@ -81,6 +81,13 @@ function normalizeAnalyzeRequest(value: unknown): LlmAnalyzeResourceRequest {
   if (!isRecord(value)) {
     throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "Request body must be an object");
   }
+  if (Object.hasOwn(value, "logs") || Object.hasOwn(value, "previousLogs")) {
+    throw new LlmRequestError(
+      400,
+      "LLM_LOG_CONTEXT_FORBIDDEN",
+      "KubeDeck does not send Kubernetes logs to LLM providers.",
+    );
+  }
   const userRequest = asString(value.userRequest).trim();
   if (userRequest.length > MAX_USER_REQUEST_CHARS) {
     throw new LlmRequestError(
@@ -99,8 +106,6 @@ function normalizeAnalyzeRequest(value: unknown): LlmAnalyzeResourceRequest {
     yaml: asString(value.yaml),
     events: Array.isArray(value.events) ? value.events : undefined,
     describe: asString(value.describe),
-    logs: asString(value.logs),
-    previousLogs: asString(value.previousLogs),
     relatedResources: Array.isArray(value.relatedResources)
       ? value.relatedResources
       : undefined,

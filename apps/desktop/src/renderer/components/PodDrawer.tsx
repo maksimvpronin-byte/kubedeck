@@ -45,7 +45,6 @@ interface Props {
 
 export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onClose, copyLabel, labels, settings, t }: Props) {
   const [tab, setTab] = useState<DrawerTab>("summary");
-  const [logsContent, setLogsContent] = useState("");
   const [applyResult, setApplyResult] = useState("");
   const [yamlOperationTitle, setYamlOperationTitle] = useState("");
   const [yamlOperationOutput, setYamlOperationOutput] = useState("");
@@ -121,7 +120,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setLogsPodFilter("");
     setDeploymentLogPods([]);
     setDeploymentLogContainers([]);
-    setLogsContent("");
     setCloseConfirmOpen(false);
     setRelatedResourceFilter("all");
     setLlmLoading(false);
@@ -169,7 +167,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
         .then((text) => {
           if (controller.signal.aborted || typeof text !== "string") return;
           setContent((current) => current === text ? current : text);
-          setLogsContent((current) => current === text ? current : text);
         })
         .catch((err) => {
           if (isAbortError(err)) return;
@@ -191,7 +188,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       .then((text) => {
         if (controller.signal.aborted) return;
         setContent((current) => current === text ? current : text);
-        setLogsContent((current) => current === text ? current : text);
       })
       .catch((err) => {
         if (isAbortError(err)) return;
@@ -512,7 +508,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
             settings={settings}
             yaml={yamlDraft || yamlBaseline}
             describe={describeContent}
-            logs={logsContent}
             events={events}
             relatedLinks={relatedLinks}
             loading={llmLoading}

@@ -41,6 +41,7 @@ export function useClusterController({
   const [renameTarget, setRenameTarget] = useState<Cluster | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const [reorderingClusters, setReorderingClusters] = useState(false);
 
   const settings = config?.settings;
   const namespaceController = useNamespaceRefresh({
@@ -196,13 +197,30 @@ export function useClusterController({
     await reloadConfig();
   }, [api, reloadConfig]);
 
+  const reorderClusters = useCallback(async (orderedClusters: Cluster[]) => {
+    if (!api || !config || reorderingClusters) return;
+    const previousClusters = config.clusters;
+    setReorderingClusters(true);
+    setConfig((current) => current ? { ...current, clusters: orderedClusters } : current);
+    try {
+      const result = await api.reorderClusters(orderedClusters.map((cluster) => cluster.id));
+      setConfig((current) => current ? { ...current, clusters: result.clusters } : current);
+      setError(null);
+    } catch (error) {
+      setConfig((current) => current ? { ...current, clusters: previousClusters } : current);
+      setError(asErrorInfo(error));
+    } finally {
+      setReorderingClusters(false);
+    }
+  }, [api, config, reorderingClusters, setError]);
+
   return {
     api, config, setConfig, settings, backendOk, kubectlVersion,
     activeCluster, setActiveCluster, unavailableCluster, setUnavailableCluster,
     openingClusterId, resourceDefinitions, setResourceDefinitions, runtimeError,
-    renameTarget, renameDraft, setRenameDraft, renaming,
+    renameTarget, renameDraft, setRenameDraft, renaming, reorderingClusters,
     reloadConfig, importKubeconfig, openCluster, startRenameCluster,
-    cancelRenameCluster, confirmRenameCluster, removeCluster,
+    cancelRenameCluster, confirmRenameCluster, removeCluster, reorderClusters,
     ...namespaceController,
   };
 }

@@ -17,8 +17,6 @@ export interface LlmAnalyzeResourceRequest {
   yaml?: string;
   events?: unknown[];
   describe?: string;
-  logs?: string;
-  previousLogs?: string;
   relatedResources?: unknown[];
   relatedLinks?: unknown[];
   related?: unknown[];

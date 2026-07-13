@@ -658,13 +658,40 @@ h2 {
 
 .cluster-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px;
   background: var(--panel-muted);
+}
+
+.cluster-card.dragging {
+  opacity: 0.55;
+}
+
+.cluster-card.drop-target {
+  border-color: var(--primary-border);
+  box-shadow: inset 0 0 0 1px var(--primary-border);
+}
+
+.cluster-drag-handle,
+.cluster-order-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.cluster-drag-handle:not(:disabled) {
+  cursor: grab;
+}
+
+.cluster-drag-handle:not(:disabled):active {
+  cursor: grabbing;
 }
 
 .cluster-card.active {

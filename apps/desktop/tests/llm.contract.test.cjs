@@ -69,7 +69,6 @@ function resourceRequest(overrides = {}) {
     },
     describe: "Name: api-0\nStatus: Running\nReady: 1/1\nRestart Count: 0\nEvents: <none>",
     yaml: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: api-0",
-    previousLogs: "one\ntwo\nthree\nfour\nfive\nsix",
     relatedResources: [{ resource: "services", name: "api" }],
     ...overrides,
   };
@@ -98,13 +97,18 @@ test("LLM sanitizer removes structured and textual secrets", () => {
   assert.match(text, /\[REDACTED\]/);
 });
 
-test("resource context preserves diagnostic policy, log tail, and truncation", () => {
-  const built = buildResourceContext(resourceRequest(), 60000);
+test("resource context excludes Kubernetes log streams and preserves truncation", () => {
+  const sentinel = "forbidden-log-sentinel";
+  const built = buildResourceContext(
+    resourceRequest({ logs: sentinel, previousLogs: `previous-${sentinel}` }),
+    60000,
+  );
   assert.equal(built.truncated, false);
   assert.match(built.context, /RESOURCE IDENTITY/);
-  assert.match(built.context, /previousLogs: tail_5_provided/);
-  assert.doesNotMatch(built.context, /\none\n/);
-  assert.match(built.context, /two\nthree\nfour\nfive\nsix/);
+  assert.match(built.context, /LOG CONTEXT POLICY/);
+  assert.match(built.context, /not collected or sent to LLM providers/);
+  assert.doesNotMatch(built.context, new RegExp(sentinel));
+  assert.doesNotMatch(built.context, /CONTAINER LOGS|previousLogs|currentLogs/);
   assert.match(built.context, /Events already provided by describe: <none>/);
 
   const truncated = buildResourceContext(
@@ -224,8 +228,10 @@ test("LLM settings validation and public status do not expose API key", () => {
 });
 
 test("LLM HTTP routes keep status, test, preview, and analyze contracts", async (t) => {
+  const llmBodies = [];
   const llm = http.createServer(async (request, response) => {
     const body = await readBody(request);
+    llmBodies.push(body);
     response.setHeader("Content-Type", "application/json");
     response.end(
       JSON.stringify({
@@ -285,6 +291,7 @@ test("LLM HTTP routes keep status, test, preview, and analyze contracts", async 
   assert.equal(preview.messages.length, 2);
   assert.equal(preview.maxOutputTokens, 4096);
   assert.match(preview.context, /RESOURCE IDENTITY/);
+  assert.match(preview.context, /LOG CONTEXT POLICY/);
 
   const analyzeResponse = await fetch(`${apiUrl}/llm/analyze-resource`, {
     method: "POST",
@@ -297,6 +304,22 @@ test("LLM HTTP routes keep status, test, preview, and analyze contracts", async 
   assert.equal(analyzed.maxOutputTokens, 4096);
   assert.match(analyzed.answer, /1\. Короткий вывод/);
   assert.equal(logs.length, 0);
+
+  const callsBeforeForbiddenRequests = llmBodies.length;
+  for (const route of ["preview-resource-prompt", "analyze-resource"]) {
+    const sentinel = `forbidden-${route}-log`;
+    const forbiddenResponse = await fetch(`${apiUrl}/llm/${route}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(resourceRequest({ logs: sentinel, previousLogs: sentinel })),
+    });
+    assert.equal(forbiddenResponse.status, 400);
+    const forbidden = await forbiddenResponse.json();
+    assert.equal(forbidden.detail.code, "LLM_LOG_CONTEXT_FORBIDDEN");
+    assert.doesNotMatch(JSON.stringify(forbidden), new RegExp(sentinel));
+    assert.doesNotMatch(logs.join("\n"), new RegExp(sentinel));
+  }
+  assert.equal(llmBodies.length, callsBeforeForbiddenRequests);
 });
 
 test("LLM route errors never log API keys or request payloads", async (t) => {

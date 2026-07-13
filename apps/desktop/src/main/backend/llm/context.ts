@@ -100,13 +100,6 @@ function compactText(text: string, maxChars: number, keepTail = false): string {
     : `${text.slice(0, budget).trimEnd()}${marker}`;
 }
 
-function logsTail(logs: string, count = 5): string {
-  const lines = sanitizeText(logs)
-    .split(/\r?\n/)
-    .filter((line) => line.trim());
-  return lines.slice(-count).join("\n");
-}
-
 function dedupe(lines: string[]): string[] {
   const seen = new Set<string>();
   return lines.filter((line) => {
@@ -211,14 +204,6 @@ function diagnosticSignals(request: LlmAnalyzeResourceRequest): string {
     .map((line) => sanitizeText(line.trim()));
   lines.push(...diagnosticLines);
 
-  if (request.previousLogs?.trim()) {
-    lines.push("previousLogs: provided, tail -5 sent");
-  } else if (request.logs?.trim()) {
-    lines.push("previousLogs: absent; current logs tail -5 sent as fallback");
-  } else {
-    lines.push("logs: not provided");
-  }
-
   if (request.events && request.events.length > 0) {
     lines.push("events: provided");
   } else if (describeEventsNone(describe)) {
@@ -241,8 +226,6 @@ function relatedPayload(request: LlmAnalyzeResourceRequest): unknown {
 
 function contextCoverage(request: LlmAnalyzeResourceRequest): string {
   const describe = request.describe ?? "";
-  const previousLogs = request.previousLogs ?? "";
-  const logs = request.logs ?? "";
   const related = relatedPayload(request);
   const lines = [
     `describe: ${describe.trim() ? "provided_full" : "missing"}`,
@@ -257,17 +240,6 @@ function contextCoverage(request: LlmAnalyzeResourceRequest): string {
     lines.push("events: provided_from_describe");
   } else {
     lines.push("events: missing");
-  }
-
-  if (previousLogs.trim()) {
-    lines.push("previousLogs: tail_5_provided");
-    lines.push("currentLogs: skipped_because_previousLogs_present");
-  } else if (logs.trim()) {
-    lines.push("previousLogs: missing");
-    lines.push("currentLogs: fallback_tail_5_provided");
-  } else {
-    lines.push("previousLogs: missing");
-    lines.push("currentLogs: missing");
   }
 
   lines.push(
@@ -383,8 +355,6 @@ export function buildResourceContext(
   request: LlmAnalyzeResourceRequest,
   maxChars: number,
 ): ResourceContextResult {
-  const previousLogs = request.previousLogs ?? "";
-  const currentLogs = request.logs ?? "";
   const describe = request.describe ?? "";
   const related = relatedPayload(request);
   const sections: Array<[string, string]> = [
@@ -399,11 +369,9 @@ export function buildResourceContext(
       eventsExcerpt(request.events) || eventsFromDescribe(describe),
     ],
     [
-      "LOGS POLICY",
-      "previous container logs: tail -5 only; current logs: tail -5 fallback only if previous logs are absent",
+      "LOG CONTEXT POLICY",
+      "Kubernetes log streams are not collected or sent to LLM providers by KubeDeck due to security policy.",
     ],
-    ["PREVIOUS CONTAINER LOGS TAIL -5", logsTail(previousLogs, 5)],
-    ["CURRENT CONTAINER LOGS TAIL -5 FALLBACK", previousLogs ? "" : logsTail(currentLogs, 5)],
     ["DESCRIBE FULL ALREADY PROVIDED", sanitizeText(describe)],
     ["YAML EXCERPT", yamlExcerpt(request)],
     [
