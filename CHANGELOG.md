@@ -1,4 +1,10 @@
-﻿## 2.3.0 - LLM log privacy and cluster ordering
+﻿## 2.3.1 - Namespace selector and dark theme polish
+
+- Expanded the namespace menu for long values and wrapped exceptionally long names cleanly without truncation or overlapping rows.
+- Rebalanced the dark theme from near-black to a lighter blue-graphite palette while retaining readable contrast.
+- Synchronized Windows and macOS release metadata and artifact names at version 2.3.1.
+
+## 2.3.0 - LLM log privacy and cluster ordering
 
 - Removed Kubernetes current/previous log collection from LLM preview and analysis.
 - Added a fail-closed Gateway boundary that rejects legacy LLM payloads containing `logs` or `previousLogs` before provider invocation.

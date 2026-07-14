@@ -1,4 +1,4 @@
-# KubeDeck 2.3.0
+# KubeDeck 2.3.1
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -142,7 +142,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.3.0-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.3.1-x64.exe
 ```
 
 ## Сборка для macOS Apple Silicon
@@ -154,8 +154,8 @@ npm run package:mac
 Результаты:
 
 ```text
-apps/desktop/release/KubeDeck-2.3.0-arm64.dmg
-apps/desktop/release/KubeDeck-2.3.0-arm64.zip
+apps/desktop/release/KubeDeck-2.3.1-arm64.dmg
+apps/desktop/release/KubeDeck-2.3.1-arm64.zip
 ```
 
 macOS-сборка не подписана Apple Developer ID и не notarized. При первом запуске используйте Finder → Applications → Control-click по KubeDeck → Open.
@@ -225,6 +225,6 @@ macOS:
 
 ## Документация
 
-- [Release notes 2.3.0](./RELEASE_NOTES_2.3.0.md)
-- [Regression checklist 2.3.0](./REGRESSION_CHECKLIST_2.3.0.md)
+- [Release notes 2.3.1](./RELEASE_NOTES_2.3.1.md)
+- [Regression checklist 2.3.1](./REGRESSION_CHECKLIST_2.3.1.md)
 - [Статус миграции на Node](./NODE_MIGRATION_PROGRESS.md)

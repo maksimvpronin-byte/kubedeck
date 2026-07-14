@@ -1,10 +1,16 @@
-# KubeDeck 2.3.0 — Release Notes
+# KubeDeck 2.3.1 — Release Notes
 
-Дата подготовки: 2026-07-13
+Дата подготовки: 2026-07-14
 
-KubeDeck 2.3.0 усиливает границу безопасности LLM-интеграции и добавляет управляемый пользователем порядок кластеров. Runtime остаётся Node-only: все 50 backend-контрактов принадлежат Node.js, Python/FastAPI runtime и встроенный `kubectl` отсутствуют.
+KubeDeck 2.3.1 — patch-релиз интерфейса поверх возможностей 2.3.0. Runtime остаётся Node-only: все 50 backend-контрактов принадлежат Node.js, Python/FastAPI runtime и встроенный `kubectl` отсутствуют.
 
 ## Основные изменения
+
+### Namespace selector и тёмная тема
+
+- Меню namespace расширяется под длинные значения, а при нехватке места имя аккуратно переносится целиком без обрезки и наложения строк.
+- Полное имя namespace всегда остаётся видимым; системная подсказка при наведении доступна дополнительно.
+- Тёмная тема стала светлее: почти чёрные поверхности заменены более мягкой сине-графитовой палитрой с сохранением контраста.
 
 ### Kubernetes-логи не передаются в LLM
 
@@ -31,9 +37,9 @@ npm.cmd run verify:release
 npm.cmd run verify
 ```
 
-Gate включает lint, format check, 11 renderer tests, TypeScript typecheck, production build и 69 gateway contract tests.
+Gate включает lint, format check, 12 renderer tests, TypeScript typecheck, production build и 69 gateway contract tests.
 
 ## Artifacts
 
-- Windows x64: `apps\desktop\release\KubeDeck-Portable-2.3.0-x64.exe`;
-- macOS arm64: `apps/desktop/release/KubeDeck-2.3.0-arm64.dmg` и `.zip`.
+- Windows x64: `apps\desktop\release\KubeDeck-Portable-2.3.1-x64.exe`;
+- macOS arm64: `apps/desktop/release/KubeDeck-2.3.1-arm64.dmg` и `.zip`.

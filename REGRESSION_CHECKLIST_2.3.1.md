@@ -1,16 +1,23 @@
-# KubeDeck 2.3.0 — Regression Checklist
+# KubeDeck 2.3.1 — Regression Checklist
 
-Дата: 2026-07-13
+Дата: 2026-07-14
 
 ## Automated gate
 
-- [x] `npm.cmd run verify:release`.
-- [x] `npm.cmd run lint` и format check.
-- [x] `npm.cmd run test:renderer`; 11/11 tests.
-- [x] `npm.cmd run typecheck`.
-- [x] `npm.cmd run build`.
+- [x] `npm run verify:release`.
+- [x] `npm run lint` и format check.
+- [x] `npm run test:renderer`; 12/12 tests.
+- [x] `npm run typecheck`.
+- [x] `npm run build`.
 - [x] `npm --workspace apps/desktop run test:gateway`; 69/69 tests.
 - [x] Release contracts: Node 50 / Python 0.
+
+## Namespace selector and theme
+
+- [x] Длинные namespace-имена отображаются целиком без обрезки и наложения строк.
+- [x] Меню расширяется под содержимое, а экстремально длинные значения корректно переносятся.
+- [x] Полное имя дополнительно доступно через tooltip.
+- [x] Тёмная тема использует обновлённую сине-графитовую палитру.
 
 ## LLM security boundary
 
@@ -36,10 +43,10 @@
 - [ ] Проверить LLM preview/analyze через тестовый provider с сетевой фиксацией payload.
 - [x] Windows portable x64 artifact собран и прошёл release payload validation.
 - [ ] Запустить ручной UI smoke Windows portable x64.
-- [ ] Проверить macOS arm64 DMG/ZIP artifacts.
+- [x] macOS arm64 DMG/ZIP artifacts собраны и прошли release payload validation.
 
 ## Acceptance
 
-- [x] Автоматические контракты KubeDeck `2.3.0` выполнены.
-- [x] `KubeDeck-Portable-2.3.0-x64.exe` собран и автоматически проверен.
+- [x] Автоматические контракты KubeDeck `2.3.1` выполнены.
+- [x] `KubeDeck-Portable-2.3.1-x64.exe` собран и автоматически проверен.
 - [ ] Cross-platform packaged smoke должен быть отмечен после проверки соответствующих artifacts.

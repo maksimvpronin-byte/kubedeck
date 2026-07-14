@@ -64,6 +64,7 @@ function verifyVersions() {
     versions.every((candidate) => candidate === version),
     `Version mismatch: expected ${version}; found ${versions.join(", ")}`,
   );
+  assert(desktopPackage.dependencies?.["@kubedeck/shared-types"] === version, `Desktop shared-types dependency must match release version ${version}`);
   assert(
     rootPackage.scripts?.verify === "npm run lint && npm run format:check && npm run test:renderer && npm run typecheck && npm run build && npm --workspace apps/desktop run test:gateway",
     "Root verify gate changed unexpectedly",
@@ -133,6 +134,13 @@ function verifyDocuments(contract, version) {
   ok("Release documents are present and versioned");
 }
 
+function verifyArtifactVersioning(version) {
+  const builder = read("apps/desktop/electron-builder.yml");
+  assert(builder.includes("artifactName: ${productName}-${version}-${arch}.${ext}"), "macOS artifact name must use the package version");
+  assert(builder.includes("artifactName: ${productName}-Portable-${version}-${arch}.${ext}"), "Windows portable artifact name must use the package version");
+  ok(`Cross-platform artifact versioning: ${version}`);
+}
+
 function verifyReleasePayload(releaseDir, artifact, version) {
   if (!releaseDir) return;
   const resolved = path.resolve(root, releaseDir);
@@ -162,6 +170,7 @@ try {
   const { version, desktopPackage } = verifyVersions();
   verifyNodeOnly(contract, desktopPackage);
   verifyDocuments(contract, version);
+  verifyArtifactVersioning(version);
   verifyReleasePayload(argument("--release-dir"), argument("--artifact"), version);
   process.stdout.write("Release verification passed.\n");
 } catch (error) {

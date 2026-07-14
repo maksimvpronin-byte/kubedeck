@@ -94,17 +94,19 @@ export function NamespaceSelector({
           </div>
           <label>
             <input type="checkbox" checked={isAll} onChange={() => onChange(["all"])} />
-            {allLabel}
+            <span className="namespace-menu-label" title={allLabel}>
+              {allLabel}
+            </span>
           </label>
           <div className="namespace-menu-options">
             {filteredNamespaces.length > 0 ? filteredNamespaces.map((namespace) => (
-              <label key={namespace}>
+              <label key={namespace} title={namespace}>
                 <input
                   type="checkbox"
                   checked={!isAll && normalized.includes(namespace)}
                   onChange={() => toggleNamespace(namespace)}
                 />
-                {namespace}
+                <span className="namespace-menu-label">{namespace}</span>
               </label>
             )) : (
               <div className="namespace-menu-empty">{emptySearchLabel}</div>
