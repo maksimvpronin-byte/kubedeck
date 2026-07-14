@@ -141,6 +141,16 @@ function verifyArtifactVersioning(version) {
   ok(`Cross-platform artifact versioning: ${version}`);
 }
 
+function verifyLineEndingPolicy() {
+  const attributes = read(".gitattributes");
+  assert(/^\* text=auto eol=lf$/m.test(attributes), "Source files must use LF on every platform");
+  for (const extension of ["bat", "cmd", "ps1"]) {
+    assert(new RegExp(`^\\*\\.${extension} text eol=crlf$`, "m").test(attributes), `*.${extension} must use CRLF`);
+  }
+  assert(/^\*\.sh text eol=lf$/m.test(attributes), "Shell scripts must use LF");
+  ok("Cross-platform line-ending policy");
+}
+
 function verifyReleasePayload(releaseDir, artifact, version) {
   if (!releaseDir) return;
   const resolved = path.resolve(root, releaseDir);
@@ -171,6 +181,7 @@ try {
   verifyNodeOnly(contract, desktopPackage);
   verifyDocuments(contract, version);
   verifyArtifactVersioning(version);
+  verifyLineEndingPolicy();
   verifyReleasePayload(argument("--release-dir"), argument("--artifact"), version);
   process.stdout.write("Release verification passed.\n");
 } catch (error) {

@@ -18,6 +18,7 @@ test("KubeDeck release metadata stays synchronized", () => {
   const notes = read(`RELEASE_NOTES_${expectedVersion}.md`);
   const checklist = read(`REGRESSION_CHECKLIST_${expectedVersion}.md`);
   const windowsVersionScript = read("scripts/set-version.ps1");
+  const attributes = read(".gitattributes");
 
   assert.equal(rootPackage.version, expectedVersion);
   assert.equal(desktopPackage.version, expectedVersion);
@@ -41,4 +42,7 @@ test("KubeDeck release metadata stays synchronized", () => {
   assert.equal(contract.pythonRoutes, 0);
   assert.match(windowsVersionScript, /vite\.config\.mts/);
   assert.doesNotMatch(windowsVersionScript, /packages\\ui|apps\\backend|vite\.config\.ts/);
+  assert.match(attributes, /^\* text=auto eol=lf$/m);
+  assert.match(attributes, /^\*\.ps1 text eol=crlf$/m);
+  assert.match(attributes, /^\*\.sh text eol=lf$/m);
 });
