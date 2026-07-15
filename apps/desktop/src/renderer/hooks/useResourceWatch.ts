@@ -8,7 +8,7 @@ interface UseResourceWatchOptions {
   namespaces: string[];
   clusterScoped: boolean;
   enabled: boolean;
-  refresh: (clusterId: string, resource: string, namespaces: string[], silent: boolean) => Promise<void>;
+  refresh: (clusterId: string, resource: string, namespaces: string[], silent: boolean) => Promise<unknown>;
 }
 
 interface WatchReconnectController {

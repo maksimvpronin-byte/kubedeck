@@ -1,6 +1,8 @@
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { useRef, useState } from "react";
 import type { MutableRefObject, ReactNode } from "react";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { AsyncActionButton, reloadActionLabels } from "./AsyncActionButton";
 
 interface YamlTabProps {
   yamlDraft: string;
@@ -12,12 +14,13 @@ interface YamlTabProps {
   operationOutput: string;
   editorRef: MutableRefObject<HTMLTextAreaElement | null>;
   onReset: () => void;
-  onReloadFromCluster: () => void;
+  onReloadFromCluster: () => void | boolean | Promise<void | boolean>;
   onDryRun: () => void;
   onRequestApply: () => void;
   onCopyOutput: () => void;
   readOnly?: boolean;
   readOnlyReason?: string;
+  t: (key: string) => string;
 }
 
 export function YamlTab({
@@ -34,6 +37,7 @@ export function YamlTab({
   onDryRun,
   onRequestApply,
   onCopyOutput,
+  t,
   readOnly = false,
   readOnlyReason = "",
 }: YamlTabProps) {
@@ -42,6 +46,8 @@ export function YamlTab({
   const searchRef = useRef<HTMLInputElement | null>(null);
   const highlightRef = useRef<HTMLPreElement | null>(null);
   const matchCount = yamlQuery ? countMatches(yamlDraft, yamlQuery) : 0;
+  const reloadFeedback = useAsyncActionFeedback();
+  const labels = reloadActionLabels(t);
 
   function jumpMatch(direction: 1 | -1) {
     if (!editorRef.current || !yamlQuery || matchCount === 0) return;
@@ -78,10 +84,22 @@ export function YamlTab({
         <button className="icon-button" disabled={!matchCount} onClick={() => jumpMatch(1)} title="Next match">
           <ChevronDown size={15} />
         </button>
-        <button disabled={loading || !yamlChanged || readOnly} onClick={onReset} title="Discard local edits and return to the last loaded YAML">Reset</button>
-        <button disabled={loading} onClick={onReloadFromCluster} title="Discard local edits and reload YAML from the cluster">Reload</button>
-        <button disabled={loading || yamlDraft.trim() === "" || readOnly} onClick={onDryRun}>Dry-run</button>
-        <button className="primary" disabled={loading || yamlDraft.trim() === "" || !yamlChanged || readOnly} onClick={onRequestApply}>Apply</button>
+        <button disabled={loading || !yamlChanged || readOnly} onClick={onReset} title="Discard local edits and return to the last loaded YAML">
+          Reset
+        </button>
+        <AsyncActionButton
+          phase={reloadFeedback.phase}
+          labels={labels}
+          disabled={loading}
+          onClick={() => void reloadFeedback.run(onReloadFromCluster)}
+          title="Discard local edits and reload YAML from the cluster"
+        />
+        <button disabled={loading || yamlDraft.trim() === "" || readOnly} onClick={onDryRun}>
+          Dry-run
+        </button>
+        <button className="primary" disabled={loading || yamlDraft.trim() === "" || !yamlChanged || readOnly} onClick={onRequestApply}>
+          Apply
+        </button>
         {readOnly && readOnlyReason ? <span className="yaml-readonly-indicator">{readOnlyReason}</span> : null}
         {yamlChanged ? <span className="yaml-dirty-indicator">modified · auto-refresh paused</span> : null}
         {applyResult ? <span className="apply-result">{applyResult}</span> : null}
@@ -90,7 +108,9 @@ export function YamlTab({
         <section className="yaml-operation-output">
           <header>
             <strong>{operationTitle}</strong>
-            <button className="icon-text" onClick={onCopyOutput}>Copy output</button>
+            <button className="icon-text" onClick={onCopyOutput}>
+              Copy output
+            </button>
           </header>
           <pre>{operationOutput}</pre>
         </section>
@@ -166,10 +186,34 @@ function highlightYamlScalars(text: string): ReactNode {
   if (!text) return text;
   const trimmed = text.trim();
   const leading = text.slice(0, text.length - text.trimStart().length);
-  if (/^(['"]).*\1$/.test(trimmed)) return <>{leading}<span className="yaml-string">{trimmed}</span></>;
-  if (/^(true|false|null|~)$/i.test(trimmed)) return <>{leading}<span className="yaml-constant">{trimmed}</span></>;
-  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return <>{leading}<span className="yaml-number">{trimmed}</span></>;
-  if (/^[>|]-?$/.test(trimmed)) return <>{leading}<span className="yaml-punctuation">{trimmed}</span></>;
+  if (/^(['"]).*\1$/.test(trimmed))
+    return (
+      <>
+        {leading}
+        <span className="yaml-string">{trimmed}</span>
+      </>
+    );
+  if (/^(true|false|null|~)$/i.test(trimmed))
+    return (
+      <>
+        {leading}
+        <span className="yaml-constant">{trimmed}</span>
+      </>
+    );
+  if (/^-?\d+(\.\d+)?$/.test(trimmed))
+    return (
+      <>
+        {leading}
+        <span className="yaml-number">{trimmed}</span>
+      </>
+    );
+  if (/^[>|]-?$/.test(trimmed))
+    return (
+      <>
+        {leading}
+        <span className="yaml-punctuation">{trimmed}</span>
+      </>
+    );
   return text;
 }
 
@@ -178,7 +222,7 @@ function findYamlCommentIndex(line: string) {
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
     if ((char === "'" || char === '"') && line[index - 1] !== "\\") {
-      quote = quote === char ? null : quote ?? char;
+      quote = quote === char ? null : (quote ?? char);
     }
     if (char === "#" && !quote && (index === 0 || /\s/.test(line[index - 1]))) return index;
   }

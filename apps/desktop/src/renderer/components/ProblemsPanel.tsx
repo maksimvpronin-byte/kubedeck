@@ -5,21 +5,11 @@ import { asErrorInfo, isAbortError } from "../utils/errors";
 import { getAutoRefreshIntervalSeconds } from "../utils/refresh";
 import { ErrorPanel } from "./ErrorPanel";
 import { ResourceTable } from "./ResourceTable";
+import { refreshActionLabels } from "./AsyncActionButton";
 
 type SeverityFilter = "all" | "critical" | "warning" | "info";
 
-type ProblemCategory =
-  | "crashLoop"
-  | "imagePull"
-  | "scheduling"
-  | "node"
-  | "storage"
-  | "restarts"
-  | "probe"
-  | "deployment"
-  | "event"
-  | "podPhase"
-  | "generic";
+type ProblemCategory = "crashLoop" | "imagePull" | "scheduling" | "node" | "storage" | "restarts" | "probe" | "deployment" | "event" | "podPhase" | "generic";
 
 export function ProblemsPanel({
   api,
@@ -51,7 +41,7 @@ export function ProblemsPanel({
   const requestRef = useRef<AbortController | null>(null);
 
   async function refreshProblems(silent = false) {
-    if (!api || !cluster) return;
+    if (!api || !cluster) return false;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
@@ -63,11 +53,13 @@ export function ProblemsPanel({
       setSummary(response.summary);
       setPartialErrors(response.errors ?? []);
       onError(null);
+      return true;
     } catch (err) {
-      if (isAbortError(err)) return;
+      if (isAbortError(err)) return false;
       const info = asErrorInfo(err);
       setLocalError(info);
       onError(info);
+      return false;
     } finally {
       if (requestRef.current === controller) {
         requestRef.current = null;
@@ -188,22 +180,18 @@ export function ProblemsPanel({
         }}
         t={t}
       />
-      {priorityProblems.length ? (
-        <PriorityProblems
-          items={priorityProblems}
-          copiedProblemId={copiedProblemId}
-          onOpen={openProblem}
-          onCopy={copyProblem}
-          t={t}
-        />
-      ) : null}
+      {priorityProblems.length ? <PriorityProblems items={priorityProblems} copiedProblemId={copiedProblemId} onOpen={openProblem} onCopy={copyProblem} t={t} /> : null}
       {guidance.length ? <ProblemsGuidance items={guidance} t={t} /> : <ProblemsEmptyState loading={loading} total={problems.length} t={t} />}
       {partialErrors.length ? (
         <section className="problem-partial-warning">
           <strong>{t("problems.partial")}</strong>
-          <span>{partialErrors.length} {t("problems.partialText")}</span>
+          <span>
+            {partialErrors.length} {t("problems.partialText")}
+          </span>
           {partialErrors.slice(0, 3).map((item) => (
-            <code key={`${item.resource ?? "unknown"}-${item.code}`}>{item.resource ?? "unknown"}: {item.code} - {item.message}</code>
+            <code key={`${item.resource ?? "unknown"}-${item.code}`}>
+              {item.resource ?? "unknown"}: {item.code} - {item.message}
+            </code>
           ))}
         </section>
       ) : null}
@@ -226,6 +214,7 @@ export function ProblemsPanel({
         onOpen={openProblem}
         filterLabel={t("resources.filter")}
         refreshLabel={t("resources.refresh")}
+        refreshActionLabels={refreshActionLabels(t)}
         labels={{
           shownOf: t("resources.shownOf"),
           page: t("resources.page"),
@@ -246,7 +235,10 @@ export function ProblemsPanel({
 
 function ProblemsSummaryBar({ summary, loading, visibleCount, t }: { summary: ProblemsSummary | null; loading: boolean; visibleCount: number; t: (key: string) => string }) {
   const categorySummary = summary?.categories
-    ? Object.entries(summary.categories).slice(0, 5).map(([name, count]) => `${categoryLabel(name, t)}: ${count}`).join(" · ")
+    ? Object.entries(summary.categories)
+        .slice(0, 5)
+        .map(([name, count]) => `${categoryLabel(name, t)}: ${count}`)
+        .join(" · ")
     : "";
   const cards = [
     { label: t("problems.total"), value: summary?.total ?? 0, className: "" },
@@ -267,7 +259,11 @@ function ProblemsSummaryBar({ summary, loading, visibleCount, t }: { summary: Pr
         <>
           <article className="problem-summary-card wide">
             <span>{t("problems.sources")}</span>
-            <strong>{Object.entries(summary.sources).map(([name, count]) => `${name}: ${count}`).join(" · ")}</strong>
+            <strong>
+              {Object.entries(summary.sources)
+                .map(([name, count]) => `${name}: ${count}`)
+                .join(" · ")}
+            </strong>
           </article>
           {categorySummary ? (
             <article className="problem-summary-card wide">
@@ -315,12 +311,7 @@ function ProblemsControls({
     <section className="problems-controls">
       <div className="segmented-control" aria-label={t("problems.filterSeverity")}>
         {severityOptions.map((option) => (
-          <button
-            type="button"
-            key={option}
-            className={severityFilter === option ? "active" : ""}
-            onClick={() => onSeverityChange(option)}
-          >
+          <button type="button" key={option} className={severityFilter === option ? "active" : ""} onClick={() => onSeverityChange(option)}>
             {t(`problems.severity.${option}`)}
           </button>
         ))}
@@ -329,24 +320,38 @@ function ProblemsControls({
         <span>{t("problems.filterNamespace")}</span>
         <select value={namespaceFilter} onChange={(event) => onNamespaceChange(event.target.value)}>
           <option value="all">{t("problems.allNamespaces")}</option>
-          {namespaces.map((namespace) => <option key={namespace} value={namespace}>{namespace}</option>)}
+          {namespaces.map((namespace) => (
+            <option key={namespace} value={namespace}>
+              {namespace}
+            </option>
+          ))}
         </select>
       </label>
       <label>
         <span>{t("problems.filterKind")}</span>
         <select value={kindFilter} onChange={(event) => onKindChange(event.target.value)}>
           <option value="all">{t("problems.allKinds")}</option>
-          {kinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+          {kinds.map((kind) => (
+            <option key={kind} value={kind}>
+              {kind}
+            </option>
+          ))}
         </select>
       </label>
       <label>
         <span>{t("problems.filterCategory")}</span>
         <select value={categoryFilter} onChange={(event) => onCategoryChange(event.target.value)}>
           <option value="all">{t("problems.allCategories")}</option>
-          {categories.map((category) => <option key={category} value={category}>{categoryLabel(category, t)}</option>)}
+          {categories.map((category) => (
+            <option key={category} value={category}>
+              {categoryLabel(category, t)}
+            </option>
+          ))}
         </select>
       </label>
-      <button type="button" onClick={onReset}>{t("problems.resetFilters")}</button>
+      <button type="button" onClick={onReset}>
+        {t("problems.resetFilters")}
+      </button>
     </section>
   );
 }
@@ -380,14 +385,24 @@ function PriorityProblems({
           return (
             <article key={key} className={`problem-priority-card ${normalizeSeverity(readString(row, "severity", "info"))}`}>
               <div className="problem-priority-main">
-                <span className="problem-priority-meta">{readString(row, "severity", "Info")} · {categoryLabel(category, t)}</span>
+                <span className="problem-priority-meta">
+                  {readString(row, "severity", "Info")} · {categoryLabel(category, t)}
+                </span>
                 <strong>{target}</strong>
-                <p>{readString(row, "reason")}: {readString(row, "message")}</p>
-                <small>{t("problems.nextCheck")}: {readString(row, "nextCheck")}</small>
+                <p>
+                  {readString(row, "reason")}: {readString(row, "message")}
+                </p>
+                <small>
+                  {t("problems.nextCheck")}: {readString(row, "nextCheck")}
+                </small>
               </div>
               <div className="problem-priority-actions">
-                <button type="button" onClick={() => onOpen(row)}>{t("problems.openResource")}</button>
-                <button type="button" onClick={() => onCopy(row)}>{copiedProblemId === key ? t("problems.copied") : t("problems.copyDiagnostics")}</button>
+                <button type="button" onClick={() => onOpen(row)}>
+                  {t("problems.openResource")}
+                </button>
+                <button type="button" onClick={() => onCopy(row)}>
+                  {copiedProblemId === key ? t("problems.copied") : t("problems.copyDiagnostics")}
+                </button>
               </div>
             </article>
           );
@@ -408,7 +423,9 @@ function ProblemsGuidance({ items, t }: { items: GuidanceItem[]; t: (key: string
         {items.map((item) => (
           <article key={item.key} className={`problem-guidance-card ${item.severity}`}>
             <strong>{item.title}</strong>
-            <span>{item.count} {t("problems.items")}</span>
+            <span>
+              {item.count} {t("problems.items")}
+            </span>
             <p>{item.nextCheck}</p>
           </article>
         ))}
@@ -461,9 +478,7 @@ function summarizeGuidance(rows: ResourceRow[], t: (key: string) => string) {
 function problemAdvice(row: ResourceRow, t: (key: string) => string) {
   const category = problemCategory(row);
   if (category !== "generic") return advice(category, t);
-  const text = ["reason", "message", "phase", "status", "statusMessage", "containerProblems", "conditions", "kind"]
-    .map((key) => readString(row, key).toLowerCase())
-    .join(" ");
+  const text = ["reason", "message", "phase", "status", "statusMessage", "containerProblems", "conditions", "kind"].map((key) => readString(row, key).toLowerCase()).join(" ");
 
   if (text.includes("crashloop") || text.includes("back-off restarting")) return advice("crashLoop", t);
   if (text.includes("imagepull") || text.includes("errimagepull") || text.includes("pull image")) return advice("imagePull", t);

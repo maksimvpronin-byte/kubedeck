@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { ApiClient } from "../api";
 import type { AppConfig, BackendInfo, Cluster, DesktopInfo, ErrorInfo } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 export function AboutPanel({
   api,
@@ -24,23 +26,26 @@ export function AboutPanel({
   const [backendInfo, setBackendInfo] = useState<BackendInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const refreshFeedback = useAsyncActionFeedback();
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    try {
-      const [desktop, backend] = await Promise.all([
-        window.kubedeck.getDesktopInfo(),
-        api ? api.appInfo(signal) : Promise.resolve(null),
-      ]);
-      if (signal?.aborted) return;
-      setDesktopInfo(desktop);
-      setBackendInfo(backend);
-    } catch (err) {
-      if (!isAbortError(err)) onError(asErrorInfo(err));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, [api, onError]);
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      try {
+        const [desktop, backend] = await Promise.all([window.kubedeck.getDesktopInfo(), api ? api.appInfo(signal) : Promise.resolve(null)]);
+        if (signal?.aborted) return false;
+        setDesktopInfo(desktop);
+        setBackendInfo(backend);
+        return true;
+      } catch (err) {
+        if (!isAbortError(err)) onError(asErrorInfo(err));
+        return false;
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [api, onError],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -48,31 +53,39 @@ export function AboutPanel({
     return () => controller.abort();
   }, [load]);
 
-  const diagnostics = useMemo(() => ({
-    generatedAt: new Date().toISOString(),
-    desktop: desktopInfo,
-    backend: backendInfo,
-    backendOk,
-    kubectlVersion: kubectlVersion || null,
-    activeCluster: activeCluster ? {
-      id: activeCluster.id,
-      displayName: activeCluster.displayName,
-      kubeconfigPath: activeCluster.kubeconfigPath,
-    } : null,
-    clusters: config?.clusters.map((cluster) => ({
-      id: cluster.id,
-      displayName: cluster.displayName,
-      kubeconfigPath: cluster.kubeconfigPath,
-      lastOpened: cluster.lastOpened,
-    })) ?? [],
-    settings: config ? {
-      kubectlPath: config.settings.kubectlPath,
-      language: config.settings.language,
-      theme: config.settings.theme,
-      refreshIntervalSeconds: config.settings.refreshIntervalSeconds,
-      logsTailLines: config.settings.logsTailLines,
-    } : null,
-  }), [activeCluster, backendInfo, backendOk, config, desktopInfo, kubectlVersion]);
+  const diagnostics = useMemo(
+    () => ({
+      generatedAt: new Date().toISOString(),
+      desktop: desktopInfo,
+      backend: backendInfo,
+      backendOk,
+      kubectlVersion: kubectlVersion || null,
+      activeCluster: activeCluster
+        ? {
+            id: activeCluster.id,
+            displayName: activeCluster.displayName,
+            kubeconfigPath: activeCluster.kubeconfigPath,
+          }
+        : null,
+      clusters:
+        config?.clusters.map((cluster) => ({
+          id: cluster.id,
+          displayName: cluster.displayName,
+          kubeconfigPath: cluster.kubeconfigPath,
+          lastOpened: cluster.lastOpened,
+        })) ?? [],
+      settings: config
+        ? {
+            kubectlPath: config.settings.kubectlPath,
+            language: config.settings.language,
+            theme: config.settings.theme,
+            refreshIntervalSeconds: config.settings.refreshIntervalSeconds,
+            logsTailLines: config.settings.logsTailLines,
+          }
+        : null,
+    }),
+    [activeCluster, backendInfo, backendOk, config, desktopInfo, kubectlVersion],
+  );
 
   async function copyDiagnostics() {
     await navigator.clipboard.writeText(JSON.stringify(diagnostics, null, 2));
@@ -89,8 +102,10 @@ export function AboutPanel({
           <p>{t("about.description")}</p>
         </div>
         <div className="about-actions">
-          <button onClick={() => load()} disabled={loading}>{loading ? t("common.loading") : t("common.refresh")}</button>
-          <button className="primary" onClick={copyDiagnostics}>{copied ? t("common.copied") : t("about.copyDiagnostics")}</button>
+          <AsyncActionButton phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => load())} disabled={loading} />
+          <button className="primary" onClick={copyDiagnostics}>
+            {copied ? t("common.copied") : t("about.copyDiagnostics")}
+          </button>
         </div>
       </div>
 
@@ -103,7 +118,7 @@ export function AboutPanel({
         </AboutCard>
 
         <AboutCard title={t("about.components")}>
-          <InfoRow label={t("about.backend")} value={backendInfo ? `${backendInfo.backendVersion} · ${backendInfo.service}` : (backendOk ? t("common.ok") : "-")} />
+          <InfoRow label={t("about.backend")} value={backendInfo ? `${backendInfo.backendVersion} · ${backendInfo.service}` : backendOk ? t("common.ok") : "-"} />
           <InfoRow label={t("about.python")} value={backendInfo?.pythonVersion || "-"} />
           <InfoRow label={t("about.kubectl")} value={kubectlVersion || "-"} />
           <InfoRow label={t("about.electron")} value={desktopInfo?.electronVersion || "-"} />
@@ -118,7 +133,7 @@ export function AboutPanel({
           <PathRow label={t("about.logsPath")} value={backendInfo?.paths.logs || desktopInfo?.paths.logs} action={() => window.kubedeck.openAppFolder("logs")} t={t} />
         </AboutCard>
 
-        <AboutCard title={t("about.currentCluster")}> 
+        <AboutCard title={t("about.currentCluster")}>
           <InfoRow label={t("about.clusterName")} value={activeCluster?.displayName || "-"} />
           <InfoRow label={t("about.clusterId")} value={activeCluster?.id || "-"} mono />
           <InfoRow label={t("about.kubeconfig")} value={activeCluster?.kubeconfigPath || "-"} mono />
@@ -154,7 +169,9 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
   return (
     <div className="about-row">
       <dt>{label}</dt>
-      <dd className={mono ? "mono" : undefined} title={value}>{value}</dd>
+      <dd className={mono ? "mono" : undefined} title={value}>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -163,8 +180,12 @@ function PathRow({ label, value, action, t }: { label: string; value?: string; a
   return (
     <div className="about-row path-row">
       <dt>{label}</dt>
-      <dd className="mono" title={value || "-"}>{value || "-"}</dd>
-      <button onClick={action} disabled={!value}>{t("about.open")}</button>
+      <dd className="mono" title={value || "-"}>
+        {value || "-"}
+      </dd>
+      <button onClick={action} disabled={!value}>
+        {t("about.open")}
+      </button>
     </div>
   );
 }

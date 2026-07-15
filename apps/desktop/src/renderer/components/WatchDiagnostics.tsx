@@ -3,6 +3,8 @@ import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, WatchSession, WatchStatus } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { formatElapsed } from "../utils/time";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 const WATCH_STATUS_REFRESH_MS = 5000;
 const DEFAULT_WATCH_RESOURCE = "pods";
@@ -30,6 +32,7 @@ export function WatchDiagnostics({
   const [resourceDraft, setResourceDraft] = useState(resourceTab || DEFAULT_WATCH_RESOURCE);
   const [namespaceDraft, setNamespaceDraft] = useState("all");
   const [message, setMessage] = useState("");
+  const refreshFeedback = useAsyncActionFeedback();
 
   const watches = status?.watches ?? [];
   const visibleWatches = useMemo(() => {
@@ -40,14 +43,16 @@ export function WatchDiagnostics({
   const currentNamespaceHint = selectedNamespaces.length === 1 ? selectedNamespaces[0] : "all";
 
   async function loadStatus(options: { quiet?: boolean } = {}) {
-    if (!api) return;
+    if (!api) return false;
     if (!options.quiet) setLoading(true);
     try {
       const next = await api.watchStatus();
       setStatus(next);
       onError(null);
+      return true;
     } catch (err) {
       onError(asErrorInfo(err));
+      return false;
     } finally {
       if (!options.quiet) setLoading(false);
     }
@@ -128,9 +133,12 @@ export function WatchDiagnostics({
           <p>{t("watch.description")}</p>
         </div>
         <div className="watch-diagnostics-actions">
-          <button onClick={() => void loadStatus()} disabled={!api || loading || starting || stoppingAll}>
-            {loading ? t("common.refreshing") : t("common.refresh")}
-          </button>
+          <AsyncActionButton
+            phase={refreshFeedback.phase}
+            labels={refreshActionLabels(t)}
+            onClick={() => void refreshFeedback.run(() => loadStatus())}
+            disabled={!api || loading || starting || stoppingAll}
+          />
           <button onClick={() => void stopAllWatches()} disabled={!api || !visibleWatches.length || stoppingAll || starting}>
             {stoppingAll ? t("watch.stopping") : t("watch.stopAll")}
           </button>
@@ -165,13 +173,7 @@ export function WatchDiagnostics({
       {visibleWatches.length ? (
         <div className="watch-entry-list" aria-label={t("watch.entriesList")}>
           {visibleWatches.map((watch) => (
-            <WatchEntry
-              key={watch.id}
-              watch={watch}
-              t={t}
-              stopping={stoppingId === watch.id}
-              onStop={() => void stopWatch(watch)}
-            />
+            <WatchEntry key={watch.id} watch={watch} t={t} stopping={stoppingId === watch.id} onStop={() => void stopWatch(watch)} />
           ))}
         </div>
       ) : (
@@ -190,17 +192,7 @@ function WatchMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function WatchEntry({
-  watch,
-  t,
-  stopping,
-  onStop,
-}: {
-  watch: WatchSession;
-  t: (key: string) => string;
-  stopping: boolean;
-  onStop: () => void;
-}) {
+function WatchEntry({ watch, t, stopping, onStop }: { watch: WatchSession; t: (key: string) => string; stopping: boolean; onStop: () => void }) {
   const errorTail = watch.errorTail.join("\n");
   const outputTail = watch.outputTail.slice(-3).join("\n");
   const age = formatElapsed(watch.ageSeconds * 1000);
@@ -211,13 +203,21 @@ function WatchEntry({
         <span>{watch.namespace || "_cluster"}</span>
         <span className="watch-status-pill">{watch.status}</span>
         <span>pid: {watch.pid ?? "-"}</span>
-        <span>{t("watch.age")}: {age}</span>
+        <span>
+          {t("watch.age")}: {age}
+        </span>
         <span>stdout: {watch.stdoutLines}</span>
         <span>stderr: {watch.stderrLines}</span>
-        <span>{t("watch.cacheEvents")}: {watch.cacheEvents ?? 0}</span>
-        <span>{t("watch.cacheInvalidations")}: {watch.cacheInvalidations ?? 0}</span>
+        <span>
+          {t("watch.cacheEvents")}: {watch.cacheEvents ?? 0}
+        </span>
+        <span>
+          {t("watch.cacheInvalidations")}: {watch.cacheInvalidations ?? 0}
+        </span>
       </div>
-      <div className="watch-entry-command" title={watch.commandPreview}>{watch.commandPreview}</div>
+      <div className="watch-entry-command" title={watch.commandPreview}>
+        {watch.commandPreview}
+      </div>
       {errorTail ? <pre className="watch-tail watch-tail-error">{errorTail}</pre> : null}
       {!errorTail && outputTail ? <pre className="watch-tail">{outputTail}</pre> : null}
       <div className="watch-entry-actions">

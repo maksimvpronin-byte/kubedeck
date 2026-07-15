@@ -10,11 +10,22 @@ const RESOURCE_LOAD_TIMEOUT_MS = 30_000;
 function isClusterUnavailableError(info: ErrorInfo) {
   const text = `${info.code ?? ""} ${info.message ?? ""} ${info.rawStderr ?? ""}`.toLowerCase();
   return [
-    "connection refused", "connectex", "i/o timeout", "context deadline exceeded",
-    "no route to host", "network is unreachable", "host is unreachable",
-    "unable to connect to the server", "the connection to the server", "tls handshake timeout",
-    "dial tcp", "temporary failure in name resolution", "no such host",
-    "server has asked for the client to provide credentials", "forbidden: user", "unauthorized",
+    "connection refused",
+    "connectex",
+    "i/o timeout",
+    "context deadline exceeded",
+    "no route to host",
+    "network is unreachable",
+    "host is unreachable",
+    "unable to connect to the server",
+    "the connection to the server",
+    "tls handshake timeout",
+    "dial tcp",
+    "temporary failure in name resolution",
+    "no such host",
+    "server has asked for the client to provide credentials",
+    "forbidden: user",
+    "unauthorized",
     "certificate signed by unknown authority",
   ].some((needle) => text.includes(needle));
 }
@@ -53,89 +64,69 @@ export function useResourceLoader({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  return useCallback(async (
-    clusterId = activeCluster?.id,
-    nextResource = resource,
-    nextNamespaces: string | string[] = namespaces,
-    silent = false,
-  ) => {
-    if (!api || !clusterId || nextResource === "port-forwards") return;
+  return useCallback(
+    async (clusterId = activeCluster?.id, nextResource = resource, nextNamespaces: string | string[] = namespaces, silent = false) => {
+      if (!api || !clusterId || nextResource === "port-forwards") return false;
 
-    const requestId = requestSequenceRef.current + 1;
-    requestSequenceRef.current = requestId;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    let timedOut = false;
-    const timeoutId = window.setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, RESOURCE_LOAD_TIMEOUT_MS);
+      const requestId = requestSequenceRef.current + 1;
+      requestSequenceRef.current = requestId;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let timedOut = false;
+      const timeoutId = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, RESOURCE_LOAD_TIMEOUT_MS);
 
-    if (!silent) setLoading(true);
-    try {
-      const normalizedNamespaces = normalizeNamespaceSelection(nextNamespaces);
-      const responses = await loadNamespaceResourceBatches(
-        api,
-        clusterId,
-        nextResource,
-        normalizedNamespaces,
-        controller.signal,
-        { useCache: false, forceRefresh: true },
-      );
-      if (requestSequenceRef.current !== requestId) return;
-      setRows((current) => ({
-        ...current,
-        [nextResource]: responses.flatMap((response) => response.items),
-      }));
-      setError(null);
-      setUnavailableCluster((current) => current?.id === clusterId ? null : current);
-    } catch (error) {
-      if (requestSequenceRef.current !== requestId) return;
-      if (isAbortError(error)) {
-        if (timedOut) {
-          setError({
-            code: "RESOURCE_LOAD_TIMEOUT",
-            message: `${nextResource} refresh did not finish within ${RESOURCE_LOAD_TIMEOUT_MS / 1000} seconds. Try a narrower namespace or refresh again.`,
-            rawStderr: "",
-            commandPreview: `kubectl get ${nextResource}`,
-          });
+      if (!silent) setLoading(true);
+      try {
+        const normalizedNamespaces = normalizeNamespaceSelection(nextNamespaces);
+        const responses = await loadNamespaceResourceBatches(api, clusterId, nextResource, normalizedNamespaces, controller.signal, { useCache: false, forceRefresh: true });
+        if (requestSequenceRef.current !== requestId) return false;
+        setRows((current) => ({
+          ...current,
+          [nextResource]: responses.flatMap((response) => response.items),
+        }));
+        setError(null);
+        setUnavailableCluster((current) => (current?.id === clusterId ? null : current));
+        return true;
+      } catch (error) {
+        if (requestSequenceRef.current !== requestId) return false;
+        if (isAbortError(error)) {
+          if (timedOut) {
+            setError({
+              code: "RESOURCE_LOAD_TIMEOUT",
+              message: `${nextResource} refresh did not finish within ${RESOURCE_LOAD_TIMEOUT_MS / 1000} seconds. Try a narrower namespace or refresh again.`,
+              rawStderr: "",
+              commandPreview: `kubectl get ${nextResource}`,
+            });
+          }
+          return false;
         }
-        return;
-      }
 
-      const info = asErrorInfo(error);
-      if (isClusterUnavailableError(info)) {
-        void api.clearResourceCache(clusterId).catch(() => undefined);
-        setRows({});
-        setNamespaces([]);
-        setUnavailableCluster((current) => current ?? activeCluster ?? null);
-        setActiveCluster((current) => current?.id === clusterId ? null : current);
-      } else {
-        setRows((current) => ({ ...current, [nextResource]: [] }));
+        const info = asErrorInfo(error);
+        if (isClusterUnavailableError(info)) {
+          void api.clearResourceCache(clusterId).catch(() => undefined);
+          setRows({});
+          setNamespaces([]);
+          setUnavailableCluster((current) => current ?? activeCluster ?? null);
+          setActiveCluster((current) => (current?.id === clusterId ? null : current));
+        } else {
+          setRows((current) => ({ ...current, [nextResource]: [] }));
+        }
+        setSelectedRow(null);
+        clearPendingActions();
+        setError(info);
+        return false;
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (requestSequenceRef.current === requestId) {
+          if (abortRef.current === controller) abortRef.current = null;
+          if (!silent) setLoading(false);
+        }
       }
-      setSelectedRow(null);
-      clearPendingActions();
-      setError(info);
-    } finally {
-      window.clearTimeout(timeoutId);
-      if (requestSequenceRef.current === requestId) {
-        if (abortRef.current === controller) abortRef.current = null;
-        if (!silent) setLoading(false);
-      }
-    }
-  }, [
-    api,
-    activeCluster,
-    resource,
-    namespaces,
-    setRows,
-    setNamespaces,
-    setActiveCluster,
-    setUnavailableCluster,
-    setSelectedRow,
-    clearPendingActions,
-    setLoading,
-    setError,
-  ]);
+    },
+    [api, activeCluster, resource, namespaces, setRows, setNamespaces, setActiveCluster, setUnavailableCluster, setSelectedRow, clearPendingActions, setLoading, setError],
+  );
 }

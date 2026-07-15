@@ -19,6 +19,58 @@ button {
   cursor: pointer;
 }
 
+.async-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.async-action-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.async-action-button.is-pending .async-action-icon {
+  animation: async-action-spin 720ms linear infinite;
+}
+
+.async-action-button.is-success {
+  border-color: var(--success-border);
+  color: var(--success-text);
+}
+
+.async-action-button.is-error {
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+}
+
+.async-action-labels {
+  display: inline-grid;
+}
+
+.async-action-labels > span {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.async-action-labels > span.active {
+  visibility: visible;
+}
+
+@keyframes async-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .async-action-button.is-pending .async-action-icon {
+    animation: none;
+  }
+}
+
 button,
 input,
 select,

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ResourceCacheStatus } from "../types";
 import { asErrorInfo } from "../utils/errors";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 export function ResourceCacheDiagnostics({
   api,
@@ -18,24 +20,27 @@ export function ResourceCacheDiagnostics({
   const [loading, setLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [localMessage, setLocalMessage] = useState("");
+  const refreshFeedback = useAsyncActionFeedback();
 
   const clusterEntries = useMemo(() => {
     if (!status || !activeCluster) return [];
     return status.items.filter((item) => item.clusterId === activeCluster.id);
   }, [status, activeCluster?.id]);
 
-  const visibleEntries = activeCluster ? clusterEntries : status?.items ?? [];
+  const visibleEntries = activeCluster ? clusterEntries : (status?.items ?? []);
 
   async function loadStatus() {
-    if (!api) return;
+    if (!api) return false;
     setLoading(true);
     setLocalMessage("");
     try {
       const next = await api.resourceCacheStatus();
       setStatus(next);
       onError(null);
+      return true;
     } catch (err) {
       onError(asErrorInfo(err));
+      return false;
     } finally {
       setLoading(false);
     }
@@ -70,9 +75,7 @@ export function ResourceCacheDiagnostics({
           <p>{t("cache.description")}</p>
         </div>
         <div className="cache-diagnostics-actions">
-          <button onClick={() => void loadStatus()} disabled={!api || loading || clearing}>
-            {loading ? t("common.refreshing") : t("common.refresh")}
-          </button>
+          <AsyncActionButton phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(loadStatus)} disabled={!api || loading || clearing} />
           <button onClick={() => void clearCache(false)} disabled={!api || loading || clearing}>
             {clearing ? t("cache.clearing") : t("cache.clearAll")}
           </button>
@@ -98,9 +101,15 @@ export function ResourceCacheDiagnostics({
             <article className="cache-entry" key={`${entry.clusterId}:${entry.namespace}:${entry.resource}`}>
               <strong>{entry.resource}</strong>
               <span>{entry.namespace || "_cluster"}</span>
-              <span>{entry.items ?? entry.rawCount ?? 0} {t("cache.items")}</span>
-              <span>{t("cache.age")}: {entry.ageSeconds.toFixed(1)}s</span>
-              <span>{t("cache.hits")}: {entry.hits}</span>
+              <span>
+                {entry.items ?? entry.rawCount ?? 0} {t("cache.items")}
+              </span>
+              <span>
+                {t("cache.age")}: {entry.ageSeconds.toFixed(1)}s
+              </span>
+              <span>
+                {t("cache.hits")}: {entry.hits}
+              </span>
             </article>
           ))}
         </div>

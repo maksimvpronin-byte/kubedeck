@@ -787,9 +787,7 @@ export function App() {
                         columns={columns}
                         loading={loading}
                         resource={resourceTab}
-                        onRefresh={() => {
-                          void loadResources();
-                        }}
+                        onRefresh={() => loadResources()}
                         onNodeAction={bulkActions.requestNodeAction}
                         onOpenLocator={openResourceLocator}
                         onSelect={(selectedRow, resource) => {

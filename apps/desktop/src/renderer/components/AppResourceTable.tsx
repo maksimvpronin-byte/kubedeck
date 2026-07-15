@@ -3,6 +3,7 @@ import { ResourceTable } from "./ResourceTable";
 import type { ResourceRow } from "../types";
 import { createResourceTableLabels } from "../utils/resourceTableLabels";
 import { createNodeBulkActions, openResourceTableRow } from "../utils/resourceTableActions";
+import { refreshActionLabels } from "./AsyncActionButton";
 
 interface Props {
   title: string;
@@ -13,7 +14,7 @@ interface Props {
   selectedRow: ResourceRow | null;
   canBulkDelete: boolean;
   t: (key: string) => string;
-  onRefresh: () => void;
+  onRefresh: () => void | boolean | Promise<void | boolean>;
   onOpenLocator: (row: ResourceRow) => Promise<void>;
   onSelect: (row: ResourceRow, resource: string) => void;
   onNamespaceClick: (namespace: string) => void;
@@ -36,6 +37,7 @@ export function AppResourceTable(props: Props) {
       onBulkDelete={props.canBulkDelete ? (rows) => props.onBulkDelete(props.resource, rows) : undefined}
       filterLabel={props.t("resources.filter")}
       refreshLabel={props.t("resources.refresh")}
+      refreshActionLabels={refreshActionLabels(props.t)}
       labels={createResourceTableLabels(props.t)}
       stateKey={props.resource}
     />

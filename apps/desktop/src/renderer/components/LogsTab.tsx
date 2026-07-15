@@ -1,6 +1,8 @@
 import { Search } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useControlledAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 interface LogsTabProps {
   content: string;
@@ -25,6 +27,8 @@ interface LogsTabProps {
   contextLabel?: string;
   fullDownloadLabel?: string;
   onRefresh: () => void;
+  refreshFailed: boolean;
+  t: (key: string) => string;
   onCopy: () => void;
   downloadLoading: boolean;
   onDownloadVisible: (visibleText: string) => void;
@@ -54,6 +58,8 @@ export function LogsTab({
   contextLabel = "pod",
   fullDownloadLabel = "Full pod log",
   onRefresh,
+  refreshFailed,
+  t,
   onCopy,
   downloadLoading,
   onDownloadVisible,
@@ -63,6 +69,7 @@ export function LogsTab({
   const stickToBottomRef = useRef(true);
   const previousContentRef = useRef(content);
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const refreshFeedback = useControlledAsyncActionFeedback(loading, refreshFailed);
   const lines = content ? content.split("\n") : [];
   const normalizedQuery = query.trim().toLowerCase();
   const visibleLines = normalizedQuery ? lines.filter((line) => line.toLowerCase().includes(normalizedQuery)) : lines;
@@ -106,7 +113,11 @@ export function LogsTab({
             Pod
             <select value={selectedTargetPod} onChange={(event) => onTargetPodChange?.(event.target.value)}>
               <option value="">All pods</option>
-              {targetPods.map((name) => <option value={name} key={name}>{name}</option>)}
+              {targetPods.map((name) => (
+                <option value={name} key={name}>
+                  {name}
+                </option>
+              ))}
             </select>
           </label>
         ) : null}
@@ -115,14 +126,22 @@ export function LogsTab({
             Container
             <select value={selectedContainer} onChange={(event) => onContainerChange(event.target.value)}>
               {allowAllContainers ? <option value="">All containers</option> : null}
-              {containers.map((name) => <option value={name} key={name}>{name}</option>)}
+              {containers.map((name) => (
+                <option value={name} key={name}>
+                  {name}
+                </option>
+              ))}
             </select>
           </label>
         ) : null}
         <label>
           Tail
           <select value={tail} onChange={(event) => onTailChange(Number(event.target.value))}>
-            {[100, 300, 500, 1000, 2000, 5000].map((value) => <option value={value} key={value}>{value}</option>)}
+            {[100, 300, 500, 1000, 2000, 5000].map((value) => (
+              <option value={value} key={value}>
+                {value}
+              </option>
+            ))}
           </select>
         </label>
         <label className="logs-checkbox">
@@ -137,9 +156,13 @@ export function LogsTab({
           <input type="checkbox" checked={follow} onChange={(event) => onFollowChange(event.target.checked)} />
           Follow
         </label>
-        <button onClick={onRefresh}>Refresh</button>
-        <button onClick={onCopy} disabled={!content}>Copy</button>
-        <button onClick={() => setDownloadMenuOpen((current) => !current)} disabled={!content || downloadLoading}>Download</button>
+        <AsyncActionButton phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => refreshFeedback.trigger(onRefresh)} disabled={loading} />
+        <button onClick={onCopy} disabled={!content}>
+          Copy
+        </button>
+        <button onClick={() => setDownloadMenuOpen((current) => !current)} disabled={!content || downloadLoading}>
+          Download
+        </button>
       </div>
       {downloadMenuOpen ? (
         <section className="logs-download-choice" aria-label="Download logs">
@@ -148,9 +171,15 @@ export function LogsTab({
             <p>Choose whether to save the current loaded view or request the full {contextLabel} log from Kubernetes.</p>
           </div>
           <div className="logs-download-choice-actions">
-            <button onClick={downloadVisibleAndClose} disabled={!visibleText || downloadLoading}>Current view</button>
-            <button onClick={downloadFullAndClose} disabled={downloadLoading}>{downloadLoading ? "Downloading..." : fullDownloadLabel}</button>
-            <button onClick={() => setDownloadMenuOpen(false)} disabled={downloadLoading}>Cancel</button>
+            <button onClick={downloadVisibleAndClose} disabled={!visibleText || downloadLoading}>
+              Current view
+            </button>
+            <button onClick={downloadFullAndClose} disabled={downloadLoading}>
+              {downloadLoading ? "Downloading..." : fullDownloadLabel}
+            </button>
+            <button onClick={() => setDownloadMenuOpen(false)} disabled={downloadLoading}>
+              Cancel
+            </button>
           </div>
         </section>
       ) : null}
@@ -161,12 +190,16 @@ export function LogsTab({
       </label>
       {follow ? <p className="terminal-muted">Follow mode refreshes bounded logs every 3 seconds.</p> : null}
       <pre className="logs-output" ref={outputRef} onScroll={updateScrollStickiness}>
-        {visibleLines.length === 0 ? <span className="terminal-muted">No log lines.</span> : visibleLines.map((line, index) => (
-          <span className="log-line" key={`${index}-${line.slice(0, 24)}`}>
-            {highlightLogLine(line, query)}
-            {index < visibleLines.length - 1 ? "\n" : ""}
-          </span>
-        ))}
+        {visibleLines.length === 0 ? (
+          <span className="terminal-muted">No log lines.</span>
+        ) : (
+          visibleLines.map((line, index) => (
+            <span className="log-line" key={`${index}-${line.slice(0, 24)}`}>
+              {highlightLogLine(line, query)}
+              {index < visibleLines.length - 1 ? "\n" : ""}
+            </span>
+          ))
+        )}
       </pre>
     </section>
   );
@@ -179,5 +212,11 @@ function highlightLogLine(line: string, query: string): ReactNode {
   const start = lower.indexOf(needle);
   if (start < 0) return line;
   const end = start + query.trim().length;
-  return <>{line.slice(0, start)}<mark>{line.slice(start, end)}</mark>{line.slice(end)}</>;
+  return (
+    <>
+      {line.slice(0, start)}
+      <mark>{line.slice(start, end)}</mark>
+      {line.slice(end)}
+    </>
+  );
 }

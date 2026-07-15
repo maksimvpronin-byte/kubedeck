@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ApiClient } from "../api";
 import type { AuditEvent, ErrorInfo } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 const STATUS_FILTERS = ["all", "success", "failed", "opened", "closed"] as const;
 type AuditStatusFilter = (typeof STATUS_FILTERS)[number];
@@ -53,28 +55,34 @@ export function AuditPanel({ api, copyLabel, t, onError }: { api: ApiClient | nu
   const [actionFilter, setActionFilter] = useState("all");
   const [copyMessage, setCopyMessage] = useState("");
   const requestRef = useRef<AbortController | null>(null);
+  const refreshFeedback = useAsyncActionFeedback();
 
-  const loadAudit = useCallback((silent = false, requestedLimit = limit) => {
-    if (!api) return;
-    requestRef.current?.abort();
-    const controller = new AbortController();
-    requestRef.current = controller;
-    if (!silent) setLoading(true);
-    api.audit(requestedLimit, controller.signal)
-      .then((response) => setEvents(response.items))
-      .catch((err) => {
-        if (isAbortError(err)) return;
+  const loadAudit = useCallback(
+    async (silent = false, requestedLimit = limit) => {
+      if (!api) return false;
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
+      if (!silent) setLoading(true);
+      try {
+        const response = await api.audit(requestedLimit, controller.signal);
+        setEvents(response.items);
+        return true;
+      } catch (err) {
+        if (isAbortError(err)) return false;
         onError(asErrorInfo(err));
-      })
-      .finally(() => {
+        return false;
+      } finally {
         if (requestRef.current === controller) requestRef.current = null;
         if (!silent) setLoading(false);
-      });
-  }, [api, limit, onError]);
+      }
+    },
+    [api, limit, onError],
+  );
 
   useEffect(() => {
-    loadAudit();
-    const timer = window.setInterval(() => loadAudit(true), 15000);
+    void loadAudit();
+    const timer = window.setInterval(() => void loadAudit(true), 15000);
     return () => {
       requestRef.current?.abort();
       window.clearInterval(timer);
@@ -104,7 +112,7 @@ export function AuditPanel({ api, copyLabel, t, onError }: { api: ApiClient | nu
   function showCopyMessage(message: string) {
     setCopyMessage(message);
     window.setTimeout(() => {
-      setCopyMessage((current) => current === message ? "" : current);
+      setCopyMessage((current) => (current === message ? "" : current));
     }, 2500);
   }
 
@@ -125,7 +133,7 @@ export function AuditPanel({ api, copyLabel, t, onError }: { api: ApiClient | nu
 
   function updateLimit(value: number) {
     setLimit(value);
-    loadAudit(false, value);
+    void loadAudit(false, value);
   }
 
   return (
@@ -137,17 +145,33 @@ export function AuditPanel({ api, copyLabel, t, onError }: { api: ApiClient | nu
         </div>
         <div className="audit-header-actions">
           <select value={limit} onChange={(event) => updateLimit(Number(event.target.value))} aria-label={t("audit.limitLabel")}>
-            {[100, 300, 500, 1000].map((value) => <option key={value} value={value}>{t("audit.last")} {value}</option>)}
+            {[100, 300, 500, 1000].map((value) => (
+              <option key={value} value={value}>
+                {t("audit.last")} {value}
+              </option>
+            ))}
           </select>
-          <button onClick={() => loadAudit()} disabled={loading}>{loading ? t("common.refreshing") : t("common.refresh")}</button>
+          <AsyncActionButton phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => loadAudit())} disabled={loading} />
         </div>
       </header>
 
       <div className="audit-summary-grid">
-        <div><span>{t("audit.total")}</span><strong>{summary.total}</strong></div>
-        <div><span>{t("audit.visible")}</span><strong>{summary.visible}</strong></div>
-        <div><span>{t("audit.success")}</span><strong>{summary.success}</strong></div>
-        <div><span>{t("audit.failed")}</span><strong>{summary.failed}</strong></div>
+        <div>
+          <span>{t("audit.total")}</span>
+          <strong>{summary.total}</strong>
+        </div>
+        <div>
+          <span>{t("audit.visible")}</span>
+          <strong>{summary.visible}</strong>
+        </div>
+        <div>
+          <span>{t("audit.success")}</span>
+          <strong>{summary.success}</strong>
+        </div>
+        <div>
+          <span>{t("audit.failed")}</span>
+          <strong>{summary.failed}</strong>
+        </div>
       </div>
 
       <div className="audit-filters">
@@ -158,19 +182,31 @@ export function AuditPanel({ api, copyLabel, t, onError }: { api: ApiClient | nu
         <label>
           {t("audit.status")}
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as AuditStatusFilter)}>
-            {STATUS_FILTERS.map((status) => <option key={status} value={status}>{status}</option>)}
+            {STATUS_FILTERS.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
           </select>
         </label>
         <label>
           {t("common.action")}
           <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
             <option value="all">{t("common.all")}</option>
-            {actionOptions.map((action) => <option key={action} value={action}>{action}</option>)}
+            {actionOptions.map((action) => (
+              <option key={action} value={action}>
+                {action}
+              </option>
+            ))}
           </select>
         </label>
         <div className="audit-filter-actions">
-          <button onClick={copyVisible} disabled={!filteredEvents.length}>{t("audit.copyVisible")}</button>
-          <button onClick={downloadVisible} disabled={!filteredEvents.length}>{t("audit.download")}</button>
+          <button onClick={copyVisible} disabled={!filteredEvents.length}>
+            {t("audit.copyVisible")}
+          </button>
+          <button onClick={downloadVisible} disabled={!filteredEvents.length}>
+            {t("audit.download")}
+          </button>
           {copyMessage ? <span>{copyMessage}</span> : null}
         </div>
       </div>
@@ -184,9 +220,7 @@ export function AuditPanel({ api, copyLabel, t, onError }: { api: ApiClient | nu
                 <strong>{event.action}</strong>
                 <em>{event.status}</em>
               </div>
-              <div className="audit-event-target">
-                {[event.clusterId, event.namespace, event.resource, event.name].filter(Boolean).join(" / ") || t("common.application")}
-              </div>
+              <div className="audit-event-target">{[event.clusterId, event.namespace, event.resource, event.name].filter(Boolean).join(" / ") || t("common.application")}</div>
               {event.commandPreview ? <code>{event.commandPreview}</code> : null}
               {event.message ? <p>{event.message}</p> : null}
               {event.extra && Object.keys(event.extra).length ? <small>{JSON.stringify(event.extra)}</small> : null}

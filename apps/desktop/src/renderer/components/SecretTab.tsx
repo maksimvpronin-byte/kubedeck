@@ -1,22 +1,25 @@
-import { Copy, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Copy, Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiClient } from "../api";
 import { toErrorInfo } from "../utils/errors";
 import type { ErrorInfo, ResourceRow, SecretKeysResponse, SecretRevealResponse } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { AsyncActionButton } from "./AsyncActionButton";
 
 interface Props {
   api: ApiClient;
   clusterId: string;
   row: ResourceRow;
   copyLabel: string;
+  t: (key: string) => string;
 }
 
 type RevealedValue = SecretRevealResponse & {
   visibleUntil: number;
 };
 
-export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
+export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
   const namespace = String(row.namespace || "");
   const name = row.name;
   const [response, setResponse] = useState<SecretKeysResponse | null>(null);
@@ -26,6 +29,7 @@ export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
   const [revealed, setRevealed] = useState<Record<string, RevealedValue>>({});
   const [copiedKey, setCopiedKey] = useState("");
   const hideTimers = useRef<Record<string, number>>({});
+  const refreshFeedback = useAsyncActionFeedback();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,7 +42,7 @@ export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
   }, [api, clusterId, namespace, name]);
 
   async function loadSecret(signal?: AbortSignal) {
-    if (!namespace) return;
+    if (!namespace) return false;
     setLoading(true);
     setError(null);
     try {
@@ -47,9 +51,11 @@ export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
       setRevealed({});
       Object.values(hideTimers.current).forEach((timer) => window.clearTimeout(timer));
       hideTimers.current = {};
+      return true;
     } catch (err) {
-      if ((err as Error).name === "AbortError") return;
+      if ((err as Error).name === "AbortError") return false;
       setError(toErrorInfo(err));
+      return false;
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -89,7 +95,7 @@ export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
     if (!item) return;
     await navigator.clipboard?.writeText(item.value);
     setCopiedKey(key);
-    window.setTimeout(() => setCopiedKey((current) => current === key ? "" : current), 1500);
+    window.setTimeout(() => setCopiedKey((current) => (current === key ? "" : current)), 1500);
     try {
       await api.auditSecretCopy(clusterId, namespace, name, key);
     } catch {
@@ -109,14 +115,26 @@ export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
 
       <div className="drawer-filterbar">
         <div className="secret-meta">
-          <span>Type: <strong>{response?.type || "—"}</strong></span>
-          <span>Keys: <strong>{keys.length}</strong></span>
+          <span>
+            Type: <strong>{response?.type || "—"}</strong>
+          </span>
+          <span>
+            Keys: <strong>{keys.length}</strong>
+          </span>
           {response?.immutable ? <span>Immutable</span> : null}
         </div>
-        <button className="icon-text" disabled={loading} onClick={() => void loadSecret()}>
-          <RefreshCw size={14} />
-          Refresh keys
-        </button>
+        <AsyncActionButton
+          className="icon-text"
+          phase={refreshFeedback.phase}
+          labels={{
+            idle: t("secret.refreshKeys"),
+            pending: t("secret.refreshingKeys"),
+            success: t("secret.keysUpdated"),
+            error: t("common.refreshFailed"),
+          }}
+          disabled={loading}
+          onClick={() => void refreshFeedback.run(() => loadSecret())}
+        />
       </div>
 
       {loading ? <div className="muted">Loading secret keys...</div> : null}
@@ -137,7 +155,10 @@ export function SecretTab({ api, clusterId, row, copyLabel }: Props) {
               <header>
                 <div>
                   <strong>{item.key}</strong>
-                  <span>{item.validBase64 ? `${formatBytes(item.decodedBytes)} decoded` : "invalid base64"}{item.binary ? " · binary-like" : ""}</span>
+                  <span>
+                    {item.validBase64 ? `${formatBytes(item.decodedBytes)} decoded` : "invalid base64"}
+                    {item.binary ? " · binary-like" : ""}
+                  </span>
                 </div>
                 <div className="secret-key-actions">
                   {visible ? (

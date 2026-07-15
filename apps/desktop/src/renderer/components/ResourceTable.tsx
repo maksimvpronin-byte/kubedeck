@@ -1,4 +1,4 @@
-import { RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Search, Trash2, X } from "lucide-react";
 import { useRef } from "react";
 import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
@@ -7,6 +7,8 @@ import { PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableCol
 import { formatElapsed } from "../utils/time";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
+import { AsyncActionButton, type AsyncActionLabels } from "./AsyncActionButton";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 
 export type Column = ResourceTableColumn;
 
@@ -15,7 +17,7 @@ interface Props {
   rows: ResourceRow[];
   columns: Column[];
   loading: boolean;
-  onRefresh: () => void;
+  onRefresh: () => void | boolean | Promise<void | boolean>;
   onOpen?: (row: ResourceRow) => void;
   onNamespaceClick?: (namespace: string) => void;
   onBulkDelete?: (rows: ResourceRow[]) => void;
@@ -25,6 +27,7 @@ interface Props {
   selectedRow?: ResourceRow | null;
   filterLabel: string;
   refreshLabel: string;
+  refreshActionLabels?: AsyncActionLabels;
   stateKey: string;
   labels?: Partial<{
     shownOf: string;
@@ -62,6 +65,7 @@ export function ResourceTable({
   selectedRow,
   filterLabel,
   refreshLabel,
+  refreshActionLabels,
   stateKey,
   labels,
 }: Props) {
@@ -88,13 +92,43 @@ export function ResourceTable({
   const filterInputRef = useRef<HTMLInputElement | null>(null);
   const table = useResourceTableState(rows, columns, stateKey);
   const {
-    tableRef, query, setQuery, sortKey, sortDirection, selected, pageSize, setPageSize,
-    setPageIndex, orderedColumns, hiddenColumns, visibleColumns, visibleRows, renderedRows,
-    selectedRows, selectedPageRows, totalPages, safePageIndex, pageStart, draggedColumn,
-    setDraggedColumn, dragOverColumn, setDragOverColumn, widthFor, changeSort, toggleRow,
-    setPageSelected, startColumnResize, startColumnDrag, dropColumn, toggleColumn, resetColumns,
+    tableRef,
+    query,
+    setQuery,
+    sortKey,
+    sortDirection,
+    selected,
+    pageSize,
+    setPageSize,
+    setPageIndex,
+    orderedColumns,
+    hiddenColumns,
+    visibleColumns,
+    visibleRows,
+    renderedRows,
+    selectedRows,
+    selectedPageRows,
+    totalPages,
+    safePageIndex,
+    pageStart,
+    draggedColumn,
+    setDraggedColumn,
+    dragOverColumn,
+    setDragOverColumn,
+    widthFor,
+    changeSort,
+    toggleRow,
+    setPageSelected,
+    startColumnResize,
+    startColumnDrag,
+    dropColumn,
+    toggleColumn,
+    resetColumns,
   } = table;
-  const now = useUiClock(columns.some((column) => column.key === "createdAt"), 1000);
+  const now = useUiClock(
+    columns.some((column) => column.key === "createdAt"),
+    1000,
+  );
   const tableWidth = 38 + visibleColumns.reduce((sum, column) => sum + widthFor(column), 0);
   const selectedRowKey = selectedRow ? rowKey(selectedRow) : "";
   const hasFilter = query.trim().length > 0;
@@ -106,6 +140,13 @@ export function ResourceTable({
   const allPageSelected = renderedRows.length > 0 && selectedPageRows.length === renderedRows.length;
   const nodeActionsVisible = selectedRows.length > 0 && Boolean(onBulkCordon || onBulkUncordon || onBulkDrain);
   const controlsDisabled = loading && rows.length === 0;
+  const refreshFeedback = useAsyncActionFeedback();
+  const refreshLabels = refreshActionLabels ?? {
+    idle: refreshLabel,
+    pending: "Refreshing...",
+    success: "Updated",
+    error: "Refresh failed",
+  };
 
   return (
     <section className="resource-table-panel" ref={tableRef}>
@@ -169,9 +210,14 @@ export function ResourceTable({
               </button>
             ) : null}
           </div>
-          <button className="secondary-btn" type="button" onClick={onRefresh} disabled={controlsDisabled}>
-            <RefreshCw size={14} /> {refreshLabel}
-          </button>
+          <AsyncActionButton
+            className="secondary-btn"
+            type="button"
+            phase={refreshFeedback.phase}
+            labels={refreshLabels}
+            onClick={() => void refreshFeedback.run(onRefresh)}
+            disabled={controlsDisabled}
+          />
         </div>
       </div>
 
@@ -186,12 +232,7 @@ export function ResourceTable({
           <thead>
             <tr>
               <th className="select-col">
-                <input
-                  type="checkbox"
-                  checked={allPageSelected}
-                  disabled={renderedRows.length === 0}
-                  onChange={(event) => setPageSelected(event.target.checked)}
-                />
+                <input type="checkbox" checked={allPageSelected} disabled={renderedRows.length === 0} onChange={(event) => setPageSelected(event.target.checked)} />
               </th>
               {visibleColumns.map((column) => (
                 <th
@@ -204,7 +245,7 @@ export function ResourceTable({
                     event.dataTransfer.dropEffect = "move";
                     setDragOverColumn(column.key);
                   }}
-                  onDragLeave={() => setDragOverColumn((current) => current === column.key ? "" : current)}
+                  onDragLeave={() => setDragOverColumn((current) => (current === column.key ? "" : current))}
                   onDrop={(event) => dropColumn(event, column)}
                   onDragEnd={() => {
                     setDraggedColumn("");
@@ -219,12 +260,7 @@ export function ResourceTable({
                       </span>
                     ) : null}
                   </button>
-                  <span
-                    className="column-resizer"
-                    draggable={false}
-                    onDragStart={(event) => event.preventDefault()}
-                    onMouseDown={(event) => startColumnResize(event, column)}
-                  />
+                  <span className="column-resizer" draggable={false} onDragStart={(event) => event.preventDefault()} onMouseDown={(event) => startColumnResize(event, column)} />
                 </th>
               ))}
             </tr>
@@ -233,30 +269,26 @@ export function ResourceTable({
             {renderedRows.map((row) => {
               const key = rowKey(row);
               return (
-                <tr
-                  key={key}
-                  className={`${selectedRowKey === key ? "selected" : ""} ${rowHealthClass(row)}`.trim()}
-                  onClick={() => onOpen?.(row)}
-                  onContextMenu={(event) => event.preventDefault()}
-                >
+                <tr key={key} className={`${selectedRowKey === key ? "selected" : ""} ${rowHealthClass(row)}`.trim()} onClick={() => onOpen?.(row)} onContextMenu={(event) => event.preventDefault()}>
                   <td className="select-col" onClick={(event) => event.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(key)} onChange={() => toggleRow(key)} />
                   </td>
                   {visibleColumns.map((column) => {
-                    const cellContent = column.key === "namespace" && row.namespace ? (
-                      <button
-                        type="button"
-                        className="link-button namespace-pill"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onNamespaceClick?.(String(row.namespace));
-                        }}
-                      >
-                        {String(row.namespace)}
-                      </button>
-                    ) : (
-                      formatCell(row, column.key, now)
-                    );
+                    const cellContent =
+                      column.key === "namespace" && row.namespace ? (
+                        <button
+                          type="button"
+                          className="link-button namespace-pill"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onNamespaceClick?.(String(row.namespace));
+                          }}
+                        >
+                          {String(row.namespace)}
+                        </button>
+                      ) : (
+                        formatCell(row, column.key, now)
+                      );
                     return <td key={`${key}-${column.key}`}>{cellContent}</td>;
                   })}
                 </tr>
@@ -271,7 +303,9 @@ export function ResourceTable({
           <h3>{emptyTitle}</h3>
           <p>{emptyText}</p>
           {filteredEmpty ? (
-            <button className="secondary-btn" type="button" onClick={() => setQuery("")}>{ui.clearFilter}</button>
+            <button className="secondary-btn" type="button" onClick={() => setQuery("")}>
+              {ui.clearFilter}
+            </button>
           ) : null}
         </div>
       ) : null}
@@ -285,7 +319,10 @@ export function ResourceTable({
         pageIndex={safePageIndex}
         totalPages={totalPages}
         labels={ui}
-        onPageSizeChange={(size) => { setPageSize(size); setPageIndex(0); }}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPageIndex(0);
+        }}
         onPageChange={setPageIndex}
       />
     </section>
@@ -317,12 +354,7 @@ function renderContainerStatus(row: ResourceRow): ReactNode {
   return (
     <span className="container-status-cubes" aria-label={containers.map((container) => container.title).join("; ")}>
       {containers.map((container) => (
-        <span
-          key={container.name}
-          className={`container-status-cube is-${container.tone}`}
-          title={container.title}
-          aria-label={container.title}
-        />
+        <span key={container.name} className={`container-status-cube is-${container.tone}`} title={container.title} aria-label={container.title} />
       ))}
     </span>
   );
@@ -348,12 +380,9 @@ function normalizeContainerStatusItems(row: ResourceRow): ContainerStatusItem[] 
       const reason = String(record.reason || "");
       const restartCount = Number(record.restartCount ?? 0);
       const tone = containerTone(state, ready);
-      const details = [
-        ready ? "ready" : "not ready",
-        state && state !== "unknown" ? state : "",
-        reason,
-        Number.isFinite(restartCount) && restartCount > 0 ? `${restartCount} restarts` : "",
-      ].filter(Boolean).join(", ");
+      const details = [ready ? "ready" : "not ready", state && state !== "unknown" ? state : "", reason, Number.isFinite(restartCount) && restartCount > 0 ? `${restartCount} restarts` : ""]
+        .filter(Boolean)
+        .join(", ");
       return [{ name, tone, title: `${name}: ${details || "unknown"}` }];
     });
   }

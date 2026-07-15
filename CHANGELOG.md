@@ -1,4 +1,12 @@
-﻿## 2.3.2 - Complete color theme system
+﻿## 2.4.0 - Async action feedback
+
+- Added a shared idle, pending, success and error feedback model for every manual Refresh and Reload action.
+- Added minimum pending visibility, duplicate-run protection, deterministic cleanup and a controlled mode for parent-owned loading such as Logs.
+- Added localized Updated, Reloaded and failure states with stable button width, semantic colors, accessible names and reduced-motion support.
+- Kept timer, Watch and follow-mode refreshes silent while preserving existing API calls, errors, YAML dirty-state and Secret boundaries.
+- Added renderer contracts for feedback timing, rejected operations, cleanup, accessibility, reduced motion and all ten required UI surfaces.
+
+## 2.3.2 - Complete color theme system
 
 - Added Midnight Blue, Nord Frost, Forest Teal, Plum Graphite and Warm Mocha themes alongside Light and System.
 - Preserved legacy `dark` settings as Midnight Blue and added safe fallback and pre-render restoration for saved themes.

@@ -3,6 +3,8 @@ import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, PortForwardSession } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { ErrorPanel } from "./ErrorPanel";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 export function PortForwardsPanel({
   api,
@@ -21,19 +23,23 @@ export function PortForwardsPanel({
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<ErrorInfo | null>(null);
   const [message, setMessage] = useState("");
+  const refreshFeedback = useAsyncActionFeedback();
 
-  async function refresh() {
-    if (!api) return;
-    setLoading(true);
+  async function refresh(options: { quiet?: boolean } = {}) {
+    if (!api) return false;
+    if (!options.quiet) setLoading(true);
     try {
       setSessions((await api.portForwards()).items);
       setLocalError(null);
+      onError(null);
+      return true;
     } catch (err) {
       const info = asErrorInfo(err);
       setLocalError(info);
       onError(info);
+      return false;
     } finally {
-      setLoading(false);
+      if (!options.quiet) setLoading(false);
     }
   }
 
@@ -42,7 +48,7 @@ export function PortForwardsPanel({
     setLoading(true);
     try {
       await api.stopPortForward(id);
-      await refresh();
+      await refresh({ quiet: true });
       setMessage("Port-forward stopped");
       onError(null);
     } catch (err) {
@@ -67,7 +73,7 @@ export function PortForwardsPanel({
         remotePort: session.remotePort,
       });
       setMessage(`Port-forward restarted: ${next.url}`);
-      await refresh();
+      await refresh({ quiet: true });
       onError(null);
     } catch (err) {
       const info = asErrorInfo(err);
@@ -82,18 +88,18 @@ export function PortForwardsPanel({
     void navigator.clipboard?.writeText(session.url);
     setMessage(`Copied ${session.url}`);
     window.setTimeout(() => {
-      setMessage((current) => current === `Copied ${session.url}` ? "" : current);
+      setMessage((current) => (current === `Copied ${session.url}` ? "" : current));
     }, 2500);
   }
 
   useEffect(() => {
-    refresh();
+    void refresh({ quiet: true });
   }, [api, cluster?.id]);
 
   useEffect(() => {
     if (!api || !cluster) return;
     const interval = window.setInterval(() => {
-      refresh();
+      void refresh({ quiet: true });
     }, 5000);
     return () => window.clearInterval(interval);
   }, [api, cluster?.id]);
@@ -112,9 +118,11 @@ export function PortForwardsPanel({
       <header>
         <div>
           <h2>{t("portForwards.title")}</h2>
-          <p className="muted">{sessions.length} active session{sessions.length === 1 ? "" : "s"}</p>
+          <p className="muted">
+            {sessions.length} active session{sessions.length === 1 ? "" : "s"}
+          </p>
         </div>
-        <button className="icon-text" onClick={refresh} disabled={loading}>{loading ? t("common.refreshing") : t("common.refresh")}</button>
+        <AsyncActionButton className="icon-text" phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => refresh())} disabled={loading} />
       </header>
       <ErrorPanel error={localError} copyLabel={copyLabel} />
       {message ? <p className="muted port-forward-message">{message}</p> : null}
@@ -123,20 +131,34 @@ export function PortForwardsPanel({
         {sessions.map((session) => (
           <article className="port-forward-card" key={session.id}>
             <div>
-              <strong>{session.resource}/{session.name} <small>{session.source === "external" ? "External" : "KubeDeck"}</small></strong>
-              <span>{session.namespace} · localhost:{session.localPort} → {session.resource}/{session.name}:{session.remotePort} · {session.status} · pid {session.pid}</span>
-              <a href={session.url} target="_blank" rel="noreferrer">{session.url}</a>
+              <strong>
+                {session.resource}/{session.name} <small>{session.source === "external" ? "External" : "KubeDeck"}</small>
+              </strong>
+              <span>
+                {session.namespace} · localhost:{session.localPort} → {session.resource}/{session.name}:{session.remotePort} · {session.status} · pid {session.pid}
+              </span>
+              <a href={session.url} target="_blank" rel="noreferrer">
+                {session.url}
+              </a>
               {session.commandPreview ? <code>{session.commandPreview}</code> : null}
             </div>
             <div className="port-forward-actions">
-              <button onClick={() => copyUrl(session)} disabled={loading}>Copy URL</button>
+              <button onClick={() => copyUrl(session)} disabled={loading}>
+                Copy URL
+              </button>
               {session.stoppable ? (
                 <>
-                  <button onClick={() => restart(session)} disabled={loading}>Restart</button>
-                  <button onClick={() => stop(session.id)} disabled={loading}>{t("portForwards.stop")}</button>
+                  <button onClick={() => restart(session)} disabled={loading}>
+                    Restart
+                  </button>
+                  <button onClick={() => stop(session.id)} disabled={loading}>
+                    {t("portForwards.stop")}
+                  </button>
                 </>
               ) : (
-                <button disabled title={t("portForwards.externalReadOnly")}>External</button>
+                <button disabled title={t("portForwards.externalReadOnly")}>
+                  External
+                </button>
               )}
             </div>
           </article>

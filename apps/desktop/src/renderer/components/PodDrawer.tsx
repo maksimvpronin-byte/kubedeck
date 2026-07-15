@@ -85,15 +85,29 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   const podNamespace = pod ? String(pod.namespace || "_cluster") : "";
   const currentObjectKey = pod ? `${clusterId}:${resource}:${podNamespace}:${podName}:${podUid}` : "";
   const {
-    content, setContent, describeContent, yamlBaseline, setYamlBaseline, yamlDraft, setYamlDraft,
-    yamlObjectKey, setYamlObjectKey, events, relatedLinks, relatedSources, relatedErrors,
-    relatedLoading, loading, setLoading, error, setError,
+    content,
+    setContent,
+    describeContent,
+    yamlBaseline,
+    setYamlBaseline,
+    yamlDraft,
+    setYamlDraft,
+    yamlObjectKey,
+    setYamlObjectKey,
+    events,
+    relatedLinks,
+    relatedSources,
+    relatedErrors,
+    relatedLoading,
+    loading,
+    setLoading,
+    error,
+    setError,
   } = usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey });
   const yamlChanged = yamlDraft !== yamlBaseline;
   const now = useUiClock(Boolean(pod), 1000);
   const isDeploymentResource = resource === "deployments" || resource === "deployments.apps" || resource === "deployment";
   const isNodeResource = resource === "nodes" || resource === "node";
-
 
   useEffect(() => {
     if (!canLogs && !(resource === "nodes" || resource === "node") && (tab === "logs" || tab === "terminal")) setTab("summary");
@@ -129,7 +143,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setLlmElapsedMs(0);
     setLlmContextChars(0);
     setLlmTruncated(false);
-    setTab((current) => current === "terminal" ? "summary" : current);
+    setTab((current) => (current === "terminal" ? "summary" : current));
   }, [pod?.uid, resource]);
 
   useEffect(() => {
@@ -148,7 +162,8 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setError(null);
 
     if (isDeploymentResource) {
-      api.deploymentLogTargets(clusterId, String(pod.namespace), pod.name, controller.signal)
+      api
+        .deploymentLogTargets(clusterId, String(pod.namespace), pod.name, controller.signal)
         .then((targets) => {
           if (controller.signal.aborted) return "";
           const podNames = targets.pods.map((item) => item.name).filter(Boolean);
@@ -156,17 +171,23 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
           setDeploymentLogContainers(targets.containers || []);
           const selectedPod = logsPodFilter && podNames.includes(logsPodFilter) ? logsPodFilter : "";
           if (logsPodFilter && !podNames.includes(logsPodFilter)) setLogsPodFilter("");
-          return api.deploymentLogs(clusterId, String(pod.namespace), pod.name, {
-            tail: logsTail,
-            previous: logsPrevious,
-            timestamps: logsTimestamps,
-            container: logsContainer || undefined,
-            pod: selectedPod || undefined,
-          }, controller.signal);
+          return api.deploymentLogs(
+            clusterId,
+            String(pod.namespace),
+            pod.name,
+            {
+              tail: logsTail,
+              previous: logsPrevious,
+              timestamps: logsTimestamps,
+              container: logsContainer || undefined,
+              pod: selectedPod || undefined,
+            },
+            controller.signal,
+          );
         })
         .then((text) => {
           if (controller.signal.aborted || typeof text !== "string") return;
-          setContent((current) => current === text ? current : text);
+          setContent((current) => (current === text ? current : text));
         })
         .catch((err) => {
           if (isAbortError(err)) return;
@@ -179,15 +200,22 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     }
 
     const selectedContainer = logsContainer || containerNames(pod)[0] || "";
-    api.podLogs(clusterId, String(pod.namespace), pod.name, {
-      tail: logsTail,
-      previous: logsPrevious,
-      timestamps: logsTimestamps,
-      container: selectedContainer || undefined,
-    }, controller.signal)
+    api
+      .podLogs(
+        clusterId,
+        String(pod.namespace),
+        pod.name,
+        {
+          tail: logsTail,
+          previous: logsPrevious,
+          timestamps: logsTimestamps,
+          container: selectedContainer || undefined,
+        },
+        controller.signal,
+      )
       .then((text) => {
         if (controller.signal.aborted) return;
-        setContent((current) => current === text ? current : text);
+        setContent((current) => (current === text ? current : text));
       })
       .catch((err) => {
         if (isAbortError(err)) return;
@@ -304,7 +332,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   }
 
   async function reloadYamlFromCluster() {
-    if (!pod) return;
+    if (!pod) return false;
     const namespace = String(pod.namespace || "_cluster");
     setLoading(true);
     setError(null);
@@ -317,11 +345,13 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       setYamlDraft(text);
       setYamlObjectKey(currentObjectKey);
       setYamlOperationOutput("YAML reloaded from the cluster.");
+      return true;
     } catch (err) {
       const info = toErrorInfo(err);
       setYamlOperationTitle("Reload failed");
       setYamlOperationOutput(formatOperationError(info));
       setError(info);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -369,7 +399,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       setApplyResult(`Port forward started: ${session.url} -> ${portForwardDraft.resource}/${portForwardDraft.name}:${portForwardDraft.remotePort}`);
       onPortForwardStarted?.(session);
       window.setTimeout(() => {
-        setApplyResult((current) => current.startsWith("Port forward started:") ? "" : current);
+        setApplyResult((current) => (current.startsWith("Port forward started:") ? "" : current));
       }, 5000);
       setPortForwardDraft(null);
     } catch (err) {
@@ -381,14 +411,14 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
 
   function closePortForwardDraft() {
     setPortForwardDraft(null);
-    setApplyResult((current) => current.startsWith("Port forward started:") ? "" : current);
+    setApplyResult((current) => (current.startsWith("Port forward started:") ? "" : current));
   }
 
   function copyText(text: string, message = "Copied") {
     void navigator.clipboard?.writeText(text);
     setApplyResult(message);
     window.setTimeout(() => {
-      setApplyResult((current) => current === message ? "" : current);
+      setApplyResult((current) => (current === message ? "" : current));
     }, 2500);
   }
 
@@ -432,11 +462,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
 
   const isCrdDefinitionResource = resource === "customresourcedefinitions" || resource === "customresourcedefinitions.apiextensions.k8s.io";
   const isCrdInstanceResource = !isCrdDefinitionResource && (Boolean(pod.crdInstance) || resource.includes("."));
-  const actions = isCrdDefinitionResource
-    ? []
-    : isCrdInstanceResource
-      ? ["delete" as ResourceAction]
-      : supportedActions(resource);
+  const actions = isCrdDefinitionResource ? [] : isCrdInstanceResource ? ["delete" as ResourceAction] : supportedActions(resource);
   const namespaceText = String(pod.namespace || "_cluster");
   const involvedTarget = resource === "events" ? eventTargetForOpen(pod) : null;
   const yamlReadOnly = isCrdDefinitionResource;
@@ -460,13 +486,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
           window.addEventListener("mouseup", onUp);
         }}
       />
-      <PodDrawerHeader
-        resource={resource}
-        namespace={namespaceText}
-        name={pod.name}
-        onCopyName={() => copyText(`${resource}/${pod.name}`, "Name copied")}
-        onClose={requestClose}
-      />
+      <PodDrawerHeader resource={resource} namespace={namespaceText} name={pod.name} onCopyName={() => copyText(`${resource}/${pod.name}`, "Name copied")} onClose={requestClose} />
       <PodDrawerTabs tabs={drawerTabs} active={tab} nodeResource={isNodeResource} labels={labels} llmLabel={t("llm.title")} onChange={setTab} />
       <div className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
         <PodDrawerActions
@@ -557,12 +577,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
             now={now}
           />
         ) : tab === "secret" ? (
-          <SecretTab
-            api={api}
-            clusterId={clusterId}
-            row={pod}
-            copyLabel={copyLabel}
-          />
+          <SecretTab api={api} clusterId={clusterId} row={pod} copyLabel={copyLabel} t={t} />
         ) : tab === "terminal" ? (
           isNodeResource ? (
             <NodeSshTab api={api} clusterId={clusterId} node={pod} settings={settings} />
@@ -592,12 +607,15 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
                 operationOutput={yamlOperationOutput}
                 editorRef={editorRef}
                 onReset={resetYamlDraft}
-                onReloadFromCluster={() => void reloadYamlFromCluster()}
+                onReloadFromCluster={reloadYamlFromCluster}
                 onDryRun={() => void runYamlDryRun()}
-                onRequestApply={() => { if (!yamlReadOnly) setYamlApplyConfirmOpen(true); }}
+                onRequestApply={() => {
+                  if (!yamlReadOnly) setYamlApplyConfirmOpen(true);
+                }}
                 onCopyOutput={() => copyText(yamlOperationOutput, "Output copied")}
                 readOnly={yamlReadOnly}
                 readOnlyReason={yamlReadOnly ? "view-only CRD definition" : ""}
+                t={t}
               />
             ) : tab === "logs" ? (
               <LogsTab
@@ -614,7 +632,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
                 follow={logsFollow}
                 onFollowChange={setLogsFollow}
                 containers={isDeploymentResource ? deploymentLogContainers : containerNames(pod)}
-                selectedContainer={isDeploymentResource ? logsContainer : (logsContainer || containerNames(pod)[0] || "")}
+                selectedContainer={isDeploymentResource ? logsContainer : logsContainer || containerNames(pod)[0] || ""}
                 onContainerChange={setLogsContainer}
                 allowAllContainers={isDeploymentResource}
                 targetPods={isDeploymentResource ? deploymentLogPods : []}
@@ -623,6 +641,8 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
                 contextLabel={isDeploymentResource ? "deployment" : "pod"}
                 fullDownloadLabel={isDeploymentResource ? "Full deployment log" : "Full pod log"}
                 onRefresh={() => setLogsRefreshToken((current) => current + 1)}
+                refreshFailed={Boolean(error)}
+                t={t}
                 onCopy={() => copyText(content, "Logs copied")}
                 downloadLoading={logsDownloadLoading}
                 onDownloadVisible={(visibleText) => downloadTextFile(`${pod.name}.visible.log`, visibleText)}
@@ -659,30 +679,10 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
         />
       ) : null}
       {yamlApplyConfirmOpen && pod ? (
-        <YamlApplyConfirmModal
-          resource={resource}
-          row={pod}
-          loading={loading}
-          onCancel={() => setYamlApplyConfirmOpen(false)}
-          onApply={() => void applyYaml(pod.name)}
-        />
+        <YamlApplyConfirmModal resource={resource} row={pod} loading={loading} onCancel={() => setYamlApplyConfirmOpen(false)} onApply={() => void applyYaml(pod.name)} />
       ) : null}
-      {closeConfirmOpen ? (
-        <UnsavedYamlConfirmModal
-          resource={resource}
-          row={pod}
-          onDiscard={discardYamlAndClose}
-          onContinueEditing={keepEditingYaml}
-        />
-      ) : null}
-      {terminalPickerOpen && pod ? (
-        <TerminalContainerPickerModal
-          row={pod}
-          containers={containerNames(pod)}
-          onCancel={() => setTerminalPickerOpen(false)}
-          onOpenContainer={openTerminal}
-        />
-      ) : null}
+      {closeConfirmOpen ? <UnsavedYamlConfirmModal resource={resource} row={pod} onDiscard={discardYamlAndClose} onContinueEditing={keepEditingYaml} /> : null}
+      {terminalPickerOpen && pod ? <TerminalContainerPickerModal row={pod} containers={containerNames(pod)} onCancel={() => setTerminalPickerOpen(false)} onOpenContainer={openTerminal} /> : null}
     </aside>
   );
 }

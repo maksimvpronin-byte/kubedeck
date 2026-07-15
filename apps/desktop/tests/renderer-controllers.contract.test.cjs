@@ -236,6 +236,122 @@ test("resource pagination uses semantic button tokens for every state", () => {
   }
 });
 
+test("async action feedback enforces pending, success, error, and duplicate protection", async () => {
+  const model = loadTypeScript("utils/asyncActionFeedback.ts");
+  const clock = createTestScheduler();
+  const phases = [];
+  const controller = model.createAsyncActionFeedbackController({
+    onPhaseChange: (phase) => phases.push(phase),
+    scheduler: clock.scheduler,
+  });
+
+  const successful = controller.run(() => true);
+  assert.equal(controller.phase(), "pending");
+  assert.equal(await controller.run(() => true), false);
+  await Promise.resolve();
+  clock.advance(299);
+  assert.equal(controller.phase(), "pending");
+  clock.advance(1);
+  assert.equal(await successful, true);
+  assert.equal(controller.phase(), "success");
+  clock.advance(model.ASYNC_ACTION_SUCCESS_MS);
+  assert.equal(controller.phase(), "idle");
+
+  const failed = controller.run(async () => {
+    throw new Error("refresh failed");
+  });
+  await Promise.resolve();
+  clock.advance(model.ASYNC_ACTION_MIN_PENDING_MS);
+  assert.equal(await failed, false);
+  assert.equal(controller.phase(), "error");
+  clock.advance(model.ASYNC_ACTION_ERROR_MS);
+  assert.equal(controller.phase(), "idle");
+  assert.deepEqual(phases, ["pending", "success", "idle", "pending", "error", "idle"]);
+});
+
+test("async action feedback cleanup cancels timers and late phase changes", async () => {
+  const model = loadTypeScript("utils/asyncActionFeedback.ts");
+  const clock = createTestScheduler();
+  const phases = [];
+  const controller = model.createAsyncActionFeedbackController({
+    onPhaseChange: (phase) => phases.push(phase),
+    scheduler: clock.scheduler,
+  });
+  const completion = controller.run(() => true);
+  await Promise.resolve();
+  controller.dispose();
+  clock.advance(5000);
+  assert.equal(await completion, true);
+  assert.deepEqual(phases, ["pending"]);
+  assert.equal(clock.pending(), 0);
+});
+
+test("all manual refresh and reload surfaces use shared async feedback", () => {
+  const required = [
+    ["components/ResourceTable.tsx", /AsyncActionButton[\s\S]*refreshFeedback\.run/],
+    ["components/ProblemsPanel.tsx", /refreshActionLabels\(t\)/],
+    ["components/AuditPanel.tsx", /refreshFeedback\.run\(\(\) => loadAudit\(\)\)/],
+    ["components/PortForwardsPanel.tsx", /refreshFeedback\.run\(\(\) => refresh\(\)\)/],
+    ["components/AboutPanel.tsx", /refreshFeedback\.run\(\(\) => load\(\)\)/],
+    ["components/LogsTab.tsx", /useControlledAsyncActionFeedback\(loading, refreshFailed\)/],
+    ["components/SecretTab.tsx", /refreshFeedback\.run\(\(\) => loadSecret\(\)\)/],
+    ["components/YamlTab.tsx", /reloadFeedback\.run\(onReloadFromCluster\)/],
+    ["components/ResourceCacheDiagnostics.tsx", /refreshFeedback\.run\(loadStatus\)/],
+    ["components/WatchDiagnostics.tsx", /refreshFeedback\.run\(\(\) => loadStatus\(\)\)/],
+  ];
+  for (const [relativePath, pattern] of required) {
+    const source = fs.readFileSync(path.join(rendererRoot, relativePath), "utf8");
+    assert.match(source, pattern, `${relativePath} must use shared feedback`);
+  }
+
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/base.css"), "utf8");
+  assert.match(styles, /@keyframes async-action-spin/);
+  assert.match(styles, /prefers-reduced-motion:\s*reduce/);
+  assert.match(styles, /var\(--success-border\)/);
+  assert.match(styles, /var\(--danger-border\)/);
+  assert.doesNotMatch(styles, /\.async-action[^}]*!important/s);
+
+  const button = fs.readFileSync(path.join(rendererRoot, "components/AsyncActionButton.tsx"), "utf8");
+  assert.match(button, /aria-busy=\{phase === "pending"\}/);
+  assert.match(button, /aria-live="polite"/);
+
+  const problems = fs.readFileSync(path.join(rendererRoot, "components/ProblemsPanel.tsx"), "utf8");
+  const audit = fs.readFileSync(path.join(rendererRoot, "components/AuditPanel.tsx"), "utf8");
+  const portForwards = fs.readFileSync(path.join(rendererRoot, "components/PortForwardsPanel.tsx"), "utf8");
+  const watch = fs.readFileSync(path.join(rendererRoot, "components/WatchDiagnostics.tsx"), "utf8");
+  assert.match(problems, /refreshProblems\(true\)/);
+  assert.match(audit, /loadAudit\(true\)/);
+  assert.match(portForwards, /refresh\(\{ quiet: true \}\)/);
+  assert.match(watch, /loadStatus\(\{ quiet: true \}\)/);
+});
+
+function createTestScheduler() {
+  let now = 0;
+  let sequence = 0;
+  const timers = new Map();
+  const scheduler = {
+    now: () => now,
+    setTimeout: (callback, delay) => {
+      sequence += 1;
+      timers.set(sequence, { callback, at: now + delay });
+      return sequence;
+    },
+    clearTimeout: (timer) => timers.delete(timer),
+  };
+  return {
+    scheduler,
+    advance(milliseconds) {
+      now += milliseconds;
+      for (const [id, timer] of [...timers.entries()].sort((left, right) => left[1].at - right[1].at)) {
+        if (timer.at > now) continue;
+        timers.delete(id);
+        timer.callback();
+      }
+    },
+    pending: () => timers.size,
+  };
+}
+
 test("resource navigation resolves cluster and namespace scope", () => {
   const model = loadTypeScript("hooks/useResourceNavigation.ts", {
     "../navigation": {
