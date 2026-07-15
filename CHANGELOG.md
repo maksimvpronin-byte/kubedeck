@@ -1,6 +1,6 @@
 ﻿## 2.3.1 - Namespace selector and dark theme polish
 
-- Expanded the namespace menu for long values and wrapped exceptionally long names cleanly without truncation or overlapping rows.
+- Made the namespace menu at least as wide as its selector and let it grow to the exact rendered width of the longest namespace without truncation or wrapping.
 - Rebalanced the dark theme from near-black to a lighter blue-graphite palette while retaining readable contrast.
 - Synchronized Windows and macOS release metadata and artifact names at version 2.3.1.
 

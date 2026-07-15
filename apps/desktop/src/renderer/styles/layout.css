@@ -210,7 +210,6 @@ input {
   left: 0;
   width: max-content;
   min-width: 100%;
-  max-width: min(480px, calc(100vw - 28px));
   max-height: 280px;
   overflow: hidden;
   display: grid;
@@ -271,6 +270,8 @@ input {
 .namespace-menu-options {
   display: grid;
   gap: 2px;
+  width: max-content;
+  min-width: 100%;
   min-height: 0;
   overflow: auto;
 }
@@ -285,7 +286,7 @@ input {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
+  min-width: max-content;
   min-height: 28px;
   padding: 4px 6px;
   border-radius: 4px;
@@ -294,10 +295,8 @@ input {
 
 .namespace-menu-label {
   display: block;
-  min-width: 0;
-  max-width: 420px;
-  overflow-wrap: anywhere;
-  white-space: normal;
+  min-width: max-content;
+  white-space: nowrap;
   line-height: 1.3;
 }
 

@@ -75,9 +75,11 @@ test("namespace selector keeps complete long names readable", () => {
   const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
   assert.match(component, /className="namespace-menu-label"/);
   assert.match(component, /title=\{namespace\}/);
-  assert.match(layout, /\.namespace-menu\s*\{[^}]*width:\s*max-content;[^}]*max-width:/s);
-  assert.match(layout, /\.namespace-menu-label\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal;/s);
-  assert.doesNotMatch(layout, /\.namespace-menu-label\s*\{[^}]*text-overflow:\s*ellipsis;/s);
+  assert.match(layout, /\.namespace-menu\s*\{[^}]*width:\s*max-content;[^}]*min-width:\s*100%;/s);
+  assert.match(layout, /\.namespace-menu-options\s*\{[^}]*width:\s*max-content;[^}]*min-width:\s*100%;/s);
+  assert.match(layout, /\.namespace-menu-label\s*\{[^}]*min-width:\s*max-content;[^}]*white-space:\s*nowrap;/s);
+  assert.doesNotMatch(layout, /\.namespace-menu\s*\{[^}]*max-width:/s);
+  assert.doesNotMatch(layout, /\.namespace-menu-label\s*\{[^}]*(?:text-overflow|overflow-wrap):/s);
 });
 
 test("resource navigation resolves cluster and namespace scope", () => {
