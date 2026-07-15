@@ -68,10 +68,10 @@
 }
 
 .terminal-command-preview {
-  border: 1px solid #26313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0c1014;
-  color: #94a3b8;
+  background: var(--code-bg);
+  color: var(--muted);
   padding: 8px 10px;
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
@@ -81,9 +81,9 @@
 .terminal-screen {
   min-height: 0;
   overflow: hidden;
-  border: 1px solid #26313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #070a0d;
+  background: var(--terminal-bg);
   padding: 0;
 }
 
@@ -116,38 +116,38 @@
 }
 
 .xterm-host .xterm-viewport {
-  background: #070a0d !important;
+  background: var(--terminal-bg) !important;
   overflow-y: auto !important;
 }
 
 .embedded-terminal {
   margin: 0;
   white-space: pre-wrap;
-  color: #d8dee9;
+  color: var(--terminal-text);
   outline: none;
   tab-size: 2;
 }
 
 .embedded-terminal:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--primary-soft);
 }
 
 .terminal-status {
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .terminal-status.connected {
-  color: #86efac;
+  color: var(--success-text);
 }
 
 .terminal-status.connecting {
-  color: #fbbf24;
+  color: var(--warning-text);
 }
 
 .terminal-status.error {
-  color: #fca5a5;
+  color: var(--error-text);
 }
 
 .terminal-transport {
@@ -155,22 +155,22 @@
   align-items: center;
   min-height: 22px;
   padding: 0 7px;
-  border: 1px solid #2f4152;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #9fb2c7;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
 }
 
 .terminal-transport.pty {
-  border-color: rgba(34, 197, 94, 0.42);
-  color: #86efac;
+  border-color: color-mix(in srgb, var(--success-border) 70%, transparent);
+  color: var(--success-text);
 }
 
 .terminal-transport.pipes {
-  border-color: rgba(251, 191, 36, 0.46);
-  color: #fde68a;
+  border-color: color-mix(in srgb, var(--warning-border) 70%, transparent);
+  color: var(--warning-text);
 }
 
 .terminal-hint {
@@ -179,7 +179,7 @@
 }
 
 .terminal-muted {
-  color: #64748b;
+  color: var(--muted-soft);
 }
 
 .terminal-entry {
@@ -192,27 +192,27 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #94a3b8;
+  color: var(--muted);
   min-width: 0;
 }
 
 .terminal-prompt strong {
-  color: #7dd3fc;
+  color: var(--focus-ring);
 }
 
 .terminal-prompt code {
-  color: #d8dee9;
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .terminal-entry pre {
   margin: 0;
   white-space: pre-wrap;
-  color: #d8dee9;
+  color: var(--text);
 }
 
 .terminal-entry pre.terminal-error {
-  color: #fca5a5;
+  color: var(--error-text);
 }
 
 .terminal-input {
@@ -220,14 +220,14 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  border: 1px solid #26313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0c1014;
+  background: var(--code-bg);
   padding: 8px;
 }
 
 .terminal-input span {
-  color: #7dd3fc;
+  color: var(--focus-ring);
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
@@ -239,8 +239,8 @@
 
 .unavailable-panel {
   padding: 14px;
-  border-color: #6f5a2f;
-  background: #201c13;
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
 }
 
 .placeholder-page {
@@ -253,7 +253,7 @@
 }
 
 .placeholder-page p {
-  color: #94a3b8;
+  color: var(--muted);
   max-width: 720px;
 }
 
@@ -268,12 +268,12 @@
   align-items: start;
   gap: 18px;
   padding: 18px;
-  border-bottom: 1px solid #27313b;
-  background: #121921;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .help-hero span {
-  color: #7dd3fc;
+  color: var(--focus-ring);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -288,7 +288,7 @@
 .help-hero p {
   margin: 8px 0 0;
   max-width: 760px;
-  color: #aeb8c5;
+  color: var(--muted);
   line-height: 1.5;
 }
 
@@ -300,9 +300,9 @@
 }
 
 .help-card {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #111820;
+  background: var(--surface);
   padding: 14px;
 }
 
@@ -313,7 +313,7 @@
 
 .help-card p,
 .help-card li {
-  color: #b8c4d2;
+  color: var(--muted-strong);
   line-height: 1.5;
 }
 
@@ -334,10 +334,10 @@
 .help-card code {
   display: block;
   margin-top: 12px;
-  border: 1px solid #26313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #070a0d;
-  color: #d8dee9;
+  background: var(--terminal-bg);
+  color: var(--text);
   padding: 9px;
   overflow-wrap: anywhere;
 }
@@ -358,24 +358,24 @@
 }
 
 .product-meta div {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0f151c;
+  background: var(--surface-2);
   padding: 9px;
 }
 
 .product-meta dt {
-  color: #7dd3fc;
+  color: var(--focus-ring);
   font-size: 12px;
 }
 
 .product-meta dd {
   margin: 4px 0 0;
-  color: #d8dee9;
+  color: var(--text);
 }
 
 .unavailable-panel p {
-  color: #d8bf7a;
+  color: var(--warning-text);
 }
 
 button:disabled {
@@ -386,7 +386,7 @@ button:disabled {
 .settings-panel label {
   display: grid;
   gap: 6px;
-  color: #b8c4d2;
+  color: var(--muted-strong);
 }
 
 .port-forward-modal {
@@ -406,24 +406,24 @@ button:disabled {
 }
 
 .port-forward-port-pills button {
-  border: 1px solid #334251;
-  background: #111820;
-  color: #cbd5e1;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--muted-strong);
   border-radius: 999px;
   padding: 5px 10px;
 }
 
 .port-forward-port-pills button.active {
-  border-color: #60a5fa;
-  background: #1e3a5f;
-  color: #e2f2ff;
+  border-color: var(--focus-ring);
+  background: var(--primary-soft);
+  color: var(--text-strong);
 }
 
 .inline-check {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #cbd5e1;
+  color: var(--muted-strong);
   font-size: 13px;
 }
 
@@ -438,4 +438,3 @@ button:disabled {
   gap: 8px;
   flex-wrap: wrap;
 }
-

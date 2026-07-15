@@ -7,7 +7,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(2, 6, 23, 0.72);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
   backdrop-filter: blur(4px);
 }
 
@@ -19,7 +19,7 @@
   border-radius: 14px;
   background: var(--panel, #0f1720);
   color: var(--text, #dbe7f3);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+  box-shadow: var(--shadow-lg);
 }
 
 .node-action-confirm-header {
@@ -130,7 +130,7 @@
 }
 
 .node-drain-preview-error {
-  border-color: rgba(248, 113, 113, 0.42);
+  border-color: color-mix(in srgb, var(--danger-border) 70%, transparent);
 }
 
 /* KubeDeck 1.0.4 Patch 4: node SSH drawer tab */
@@ -180,7 +180,7 @@
   border: 1px solid var(--border, #233142);
   border-radius: 10px;
   padding: 10px;
-  background: rgba(15, 23, 42, 0.44);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
 }
 
 .node-ssh-note {
@@ -196,7 +196,7 @@
   border: 1px solid var(--border, #233142);
   border-radius: 12px;
   padding: 12px;
-  background: rgba(15, 23, 42, 0.35);
+  background: var(--surface);
 }
 
 .settings-card h3 {
@@ -215,7 +215,97 @@
 
 .settings-warning {
   margin: 10px 0 0;
-  color: #fcd34d;
+  color: var(--warning-text);
+}
+
+.theme-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.theme-picker legend {
+  margin-bottom: 8px;
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.theme-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.theme-option {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px !important;
+  min-height: 64px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.theme-option:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.theme-option.active {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+}
+
+.theme-option:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.theme-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-preview {
+  display: flex;
+  width: 48px;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+}
+
+.theme-preview span {
+  flex: 1 1 0;
+}
+
+.theme-option-copy {
+  min-width: 0;
+}
+
+.theme-option-copy strong,
+.theme-option-copy small {
+  display: block;
+}
+
+.theme-option-copy strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.theme-option-copy small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .settings-grid-two {

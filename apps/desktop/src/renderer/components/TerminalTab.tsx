@@ -4,6 +4,7 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import type { ApiClient } from "../api";
 import type { ResourceRow } from "../types";
+import { terminalThemeFromCss } from "../utils/terminalTheme";
 
 type TerminalShell = "auto" | "sh" | "bash" | "ash";
 type TerminalMessage = { type: string; data?: string; transport?: "pty" | "pipes"; commandPreview?: string };
@@ -47,20 +48,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       fontFamily: 'Consolas, "Cascadia Mono", "Liberation Mono", monospace',
       fontSize: 13,
       scrollback: 5000,
-      theme: {
-        background: "#070a0d",
-        foreground: "#d8dee9",
-        cursor: "#d8dee9",
-        selectionBackground: "#3b82f655",
-        black: "#0b0f14",
-        blue: "#7dd3fc",
-        cyan: "#67e8f9",
-        green: "#86efac",
-        magenta: "#c4b5fd",
-        red: "#fca5a5",
-        white: "#d8dee9",
-        yellow: "#fbbf24",
-      },
+      theme: terminalThemeFromCss(),
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
@@ -78,10 +66,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
         copyTerminalSelection(terminal, lastCopiedSelectionRef, true);
         return false;
       }
-      const pasteRequested =
-        (event.ctrlKey && key === "v") ||
-        (event.ctrlKey && event.shiftKey && key === "v") ||
-        (event.shiftKey && event.key === "Insert");
+      const pasteRequested = (event.ctrlKey && key === "v") || (event.ctrlKey && event.shiftKey && key === "v") || (event.shiftKey && event.key === "Insert");
       if (pasteRequested) {
         void pasteFromClipboard(socketRef.current);
         return false;
@@ -111,9 +96,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       }
     };
     const onResize = () => fitAndResize();
-    const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current
-      ? new ResizeObserver(scheduleFitAndResize)
-      : null;
+    const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current ? new ResizeObserver(scheduleFitAndResize) : null;
     if (hostRef.current) resizeObserver?.observe(hostRef.current);
     const onPaste = (event: ClipboardEvent) => {
       const text = event.clipboardData?.getData("text/plain");
@@ -123,10 +106,15 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     };
     hostRef.current?.addEventListener("paste", onPaste);
     window.addEventListener("resize", onResize);
+    const onThemeChange = () => {
+      terminal.options.theme = terminalThemeFromCss();
+    };
+    window.addEventListener("kubedeck-theme-change", onThemeChange);
     scheduleFitAndResize();
 
     return () => {
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("kubedeck-theme-change", onThemeChange);
       hostRef.current?.removeEventListener("paste", onPaste);
       resizeObserver?.disconnect();
       disconnectTerminal(socketRef, setConnected, setStatus, setConnecting);
@@ -246,7 +234,11 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
           Container
           <select value={selectedContainer} disabled={terminalBusy} onChange={(event) => setContainer(event.target.value)}>
             {containers.length === 0 ? <option value="">default</option> : null}
-            {containers.map((name) => <option value={name} key={name}>{name}</option>)}
+            {containers.map((name) => (
+              <option value={name} key={name}>
+                {name}
+              </option>
+            ))}
           </select>
         </label>
         <label>
@@ -267,29 +259,21 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
         <button disabled={!selectedContainer || connecting} onClick={reconnect}>
           Reconnect
         </button>
-        <button onClick={() => terminalRef.current?.clear()}>
-          Clear
-        </button>
+        <button onClick={() => terminalRef.current?.clear()}>Clear</button>
         <span className={terminalStatusClass(status, connected, connecting)}>{status}</span>
         {transport ? <span className={`terminal-transport ${transport}`}>{transport.toUpperCase()}</span> : null}
       </div>
       <div className="terminal-command-preview">
-        kubectl exec -i -t -n {String(pod.namespace)} {pod.name}{selectedContainer ? ` -c ${selectedContainer}` : ""} -- {shellCommandPreview(shell)}
+        kubectl exec -i -t -n {String(pod.namespace)} {pod.name}
+        {selectedContainer ? ` -c ${selectedContainer}` : ""} -- {shellCommandPreview(shell)}
       </div>
-      <p className="terminal-muted terminal-hint">
-        If the selected shell is missing, choose Auto or another shell. Changing container or shell closes the current session.
-      </p>
+      <p className="terminal-muted terminal-hint">If the selected shell is missing, choose Auto or another shell. Changing container or shell closes the current session.</p>
       <div className="terminal-screen xterm-host" ref={hostRef} />
     </section>
   );
 }
 
-function disconnectTerminal(
-  socketRef: { current: WebSocket | null },
-  setConnected: (value: boolean) => void,
-  setStatus: (value: string) => void,
-  setConnecting?: (value: boolean) => void,
-) {
+function disconnectTerminal(socketRef: { current: WebSocket | null }, setConnected: (value: boolean) => void, setStatus: (value: string) => void, setConnecting?: (value: boolean) => void) {
   const socket = socketRef.current;
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: "close" }));
@@ -308,7 +292,7 @@ function shellLabel(shell: TerminalShell) {
 }
 
 function shellCommandPreview(shell: TerminalShell) {
-  if (shell === "auto") return 'auto shell: bash → sh → ash';
+  if (shell === "auto") return "auto shell: bash → sh → ash";
   return `${shell} -i`;
 }
 
@@ -334,12 +318,7 @@ function sendTerminalInput(socket: WebSocket | null, data: string) {
   socket.send(JSON.stringify({ type: "input", data }));
 }
 
-function fitAndResizeTerminal(
-  fit: FitAddon,
-  socket: WebSocket | null,
-  terminal: XTerm,
-  lastSizeRef: { current: TerminalSize | null },
-) {
+function fitAndResizeTerminal(fit: FitAddon, socket: WebSocket | null, terminal: XTerm, lastSizeRef: { current: TerminalSize | null }) {
   try {
     fit.fit();
     sendTerminalResizeIfChanged(socket, terminal, lastSizeRef);
@@ -348,11 +327,7 @@ function fitAndResizeTerminal(
   }
 }
 
-function sendTerminalResizeIfChanged(
-  socket: WebSocket | null,
-  terminal: XTerm,
-  lastSizeRef: { current: TerminalSize | null },
-) {
+function sendTerminalResizeIfChanged(socket: WebSocket | null, terminal: XTerm, lastSizeRef: { current: TerminalSize | null }) {
   if (socket?.readyState !== WebSocket.OPEN) return;
   const cols = terminal.cols;
   const rows = terminal.rows;

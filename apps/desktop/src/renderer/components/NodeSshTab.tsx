@@ -5,6 +5,7 @@ import "@xterm/xterm/css/xterm.css";
 import type { ApiClient } from "../api";
 import type { ResourceRow, Settings } from "../types";
 import { resolveSshDefaults } from "../utils/sshDefaults";
+import { terminalThemeFromCss } from "../utils/terminalTheme";
 
 type AuthMethod = "agent" | "password" | "privateKey";
 
@@ -81,20 +82,7 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
       fontFamily: 'Consolas, "Cascadia Mono", "Liberation Mono", monospace',
       fontSize: 13,
       scrollback: 5000,
-      theme: {
-        background: "#070a0d",
-        foreground: "#d8dee9",
-        cursor: "#d8dee9",
-        selectionBackground: "#3b82f655",
-        black: "#0b0f14",
-        blue: "#7dd3fc",
-        cyan: "#67e8f9",
-        green: "#86efac",
-        magenta: "#c4b5fd",
-        red: "#fca5a5",
-        white: "#d8dee9",
-        yellow: "#fbbf24",
-      },
+      theme: terminalThemeFromCss(),
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
@@ -121,14 +109,17 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
         // xterm can briefly be detached while drawer is resizing/closing.
       }
     };
-    const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current
-      ? new ResizeObserver(() => window.requestAnimationFrame(fitAndResize))
-      : null;
+    const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current ? new ResizeObserver(() => window.requestAnimationFrame(fitAndResize)) : null;
     if (hostRef.current) resizeObserver?.observe(hostRef.current);
     window.addEventListener("resize", fitAndResize);
+    const onThemeChange = () => {
+      terminal.options.theme = terminalThemeFromCss();
+    };
+    window.addEventListener("kubedeck-theme-change", onThemeChange);
 
     return () => {
       window.removeEventListener("resize", fitAndResize);
+      window.removeEventListener("kubedeck-theme-change", onThemeChange);
       resizeObserver?.disconnect();
       disconnectTerminal(socketRef, setConnected, setStatus, setConnecting);
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
@@ -157,26 +148,28 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
     setStatus("Connecting...");
     socket.onopen = () => {
       if (socketRef.current !== socket) return;
-      socket.send(JSON.stringify({
-        type: "connect",
-        host: host.trim(),
-        port: Number(port) || 22,
-        username: username.trim(),
-        authMethod,
-        password: authMethod === "password" ? password : "",
-        keyPath: authMethod === "privateKey" ? keyPath.trim() : "",
-        keyPassphrase: authMethod === "privateKey" ? keyPassphrase : "",
-        useJumpHost,
-        jumpHost: useJumpHost ? jumpHost.trim() : "",
-        jumpPort: Number(jumpPort) || 22,
-        jumpUsername: useJumpHost ? (jumpUsername.trim() || username.trim()) : "",
-        jumpAuthMethod,
-        jumpPassword: useJumpHost && jumpAuthMethod === "password" ? jumpPassword : "",
-        jumpKeyPath: useJumpHost && jumpAuthMethod === "privateKey" ? jumpKeyPath.trim() : "",
-        jumpKeyPassphrase: useJumpHost && jumpAuthMethod === "privateKey" ? jumpKeyPassphrase : "",
-        cols: terminal.cols,
-        rows: terminal.rows,
-      }));
+      socket.send(
+        JSON.stringify({
+          type: "connect",
+          host: host.trim(),
+          port: Number(port) || 22,
+          username: username.trim(),
+          authMethod,
+          password: authMethod === "password" ? password : "",
+          keyPath: authMethod === "privateKey" ? keyPath.trim() : "",
+          keyPassphrase: authMethod === "privateKey" ? keyPassphrase : "",
+          useJumpHost,
+          jumpHost: useJumpHost ? jumpHost.trim() : "",
+          jumpPort: Number(jumpPort) || 22,
+          jumpUsername: useJumpHost ? jumpUsername.trim() || username.trim() : "",
+          jumpAuthMethod,
+          jumpPassword: useJumpHost && jumpAuthMethod === "password" ? jumpPassword : "",
+          jumpKeyPath: useJumpHost && jumpAuthMethod === "privateKey" ? jumpKeyPath.trim() : "",
+          jumpKeyPassphrase: useJumpHost && jumpAuthMethod === "privateKey" ? jumpKeyPassphrase : "",
+          cols: terminal.cols,
+          rows: terminal.rows,
+        }),
+      );
     };
     socket.onmessage = (event) => {
       if (socketRef.current !== socket) return;
@@ -216,51 +209,87 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
   return (
     <div className="node-ssh-tab">
       <div className="node-ssh-grid">
-        <label>Host <input value={host} onChange={(event) => setHost(event.target.value)} disabled={terminalBusy} /></label>
-        <label>Port <input value={port} onChange={(event) => setPort(event.target.value)} disabled={terminalBusy} /></label>
-        <label>Username <input value={username} onChange={(event) => setUsername(event.target.value)} disabled={terminalBusy} /></label>
-        <label>Auth
+        <label>
+          Host <input value={host} onChange={(event) => setHost(event.target.value)} disabled={terminalBusy} />
+        </label>
+        <label>
+          Port <input value={port} onChange={(event) => setPort(event.target.value)} disabled={terminalBusy} />
+        </label>
+        <label>
+          Username <input value={username} onChange={(event) => setUsername(event.target.value)} disabled={terminalBusy} />
+        </label>
+        <label>
+          Auth
           <select value={authMethod} onChange={(event) => setAuthMethod(event.target.value as AuthMethod)} disabled={terminalBusy}>
             <option value="agent">Agent/default keys</option>
             <option value="password">Password</option>
             <option value="privateKey">Private key path</option>
           </select>
         </label>
-        {authMethod === "password" ? <label>Password <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={terminalBusy} /></label> : null}
+        {authMethod === "password" ? (
+          <label>
+            Password <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={terminalBusy} />
+          </label>
+        ) : null}
         {authMethod === "privateKey" ? (
           <>
-            <label className="wide">Private key path <input value={keyPath} onChange={(event) => setKeyPath(event.target.value)} disabled={terminalBusy} placeholder="C:\\Users\\Fidel\\.ssh\\id_rsa" /></label>
-            <label>Passphrase <input type="password" value={keyPassphrase} onChange={(event) => setKeyPassphrase(event.target.value)} disabled={terminalBusy} /></label>
+            <label className="wide">
+              Private key path <input value={keyPath} onChange={(event) => setKeyPath(event.target.value)} disabled={terminalBusy} placeholder="C:\\Users\\Fidel\\.ssh\\id_rsa" />
+            </label>
+            <label>
+              Passphrase <input type="password" value={keyPassphrase} onChange={(event) => setKeyPassphrase(event.target.value)} disabled={terminalBusy} />
+            </label>
           </>
         ) : null}
       </div>
 
-      <label className="node-ssh-jump-toggle"><input type="checkbox" checked={useJumpHost} onChange={(event) => setUseJumpHost(event.target.checked)} disabled={terminalBusy} /> Use jump host</label>
+      <label className="node-ssh-jump-toggle">
+        <input type="checkbox" checked={useJumpHost} onChange={(event) => setUseJumpHost(event.target.checked)} disabled={terminalBusy} /> Use jump host
+      </label>
       {useJumpHost ? (
         <div className="node-ssh-grid node-ssh-jump-grid">
-          <label>Jump host <input value={jumpHost} onChange={(event) => setJumpHost(event.target.value)} disabled={terminalBusy} /></label>
-          <label>Jump port <input value={jumpPort} onChange={(event) => setJumpPort(event.target.value)} disabled={terminalBusy} /></label>
-          <label>Jump user <input value={jumpUsername} onChange={(event) => setJumpUsername(event.target.value)} disabled={terminalBusy} placeholder={username || "same as target"} /></label>
-          <label>Jump auth
+          <label>
+            Jump host <input value={jumpHost} onChange={(event) => setJumpHost(event.target.value)} disabled={terminalBusy} />
+          </label>
+          <label>
+            Jump port <input value={jumpPort} onChange={(event) => setJumpPort(event.target.value)} disabled={terminalBusy} />
+          </label>
+          <label>
+            Jump user <input value={jumpUsername} onChange={(event) => setJumpUsername(event.target.value)} disabled={terminalBusy} placeholder={username || "same as target"} />
+          </label>
+          <label>
+            Jump auth
             <select value={jumpAuthMethod} onChange={(event) => setJumpAuthMethod(event.target.value as AuthMethod)} disabled={terminalBusy}>
               <option value="agent">Agent/default keys</option>
               <option value="password">Password</option>
               <option value="privateKey">Private key path</option>
             </select>
           </label>
-          {jumpAuthMethod === "password" ? <label>Jump password <input type="password" value={jumpPassword} onChange={(event) => setJumpPassword(event.target.value)} disabled={terminalBusy} /></label> : null}
+          {jumpAuthMethod === "password" ? (
+            <label>
+              Jump password <input type="password" value={jumpPassword} onChange={(event) => setJumpPassword(event.target.value)} disabled={terminalBusy} />
+            </label>
+          ) : null}
           {jumpAuthMethod === "privateKey" ? (
             <>
-              <label className="wide">Jump key path <input value={jumpKeyPath} onChange={(event) => setJumpKeyPath(event.target.value)} disabled={terminalBusy} /></label>
-              <label>Jump passphrase <input type="password" value={jumpKeyPassphrase} onChange={(event) => setJumpKeyPassphrase(event.target.value)} disabled={terminalBusy} /></label>
+              <label className="wide">
+                Jump key path <input value={jumpKeyPath} onChange={(event) => setJumpKeyPath(event.target.value)} disabled={terminalBusy} />
+              </label>
+              <label>
+                Jump passphrase <input type="password" value={jumpKeyPassphrase} onChange={(event) => setJumpKeyPassphrase(event.target.value)} disabled={terminalBusy} />
+              </label>
             </>
           ) : null}
         </div>
       ) : null}
 
       <div className="terminal-toolbar">
-        <button className="primary" disabled={!host.trim() || !username.trim() || terminalBusy} onClick={connect}>{connecting ? "Connecting..." : "Connect"}</button>
-        <button disabled={!connected && !connecting} onClick={() => disconnectTerminal(socketRef, setConnected, setStatus, setConnecting)}>Disconnect</button>
+        <button className="primary" disabled={!host.trim() || !username.trim() || terminalBusy} onClick={connect}>
+          {connecting ? "Connecting..." : "Connect"}
+        </button>
+        <button disabled={!connected && !connecting} onClick={() => disconnectTerminal(socketRef, setConnected, setStatus, setConnecting)}>
+          Disconnect
+        </button>
         <button onClick={() => terminalRef.current?.clear()}>Clear</button>
         <span className={terminalStatusClass(status, connected, connecting)}>{status}</span>
       </div>
@@ -271,12 +300,7 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
   );
 }
 
-function disconnectTerminal(
-  socketRef: { current: WebSocket | null },
-  setConnected: (value: boolean) => void,
-  setStatus: (value: string) => void,
-  setConnecting?: (value: boolean) => void,
-) {
+function disconnectTerminal(socketRef: { current: WebSocket | null }, setConnected: (value: boolean) => void, setStatus: (value: string) => void, setConnecting?: (value: boolean) => void) {
   const socket = socketRef.current;
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: "close" }));

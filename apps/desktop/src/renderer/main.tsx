@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
+import { restoreStoredThemePreference } from "./utils/theme";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/layout.css";
@@ -18,6 +19,8 @@ import "./styles/resource-table.css";
 import "./styles/resource-summary-polish.css";
 import "./styles/drawer-controls-polish.css";
 import "./styles/related-panel-polish.css";
+
+restoreStoredThemePreference();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

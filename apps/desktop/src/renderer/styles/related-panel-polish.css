@@ -28,10 +28,10 @@
   min-height: 22px;
   margin: 0;
   padding: 2px 9px;
-  border: 1px solid #324252;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: #111820;
-  color: #d8dee9 !important;
+  background: var(--surface);
+  color: var(--text) !important;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
@@ -41,9 +41,9 @@
 .related-diagnostics {
   display: grid;
   gap: 8px;
-  border: 1px solid #26313b;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0c1218;
+  background: var(--surface-2);
   padding: 10px;
 }
 
@@ -61,14 +61,14 @@
 }
 
 .related-errors {
-  border-top: 1px solid #26313b;
+  border-top: 1px solid var(--border);
   padding-top: 8px;
-  color: #cbd5e1;
+  color: var(--muted-strong);
 }
 
 .related-errors summary {
   cursor: pointer;
-  color: #fca5a5;
+  color: var(--error-text);
   font-weight: 600;
 }
 
@@ -83,9 +83,9 @@
 }
 
 .related-group {
-  border: 1px solid #25303a;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0f151c;
+  background: var(--surface-2);
   overflow: hidden;
 }
 
@@ -95,13 +95,13 @@
   justify-content: space-between;
   gap: 12px;
   padding: 9px 12px;
-  border-bottom: 1px solid #25303a;
-  background: #121b24;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .related-group > header h3 {
   margin: 0;
-  color: #bfdbfe;
+  color: var(--text-strong);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -138,7 +138,7 @@
   flex: 0 0 auto;
   width: auto;
   margin: 0;
-  color: #94a3b8 !important;
+  color: var(--muted) !important;
   font-size: 12px;
   white-space: nowrap;
 }
@@ -158,10 +158,10 @@
   min-height: 22px;
   margin: 0;
   padding: 2px 8px;
-  border: 1px solid #324252;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: #0f1720;
-  color: #cbd5e1 !important;
+  background: var(--surface-2);
+  color: var(--muted-strong) !important;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
@@ -172,10 +172,10 @@
   display: inline-block;
   max-width: 100%;
   overflow-wrap: anywhere;
-  border: 1px solid #26313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #070a0d;
-  color: #94a3b8;
+  background: var(--terminal-bg);
+  color: var(--muted);
   padding: 2px 6px;
   font-size: 11px;
 }
@@ -185,9 +185,9 @@
 .relation-storage,
 .relation-rbac,
 .relation-config {
-  border-color: #365c72;
-  background: rgba(77, 148, 183, 0.14);
-  color: #dbeafe !important;
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--text-strong) !important;
 }
 /* KubeDeck 1.1.1 related visual compact fix */
 .related-diagnostics {
@@ -208,7 +208,7 @@
 
 .related-sources .muted {
   margin: 0 !important;
-  color: #8fa3b8 !important;
+  color: var(--muted) !important;
   font-size: 12px !important;
 }
 
@@ -223,7 +223,7 @@
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  color: #a9c4dc !important;
+  color: var(--muted-strong) !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   line-height: 1.4 !important;
@@ -235,7 +235,7 @@
   content: "\00b7";
   display: inline-block;
   margin-left: 8px;
-  color: #4b6075;
+  color: var(--muted-soft);
   font-weight: 400;
 }
 
@@ -251,7 +251,7 @@
 
 .related-group {
   border: 0 !important;
-  border-top: 1px solid #24313e !important;
+  border-top: 1px solid var(--border) !important;
   border-radius: 0 !important;
   background: transparent !important;
   overflow: visible !important;
@@ -273,7 +273,7 @@
 
 .related-group > header h3 {
   margin: 0 !important;
-  color: #9fcef7 !important;
+  color: var(--focus-ring) !important;
   font-size: 12px !important;
   font-weight: 700 !important;
   letter-spacing: 0.04em !important;
@@ -291,7 +291,7 @@
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  color: #7f9ab4 !important;
+  color: var(--muted) !important;
   font-size: 12px !important;
   font-weight: 600 !important;
 }
@@ -308,7 +308,7 @@
   gap: 4px !important;
   padding: 8px 0 10px !important;
   border: 0 !important;
-  border-top: 1px solid rgba(57, 73, 90, 0.45) !important;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -316,12 +316,12 @@
 
 .related-group .event-list .event-item.related-card-polished:first-child,
 .related-card-polished:first-child {
-  border-top: 1px solid rgba(57, 73, 90, 0.45) !important;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
 }
 
 .related-group .event-list .event-item.related-card-polished:hover,
 .related-card-polished:hover {
-  background: rgba(96, 165, 250, 0.035) !important;
+  background: color-mix(in srgb, var(--primary-border) 70%, transparent) !important;
 }
 
 .related-card-main {
@@ -337,7 +337,7 @@
   min-width: 0 !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  color: #d8e7f7 !important;
+  color: var(--text) !important;
   font-size: 15px !important;
   font-weight: 700 !important;
   line-height: 1.35 !important;
@@ -354,7 +354,7 @@
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  color: #8aa3bd !important;
+  color: var(--muted) !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   line-height: 1.35 !important;
@@ -367,7 +367,7 @@
   align-items: center !important;
   gap: 7px !important;
   min-width: 0 !important;
-  color: #7f95aa !important;
+  color: var(--muted-soft) !important;
   font-size: 12px !important;
 }
 
@@ -386,7 +386,7 @@
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  color: #9dbad3 !important;
+  color: var(--muted) !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   line-height: 1.35 !important;
@@ -404,7 +404,7 @@
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  color: #7f95aa !important;
+  color: var(--muted-soft) !important;
   font-size: 11px !important;
   line-height: 1.35 !important;
   overflow-wrap: anywhere !important;
@@ -412,7 +412,7 @@
 
 .related-relation-row code::before {
   content: "\00b7  ";
-  color: #4b6075;
+  color: var(--muted-soft);
 }
 
 /* KUBEDECK 1.1.1 RELATED CLEANUP START */
@@ -449,7 +449,7 @@
 }
 
 .related-group {
-  border: 1px solid rgba(148, 163, 184, 0.14) !important;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent) !important;
   border-radius: 10px !important;
   background: transparent !important;
   overflow: hidden !important;
@@ -458,8 +458,8 @@
 .related-group > header {
   min-height: 38px !important;
   padding: 0 12px !important;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
-  background: rgba(15, 23, 42, 0.22) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent) !important;
+  background: color-mix(in srgb, var(--surface) 70%, transparent) !important;
 }
 
 .related-group > header h3 {
@@ -476,9 +476,9 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border: 1px solid rgba(125, 211, 252, 0.35) !important;
-  background: rgba(15, 23, 42, 0.3) !important;
-  color: #dbeafe !important;
+  border: 1px solid color-mix(in srgb, var(--primary-border) 65%, transparent) !important;
+  background: color-mix(in srgb, var(--surface) 70%, transparent) !important;
+  color: var(--text-strong) !important;
   font-size: 12px !important;
 }
 
@@ -493,7 +493,7 @@
 .related-card-polished {
   width: 100% !important;
   border: 0 !important;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent) !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -507,7 +507,7 @@
 
 .related-card:hover:not(:disabled),
 .related-card-polished:hover:not(:disabled) {
-  background: rgba(30, 41, 59, 0.32) !important;
+  background: color-mix(in srgb, var(--surface) 80%, transparent) !important;
 }
 
 .related-card-main {
@@ -521,7 +521,7 @@
 
 .related-namespace {
   margin-left: auto !important;
-  color: #93c5fd !important;
+  color: var(--focus-ring) !important;
   font-size: 12px !important;
   white-space: nowrap !important;
 }
@@ -536,14 +536,14 @@
   background: transparent !important;
   padding: 0 !important;
   min-height: 0 !important;
-  color: #dbeafe !important;
+  color: var(--text-strong) !important;
   font-size: 12px !important;
   font-weight: 600 !important;
 }
 
 .related-relation-row code {
-  border-color: rgba(148, 163, 184, 0.18) !important;
-  background: rgba(2, 6, 23, 0.32) !important;
+  border-color: color-mix(in srgb, var(--border) 70%, transparent) !important;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent) !important;
 }
 /* KUBEDECK 1.1.1 RELATED CLEANUP END */
 
@@ -567,10 +567,10 @@
 :root[data-theme="light"] .llm-actions,
 :root[data-theme="light"] .resource-actions,
 :root[data-theme="light"] .resource-table-actions {
-  --kd-action-bg: #eef3f8;
-  --kd-action-bg-hover: #e1ebf5;
-  --kd-action-border: #b7c4d4;
-  --kd-action-border-hover: #2d84a8;
+  --kd-action-bg: var(--button-bg);
+  --kd-action-bg-hover: var(--button-hover);
+  --kd-action-border: var(--button-border);
+  --kd-action-border-hover: var(--primary-border);
   --kd-action-text: var(--text);
   --kd-action-muted: var(--muted);
   --kd-action-primary-bg: var(--primary);

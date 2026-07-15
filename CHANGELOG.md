@@ -1,4 +1,12 @@
-﻿## 2.3.1 - Namespace selector and dark theme polish
+﻿## 2.3.2 - Complete color theme system
+
+- Added Midnight Blue, Nord Frost, Forest Teal, Plum Graphite and Warm Mocha themes alongside Light and System.
+- Preserved legacy `dark` settings as Midnight Blue and added safe fallback and pre-render restoration for saved themes.
+- Centralized application, terminal, interaction, status, scrollbar and resize colors as semantic tokens.
+- Added accessible theme preview cards in Settings and synchronized pagination, drawers, terminals, panels and controls with the selected palette.
+- Added renderer and release contracts for theme normalization, persistence, System behavior, shared types, token coverage and pagination states.
+
+## 2.3.1 - Namespace selector and dark theme polish
 
 - Made the namespace menu at least as wide as its selector and let it grow to the exact rendered width of the longest namespace without truncation or wrapping.
 - Rebalanced the dark theme from near-black to a lighter blue-graphite palette while retaining readable contrast.

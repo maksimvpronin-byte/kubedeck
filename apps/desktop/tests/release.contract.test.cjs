@@ -6,6 +6,13 @@ const path = require("node:path");
 const repoRoot = path.resolve(__dirname, "../../..");
 const read = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 const readJson = (relativePath) => JSON.parse(read(relativePath).replace(/^\uFEFF/, ""));
+const { normalizeSettings } = require("../dist/main/backend/config/configStore.js");
+
+test("stored theme values remain backward compatible", () => {
+  assert.equal(normalizeSettings({ theme: "dark" }).theme, "midnight");
+  assert.equal(normalizeSettings({ theme: "not-a-theme" }).theme, "midnight");
+  assert.equal(normalizeSettings({ theme: "light" }).theme, "light");
+});
 
 test("KubeDeck release metadata stays synchronized", () => {
   const rootPackage = readJson("package.json");

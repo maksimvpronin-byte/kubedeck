@@ -6,43 +6,43 @@
 }
 
 .problem-summary-card {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #111820;
+  background: var(--surface);
   padding: 12px 14px;
 }
 
 .problem-summary-card span {
   display: block;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .problem-summary-card strong {
   display: block;
   margin-top: 5px;
-  color: #d8dee9;
+  color: var(--text);
   font-size: 20px;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .problem-summary-card.critical {
-  border-color: #7f3a3a;
-  background: rgba(127, 29, 29, 0.18);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
 }
 
 .problem-summary-card.critical strong {
-  color: #fecaca;
+  color: var(--danger-text);
 }
 
 .problem-summary-card.warning {
-  border-color: #7a5a21;
-  background: rgba(120, 83, 18, 0.16);
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
 }
 
 .problem-summary-card.warning strong {
-  color: #fde68a;
+  color: var(--warning-text);
 }
 
 .problem-summary-card.wide {
@@ -51,34 +51,34 @@
 
 .problem-summary-card.wide strong {
   font-size: 13px;
-  color: #cbd5e1;
+  color: var(--muted-strong);
 }
 
 .problem-partial-warning {
   display: grid;
   gap: 6px;
   margin-bottom: 14px;
-  border: 1px solid #7a5a21;
+  border: 1px solid var(--warning-border);
   border-radius: 8px;
-  background: rgba(120, 83, 18, 0.16);
+  background: var(--warning-bg);
   padding: 12px 14px;
 }
 
 .problem-partial-warning strong {
-  color: #fde68a;
+  color: var(--warning-text);
 }
 
 .problem-partial-warning span {
-  color: #d8bf7a;
+  color: var(--warning-text);
   font-size: 13px;
 }
 
 .problem-partial-warning code {
   display: block;
-  border: 1px solid #3a2f1c;
+  border: 1px solid var(--warning-border);
   border-radius: 6px;
-  background: #11100b;
-  color: #f8e8a8;
+  background: var(--warning-bg);
+  color: var(--warning-text);
   padding: 7px;
   overflow-wrap: anywhere;
 }
@@ -110,7 +110,7 @@
 }
 
 .problems-priority header span {
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -124,21 +124,21 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #111820;
+  background: var(--surface);
   padding: 11px 12px;
   min-width: 0;
 }
 
 .problem-priority-card.critical {
-  border-color: #7f3a3a;
-  background: rgba(127, 29, 29, 0.16);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
 }
 
 .problem-priority-card.warning {
-  border-color: #7a5a21;
-  background: rgba(120, 83, 18, 0.14);
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
 }
 
 .problem-priority-main {
@@ -147,13 +147,13 @@
 
 .problem-priority-main strong {
   display: block;
-  color: #d8dee9;
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .problem-priority-main p {
   margin: 6px 0 0;
-  color: #cbd5e1;
+  color: var(--muted-strong);
   font-size: 12px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -162,7 +162,7 @@
 .problem-priority-main small,
 .problem-priority-meta {
   display: block;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -181,15 +181,15 @@
 
 .problem-priority-actions button {
   min-height: 30px;
-  border: 1px solid #334251;
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
-  background: #202a34;
-  color: #d8dee9;
+  background: var(--button-bg);
+  color: var(--text);
   padding: 0 10px;
 }
 
 .problem-priority-actions button:hover {
-  background: #263341;
+  background: var(--button-hover);
 }
 
 @media (max-width: 1280px) {

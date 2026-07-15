@@ -12,16 +12,16 @@
 .relation-summary-chip {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #334251;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: #111820;
-  color: #cbd5e1;
+  background: var(--surface);
+  color: var(--muted-strong);
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 700;
 }
 
 .relation-config {
-  border-color: rgba(147, 197, 253, 0.35);
-  color: #93c5fd;
+  border-color: color-mix(in srgb, var(--primary-border) 65%, transparent);
+  color: var(--focus-ring);
 }

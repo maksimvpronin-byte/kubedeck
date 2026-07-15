@@ -17,7 +17,7 @@
 
 .audit-panel header p {
   margin: 0;
-  color: #94a3b8;
+  color: var(--muted);
   max-width: 760px;
 }
 
@@ -32,10 +32,10 @@
 .audit-header-actions select,
 .audit-filters select,
 .audit-filters input {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #0b1118;
-  color: #e2e8f0;
+  background: var(--code-bg);
+  color: var(--text);
   padding: 8px 10px;
 }
 
@@ -46,21 +46,21 @@
 }
 
 .audit-summary-grid div {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #111820;
+  background: var(--surface);
   padding: 12px;
 }
 
 .audit-summary-grid span {
   display: block;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
   margin-bottom: 6px;
 }
 
 .audit-summary-grid strong {
-  color: #e2e8f0;
+  color: var(--text);
   font-size: 20px;
 }
 
@@ -69,16 +69,16 @@
   grid-template-columns: minmax(240px, 1fr) minmax(140px, 180px) minmax(180px, 260px) auto;
   gap: 10px;
   align-items: end;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #0f1720;
+  background: var(--surface-2);
   padding: 12px;
 }
 
 .audit-filters label {
   display: grid;
   gap: 6px;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -91,7 +91,7 @@
 }
 
 .audit-filter-actions span {
-  color: #86efac;
+  color: var(--success-text);
   font-size: 12px;
 }
 
@@ -115,9 +115,9 @@
 }
 
 .audit-event {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #111820;
+  background: var(--surface);
   padding: 12px 14px;
   display: grid;
   gap: 8px;
@@ -126,12 +126,12 @@
 .audit-event.success,
 .audit-event.closed,
 .audit-event.opened {
-  border-color: rgba(34, 197, 94, 0.28);
+  border-color: color-mix(in srgb, var(--success-border) 70%, transparent);
 }
 
 .audit-event.failed {
-  border-color: rgba(248, 113, 113, 0.35);
-  background: rgba(127, 29, 29, 0.12);
+  border-color: color-mix(in srgb, var(--danger-border) 70%, transparent);
+  background: var(--danger-bg);
 }
 
 .audit-event-main {
@@ -142,13 +142,13 @@
 }
 
 .audit-event-main strong {
-  color: #e2e8f0;
+  color: var(--text);
 }
 
 .audit-event-main em {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
   font-style: normal;
   padding: 2px 8px;
@@ -158,16 +158,16 @@
 .audit-event-target,
 .audit-event small,
 .audit-event p {
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .audit-event code {
   display: block;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0b1118;
-  color: #cbd5e1;
+  background: var(--code-bg);
+  color: var(--muted-strong);
   padding: 8px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;

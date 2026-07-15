@@ -2,19 +2,10 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { ensureAppPaths, type AppPaths } from "./paths";
-import type {
-  AppConfig,
-  Cluster,
-  Language,
-  LlmSettings,
-  Settings,
-  SshAuthMethod,
-  SshSettings,
-  Theme,
-} from "./types";
+import type { AppConfig, Cluster, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "./types";
 
 const LANGUAGES = new Set<Language>(["system", "ru", "en"]);
-const THEMES = new Set<Theme>(["system", "dark", "light"]);
+const THEMES = new Set<Theme>(["system", "light", "midnight", "nord", "forest", "plum", "mocha"]);
 const SSH_AUTH_METHODS = new Set<SshAuthMethod>(["agent", "password", "privateKey"]);
 
 function utcNow(): string {
@@ -152,29 +143,20 @@ export function normalizeSettings(value: unknown): Settings {
 
   const defaults = defaultSettings();
   const language = asString(value.language, defaults.language) as Language;
-  const theme = asString(value.theme, defaults.theme) as Theme;
+  const storedTheme = asString(value.theme, defaults.theme);
+  const theme = (storedTheme === "dark" ? "midnight" : THEMES.has(storedTheme as Theme) ? storedTheme : "midnight") as Theme;
 
   if (!LANGUAGES.has(language)) {
     throw new Error(`Unsupported language: ${language}`);
   }
-  if (!THEMES.has(theme)) {
-    throw new Error(`Unsupported theme: ${theme}`);
-  }
-
   return {
     kubectlPath: asString(value.kubectlPath, defaults.kubectlPath).trim(),
     language,
     theme,
     refreshIntervalSeconds: asInteger(value.refreshIntervalSeconds, defaults.refreshIntervalSeconds),
     logsTailLines: asInteger(value.logsTailLines, defaults.logsTailLines),
-    secretRevealTimeoutSeconds: asInteger(
-      value.secretRevealTimeoutSeconds,
-      defaults.secretRevealTimeoutSeconds,
-    ),
-    restartProblemThreshold: asInteger(
-      value.restartProblemThreshold,
-      defaults.restartProblemThreshold,
-    ),
+    secretRevealTimeoutSeconds: asInteger(value.secretRevealTimeoutSeconds, defaults.secretRevealTimeoutSeconds),
+    restartProblemThreshold: asInteger(value.restartProblemThreshold, defaults.restartProblemThreshold),
     terminalFontSize: asInteger(value.terminalFontSize, defaults.terminalFontSize),
     logsSince: asString(value.logsSince, defaults.logsSince),
     llm: normalizeLlmSettings(value.llm),
@@ -247,7 +229,6 @@ export function validateKubectlPath(value: string): void {
     throw new Error(`kubectlPath does not exist: ${text}`);
   }
 }
-
 
 export class ClusterNotFoundError extends Error {
   constructor(readonly clusterId: string) {
@@ -362,13 +343,8 @@ export class ConfigStore {
     if (requestedSet.size !== requestedIds.length) {
       throw new InvalidClusterOrderError("clusterIds must not contain duplicates");
     }
-    if (
-      requestedIds.length !== currentIds.length ||
-      currentIds.some((clusterId) => !requestedSet.has(clusterId))
-    ) {
-      throw new InvalidClusterOrderError(
-        "clusterIds must contain every configured cluster exactly once",
-      );
+    if (requestedIds.length !== currentIds.length || currentIds.some((clusterId) => !requestedSet.has(clusterId))) {
+      throw new InvalidClusterOrderError("clusterIds must contain every configured cluster exactly once");
     }
 
     const byId = new Map(config.clusters.map((cluster) => [cluster.id, cluster]));

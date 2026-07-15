@@ -1,4 +1,5 @@
-export type Theme = "system" | "dark" | "light";
+export type DarkTheme = "midnight" | "nord" | "forest" | "plum" | "mocha";
+export type Theme = "system" | "light" | DarkTheme;
 export type Language = "system" | "ru" | "en";
 export type SshAuthMethod = "agent" | "password" | "privateKey";
 

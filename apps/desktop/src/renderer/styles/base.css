@@ -5,6 +5,8 @@
 body {
   margin: 0;
   overflow: hidden;
+  background: var(--app-bg);
+  color: var(--text);
 }
 
 button,
@@ -15,4 +17,40 @@ select {
 
 button {
   cursor: pointer;
+}
+
+button,
+input,
+select,
+textarea {
+  accent-color: var(--primary-border);
+}
+
+:where(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid var(--scrollbar-track);
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }

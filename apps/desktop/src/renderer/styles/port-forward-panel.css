@@ -13,7 +13,7 @@
 .port-forward-form label {
   display: grid;
   gap: 6px;
-  color: #b8c4d2;
+  color: var(--muted-strong);
   font-size: 13px;
 }
 .port-forward-list {
@@ -26,16 +26,16 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #111820;
+  background: var(--surface);
   padding: 10px;
 }
 .port-forward-card span,
 .port-forward-card code,
 .port-forward-card a {
   display: block;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
   margin-top: 4px;
   overflow: hidden;
@@ -43,16 +43,16 @@
   white-space: nowrap;
 }
 .port-forward-card a {
-  color: #8bd3ff;
+  color: var(--focus-ring);
   text-decoration: none;
 }
 .port-forward-card a:hover {
   text-decoration: underline;
 }
 .port-forward-card button {
-  border: 1px solid #334251;
-  background: #202a34;
-  color: #d8dee9;
+  border: 1px solid var(--border-strong);
+  background: var(--button-bg);
+  color: var(--text);
   border-radius: 6px;
   min-height: 32px;
   padding: 0 10px;

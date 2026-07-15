@@ -159,12 +159,12 @@ dd {
 }
 
 .describe-heading {
-  color: #7dd3fc;
+  color: var(--focus-ring);
   font-weight: 700;
 }
 
 .describe-key {
-  color: #93c5fd;
+  color: var(--focus-ring);
 }
 
 .describe-value {
@@ -257,7 +257,7 @@ dd {
 .bulk-delete-result-stats span {
   border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: rgba(7, 10, 13, 0.35);
+  background: color-mix(in srgb, var(--terminal-bg) 70%, transparent);
   color: var(--muted-strong);
   padding: 5px 9px;
   font-size: 12px;
@@ -364,12 +364,12 @@ dd {
 }
 
 .crd-notice-info {
-  border-color: #27465d;
-  background: #0d1b27;
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
 }
 
 .yaml-readonly-indicator {
-  color: #93c5fd;
+  color: var(--focus-ring);
   font-size: 12px;
   font-weight: 600;
 }
@@ -379,13 +379,13 @@ dd {
 }
 
 .yaml-dirty-indicator {
-  color: #fbbf24;
+  color: var(--warning-text);
   font-size: 12px;
   font-weight: 600;
 }
 
 .yaml-operation-output {
-  border: 1px solid #2b3641;
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-2);
   margin: 0 0 10px;
@@ -398,7 +398,7 @@ dd {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-bottom: 1px solid #26313b;
+  border-bottom: 1px solid var(--border);
   color: var(--text);
 }
 
@@ -408,7 +408,7 @@ dd {
   overflow: auto;
   padding: 10px;
   white-space: pre;
-  color: #cbd5e1;
+  color: var(--muted-strong);
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.35;
@@ -473,18 +473,18 @@ dd {
   inset: 0;
   resize: none;
   color: transparent;
-  caret-color: #d8dee9;
+  caret-color: var(--text);
   padding-left: 60px;
   z-index: 2;
 }
 
 .yaml-editor-input::selection {
-  background: rgba(96, 165, 250, 0.35);
+  background: color-mix(in srgb, var(--primary-border) 70%, transparent);
   color: transparent;
 }
 
 .yaml-editor-input:focus {
-  outline: 1px solid #3b82f6;
+  outline: 1px solid var(--focus-ring);
   outline-offset: -1px;
 }
 
@@ -494,7 +494,7 @@ dd {
   margin: 0;
   pointer-events: none;
   z-index: 1;
-  color: #d8dee9;
+  color: var(--text);
 }
 
 .yaml-line {
@@ -505,34 +505,34 @@ dd {
   display: inline-block;
   width: 38px;
   margin-right: 12px;
-  color: #64748b;
+  color: var(--muted-soft);
   text-align: right;
   user-select: none;
 }
 
 .yaml-key {
-  color: #7dd3fc;
+  color: var(--focus-ring);
 }
 
 .yaml-string {
-  color: #a7f3d0;
+  color: var(--success-text);
 }
 
 .yaml-number {
-  color: #fbbf24;
+  color: var(--warning-text);
 }
 
 .yaml-constant {
-  color: #c4b5fd;
+  color: var(--text-strong);
 }
 
 .yaml-comment {
-  color: #64748b;
+  color: var(--muted-soft);
   font-style: italic;
 }
 
 .yaml-punctuation {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .logs-viewer {
@@ -555,7 +555,7 @@ dd {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #b8c4d2;
+  color: var(--muted-strong);
   font-size: 12px;
 }
 
@@ -571,8 +571,8 @@ dd {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #0c1014;
-  border: 1px solid #2b3641;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
   border-radius: 6px;
   height: 34px;
   padding: 0 8px;
@@ -588,7 +588,7 @@ dd {
 }
 
 .logs-search span {
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -600,10 +600,10 @@ dd {
   overflow-wrap: normal;
   margin: 0;
   padding: 10px;
-  border: 1px solid #2b3641;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #070a0d;
-  color: #d8dee9;
+  background: var(--terminal-bg);
+  color: var(--text);
   white-space: pre;
   word-break: normal;
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
@@ -616,8 +616,8 @@ dd {
 }
 
 .log-line mark {
-  background: rgba(251, 191, 36, 0.35);
-  color: #fde68a;
+  background: color-mix(in srgb, var(--warning-border) 70%, transparent);
+  color: var(--warning-text);
   border-radius: 3px;
   padding: 0 1px;
 }

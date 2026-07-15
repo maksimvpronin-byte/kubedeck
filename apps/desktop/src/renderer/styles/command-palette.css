@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(2, 6, 23, 0.42);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: flex-start;
@@ -12,10 +12,10 @@
 .command-palette {
   width: min(760px, calc(100vw - 48px));
   max-height: min(720px, calc(100vh - 120px));
-  background: #151b22;
-  border: 1px solid #27313b;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 18px;
-  box-shadow: 0 28px 80px rgba(2, 6, 23, 0.36);
+  box-shadow: 0 28px 80px color-mix(in srgb, var(--surface-2) 70%, transparent);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -25,19 +25,19 @@
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: 1px solid #27313b;
+  border-bottom: 1px solid var(--border);
 }
 .command-palette-input input {
   flex: 1;
   border: 0;
   outline: none;
   background: transparent;
-  color: #d8dee9;
+  color: var(--text);
   font-size: 15px;
 }
 .command-palette-input kbd,
 .command-palette footer span {
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 .command-palette-results {
@@ -54,13 +54,13 @@
   border: 0;
   border-radius: 12px;
   background: transparent;
-  color: #d8dee9;
+  color: var(--text);
   text-align: left;
   cursor: pointer;
 }
 .command-palette-results button.active,
 .command-palette-results button:hover {
-  background: #172331;
+  background: var(--surface-hover);
 }
 .command-palette-results button span {
   min-width: 0;
@@ -76,13 +76,13 @@
 }
 .command-palette-results button small,
 .command-palette-results button em {
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
   font-style: normal;
 }
 .command-palette-empty {
   padding: 24px;
-  color: #94a3b8;
+  color: var(--muted);
   text-align: center;
 }
 .command-palette footer {
@@ -90,5 +90,5 @@
   justify-content: space-between;
   gap: 16px;
   padding: 10px 16px;
-  border-top: 1px solid #27313b;
+  border-top: 1px solid var(--border);
 }

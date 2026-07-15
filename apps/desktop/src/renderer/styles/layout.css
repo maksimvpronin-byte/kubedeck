@@ -442,7 +442,7 @@ h2 {
 .danger,
 .row-actions button,
 .settings-actions button {
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--text);
   border-radius: 8px;
@@ -451,6 +451,22 @@ h2 {
   font-weight: 600;
   line-height: 1.2;
   transition: border-color 120ms ease, background 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.icon-button:active:not(:disabled),
+.icon-text:active:not(:disabled),
+.row-actions button:active:not(:disabled),
+.settings-actions button:active:not(:disabled) {
+  background: var(--button-active);
+}
+
+.icon-button:disabled,
+.icon-text:disabled,
+.row-actions button:disabled,
+.settings-actions button:disabled {
+  border-color: var(--border);
+  background: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
 }
 
 .icon-button:hover:not(:disabled),
@@ -824,7 +840,7 @@ tr.selected td:first-child {
 }
 
 tr.resource-row-warning td:first-child {
-  box-shadow: inset 3px 0 0 #ef4444;
+  box-shadow: inset 3px 0 0 var(--danger-border);
 }
 
 .status-pill {
@@ -844,13 +860,13 @@ tr.resource-row-warning td:first-child {
 }
 
 .status-pill span {
-  color: #fca5a5;
+  color: var(--error-text);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .status-pill-warning {
-  border-color: #7f3a3a;
+  border-color: var(--danger-border);
   color: var(--danger-text);
   background: var(--danger-bg);
 }
@@ -867,7 +883,7 @@ tr.resource-row-warning td:first-child {
 }
 
 .namespace-link:hover {
-  color: #7dd3fc;
+  color: var(--focus-ring);
   text-decoration: underline;
 }
 

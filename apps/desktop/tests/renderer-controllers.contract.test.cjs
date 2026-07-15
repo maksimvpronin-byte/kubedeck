@@ -82,6 +82,160 @@ test("namespace selector keeps complete long names readable", () => {
   assert.doesNotMatch(layout, /\.namespace-menu-label\s*\{[^}]*(?:text-overflow|overflow-wrap):/s);
 });
 
+test("theme preferences normalize legacy values and resolve System safely", () => {
+  const model = loadTypeScript("utils/theme.ts");
+  const darkMedia = { matches: true };
+  const lightMedia = { matches: false };
+  assert.equal(model.normalizeThemePreference("dark"), "midnight");
+  assert.equal(model.normalizeThemePreference("unknown-theme"), "midnight");
+  assert.equal(model.resolveTheme("system", darkMedia), "midnight");
+  assert.equal(model.resolveTheme("system", lightMedia), "light");
+  assert.equal(model.resolveTheme("nord", lightMedia), "nord");
+  assert.deepEqual(
+    model.THEME_OPTIONS.map(({ id }) => id),
+    ["system", "light", "midnight", "nord", "forest", "plum", "mocha"],
+  );
+});
+
+test("theme application updates data attributes and persists the preference", () => {
+  const previous = {
+    document: global.document,
+    localStorage: global.localStorage,
+    window: global.window,
+    CustomEvent: global.CustomEvent,
+  };
+  const stored = new Map();
+  const events = [];
+  global.document = { documentElement: { dataset: {} } };
+  global.localStorage = {
+    getItem: (key) => stored.get(key) ?? null,
+    setItem: (key, value) => stored.set(key, value),
+  };
+  global.CustomEvent = class CustomEvent {
+    constructor(type, init) {
+      this.type = type;
+      this.detail = init?.detail;
+    }
+  };
+  global.window = {
+    dispatchEvent: (event) => events.push(event),
+    matchMedia: () => ({ matches: true }),
+  };
+  try {
+    const model = loadTypeScript("utils/theme.ts");
+    assert.equal(model.applyThemePreference("plum", { matches: false }), "plum");
+    assert.deepEqual(global.document.documentElement.dataset, { themePreference: "plum", theme: "plum" });
+    assert.equal(stored.get("kubedeck.theme"), "plum");
+    stored.set("kubedeck.theme", "dark");
+    assert.equal(model.restoreStoredThemePreference(), "midnight");
+    assert.equal(global.document.documentElement.dataset.theme, "midnight");
+    assert.equal(events.at(-1).detail, "midnight");
+    stored.delete("kubedeck.theme");
+    assert.equal(model.restoreStoredThemePreference(), "midnight");
+    assert.equal(global.document.documentElement.dataset.themePreference, "system");
+  } finally {
+    global.document = previous.document;
+    global.localStorage = previous.localStorage;
+    global.window = previous.window;
+    global.CustomEvent = previous.CustomEvent;
+  }
+});
+
+test("every color theme exposes the shared token contract", () => {
+  const tokens = fs.readFileSync(path.join(rendererRoot, "styles/tokens.css"), "utf8");
+  const required = [
+    "app-bg",
+    "sidebar-bg",
+    "topbar-bg",
+    "panel",
+    "panel-muted",
+    "surface",
+    "surface-2",
+    "surface-hover",
+    "surface-active",
+    "surface-selected",
+    "focus-ring",
+    "text",
+    "text-strong",
+    "text-inverse",
+    "muted",
+    "border",
+    "border-strong",
+    "input-bg",
+    "input-border",
+    "button-bg",
+    "button-border",
+    "button-hover",
+    "button-active",
+    "button-disabled-bg",
+    "button-disabled-text",
+    "primary",
+    "primary-soft",
+    "code-bg",
+    "terminal-bg",
+    "terminal-text",
+    "overlay",
+    "shadow-menu",
+    "shadow-lg",
+    "success-bg",
+    "warning-bg",
+    "danger-bg",
+    "error-bg",
+    "scrollbar-track",
+    "scrollbar-thumb",
+    "primary-resize",
+  ];
+  for (const token of required) assert.match(tokens, new RegExp(`--${token}:`), `missing --${token}`);
+  for (const theme of ["midnight", "nord", "forest", "plum", "mocha", "light"]) {
+    assert.match(tokens, new RegExp(`data-theme=["']${theme}["']`), `missing ${theme} selector`);
+  }
+
+  const blocks = [...tokens.matchAll(/([^{}]+)\{([^{}]+)\}/g)];
+  const base = cssHexTokens(blocks.filter(([, selector]) => selector.includes(":root,") || selector.includes('data-theme="midnight"')));
+  for (const theme of ["midnight", "nord", "forest", "plum", "mocha", "light"]) {
+    const palette = {
+      ...base,
+      ...cssHexTokens(blocks.filter(([, selector]) => selector.includes(`data-theme="${theme}"`))),
+    };
+    for (const [foreground, background] of [
+      ["text", "app-bg"],
+      ["text", "panel"],
+      ["muted", "panel"],
+    ]) {
+      assert.ok(contrastRatio(palette[foreground], palette[background]) >= 4.5, `${theme} ${foreground}/${background} must meet WCAG AA`);
+    }
+  }
+});
+
+function cssHexTokens(blocks) {
+  const result = {};
+  for (const [, , body] of blocks) {
+    for (const match of body.matchAll(/--([\w-]+):\s*(#[0-9a-f]{6})/gi)) result[match[1]] = match[2];
+  }
+  return result;
+}
+
+function contrastRatio(first, second) {
+  const luminance = (hex) => {
+    const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255).map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  };
+  const values = [luminance(first), luminance(second)];
+  return (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05);
+}
+
+test("resource pagination uses semantic button tokens for every state", () => {
+  const component = fs.readFileSync(path.join(rendererRoot, "components/ResourceTablePagination.tsx"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
+  assert.equal((component.match(/className="secondary-btn"/g) || []).length, 4);
+  for (const state of ["secondary-btn {", ":hover:not(:disabled)", ":active:not(:disabled)", ":disabled"]) {
+    assert.match(styles, new RegExp(`\\.pagination-actions[\\s\\S]*?${state.replace(/[()]/g, "\\$&")}`));
+  }
+  for (const token of ["--button-bg", "--button-border", "--button-hover", "--button-active", "--button-disabled-bg"]) {
+    assert.match(styles, new RegExp(`var\\(${token}\\)`));
+  }
+});
+
 test("resource navigation resolves cluster and namespace scope", () => {
   const model = loadTypeScript("hooks/useResourceNavigation.ts", {
     "../navigation": {

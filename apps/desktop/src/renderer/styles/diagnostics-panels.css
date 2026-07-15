@@ -1,9 +1,9 @@
 .cache-diagnostics-panel {
   display: grid;
   gap: 12px;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #111820;
+  background: var(--surface);
   padding: 12px;
 }
 
@@ -21,7 +21,7 @@
 
 .cache-diagnostics-panel p {
   margin: 4px 0 0;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -34,9 +34,9 @@
 }
 
 .cache-diagnostics-actions button {
-  border: 1px solid #334251;
-  background: #202a34;
-  color: #d8dee9;
+  border: 1px solid var(--border-strong);
+  background: var(--button-bg);
+  color: var(--text);
   border-radius: 6px;
   min-height: 30px;
   padding: 0 10px;
@@ -49,22 +49,22 @@
 }
 
 .cache-metric {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0f151c;
+  background: var(--surface-2);
   padding: 8px;
 }
 
 .cache-metric span {
   display: block;
-  color: #8b98a8;
+  color: var(--muted-soft);
   font-size: 11px;
 }
 
 .cache-metric strong {
   display: block;
   margin-top: 4px;
-  color: #f5f7fb;
+  color: var(--text-strong);
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -73,11 +73,11 @@
 
 .cache-note,
 .cache-empty {
-  color: #94a3b8 !important;
+  color: var(--muted) !important;
 }
 
 .cache-message {
-  color: #a7f3d0 !important;
+  color: var(--success-text) !important;
 }
 
 .cache-entry-list {
@@ -92,11 +92,11 @@
   grid-template-columns: minmax(110px, 1.2fr) minmax(90px, 1fr) auto auto auto;
   align-items: center;
   gap: 8px;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0f151c;
+  background: var(--surface-2);
   padding: 7px 8px;
-  color: #b8c4d2;
+  color: var(--muted-strong);
   font-size: 12px;
 }
 
@@ -129,9 +129,9 @@
 .watch-diagnostics-panel {
   display: grid;
   gap: 12px;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #111820;
+  background: var(--surface);
   padding: 12px;
 }
 
@@ -149,7 +149,7 @@
 
 .watch-diagnostics-panel p {
   margin: 4px 0 0;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -164,16 +164,16 @@
 .watch-diagnostics-actions button,
 .watch-start-form button,
 .watch-entry-actions button {
-  border: 1px solid #334251;
-  background: #202a34;
-  color: #d8dee9;
+  border: 1px solid var(--border-strong);
+  background: var(--button-bg);
+  color: var(--text);
   border-radius: 6px;
   min-height: 30px;
   padding: 0 10px;
 }
 
 .watch-start-form button.primary {
-  background: #2c3b4a;
+  background: var(--surface-active);
 }
 
 .watch-diagnostics-grid {
@@ -183,22 +183,22 @@
 }
 
 .watch-metric {
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0f151c;
+  background: var(--surface-2);
   padding: 8px;
 }
 
 .watch-metric span {
   display: block;
-  color: #8b98a8;
+  color: var(--muted-soft);
   font-size: 11px;
 }
 
 .watch-metric strong {
   display: block;
   margin-top: 4px;
-  color: #f5f7fb;
+  color: var(--text-strong);
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -215,15 +215,15 @@
 .watch-start-form label {
   display: grid;
   gap: 4px;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .watch-start-form input {
-  border: 1px solid #334251;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background: #0c1117;
-  color: #f5f7fb;
+  background: var(--code-bg);
+  color: var(--text-strong);
   min-height: 30px;
   padding: 0 8px;
 }
@@ -231,11 +231,11 @@
 .watch-note,
 .watch-empty,
 .watch-hint {
-  color: #94a3b8 !important;
+  color: var(--muted) !important;
 }
 
 .watch-message {
-  color: #a7f3d0 !important;
+  color: var(--success-text) !important;
 }
 
 .watch-entry-list {
@@ -248,16 +248,16 @@
 .watch-entry {
   display: grid;
   gap: 6px;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0f151c;
+  background: var(--surface-2);
   padding: 8px;
-  color: #b8c4d2;
+  color: var(--muted-strong);
   font-size: 12px;
 }
 
 .watch-entry-failed {
-  border-color: #7a2d2d;
+  border-color: var(--danger-border);
 }
 
 .watch-entry-main {
@@ -277,33 +277,33 @@
 }
 
 .watch-status-pill {
-  border: 1px solid #334251;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   padding: 2px 8px;
-  background: #17212b;
-  color: #d8dee9;
+  background: var(--surface);
+  color: var(--text);
 }
 
 .watch-entry-command {
-  color: #8b98a8;
+  color: var(--muted-soft);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 .watch-tail {
   max-height: 92px;
   overflow: auto;
-  border: 1px solid #27313b;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0c1014;
-  color: #cbd5e1;
+  background: var(--code-bg);
+  color: var(--muted-strong);
   padding: 8px;
   margin: 0;
   white-space: pre-wrap;
 }
 
 .watch-tail-error {
-  border-color: #7a2d2d;
-  color: #fecaca;
+  border-color: var(--danger-border);
+  color: var(--danger-text);
 }
 
 .watch-entry-actions {

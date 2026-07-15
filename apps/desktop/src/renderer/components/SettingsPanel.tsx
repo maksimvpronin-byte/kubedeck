@@ -3,7 +3,7 @@ import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, Settings, SshAuthMethod } from "../types";
 import { normalizeRefreshIntervalSeconds, REFRESH_INTERVAL_OPTIONS_SECONDS } from "../utils/refresh";
 import { normalizeSettingsSsh, normalizeSshPort, normalizeSshSettings, saveStoredSshDefaults } from "../utils/sshDefaults";
-import { applyThemePreference } from "../utils/theme";
+import { applyThemePreference, THEME_OPTIONS } from "../utils/theme";
 import { toErrorInfo } from "../utils/errors";
 import { ClusterPanel } from "./ClusterPanel";
 import { ResourceCacheDiagnostics } from "./ResourceCacheDiagnostics";
@@ -54,7 +54,7 @@ export function SettingsPanel({
   const [llmTestMessage, setLlmTestMessage] = useState("");
 
   useEffect(() => {
-    applyThemePreference(draft.theme);
+    applyThemePreference(draft.theme, undefined, { persist: false });
     return () => {
       applyThemePreference(settings.theme);
     };
@@ -88,12 +88,14 @@ export function SettingsPanel({
         jumpUsername: sshSettings.jumpUsername.trim(),
       });
       saveStoredSshDefaults(normalizedSsh);
-      await Promise.resolve(save({
-        ...draft,
-        refreshIntervalSeconds: selectedRefreshInterval,
-        llm: normalizeLlmSettings(llmSettings),
-        ssh: normalizedSsh,
-      }));
+      await Promise.resolve(
+        save({
+          ...draft,
+          refreshIntervalSeconds: selectedRefreshInterval,
+          llm: normalizeLlmSettings(llmSettings),
+          ssh: normalizedSsh,
+        }),
+      );
       setSaveStatus("saved");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -122,14 +124,25 @@ export function SettingsPanel({
         {t("settings.kubectlPath")}
         <input value={draft.kubectlPath} onChange={(event) => setDraft({ ...draft, kubectlPath: event.target.value })} />
       </label>
-      <label>
-        {t("settings.theme")}
-        <select value={draft.theme} onChange={(event) => setDraft({ ...draft, theme: event.target.value as Settings["theme"] })}>
-          <option value="system">{t("settings.theme.system")}</option>
-          <option value="dark">{t("settings.theme.dark")}</option>
-          <option value="light">{t("settings.theme.light")}</option>
-        </select>
-      </label>
+      <fieldset className="theme-picker">
+        <legend>{t("settings.theme")}</legend>
+        <div className="theme-picker-grid">
+          {THEME_OPTIONS.map((theme) => (
+            <label className={`theme-option${draft.theme === theme.id ? " active" : ""}`} key={theme.id}>
+              <input type="radio" name="theme" value={theme.id} checked={draft.theme === theme.id} onChange={() => setDraft({ ...draft, theme: theme.id })} />
+              <span className="theme-preview" aria-hidden="true">
+                {theme.preview.map((color) => (
+                  <span key={color} style={{ backgroundColor: color }} />
+                ))}
+              </span>
+              <span className="theme-option-copy">
+                <strong>{t(theme.labelKey)}</strong>
+                <small>{t(theme.descriptionKey)}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label>
         {t("settings.language")}
         <select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as Settings["language"] })}>
@@ -186,7 +199,11 @@ export function SettingsPanel({
             </label>
             <label>
               {t("settings.ssh.jumpUsername")}
-              <input value={sshSettings.jumpUsername} onChange={(event) => setSshSettings({ jumpUsername: event.target.value })} placeholder={sshSettings.defaultUsername || t("settings.ssh.sameAsTarget")} />
+              <input
+                value={sshSettings.jumpUsername}
+                onChange={(event) => setSshSettings({ jumpUsername: event.target.value })}
+                placeholder={sshSettings.defaultUsername || t("settings.ssh.sameAsTarget")}
+              />
             </label>
             <label>
               {t("settings.ssh.jumpAuthMethod")}
@@ -240,41 +257,27 @@ export function SettingsPanel({
           </label>
           <label>
             {t("llm.maxOutputTokens")}
-            <input
-              type="number"
-              value={llmSettings.maxOutputTokens}
-              onChange={(event) => setLlmSettings({ maxOutputTokens: Number(event.target.value) })}
-            />
+            <input type="number" value={llmSettings.maxOutputTokens} onChange={(event) => setLlmSettings({ maxOutputTokens: Number(event.target.value) })} />
           </label>
         </div>
         <div className="settings-actions settings-llm-actions">
-          
           <button onClick={() => void testLlmConnection()} disabled={!api || llmTestStatus === "testing"}>
             {llmTestStatus === "testing" ? t("llm.testing") : t("llm.testConnection")}
           </button>
-          {llmTestStatus !== "idle" && llmTestStatus !== "testing" ? (
-            <span className={`settings-save-feedback ${llmTestStatus === "error" ? "error" : "success"}`}>{llmTestMessage}</span>
-          ) : null}
+          {llmTestStatus !== "idle" && llmTestStatus !== "testing" ? <span className={`settings-save-feedback ${llmTestStatus === "error" ? "error" : "success"}`}>{llmTestMessage}</span> : null}
         </div>
       </div>
       <div className="settings-actions">
-        <button className="primary" onClick={() => void saveDraft()} disabled={saveStatus === "saving"}>{saveStatus === "saving" ? t("settings.saving") : t("settings.save")}</button>
+        <button className="primary" onClick={() => void saveDraft()} disabled={saveStatus === "saving"}>
+          {saveStatus === "saving" ? t("settings.saving") : t("settings.save")}
+        </button>
         {saveStatus !== "idle" ? (
-          <span className={`settings-save-feedback ${saveStatus === "error" ? "error" : "success"}`}>
-            {saveStatus === "error" ? `${t("settings.saveFailed")}: ${saveError}` : t("settings.saved")}
-          </span>
+          <span className={`settings-save-feedback ${saveStatus === "error" ? "error" : "success"}`}>{saveStatus === "error" ? `${t("settings.saveFailed")}: ${saveError}` : t("settings.saved")}</span>
         ) : null}
         <button onClick={() => window.kubedeck.openLogsFolder()}>{t("settings.logs")}</button>
       </div>
       <ResourceCacheDiagnostics api={api} activeCluster={activeCluster} t={t} onError={onError} />
-      <WatchDiagnostics
-        api={api}
-        activeCluster={activeCluster}
-        selectedNamespaces={selectedNamespaces}
-        resourceTab={resourceTab}
-        t={t}
-        onError={onError}
-      />
+      <WatchDiagnostics api={api} activeCluster={activeCluster} selectedNamespaces={selectedNamespaces} resourceTab={resourceTab} t={t} onError={onError} />
       <ClusterPanel
         clusters={clusters}
         activeCluster={activeCluster}
@@ -307,7 +310,8 @@ function normalizeLlmSettings(settings: Partial<Settings["llm"]> | undefined): S
     apiKey: settings?.apiKey ?? "",
     temperature: clampNumber(settings?.temperature, 0, 2, 0.2),
     timeoutSeconds: clampNumber(settings?.timeoutSeconds, 1, 600, 60),
-    maxContextChars: clampNumber(settings?.maxContextChars, 1000, 250000, 60000), maxOutputTokens: clampNumber(settings?.maxOutputTokens, 256, 32768, 4096),
+    maxContextChars: clampNumber(settings?.maxContextChars, 1000, 250000, 60000),
+    maxOutputTokens: clampNumber(settings?.maxOutputTokens, 256, 32768, 4096),
   };
 }
 
