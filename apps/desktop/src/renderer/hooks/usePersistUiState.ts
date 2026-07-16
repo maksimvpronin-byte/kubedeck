@@ -11,6 +11,7 @@ interface PersistUiStateOptions {
   resourceTab: string;
   namespace: string;
   selectedNamespaces: string[];
+  selectedNamespacesByClusterId: Record<string, string[]>;
 }
 
 export function usePersistUiState({
@@ -22,10 +23,11 @@ export function usePersistUiState({
   resourceTab,
   namespace,
   selectedNamespaces,
+  selectedNamespacesByClusterId,
 }: PersistUiStateOptions) {
   useEffect(() => {
     const timer = setTimeout(() => {
-      saveUiState({
+      const next = {
         ...loadUiState(),
         drawerWidth,
         sidebarWidth,
@@ -33,10 +35,15 @@ export function usePersistUiState({
         expandedCrdGroups: Array.from(expandedCrdGroups),
         section,
         resourceTab,
-        namespace,
-        selectedNamespaces,
-      });
+        namespaceSelectionVersion: 2 as const,
+        selectedNamespacesByClusterId,
+      };
+      // These v1 fields represented one global selection and must not leak it
+      // into another cluster after upgrading to the per-cluster model.
+      delete next.namespace;
+      delete next.selectedNamespaces;
+      saveUiState(next);
     }, 300);
     return () => clearTimeout(timer);
-  }, [drawerWidth, sidebarWidth, expandedSections, expandedCrdGroups, section, resourceTab, namespace, selectedNamespaces]);
+  }, [drawerWidth, sidebarWidth, expandedSections, expandedCrdGroups, section, resourceTab, namespace, selectedNamespaces, selectedNamespacesByClusterId]);
 }

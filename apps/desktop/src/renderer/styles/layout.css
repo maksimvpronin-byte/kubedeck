@@ -185,6 +185,85 @@ input {
   min-width: 0;
 }
 
+.cluster-selector {
+  position: relative;
+  min-width: 0;
+}
+
+.cluster-selector-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  justify-content: space-between;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+}
+
+.cluster-selector-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-menu {
+  position: absolute;
+  z-index: 20;
+  top: 38px;
+  left: 0;
+  width: max-content;
+  min-width: 100%;
+  max-height: 280px;
+  overflow: hidden;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-menu);
+}
+
+.cluster-menu-options {
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  min-width: 100%;
+  max-height: 266px;
+  overflow: auto;
+}
+
+.cluster-menu-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  white-space: nowrap;
+  text-align: left;
+}
+
+.cluster-menu-option:hover,
+.cluster-menu-option:focus-visible,
+.cluster-menu-option.is-selected {
+  background: var(--surface-hover);
+}
+
+.cluster-menu-check {
+  flex: 0 0 15px;
+  opacity: 0;
+}
+
+.cluster-menu-check.is-visible {
+  opacity: 1;
+  color: var(--primary);
+}
+
 .namespace-selector-button {
   display: flex;
   align-items: center;

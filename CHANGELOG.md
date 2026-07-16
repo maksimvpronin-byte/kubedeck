@@ -1,4 +1,13 @@
-﻿## 2.4.2 - Bulk delete feedback cleanup
+﻿## 2.4.3 - Cluster namespace and drawer selection correctness
+
+- Stored single and multi-namespace selections independently for every cluster instead of carrying one global selection across contexts.
+- Replaced the native operating-system cluster select popup with a themed in-app menu matching the Namespace Selector.
+- Restored each cluster's remembered namespaced scope after cluster-scoped navigation while safely falling back to all namespaces for new or invalid selections.
+- Added request sequencing so late cluster and namespace responses cannot overwrite the currently active cluster.
+- Replaced separate selected row/resource state with one atomic cluster/resource/row target for the resource drawer.
+- Hid stale drawer snapshots immediately on identity changes while retaining stable state during auto-refresh of the same object.
+
+## 2.4.2 - Bulk delete feedback cleanup
 
 - Removed the redundant Bulk delete requested/completed status panel and Close button from successful deletion flows.
 - Kept optimistic Terminating rows while making table reload the sole success confirmation.

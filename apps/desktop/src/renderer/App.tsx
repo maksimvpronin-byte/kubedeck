@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties, Dispatch, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
 import type { CommandPaletteItem } from "./components/CommandPalette";
 import { AppCommandPalette } from "./components/AppCommandPalette";
+import { ClusterSelector } from "./components/ClusterSelector";
 import { UnavailableClusterPanel } from "./components/UnavailableClusterPanel";
 import { BulkActionModals } from "./components/BulkActionModals";
 import { ErrorPanel } from "./components/ErrorPanel";
@@ -17,7 +18,8 @@ import { useBulkResourceActions } from "./hooks/useBulkResourceActions";
 import { useClusterController } from "./hooks/useClusterController";
 import { usePersistUiState } from "./hooks/usePersistUiState";
 import { useResourceLoader } from "./hooks/useResourceLoader";
-import { useResourceNavigation } from "./hooks/useResourceNavigation";
+import { currentSelectedResourceTarget, useResourceNavigation } from "./hooks/useResourceNavigation";
+import type { SelectedResourceTarget } from "./hooks/useResourceNavigation";
 import { useResourceWatch } from "./hooks/useResourceWatch";
 import { createTranslator } from "./i18n";
 import { brandIcon as Database, isPlaceholderSection, normalizeStoredSection, resourceLabel, resourceTree, sectionTitle, sections, visibleTabs } from "./navigation";
@@ -31,7 +33,7 @@ import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
 const initialResourceTab = initialUiState.section === "overview" || initialSection === "nodes" ? "nodes" : (initialUiState.resourceTab ?? "pods");
-const initialSelectedNamespaces = initialSection === "nodes" ? ["_cluster"] : (initialUiState.selectedNamespaces ?? [initialUiState.namespace ?? "all"]);
+const initialSelectedNamespaces = initialSection === "nodes" ? ["_cluster"] : ["all"];
 
 const AboutPanel = lazy(() => import("./components/AboutPanel").then((module) => ({ default: module.AboutPanel })));
 const AuditPanel = lazy(() => import("./components/AuditPanel").then((module) => ({ default: module.AuditPanel })));
@@ -47,8 +49,7 @@ export function App() {
   const [rows, setRows] = useState<Record<string, ResourceRow[]>>({ pods: [], deployments: [], services: [], events: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
-  const [selectedPod, setSelectedPod] = useState<ResourceRow | null>(null);
-  const [selectedResource, setSelectedResource] = useState("pods");
+  const [selectedTarget, setSelectedTarget] = useState<SelectedResourceTarget | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(initialUiState.drawerWidth ?? 520);
   const [sidebarWidth, setSidebarWidth] = useState(initialUiState.sidebarWidth ?? 236);
   const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
@@ -57,6 +58,18 @@ export function App() {
   const loadResourcesRef = useRef<number | null>(null);
   const actionReloadRef = useRef<(clusterId: string, resource: string, namespaces: string[]) => Promise<void>>(async () => undefined);
   const crdLoadedClusterRef = useRef<string | null>(null);
+  const setSelectedPod = useCallback<Dispatch<SetStateAction<ResourceRow | null>>>(
+    (next) => {
+      setSelectedTarget((current) => {
+        const currentRow = current?.row ?? null;
+        const row = typeof next === "function" ? next(currentRow) : next;
+        if (!row) return null;
+        if (!current) return null;
+        return { ...current, row };
+      });
+    },
+    [resourceTab],
+  );
 
   const {
     api,
@@ -80,7 +93,9 @@ export function App() {
     namespaces,
     setNamespaces,
     selectedNamespaces,
+    selectedNamespacesByClusterId,
     setNamespaceSelection,
+    restoreNamespacedSelection,
     importKubeconfig,
     openCluster,
     startRenameCluster,
@@ -90,11 +105,15 @@ export function App() {
     reorderClusters,
   } = useClusterController({
     initialSelectedNamespaces,
+    initialSelectedNamespacesByClusterId: initialUiState.namespaceSelectionVersion === 2 ? initialUiState.selectedNamespacesByClusterId : undefined,
     setRows,
     setSelectedRow: setSelectedPod,
     setLoading,
     setError,
   });
+  const currentSelectedTarget = currentSelectedResourceTarget(selectedTarget, activeCluster?.id, resourceTab);
+  const selectedPod = currentSelectedTarget?.row ?? null;
+  const selectedResource = currentSelectedTarget?.resource ?? resourceTab;
   const activeLanguage = languagePreview ?? settings?.language ?? "system";
   const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
   const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
@@ -138,6 +157,7 @@ export function App() {
     resourceTab,
     namespace,
     selectedNamespaces,
+    selectedNamespacesByClusterId,
   });
 
   const loadResources = useResourceLoader({
@@ -180,30 +200,29 @@ export function App() {
     },
     [loadResources, activeCluster?.id, resourceTab, selectedNamespaces],
   );
-  const { openResourceLocator, openRelatedResource, consumeKeepSelection, keepCurrentSelection, restoreNamespacedSelection } = useResourceNavigation({
+  const { openResourceLocator, openRelatedResource, consumeKeepSelection, keepCurrentSelection, cancelResourceNavigation } = useResourceNavigation({
     api,
     activeCluster,
     resourceTab,
-    selectedResource,
+    selectedTarget,
     namespace,
     selectedNamespaces,
     resourceDefinitions,
     rows,
-    selectedRow: selectedPod,
     setRows,
-    setSelectedRow: setSelectedPod,
-    setSelectedResource,
+    setSelectedTarget,
     setResourceTab,
     setSection,
     setExpandedSections,
     setNamespaceSelection,
+    rememberedNamespaces: activeCluster ? (selectedNamespacesByClusterId[activeCluster.id] ?? ["all"]) : ["all"],
     setError,
   });
 
   useEffect(() => {
     if (activeCluster) debouncedLoadResources(activeCluster.id, resourceTab, selectedNamespaces);
     if (consumeKeepSelection()) return;
-    setSelectedPod(null);
+    setSelectedTarget(null);
   }, [resourceTab, selectedNamespaces, activeCluster?.id, debouncedLoadResources, consumeKeepSelection]);
 
   useEffect(() => {
@@ -246,6 +265,7 @@ export function App() {
   }
 
   function selectSection(next: Section) {
+    cancelResourceNavigation();
     setSection(next);
 
     if (resourceTree[next]) {
@@ -325,10 +345,11 @@ export function App() {
   }
 
   function selectTreeResource(sectionId: Section, resource: string) {
+    cancelResourceNavigation();
     if (resource === "port-forwards") {
       setSection("port-forwards");
       setResourceTab("port-forwards");
-      setSelectedPod(null);
+      setSelectedTarget(null);
       return;
     }
     setSection(sectionId);
@@ -352,6 +373,14 @@ export function App() {
   const clusters = config?.clusters ?? [];
   const activeRows = rows[resourceTab] ?? [];
   const selectedDefinition = findResourceDefinition(resourceDefinitions, resourceTab);
+  useEffect(() => {
+    if (!activeCluster || !selectedDefinition) return;
+    if (selectedDefinition.namespaced === false) {
+      if (!selectedNamespaces.includes("_cluster")) setNamespaceSelection("_cluster");
+      return;
+    }
+    if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection(activeCluster.id);
+  }, [activeCluster?.id, selectedDefinition?.namespaced, selectedNamespaces, setNamespaceSelection, restoreNamespacedSelection]);
   const isCrdDefinitionTab = resourceTab === "customresourcedefinitions" || resourceTab === "customresourcedefinitions.apiextensions.k8s.io";
   const isCrdInstanceTab = section === "crd" && !isCrdDefinitionTab;
   const isClusterScoped = selectedDefinition?.namespaced === false || namespace === "_cluster";
@@ -420,9 +449,9 @@ export function App() {
         category: t("command.category.open"),
         keywords: `${resourceTab} ${rowName} ${rowNamespace} ${String(row.kind ?? "")} ${String(row.status ?? "")} ${String(row.phase ?? "")}`,
         run: () => {
+          cancelResourceNavigation();
           keepCurrentSelection();
-          setSelectedResource(resourceTab);
-          setSelectedPod(row);
+          if (activeCluster) setSelectedTarget({ clusterId: activeCluster.id, resource: resourceTab, row });
           if (rowNamespace && rowNamespace !== "_cluster" && namespace !== "_cluster") setNamespaceSelection(rowNamespace);
         },
       });
@@ -632,21 +661,13 @@ export function App() {
           </aside>
           <main className={resourceTabs.length > 1 ? "workspace" : "workspace workspace-no-tabs"}>
             <header className="topbar">
-              <select
-                value={activeCluster?.id ?? ""}
-                onChange={(event) => {
-                  const cluster = clusters.find((item) => item.id === event.target.value);
-                  if (cluster) openCluster(cluster);
-                }}
-                disabled={!clusters.length || Boolean(openingClusterId)}
-              >
-                {!clusters.length ? <option value="">{t("clusters.none")}</option> : null}
-                {clusters.map((cluster) => (
-                  <option value={cluster.id} key={cluster.id}>
-                    {cluster.displayName}
-                  </option>
-                ))}
-              </select>
+              <ClusterSelector
+                clusters={clusters}
+                activeClusterId={activeCluster?.id}
+                openingClusterId={openingClusterId}
+                emptyLabel={t("clusters.none")}
+                onChange={(cluster) => void openCluster(cluster)}
+              />
               <NamespaceSelector
                 namespaces={namespaces}
                 selected={isClusterScoped ? ["_cluster"] : selectedNamespaces}
@@ -791,10 +812,10 @@ export function App() {
                         onNodeAction={bulkActions.requestNodeAction}
                         onOpenLocator={openResourceLocator}
                         onSelect={(selectedRow, resource) => {
-                          setSelectedPod(selectedRow);
-                          setSelectedResource(resource);
+                          cancelResourceNavigation();
+                          setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
                         }}
-                        selectedRow={selectedResource === resourceTab ? selectedPod : null}
+                        selectedRow={selectedTarget?.clusterId === activeCluster.id && selectedTarget.resource === resourceTab ? selectedTarget.row : null}
                         onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
                         canBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition)}
                         onBulkDelete={bulkActions.requestBulkDelete}
@@ -819,7 +840,7 @@ export function App() {
                     setSection("port-forwards");
                     setResourceTab("port-forwards");
                   }}
-                  onClose={() => setSelectedPod(null)}
+                  onClose={() => setSelectedTarget(null)}
                   copyLabel={t("error.copy")}
                   settings={settings}
                   t={t}

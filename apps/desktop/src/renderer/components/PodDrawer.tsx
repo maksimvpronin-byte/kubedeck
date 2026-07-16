@@ -472,7 +472,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       />
       <PodDrawerHeader resource={resource} namespace={namespaceText} name={pod.name} onCopyName={() => copyText(`${resource}/${pod.name}`, "Name copied")} onClose={requestClose} />
       <PodDrawerTabs tabs={drawerTabs} active={tab} nodeResource={isNodeResource} labels={labels} llmLabel={t("llm.title")} onChange={setTab} />
-      <div className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
+      <div key={currentObjectKey} className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
         <PodDrawerActions
           actions={actions}
           resource={resource}

@@ -7,6 +7,8 @@ export interface UiState {
   resourceTab?: string;
   namespace?: string;
   selectedNamespaces?: string[];
+  namespaceSelectionVersion?: 2;
+  selectedNamespacesByClusterId?: Record<string, string[]>;
   columnWidths?: Record<string, Record<string, number>>;
   columnOrders?: Record<string, string[]>;
   hiddenColumns?: Record<string, string[]>;

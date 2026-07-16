@@ -82,6 +82,23 @@ test("namespace selector keeps complete long names readable", () => {
   assert.doesNotMatch(layout, /\.namespace-menu-label\s*\{[^}]*(?:text-overflow|overflow-wrap):/s);
 });
 
+test("cluster selector uses the themed in-app menu instead of a native select", () => {
+  const component = fs.readFileSync(path.join(rendererRoot, "components/ClusterSelector.tsx"), "utf8");
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
+  const topbarClusterControl = app.slice(app.indexOf('<header className="topbar">'), app.indexOf("<NamespaceSelector"));
+
+  assert.match(topbarClusterControl, /<ClusterSelector/);
+  assert.doesNotMatch(topbarClusterControl, /<select/);
+  assert.doesNotMatch(component, /<select/);
+  assert.match(component, /aria-haspopup="listbox"/);
+  assert.match(component, /role="option"/);
+  assert.match(component, /window\.addEventListener\("pointerdown", closeOnOutsideClick\)/);
+  assert.match(component, /event\.key === "Escape"/);
+  assert.match(layout, /\.cluster-menu\s*\{[^}]*width:\s*max-content;[^}]*min-width:\s*100%;/s);
+  assert.match(layout, /\.cluster-menu-option\.is-selected/);
+});
+
 test("theme preferences normalize legacy values and resolve System safely", () => {
   const model = loadTypeScript("utils/theme.ts");
   const darkMedia = { matches: true };
@@ -374,6 +391,61 @@ test("resource navigation resolves cluster and namespace scope", () => {
     clusterScoped: true,
   });
   assert.equal(model.resolveResourceNavigationTarget({ resource: "pods", namespace: "tools", name: "p1", uid: "p1" }, "pods", "pods", "_cluster", ["default"], definitions).namespace, "tools");
+
+  const secret = { clusterId: "cluster-a", resource: "secrets", row: { uid: "secret-1", namespace: "tools", name: "token" } };
+  const pod = { clusterId: "cluster-a", resource: "pods", row: { uid: "pod-1", namespace: "tools", name: "api" } };
+  assert.equal(model.currentSelectedResourceTarget(secret, "cluster-a", "pods"), null);
+  assert.equal(model.currentSelectedResourceTarget(secret, "cluster-b", "secrets"), null);
+  assert.equal(model.currentSelectedResourceTarget(pod, "cluster-a", "pods"), pod);
+});
+
+test("namespace selections are isolated and reconciled per cluster", () => {
+  const normalizeNamespaceSelection = (value) => {
+    const raw = Array.isArray(value) ? value : value.split(",");
+    const normalized = [...new Set(raw.map((item) => item.trim()).filter(Boolean))];
+    if (normalized.includes("_cluster")) return ["_cluster"];
+    if (normalized.includes("all") || normalized.length === 0) return ["all"];
+    return normalized;
+  };
+  const model = loadTypeScript("hooks/useNamespaceRefresh.ts", {
+    "../utils/kubeResources": {
+      arraysEqual: (left, right) => left.length === right.length && left.every((item, index) => item === right[index]),
+      normalizeNamespaceSelection,
+    },
+    "../utils/errors": { asErrorInfo: (error) => error, isAbortError: () => false },
+    "../utils/refresh": { getAutoRefreshIntervalSeconds: () => 0 },
+  });
+
+  const stored = model.normalizeClusterNamespaceSelections({
+    "cluster-a": ["team-a", "shared", "team-a"],
+    "cluster-b": ["team-b"],
+    scoped: ["_cluster"],
+    broken: "default",
+  });
+  assert.deepEqual(stored, { "cluster-a": ["team-a", "shared"], "cluster-b": ["team-b"] });
+  assert.deepEqual(model.rememberedNamespacesForCluster(stored, "cluster-a"), ["team-a", "shared"]);
+  assert.deepEqual(model.rememberedNamespacesForCluster(stored, "cluster-b"), ["team-b"]);
+  assert.deepEqual(model.rememberedNamespacesForCluster(stored, "cluster-c"), ["all"]);
+  assert.deepEqual(model.reconcileClusterNamespaceSelection(["team-a", "removed"], ["default", "team-a"]), ["team-a"]);
+  assert.deepEqual(model.reconcileClusterNamespaceSelection(["removed"], ["default", "team-a"]), ["all"]);
+  assert.deepEqual(model.reconcileClusterNamespaceSelection(["team-a"], []), ["team-a"]);
+  assert.deepEqual(model.reconcileClusterNamespaceSelection(["_cluster"], ["default"]), ["all"]);
+});
+
+test("App keeps drawer selection atomic and persists namespace scope by cluster", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const persistence = fs.readFileSync(path.join(rendererRoot, "hooks/usePersistUiState.ts"), "utf8");
+  assert.match(app, /useState<SelectedResourceTarget \| null>/);
+  assert.match(app, /setSelectedTarget\(\{ clusterId: activeCluster\.id, resource, row: selectedRow \}\)/);
+  assert.match(app, /cancelResourceNavigation\(\);\s*setSelectedTarget\(\{ clusterId: activeCluster\.id, resource, row: selectedRow \}\)/s);
+  assert.doesNotMatch(app, /useState<ResourceRow \| null>\(null\)/);
+  assert.doesNotMatch(app, /const \[selectedResource, setSelectedResource\]/);
+  assert.match(persistence, /namespaceSelectionVersion: 2/);
+  assert.match(persistence, /selectedNamespacesByClusterId/);
+  assert.match(persistence, /delete next\.selectedNamespaces/);
+  const navigation = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceNavigation.ts"), "utf8");
+  assert.match(navigation, /navigationRequestRef\.current !== requestId/);
+  assert.match(navigation, /navigationAbortRef\.current\?\.abort\(\)/);
 });
 
 test("bulk action helpers preserve identity, scope summary, and terminating state", () => {
@@ -510,7 +582,10 @@ test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results",
   assert.match(lifecycle, /}, \[currentObjectKey\]\);/);
   assert.doesNotMatch(lifecycle, /}, \[api, clusterId, pod,/);
   assert.match(lifecycle, /tab === "yaml" && yamlObjectKey === currentObjectKey/);
+  assert.match(lifecycle, /snapshotObjectKey === currentObjectKey/);
+  assert.match(lifecycle, /content: snapshotIsCurrent \? content : ""/);
   assert.match(drawer, /drawerResourceIdentity\(clusterId, resource, pod\)/);
+  assert.match(drawer, /<div key=\{currentObjectKey\} className=/);
   assert.match(drawer, /setYamlStatus\(t\("yaml\.dryRunPassed"\)\)/);
   assert.match(drawer, /setYamlStatus\(t\("yaml\.applied"\)\)/);
   assert.match(yaml, /className="apply-result" role="status" aria-live="polite"/);

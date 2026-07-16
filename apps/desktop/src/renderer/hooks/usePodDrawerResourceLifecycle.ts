@@ -62,6 +62,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
+  const [snapshotObjectKey, setSnapshotObjectKey] = useState(currentObjectKey);
 
   const podName = pod?.name ?? "";
   const podNamespace = pod ? String(pod.namespace || "_cluster") : "";
@@ -82,6 +83,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     setRelatedLoading(false);
     setLoading(false);
     setError(null);
+    setSnapshotObjectKey(currentObjectKey);
   }, [currentObjectKey]);
 
   useEffect(() => {
@@ -165,30 +167,32 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     return () => controller.abort();
   }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
 
+  const snapshotIsCurrent = snapshotObjectKey === currentObjectKey;
+
   return {
-    content,
+    content: snapshotIsCurrent ? content : "",
     setContent,
-    describeContent,
+    describeContent: snapshotIsCurrent ? describeContent : "",
     setDescribeContent,
-    yamlBaseline,
+    yamlBaseline: snapshotIsCurrent ? yamlBaseline : "",
     setYamlBaseline,
-    yamlDraft,
+    yamlDraft: snapshotIsCurrent ? yamlDraft : "",
     setYamlDraft,
-    yamlObjectKey,
+    yamlObjectKey: snapshotIsCurrent ? yamlObjectKey : "",
     setYamlObjectKey,
-    events,
+    events: snapshotIsCurrent ? events : [],
     setEvents,
-    relatedLinks,
+    relatedLinks: snapshotIsCurrent ? relatedLinks : [],
     setRelatedLinks,
-    relatedSources,
+    relatedSources: snapshotIsCurrent ? relatedSources : {},
     setRelatedSources,
-    relatedErrors,
+    relatedErrors: snapshotIsCurrent ? relatedErrors : [],
     setRelatedErrors,
-    relatedLoading,
+    relatedLoading: snapshotIsCurrent && relatedLoading,
     setRelatedLoading,
-    loading,
+    loading: snapshotIsCurrent && loading,
     setLoading,
-    error,
+    error: snapshotIsCurrent ? error : null,
     setError,
   };
 }

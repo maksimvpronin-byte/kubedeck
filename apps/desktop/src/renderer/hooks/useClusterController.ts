@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { ApiClient } from "../api";
 import type { AppConfig, Cluster, ErrorInfo, ResourceDefinition, ResourceRow } from "../types";
@@ -8,6 +8,7 @@ import { useNamespaceRefresh } from "./useNamespaceRefresh";
 
 interface Options {
   initialSelectedNamespaces: string[];
+  initialSelectedNamespacesByClusterId?: unknown;
   setRows: Dispatch<SetStateAction<Record<string, ResourceRow[]>>>;
   setSelectedRow: Dispatch<SetStateAction<ResourceRow | null>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
@@ -22,13 +23,7 @@ export function isActiveClusterConfigured(config: AppConfig | null, activeCluste
   return !config || !activeCluster || config.clusters.some((cluster) => cluster.id === activeCluster.id);
 }
 
-export function useClusterController({
-  initialSelectedNamespaces,
-  setRows,
-  setSelectedRow,
-  setLoading,
-  setError,
-}: Options) {
+export function useClusterController({ initialSelectedNamespaces, initialSelectedNamespacesByClusterId, setRows, setSelectedRow, setLoading, setError }: Options) {
   const [api, setApi] = useState<ApiClient | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [backendOk, setBackendOk] = useState(false);
@@ -42,6 +37,7 @@ export function useClusterController({
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [reorderingClusters, setReorderingClusters] = useState(false);
+  const clusterOpenSequenceRef = useRef(0);
 
   const settings = config?.settings;
   const namespaceController = useNamespaceRefresh({
@@ -49,6 +45,7 @@ export function useClusterController({
     activeClusterId: activeCluster?.id,
     settings,
     initialSelectedNamespaces,
+    initialSelectedNamespacesByClusterId,
     onError: setError,
   });
 
@@ -63,25 +60,49 @@ export function useClusterController({
       return;
     }
     let cancelled = false;
-    void window.kubedeck.getBackendAuth().then(({ baseUrl, token }) => {
-      if (cancelled) return;
-      const client = new ApiClient(baseUrl, token);
-      setApi(client);
-      void client.health().then(() => setBackendOk(true)).catch((error) => setError(asErrorInfo(error)));
-      void client.config().then((next) => setConfig(normalizeConfig(next))).catch((error) => setError(asErrorInfo(error)));
-      void client.kubectlStatus().then((status) => setKubectlVersion(status.version.gitVersion ?? "ok")).catch((error) => setError(asErrorInfo(error)));
-      void client.openLastCluster().then((result) => {
-        if (cancelled || !result.cluster) return;
-        setActiveCluster(result.cluster);
-        setUnavailableCluster(null);
-        namespaceController.setNamespaces((result.namespaces ?? []).map((item) => item.metadata.name));
-        void client.resourceDefinitions(result.cluster.id)
-          .then((definitions) => setResourceDefinitions(definitions.items))
-          .catch(() => setResourceDefinitions([]));
-      }).catch((error) => setError(asErrorInfo(error)));
-    }).catch((error) => setError(asErrorInfo(error)));
-    return () => { cancelled = true; };
-  }, [setError, namespaceController.setNamespaces]);
+    void window.kubedeck
+      .getBackendAuth()
+      .then(({ baseUrl, token }) => {
+        if (cancelled) return;
+        const client = new ApiClient(baseUrl, token);
+        setApi(client);
+        void client
+          .health()
+          .then(() => setBackendOk(true))
+          .catch((error) => setError(asErrorInfo(error)));
+        void client
+          .config()
+          .then((next) => setConfig(normalizeConfig(next)))
+          .catch((error) => setError(asErrorInfo(error)));
+        void client
+          .kubectlStatus()
+          .then((status) => setKubectlVersion(status.version.gitVersion ?? "ok"))
+          .catch((error) => setError(asErrorInfo(error)));
+        const requestId = clusterOpenSequenceRef.current + 1;
+        clusterOpenSequenceRef.current = requestId;
+        void client
+          .openLastCluster()
+          .then(async (result) => {
+            if (cancelled || clusterOpenSequenceRef.current !== requestId || !result.cluster) return;
+            const definitions = await client.resourceDefinitions(result.cluster.id);
+            if (cancelled || clusterOpenSequenceRef.current !== requestId) return;
+            namespaceController.activateClusterNamespaces(
+              result.cluster.id,
+              (result.namespaces ?? []).map((item) => item.metadata.name),
+            );
+            setActiveCluster(result.cluster);
+            setUnavailableCluster(null);
+            setResourceDefinitions(definitions.items);
+          })
+          .catch((error) => {
+            if (!cancelled && clusterOpenSequenceRef.current === requestId) setError(asErrorInfo(error));
+          });
+      })
+      .catch((error) => setError(asErrorInfo(error)));
+    return () => {
+      cancelled = true;
+    };
+  }, [setError, namespaceController.activateClusterNamespaces]);
 
   useEffect(() => {
     if (!config || !activeCluster) return;
@@ -89,9 +110,10 @@ export function useClusterController({
     setActiveCluster(null);
     setUnavailableCluster(null);
     namespaceController.setNamespaces([]);
+    namespaceController.forgetClusterNamespaces(activeCluster.id);
     setRows({});
     setSelectedRow(null);
-  }, [config, activeCluster, namespaceController.setNamespaces, setRows, setSelectedRow]);
+  }, [config, activeCluster, namespaceController.setNamespaces, namespaceController.forgetClusterNamespaces, setRows, setSelectedRow]);
 
   const importKubeconfig = useCallback(async () => {
     if (!api) return;
@@ -107,33 +129,45 @@ export function useClusterController({
     }
   }, [api, reloadConfig, setError]);
 
-  const openCluster = useCallback(async (cluster: Cluster, silent = false) => {
-    if (!api) return;
-    if (!silent) setLoading(true);
-    setOpeningClusterId(cluster.id);
-    try {
-      await api.clearResourceCache(cluster.id).catch(() => undefined);
-      const result = await api.openCluster(cluster.id);
-      setActiveCluster(result.cluster);
-      setUnavailableCluster(null);
-      namespaceController.setNamespaces(result.namespaces.map((item) => item.metadata.name));
-      setResourceDefinitions((await api.resourceDefinitions(result.cluster.id)).items);
-      setError(null);
-      await reloadConfig();
-    } catch (error) {
-      if (!silent) {
-        setActiveCluster(null);
-        setUnavailableCluster(cluster);
-        namespaceController.setNamespaces([]);
-        setRows({});
-        setError(asErrorInfo(error));
+  const openCluster = useCallback(
+    async (cluster: Cluster, silent = false) => {
+      if (!api) return;
+      const requestId = clusterOpenSequenceRef.current + 1;
+      clusterOpenSequenceRef.current = requestId;
+      if (!silent) setLoading(true);
+      setOpeningClusterId(cluster.id);
+      try {
+        await api.clearResourceCache(cluster.id).catch(() => undefined);
+        const result = await api.openCluster(cluster.id);
+        if (clusterOpenSequenceRef.current !== requestId) return;
+        const definitions = await api.resourceDefinitions(result.cluster.id);
+        if (clusterOpenSequenceRef.current !== requestId) return;
+        namespaceController.activateClusterNamespaces(
+          result.cluster.id,
+          result.namespaces.map((item) => item.metadata.name),
+        );
+        setActiveCluster(result.cluster);
+        setUnavailableCluster(null);
+        setResourceDefinitions(definitions.items);
+        setError(null);
+        await reloadConfig();
+      } catch (error) {
+        if (clusterOpenSequenceRef.current !== requestId) return;
+        if (!silent && clusterOpenSequenceRef.current === requestId) {
+          setActiveCluster(null);
+          setUnavailableCluster(cluster);
+          namespaceController.setNamespaces([]);
+          setRows({});
+          setError(asErrorInfo(error));
+        }
+        throw error;
+      } finally {
+        if (!silent && clusterOpenSequenceRef.current === requestId) setLoading(false);
+        setOpeningClusterId((current) => (current === cluster.id ? null : current));
       }
-      throw error;
-    } finally {
-      if (!silent) setLoading(false);
-      setOpeningClusterId(null);
-    }
-  }, [api, namespaceController.setNamespaces, reloadConfig, setError, setLoading, setRows]);
+    },
+    [api, namespaceController.activateClusterNamespaces, namespaceController.setNamespaces, reloadConfig, setError, setLoading, setRows],
+  );
 
   useEffect(() => {
     if (!api || !unavailableCluster || openingClusterId) return;
@@ -150,7 +184,9 @@ export function useClusterController({
         running = false;
       }
     };
-    const timer = window.setInterval(() => { if (!cancelled) void retry(); }, 10_000);
+    const timer = window.setInterval(() => {
+      if (!cancelled) void retry();
+    }, 10_000);
     void retry();
     return () => {
       cancelled = true;
@@ -176,8 +212,8 @@ export function useClusterController({
     setRenaming(true);
     try {
       const renamed = await api.renameCluster(renameTarget.id, name);
-      setActiveCluster((current) => current?.id === renamed.id ? renamed : current);
-      setUnavailableCluster((current) => current?.id === renamed.id ? renamed : current);
+      setActiveCluster((current) => (current?.id === renamed.id ? renamed : current));
+      setUnavailableCluster((current) => (current?.id === renamed.id ? renamed : current));
       await reloadConfig();
       setRenameTarget(null);
       setRenameDraft("");
@@ -189,38 +225,66 @@ export function useClusterController({
     }
   }, [api, renameTarget, renameDraft, reloadConfig, setError]);
 
-  const removeCluster = useCallback(async (cluster: Cluster) => {
-    if (!api || !window.confirm(`Remove ${cluster.displayName}?`)) return;
-    await api.removeCluster(cluster.id);
-    setActiveCluster((current) => current?.id === cluster.id ? null : current);
-    setUnavailableCluster((current) => current?.id === cluster.id ? null : current);
-    await reloadConfig();
-  }, [api, reloadConfig]);
+  const removeCluster = useCallback(
+    async (cluster: Cluster) => {
+      if (!api || !window.confirm(`Remove ${cluster.displayName}?`)) return;
+      await api.removeCluster(cluster.id);
+      setActiveCluster((current) => (current?.id === cluster.id ? null : current));
+      setUnavailableCluster((current) => (current?.id === cluster.id ? null : current));
+      namespaceController.forgetClusterNamespaces(cluster.id);
+      await reloadConfig();
+    },
+    [api, namespaceController.forgetClusterNamespaces, reloadConfig],
+  );
 
-  const reorderClusters = useCallback(async (orderedClusters: Cluster[]) => {
-    if (!api || !config || reorderingClusters) return;
-    const previousClusters = config.clusters;
-    setReorderingClusters(true);
-    setConfig((current) => current ? { ...current, clusters: orderedClusters } : current);
-    try {
-      const result = await api.reorderClusters(orderedClusters.map((cluster) => cluster.id));
-      setConfig((current) => current ? { ...current, clusters: result.clusters } : current);
-      setError(null);
-    } catch (error) {
-      setConfig((current) => current ? { ...current, clusters: previousClusters } : current);
-      setError(asErrorInfo(error));
-    } finally {
-      setReorderingClusters(false);
-    }
-  }, [api, config, reorderingClusters, setError]);
+  const reorderClusters = useCallback(
+    async (orderedClusters: Cluster[]) => {
+      if (!api || !config || reorderingClusters) return;
+      const previousClusters = config.clusters;
+      setReorderingClusters(true);
+      setConfig((current) => (current ? { ...current, clusters: orderedClusters } : current));
+      try {
+        const result = await api.reorderClusters(orderedClusters.map((cluster) => cluster.id));
+        setConfig((current) => (current ? { ...current, clusters: result.clusters } : current));
+        setError(null);
+      } catch (error) {
+        setConfig((current) => (current ? { ...current, clusters: previousClusters } : current));
+        setError(asErrorInfo(error));
+      } finally {
+        setReorderingClusters(false);
+      }
+    },
+    [api, config, reorderingClusters, setError],
+  );
 
   return {
-    api, config, setConfig, settings, backendOk, kubectlVersion,
-    activeCluster, setActiveCluster, unavailableCluster, setUnavailableCluster,
-    openingClusterId, resourceDefinitions, setResourceDefinitions, runtimeError,
-    renameTarget, renameDraft, setRenameDraft, renaming, reorderingClusters,
-    reloadConfig, importKubeconfig, openCluster, startRenameCluster,
-    cancelRenameCluster, confirmRenameCluster, removeCluster, reorderClusters,
+    api,
+    config,
+    setConfig,
+    settings,
+    backendOk,
+    kubectlVersion,
+    activeCluster,
+    setActiveCluster,
+    unavailableCluster,
+    setUnavailableCluster,
+    openingClusterId,
+    resourceDefinitions,
+    setResourceDefinitions,
+    runtimeError,
+    renameTarget,
+    renameDraft,
+    setRenameDraft,
+    renaming,
+    reorderingClusters,
+    reloadConfig,
+    importKubeconfig,
+    openCluster,
+    startRenameCluster,
+    cancelRenameCluster,
+    confirmRenameCluster,
+    removeCluster,
+    reorderClusters,
     ...namespaceController,
   };
 }
