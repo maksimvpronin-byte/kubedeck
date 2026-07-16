@@ -99,6 +99,16 @@ test("cluster selector uses the themed in-app menu instead of a native select", 
   assert.match(layout, /\.cluster-menu-option\.is-selected/);
 });
 
+test("Pod Terminal delegates paste to the single xterm input path", () => {
+  const source = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
+  const keyboardHandler = source.slice(source.indexOf("terminal.attachCustomKeyEventHandler"), source.indexOf("terminal.onSelectionChange"));
+
+  assert.match(source, /terminal\.onData\(\(data\) => \{\s*sendTerminalInput\(socketRef\.current, data\);/s);
+  assert.doesNotMatch(keyboardHandler, /paste|readText|sendTerminalInput/);
+  assert.doesNotMatch(source, /addEventListener\("paste"/);
+  assert.doesNotMatch(source, /navigator\.clipboard\?\.readText/);
+});
+
 test("theme preferences normalize legacy values and resolve System safely", () => {
   const model = loadTypeScript("utils/theme.ts");
   const darkMedia = { matches: true };

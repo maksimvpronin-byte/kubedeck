@@ -66,11 +66,6 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
         copyTerminalSelection(terminal, lastCopiedSelectionRef, true);
         return false;
       }
-      const pasteRequested = (event.ctrlKey && key === "v") || (event.ctrlKey && event.shiftKey && key === "v") || (event.shiftKey && event.key === "Insert");
-      if (pasteRequested) {
-        void pasteFromClipboard(socketRef.current);
-        return false;
-      }
       return true;
     });
     terminal.onSelectionChange(() => {
@@ -98,13 +93,6 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     const onResize = () => fitAndResize();
     const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current ? new ResizeObserver(scheduleFitAndResize) : null;
     if (hostRef.current) resizeObserver?.observe(hostRef.current);
-    const onPaste = (event: ClipboardEvent) => {
-      const text = event.clipboardData?.getData("text/plain");
-      if (!text) return;
-      event.preventDefault();
-      sendTerminalInput(socketRef.current, normalizePastedText(text));
-    };
-    hostRef.current?.addEventListener("paste", onPaste);
     window.addEventListener("resize", onResize);
     const onThemeChange = () => {
       terminal.options.theme = terminalThemeFromCss();
@@ -115,7 +103,6 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     return () => {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("kubedeck-theme-change", onThemeChange);
-      hostRef.current?.removeEventListener("paste", onPaste);
       resizeObserver?.disconnect();
       disconnectTerminal(socketRef, setConnected, setStatus, setConnecting);
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
@@ -349,19 +336,6 @@ function copyTerminalSelection(terminal: XTerm | null, lastCopiedRef?: { current
   if (!selection || (!force && selection === lastCopiedRef?.current)) return;
   lastCopiedRef && (lastCopiedRef.current = selection);
   navigator.clipboard?.writeText(selection).catch(() => undefined);
-}
-
-async function pasteFromClipboard(socket: WebSocket | null) {
-  try {
-    const text = await navigator.clipboard?.readText();
-    if (text) sendTerminalInput(socket, normalizePastedText(text));
-  } catch {
-    // Some Electron/Windows clipboard policies only allow the native paste event.
-  }
-}
-
-function normalizePastedText(text: string) {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
 function statusText(value: string, transport?: "pty" | "pipes") {

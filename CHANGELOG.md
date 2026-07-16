@@ -1,4 +1,10 @@
-﻿## 2.4.3 - Cluster namespace and drawer selection correctness
+﻿## 2.4.4 - Windows terminal paste correctness
+
+- Removed the competing manual clipboard and host paste paths from Pod Terminal.
+- Delegated clipboard input to xterm so one paste produces exactly one WebSocket input message on Windows and macOS.
+- Added a renderer contract that prevents duplicate paste handlers from returning.
+
+## 2.4.3 - Cluster namespace and drawer selection correctness
 
 - Stored single and multi-namespace selections independently for every cluster instead of carrying one global selection across contexts.
 - Replaced the native operating-system cluster select popup with a themed in-app menu matching the Namespace Selector.

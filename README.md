@@ -1,4 +1,4 @@
-# KubeDeck 2.4.3
+# KubeDeck 2.4.4
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -142,7 +142,7 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.4.3-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.4.4-x64.exe
 ```
 
 ## macOS Apple Silicon build
@@ -154,8 +154,8 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.4.3-arm64.dmg
-apps/desktop/release/KubeDeck-2.4.3-arm64.zip
+apps/desktop/release/KubeDeck-2.4.4-arm64.dmg
+apps/desktop/release/KubeDeck-2.4.4-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
@@ -225,6 +225,6 @@ macOS:
 
 ## Documentation
 
-- [Release notes 2.4.3](./RELEASE_NOTES_2.4.3.md)
-- [Regression checklist 2.4.3](./REGRESSION_CHECKLIST_2.4.3.md)
+- [Release notes 2.4.4](./RELEASE_NOTES_2.4.4.md)
+- [Regression checklist 2.4.4](./REGRESSION_CHECKLIST_2.4.4.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)
