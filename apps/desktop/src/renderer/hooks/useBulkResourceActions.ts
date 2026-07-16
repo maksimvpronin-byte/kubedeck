@@ -14,9 +14,15 @@ export interface NodeActionConfirmation {
   previewLoading?: boolean;
   previewError?: string;
 }
-export interface BulkDeleteTarget { resource: string; rows: ResourceRow[] }
+export interface BulkDeleteTarget {
+  resource: string;
+  rows: ResourceRow[];
+}
 
-export interface BulkActionFailure { row: ResourceRow; message: string }
+export interface BulkActionFailure {
+  row: ResourceRow;
+  message: string;
+}
 
 interface PartialActionErrorOptions {
   label: string;
@@ -30,7 +36,9 @@ interface PartialActionErrorOptions {
 const SENSITIVE_ERROR_PATTERN = /(?:authorization|bearer|client[-_ ]?secret|password|private[-_ ]?key|secret|token)\b/i;
 
 export function safeBulkFailureMessage(message: string) {
-  const normalized = String(message || "Action failed").replace(/\s+/g, " ").trim();
+  const normalized = String(message || "Action failed")
+    .replace(/\s+/g, " ")
+    .trim();
   return SENSITIVE_ERROR_PATTERN.test(normalized) ? "Sensitive error details were redacted" : normalized;
 }
 
@@ -40,9 +48,7 @@ export function buildPartialActionError(options: PartialActionErrorOptions): Err
   return {
     code: "PARTIAL_RESULT",
     message,
-    rawStderr: failures
-      .map((item) => `${resource} ${resourceIdentityLabel(item.row)} - ${safeBulkFailureMessage(item.message)}`)
-      .join("\n"),
+    rawStderr: failures.map((item) => `${resource} ${resourceIdentityLabel(item.row)} - ${safeBulkFailureMessage(item.message)}`).join("\n"),
     commandPreview,
   };
 }
@@ -71,6 +77,13 @@ export function bulkDeleteNamespaceSummary(rows: ResourceRow[]) {
   return `${namespaces.slice(0, 3).join(", ")} +${namespaces.length - 3}`;
 }
 
+export function selectedRowAfterBulkDelete(targetResource: string, selectedResource: string, selectedRow: ResourceRow | null, deletedRows: ResourceRow[], failures: BulkActionFailure[]) {
+  if (!selectedRow || selectedResource !== targetResource) return selectedRow;
+  const selectedIdentity = resourceIdentityLabel(selectedRow);
+  if (deletedRows.some((row) => resourceIdentityLabel(row) === selectedIdentity)) return null;
+  return failures.find((failure) => resourceIdentityLabel(failure.row) === selectedIdentity)?.row ?? selectedRow;
+}
+
 export function nodeActionLabel(action: NodeActionKind) {
   if (action === "cordon") return "Cordon";
   if (action === "uncordon") return "Uncordon";
@@ -92,13 +105,10 @@ interface Options {
 }
 
 export function useBulkResourceActions(options: Options) {
-  const {
-    api, activeCluster, resourceDefinitions, selectedResource, selectedRow, selectedNamespaces,
-    setRows, setSelectedRow, setError, reloadResources, t,
-  } = options;
+  const { api, activeCluster, resourceDefinitions, selectedResource, selectedRow, selectedNamespaces, setRows, setSelectedRow, setError, reloadResources, t } = options;
   const [bulkDelete, setBulkDelete] = useState<BulkDeleteTarget | null>(null);
   const [nodeActionConfirmation, setNodeActionConfirmation] = useState<NodeActionConfirmation | null>(null);
-  const [message, setMessage] = useState("");
+  const [nodeActionMessage, setNodeActionMessage] = useState("");
 
   const clearPendingActions = useCallback(() => {
     setBulkDelete(null);
@@ -106,7 +116,6 @@ export function useBulkResourceActions(options: Options) {
   }, []);
 
   const requestBulkDelete = useCallback((resource: string, rows: ResourceRow[]) => {
-    setMessage("");
     setBulkDelete({ resource, rows });
   }, []);
 
@@ -126,14 +135,12 @@ export function useBulkResourceActions(options: Options) {
     if (!api || !activeCluster || !bulkDelete) return;
     const target = bulkDelete;
     setBulkDelete(null);
-    setMessage(`${t("bulkDelete.requested")}: ${target.rows.length} ${target.resource}`);
     setError(null);
 
     const deletingKeys = new Set(target.rows.map(resourceIdentityLabel));
     setRows((current) => ({
       ...current,
-      [target.resource]: (current[target.resource] ?? []).map((row) =>
-        deletingKeys.has(resourceIdentityLabel(row)) ? markDeletingRow(target.resource, row) : row),
+      [target.resource]: (current[target.resource] ?? []).map((row) => (deletingKeys.has(resourceIdentityLabel(row)) ? markDeletingRow(target.resource, row) : row)),
     }));
     if (selectedResource === target.resource && selectedRow && deletingKeys.has(resourceIdentityLabel(selectedRow))) {
       setSelectedRow(markDeletingRow(target.resource, selectedRow));
@@ -153,11 +160,13 @@ export function useBulkResourceActions(options: Options) {
       }
     }
 
-    if (deletedRows.length) {
-      const deletedKeys = new Set(deletedRows.map(resourceIdentityLabel));
-      if (selectedResource === target.resource && selectedRow && deletedKeys.has(resourceIdentityLabel(selectedRow))) setSelectedRow(null);
-      await reloadResources(activeCluster.id, target.resource, selectedNamespaces).catch((error) => setError(asErrorInfo(error)));
+    if (selectedResource === target.resource && selectedRow && deletingKeys.has(resourceIdentityLabel(selectedRow))) {
+      setSelectedRow(selectedRowAfterBulkDelete(target.resource, selectedResource, selectedRow, deletedRows, failures));
     }
+    let reloadError: ErrorInfo | null = null;
+    await reloadResources(activeCluster.id, target.resource, selectedNamespaces).catch((error) => {
+      reloadError = asErrorInfo(error);
+    });
     if (failures.length) {
       const resultMessage = `${t("bulkDelete.partialResult")}. ${t("bulkDelete.deleted")}: ${deletedRows.length}. ${t("bulkDelete.failed")}: ${failures.length}.`;
       const error = buildPartialActionError({
@@ -167,46 +176,44 @@ export function useBulkResourceActions(options: Options) {
         failures,
         message: resultMessage,
       });
-      setMessage(resultMessage);
       setError(error);
       return;
     }
-    setMessage(`${t("bulkDelete.completed")}. ${t("bulkDelete.deleted")}: ${deletedRows.length}.`);
-    setError(null);
-  }, [
-    api, activeCluster, bulkDelete, t, setError, setRows, selectedResource, selectedRow,
-    setSelectedRow, resourceDefinitions, reloadResources, selectedNamespaces,
-  ]);
+    setError(reloadError);
+  }, [api, activeCluster, bulkDelete, t, setError, setRows, selectedResource, selectedRow, setSelectedRow, resourceDefinitions, reloadResources, selectedNamespaces]);
 
-  const requestNodeAction = useCallback(async (action: NodeActionKind, rows: ResourceRow[]) => {
-    if (!api || !activeCluster || rows.length === 0) return;
-    const commandPreview = rows.map((row) => action === "drain"
-      ? `kubectl drain ${row.name} --ignore-daemonsets --delete-emptydir-data --timeout=300s`
-      : `kubectl ${action} ${row.name}`).join("\n");
-    if (action !== "drain") {
-      setNodeActionConfirmation({ action, rows, commandPreview });
-      return;
-    }
-    const nodeNames = new Set(rows.map((row) => String(row.name)));
-    setNodeActionConfirmation({ action, rows, commandPreview, affectedPods: [], previewLoading: true });
-    try {
-      const response = await api.resources(activeCluster.id, "pods", "all", undefined, { useCache: false, forceRefresh: true });
-      const affectedPods = response.items
-        .filter((pod) => nodeNames.has(String(pod.node ?? "")))
-        .sort((left, right) => `${left.namespace ?? ""}/${left.name}`.localeCompare(`${right.namespace ?? ""}/${right.name}`, undefined, { numeric: true }));
-      setNodeActionConfirmation({ action, rows, commandPreview, affectedPods, previewLoading: false });
-    } catch (error) {
-      const info = asErrorInfo(error);
-      setNodeActionConfirmation({ action, rows, commandPreview, affectedPods: [], previewLoading: false, previewError: info.message || info.code || "Failed to load affected pods preview" });
-    }
-  }, [api, activeCluster]);
+  const requestNodeAction = useCallback(
+    async (action: NodeActionKind, rows: ResourceRow[]) => {
+      if (!api || !activeCluster || rows.length === 0) return;
+      const commandPreview = rows
+        .map((row) => (action === "drain" ? `kubectl drain ${row.name} --ignore-daemonsets --delete-emptydir-data --timeout=300s` : `kubectl ${action} ${row.name}`))
+        .join("\n");
+      if (action !== "drain") {
+        setNodeActionConfirmation({ action, rows, commandPreview });
+        return;
+      }
+      const nodeNames = new Set(rows.map((row) => String(row.name)));
+      setNodeActionConfirmation({ action, rows, commandPreview, affectedPods: [], previewLoading: true });
+      try {
+        const response = await api.resources(activeCluster.id, "pods", "all", undefined, { useCache: false, forceRefresh: true });
+        const affectedPods = response.items
+          .filter((pod) => nodeNames.has(String(pod.node ?? "")))
+          .sort((left, right) => `${left.namespace ?? ""}/${left.name}`.localeCompare(`${right.namespace ?? ""}/${right.name}`, undefined, { numeric: true }));
+        setNodeActionConfirmation({ action, rows, commandPreview, affectedPods, previewLoading: false });
+      } catch (error) {
+        const info = asErrorInfo(error);
+        setNodeActionConfirmation({ action, rows, commandPreview, affectedPods: [], previewLoading: false, previewError: info.message || info.code || "Failed to load affected pods preview" });
+      }
+    },
+    [api, activeCluster],
+  );
 
   const confirmNodeAction = useCallback(async () => {
     if (!api || !activeCluster || !nodeActionConfirmation) return;
     const target = nodeActionConfirmation;
     const label = nodeActionLabel(target.action);
     setNodeActionConfirmation(null);
-    setMessage(`${label} requested: ${target.rows.length} node(s)`);
+    setNodeActionMessage(`${label} requested: ${target.rows.length} node(s)`);
     setError(null);
     const completed: ResourceRow[] = [];
     const failures: BulkActionFailure[] = [];
@@ -222,19 +229,19 @@ export function useBulkResourceActions(options: Options) {
     await reloadResources(activeCluster.id, "nodes", ["_cluster"]).catch((error) => setError(asErrorInfo(error)));
     if (failures.length) {
       const error = buildPartialActionError({ label, resource: "nodes", completedCount: completed.length, failures, commandPreview: target.commandPreview });
-      setMessage(error.message);
+      setNodeActionMessage("");
       setError(error);
       return;
     }
-    setMessage(`${label} completed. Nodes: ${completed.length}.`);
+    setNodeActionMessage(`${label} completed. Nodes: ${completed.length}.`);
     setError(null);
   }, [api, activeCluster, nodeActionConfirmation, reloadResources, setError]);
 
   return {
     bulkDelete,
     nodeActionConfirmation,
-    message,
-    clearMessage: () => setMessage(""),
+    nodeActionMessage,
+    clearNodeActionMessage: () => setNodeActionMessage(""),
     clearPendingActions,
     requestBulkDelete,
     closeBulkDelete,

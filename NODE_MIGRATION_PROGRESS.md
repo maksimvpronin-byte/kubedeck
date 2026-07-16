@@ -1,8 +1,8 @@
 # KubeDeck 2.0 — миграция backend на Node завершена
 
-Дата обновления: 2026-07-13
+Дата обновления: 2026-07-16
 Ветка: `main`
-Текущая проверяемая версия: `2.4.1`
+Текущая проверяемая версия: `2.4.2`
 
 ## Итог
 
@@ -50,11 +50,11 @@
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.4.1.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.4.2.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.4.1` сохраняет Node-only baseline и async feedback 2.4.0, стабилизирует resource drawer при auto-refresh и убирает дублирующие YAML operation-output панели.
+`2.4.2` сохраняет Node-only baseline и стабильный drawer 2.4.1, убирает из bulk delete лишнюю completion-панель и восстанавливает failed rows после обязательного reload.
 
 После принятия 2.0.6:
 

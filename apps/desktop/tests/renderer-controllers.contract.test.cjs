@@ -389,6 +389,40 @@ test("bulk action helpers preserve identity, scope summary, and terminating stat
   assert.equal(deleting.status, "Terminating");
   assert.equal(deleting.phase, "Terminating");
   assert.ok(deleting.deletionTimestamp);
+
+  const deletedSelection = model.selectedRowAfterBulkDelete("pods", "pods", rows[0], [rows[0]], []);
+  assert.equal(deletedSelection, null);
+  const failedSelection = model.selectedRowAfterBulkDelete("pods", "pods", deleting, [], [{ row: rows[0], message: "forbidden" }]);
+  assert.equal(failedSelection, rows[0]);
+  assert.equal(model.selectedRowAfterBulkDelete("pods", "deployments", rows[0], [rows[0]], []), rows[0]);
+});
+
+test("bulk delete stays silent while node actions retain status feedback", () => {
+  const actions = fs.readFileSync(path.join(rendererRoot, "hooks/useBulkResourceActions.ts"), "utf8");
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const modal = fs.readFileSync(path.join(rendererRoot, "components/BulkActionModals.tsx"), "utf8");
+  const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
+  const layoutStyles = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
+  const locales = ["locales/en.json", "locales/ru.json"].map((relativePath) => fs.readFileSync(path.join(rendererRoot, relativePath), "utf8"));
+  const bulkFlow = actions.slice(actions.indexOf("const confirmBulkDelete"), actions.indexOf("const requestNodeAction"));
+
+  assert.doesNotMatch(bulkFlow, /setNodeActionMessage/);
+  assert.doesNotMatch(bulkFlow, /bulkDelete\.(?:requested|completed)/);
+  assert.doesNotMatch(bulkFlow, /if \(deletedRows\.length\)/);
+  assert.match(bulkFlow, /await reloadResources\(activeCluster\.id, target\.resource, selectedNamespaces\)/);
+  assert.match(bulkFlow, /setError\(error\)/);
+  assert.match(actions, /nodeActionMessage/);
+  assert.match(actions, /setNodeActionMessage\(`\$\{label\} completed/);
+  assert.match(app, /bulkActions\.nodeActionMessage/);
+  assert.match(app, /bulkActions\.clearNodeActionMessage/);
+  assert.doesNotMatch(app, /bulkActions\.(?:message|clearMessage)/);
+  assert.match(modal, /bulk-delete-modal/);
+  assert.match(modal, /onCopyBulkDelete/);
+  assert.doesNotMatch(drawerStyles, /bulk-delete-result/);
+  assert.doesNotMatch(layoutStyles, /bulk-delete-result/);
+  for (const locale of locales) {
+    assert.doesNotMatch(locale, /bulkDelete\.(?:requested|completed|completedAt|resultTitle|copyResult|failureDetails|failedMessage|total)/);
+  }
 });
 
 test("bulk partial failures preserve counts and command preview without leaking Secret data", () => {

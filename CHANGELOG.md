@@ -1,4 +1,12 @@
-﻿## 2.4.1 - Drawer stability and YAML cleanup
+﻿## 2.4.2 - Bulk delete feedback cleanup
+
+- Removed the redundant Bulk delete requested/completed status panel and Close button from successful deletion flows.
+- Kept optimistic Terminating rows while making table reload the sole success confirmation.
+- Kept partial and full failures in the existing copyable ErrorPanel without a duplicate green status panel.
+- Reloaded resources after every bulk-delete attempt so fully failed rows do not remain stuck in Terminating.
+- Isolated Drain, Cordon and Uncordon status feedback as node-action-only state and removed obsolete result CSS and locale keys.
+
+## 2.4.1 - Drawer stability and YAML cleanup
 
 - Stabilized resource drawer lifecycle around cluster, resource, namespace, name and uid instead of transient row object references.
 - Prevented table auto-refresh from restarting active YAML, Describe, Events or Related requests for the same resource identity.

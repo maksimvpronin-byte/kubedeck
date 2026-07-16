@@ -1,6 +1,6 @@
 {
   "name": "@kubedeck/shared-types",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "private": true,
   "types": "src/index.ts"
 }

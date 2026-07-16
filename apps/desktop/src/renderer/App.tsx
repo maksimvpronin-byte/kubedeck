@@ -716,10 +716,10 @@ export function App() {
                   </section>
                 ) : null}
                 <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
-                {bulkActions.message ? (
+                {bulkActions.nodeActionMessage ? (
                   <section className="action-status-panel">
-                    <span>{bulkActions.message}</span>
-                    <button type="button" onClick={bulkActions.clearMessage}>
+                    <span>{bulkActions.nodeActionMessage}</span>
+                    <button type="button" onClick={bulkActions.clearNodeActionMessage}>
                       {t("common.close")}
                     </button>
                   </section>
