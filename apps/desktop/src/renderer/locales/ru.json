@@ -31,6 +31,8 @@
     "secret.refreshKeys":  "Обновить ключи",
     "secret.refreshingKeys":  "Обновление ключей...",
     "secret.keysUpdated":  "Ключи обновлены",
+    "yaml.dryRunPassed":  "Dry-run выполнен",
+    "yaml.applied":  "YAML применён",
     "common.cancel":  "Отмена",
     "common.close":  "Закрыть",
     "common.retry":  "Повторить",

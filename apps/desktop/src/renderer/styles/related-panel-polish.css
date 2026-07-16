@@ -615,7 +615,6 @@
 
 :root[data-theme="light"] .related-relation-row code,
 :root[data-theme="light"] .terminal-command-preview,
-:root[data-theme="light"] .yaml-operation-output,
 :root[data-theme="light"] .command-preview-block,
 :root[data-theme="light"] .code-block,
 :root[data-theme="light"] .describe-viewer {

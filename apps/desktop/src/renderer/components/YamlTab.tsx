@@ -9,15 +9,12 @@ interface YamlTabProps {
   setYamlDraft: (value: string) => void;
   yamlChanged: boolean;
   loading: boolean;
-  applyResult: string;
-  operationTitle: string;
-  operationOutput: string;
+  status: string;
   editorRef: MutableRefObject<HTMLTextAreaElement | null>;
   onReset: () => void;
   onReloadFromCluster: () => void | boolean | Promise<void | boolean>;
   onDryRun: () => void;
   onRequestApply: () => void;
-  onCopyOutput: () => void;
   readOnly?: boolean;
   readOnlyReason?: string;
   t: (key: string) => string;
@@ -28,15 +25,12 @@ export function YamlTab({
   setYamlDraft,
   yamlChanged,
   loading,
-  applyResult,
-  operationTitle,
-  operationOutput,
+  status,
   editorRef,
   onReset,
   onReloadFromCluster,
   onDryRun,
   onRequestApply,
-  onCopyOutput,
   t,
   readOnly = false,
   readOnlyReason = "",
@@ -102,19 +96,12 @@ export function YamlTab({
         </button>
         {readOnly && readOnlyReason ? <span className="yaml-readonly-indicator">{readOnlyReason}</span> : null}
         {yamlChanged ? <span className="yaml-dirty-indicator">modified · auto-refresh paused</span> : null}
-        {applyResult ? <span className="apply-result">{applyResult}</span> : null}
+        {status ? (
+          <span className="apply-result" role="status" aria-live="polite">
+            {status}
+          </span>
+        ) : null}
       </div>
-      {operationOutput ? (
-        <section className="yaml-operation-output">
-          <header>
-            <strong>{operationTitle}</strong>
-            <button className="icon-text" onClick={onCopyOutput}>
-              Copy output
-            </button>
-          </header>
-          <pre>{operationOutput}</pre>
-        </section>
-      ) : null}
       <div className="yaml-ide-editor">
         <pre className="yaml-editor yaml-highlight-layer" ref={highlightRef} aria-hidden="true">
           {highlightYaml(yamlDraft)}

@@ -15,9 +15,9 @@ import { PortForwardModal, defaultPortForwardDraft, supportsPortForward } from "
 import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, supportedActions, type ResourceAction } from "./PodDrawerModals";
 import { useUiClock } from "../hooks/useUiClock";
 import { ResourceSummary } from "./ResourceSummary";
-import { containerNames, downloadTextFile, eventTargetForOpen, formatOperationError, isAbortError } from "./podDrawerHelpers";
+import { containerNames, downloadTextFile, eventTargetForOpen, isAbortError } from "./podDrawerHelpers";
 import { availableDrawerTabs, PodDrawerActions, PodDrawerHeader, PodDrawerTabs, type DrawerTab } from "./PodDrawerChrome";
-import { usePodDrawerResourceLifecycle } from "../hooks/usePodDrawerResourceLifecycle";
+import { drawerResourceIdentity, usePodDrawerResourceLifecycle } from "../hooks/usePodDrawerResourceLifecycle";
 import { toErrorInfo } from "../utils/errors";
 
 interface Props {
@@ -46,8 +46,7 @@ interface Props {
 export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onClose, copyLabel, labels, settings, t }: Props) {
   const [tab, setTab] = useState<DrawerTab>("summary");
   const [applyResult, setApplyResult] = useState("");
-  const [yamlOperationTitle, setYamlOperationTitle] = useState("");
-  const [yamlOperationOutput, setYamlOperationOutput] = useState("");
+  const [yamlStatus, setYamlStatus] = useState("");
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<ResourceAction | null>(null);
   const [yamlApplyConfirmOpen, setYamlApplyConfirmOpen] = useState(false);
@@ -83,7 +82,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   const podUid = pod?.uid ? String(pod.uid) : "";
   const podName = pod?.name ?? "";
   const podNamespace = pod ? String(pod.namespace || "_cluster") : "";
-  const currentObjectKey = pod ? `${clusterId}:${resource}:${podNamespace}:${podName}:${podUid}` : "";
+  const currentObjectKey = drawerResourceIdentity(clusterId, resource, pod);
   const {
     content,
     setContent,
@@ -92,7 +91,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setYamlBaseline,
     yamlDraft,
     setYamlDraft,
-    yamlObjectKey,
     setYamlObjectKey,
     events,
     relatedLinks,
@@ -122,8 +120,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setPendingAction(null);
     setYamlApplyConfirmOpen(false);
     setApplyResult("");
-    setYamlOperationTitle("");
-    setYamlOperationOutput("");
+    setYamlStatus("");
     setTerminalContainer("");
     setTerminalPickerOpen(false);
     setLogsFollow(false);
@@ -144,15 +141,13 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setLlmContextChars(0);
     setLlmTruncated(false);
     setTab((current) => (current === "terminal" ? "summary" : current));
-  }, [pod?.uid, resource]);
+  }, [currentObjectKey]);
 
   useEffect(() => {
-    if (!pod || (tab !== "yaml" && tab !== "describe")) return;
-    if (tab === "yaml" && yamlObjectKey === currentObjectKey && yamlChanged) return;
+    if (!currentObjectKey || (tab !== "yaml" && tab !== "describe")) return;
     setApplyResult("");
-    setYamlOperationTitle("");
-    setYamlOperationOutput("");
-  }, [podUid, tab, currentObjectKey, yamlObjectKey, yamlChanged]);
+    if (tab !== "yaml") setYamlStatus("");
+  }, [tab, currentObjectKey]);
 
   useEffect(() => {
     if (!pod || tab !== "logs") return;
@@ -271,15 +266,13 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setLoading(true);
     setError(null);
     setApplyResult("");
-    setYamlOperationTitle("Server dry-run");
-    setYamlOperationOutput("");
+    setYamlStatus("");
     try {
-      const result = await api.dryRunYaml(clusterId, yamlDraft);
-      setYamlOperationOutput(result || "Server dry-run completed successfully.");
+      await api.dryRunYaml(clusterId, yamlDraft);
+      setYamlStatus(t("yaml.dryRunPassed"));
     } catch (err) {
       const info = toErrorInfo(err);
-      setYamlOperationTitle("Dry-run failed");
-      setYamlOperationOutput(formatOperationError(info));
+      setYamlStatus("");
       setError(info);
     } finally {
       setLoading(false);
@@ -293,12 +286,10 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setLoading(true);
     setError(null);
     setApplyResult("");
-    setYamlOperationTitle("Apply result");
-    setYamlOperationOutput("");
+    setYamlStatus("");
     try {
-      const result = await api.applyYaml(clusterId, submittedYaml, namespace, pod.name, typedName);
-      setApplyResult("YAML applied");
-      setYamlOperationOutput(result || "YAML applied successfully.");
+      await api.applyYaml(clusterId, submittedYaml, namespace, pod.name, typedName);
+      setYamlStatus(t("yaml.applied"));
       setYamlBaseline(submittedYaml);
       setYamlDraft(submittedYaml);
       setYamlObjectKey(currentObjectKey);
@@ -314,8 +305,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       }
     } catch (err) {
       const info = toErrorInfo(err);
-      setYamlOperationTitle("Apply failed");
-      setYamlOperationOutput(formatOperationError(info));
+      setYamlStatus("");
       setError(info);
     } finally {
       setYamlApplyConfirmOpen(false);
@@ -325,8 +315,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
 
   function resetYamlDraft() {
     setYamlDraft(yamlBaseline);
-    setYamlOperationTitle("");
-    setYamlOperationOutput("");
+    setYamlStatus("");
     setApplyResult("");
     setError(null);
   }
@@ -337,19 +326,15 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setLoading(true);
     setError(null);
     setApplyResult("");
-    setYamlOperationTitle("Reload YAML");
-    setYamlOperationOutput("");
+    setYamlStatus("");
     try {
       const text = await api.resourceText(clusterId, resource, namespace, pod.name, "yaml");
       setYamlBaseline(text);
       setYamlDraft(text);
       setYamlObjectKey(currentObjectKey);
-      setYamlOperationOutput("YAML reloaded from the cluster.");
       return true;
     } catch (err) {
       const info = toErrorInfo(err);
-      setYamlOperationTitle("Reload failed");
-      setYamlOperationOutput(formatOperationError(info));
       setError(info);
       return false;
     } finally {
@@ -451,8 +436,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   function discardYamlAndClose() {
     setCloseConfirmOpen(false);
     setYamlDraft(yamlBaseline);
-    setYamlOperationTitle("");
-    setYamlOperationOutput("");
+    setYamlStatus("");
     setApplyResult("");
     setError(null);
     onClose();
@@ -599,12 +583,13 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
             {tab === "yaml" ? (
               <YamlTab
                 yamlDraft={yamlDraft}
-                setYamlDraft={setYamlDraft}
+                setYamlDraft={(value) => {
+                  setYamlDraft(value);
+                  setYamlStatus("");
+                }}
                 yamlChanged={yamlChanged}
                 loading={loading}
-                applyResult={applyResult}
-                operationTitle={yamlOperationTitle}
-                operationOutput={yamlOperationOutput}
+                status={yamlStatus}
                 editorRef={editorRef}
                 onReset={resetYamlDraft}
                 onReloadFromCluster={reloadYamlFromCluster}
@@ -612,7 +597,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
                 onRequestApply={() => {
                   if (!yamlReadOnly) setYamlApplyConfirmOpen(true);
                 }}
-                onCopyOutput={() => copyText(yamlOperationOutput, "Output copied")}
                 readOnly={yamlReadOnly}
                 readOnlyReason={yamlReadOnly ? "view-only CRD definition" : ""}
                 t={t}

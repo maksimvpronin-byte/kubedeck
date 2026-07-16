@@ -1,4 +1,12 @@
-﻿## 2.4.0 - Async action feedback
+﻿## 2.4.1 - Drawer stability and YAML cleanup
+
+- Stabilized resource drawer lifecycle around cluster, resource, namespace, name and uid instead of transient row object references.
+- Prevented table auto-refresh from restarting active YAML, Describe, Events or Related requests for the same resource identity.
+- Preserved active tab, editor draft, search, scroll, focus and drawer geometry while refreshed row data continues to update Summary.
+- Removed redundant YAML operation-output cards and Copy output; Reload now uses button feedback while Dry-run and Apply use compact localized status text.
+- Preserved actionable Reload, Dry-run and Apply failures in the existing copyable ErrorPanel.
+
+## 2.4.0 - Async action feedback
 
 - Added a shared idle, pending, success and error feedback model for every manual Refresh and Reload action.
 - Added minimum pending visibility, duplicate-run protection, deterministic cleanup and a controlled mode for parent-owned loading such as Logs.

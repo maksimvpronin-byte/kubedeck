@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-07-13
 Ветка: `main`
-Текущая проверяемая версия: `2.4.0`
+Текущая проверяемая версия: `2.4.1`
 
 ## Итог
 
@@ -50,11 +50,11 @@
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.4.0.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.4.1.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.4.0` сохраняет Node-only baseline и систему тем 2.3.2, а также вводит единый async feedback для всех ручных Refresh/Reload-действий без анимации фоновых обновлений.
+`2.4.1` сохраняет Node-only baseline и async feedback 2.4.0, стабилизирует resource drawer при auto-refresh и убирает дублирующие YAML operation-output панели.
 
 После принятия 2.0.6:
 

@@ -1,4 +1,4 @@
-import type { ErrorInfo, ResourceRow } from "../types";
+import type { ResourceRow } from "../types";
 
 export function isAbortError(error: unknown) {
   return (error instanceof DOMException && error.name === "AbortError") || (error instanceof Error && error.name === "AbortError");
@@ -9,7 +9,8 @@ export function containerNames(row: ResourceRow) {
 }
 
 export function displayResource(resource: string) {
-  return resource.split(".")[0]
+  return resource
+    .split(".")[0]
     .replace(/-/g, " ")
     .replace(/(^|\s)\S/g, (part) => part.toUpperCase());
 }
@@ -24,13 +25,6 @@ export function downloadTextFile(filename: string, text: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-export function formatOperationError(info: ErrorInfo) {
-  const lines = [info.message || info.code];
-  if (info.rawStderr) lines.push("", "stderr:", info.rawStderr.trim());
-  if (info.commandPreview) lines.push("", "command:", info.commandPreview);
-  return lines.filter(Boolean).join("\n");
 }
 
 export function eventTargetForOpen(event: ResourceRow) {

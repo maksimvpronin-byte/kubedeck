@@ -39,6 +39,11 @@ export function drawerResourceResetSnapshot() {
   };
 }
 
+export function drawerResourceIdentity(clusterId: string, resource: string, row: ResourceRow | null) {
+  if (!row) return "";
+  return `${clusterId}:${resource}:${String(row.namespace || "_cluster")}:${row.name}:${row.uid ? String(row.uid) : ""}`;
+}
+
 function drawerError(error: unknown): ErrorInfo {
   return toErrorInfo(error);
 }
@@ -58,14 +63,11 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
 
-  const podUid = pod?.uid ? String(pod.uid) : "";
   const podName = pod?.name ?? "";
   const podNamespace = pod ? String(pod.namespace || "_cluster") : "";
-  const resourceIdentity = `${podUid}:${resource}`;
-  const yamlChanged = yamlDraft !== yamlBaseline;
 
   useEffect(() => {
-    void resourceIdentity;
+    void currentObjectKey;
     requestGuardRef.current.invalidate();
     const reset = drawerResourceResetSnapshot();
     setContent(reset.content);
@@ -80,14 +82,14 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     setRelatedLoading(false);
     setLoading(false);
     setError(null);
-  }, [resourceIdentity]);
+  }, [currentObjectKey]);
 
   useEffect(() => {
-    if (!pod || tab === "summary" || tab === "llm" || tab === "events" || tab === "related" || tab === "terminal" || tab === "logs" || tab === "secret") {
+    if (!currentObjectKey || tab === "summary" || tab === "llm" || tab === "events" || tab === "related" || tab === "terminal" || tab === "logs" || tab === "secret") {
       if (tab !== "yaml") setError(null);
       return;
     }
-    if (tab === "yaml" && yamlObjectKey === currentObjectKey && yamlChanged) {
+    if (tab === "yaml" && yamlObjectKey === currentObjectKey) {
       setError(null);
       return;
     }
@@ -116,10 +118,10 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
         if (!controller.signal.aborted && requestGuardRef.current.isCurrent(requestGeneration)) setLoading(false);
       });
     return () => controller.abort();
-  }, [api, clusterId, pod, podName, podNamespace, resource, tab, currentObjectKey, yamlObjectKey, yamlChanged]);
+  }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey, yamlObjectKey]);
 
   useEffect(() => {
-    if (!pod || tab !== "events") return;
+    if (!currentObjectKey || tab !== "events") return;
     const controller = new AbortController();
     const requestGeneration = requestGuardRef.current.next();
     setLoading(true);
@@ -136,10 +138,10 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
         if (!controller.signal.aborted && requestGuardRef.current.isCurrent(requestGeneration)) setLoading(false);
       });
     return () => controller.abort();
-  }, [api, clusterId, pod, podName, podNamespace, resource, tab]);
+  }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
 
   useEffect(() => {
-    if (!pod || tab !== "related") return;
+    if (!currentObjectKey || tab !== "related") return;
     const controller = new AbortController();
     const requestGeneration = requestGuardRef.current.next();
     setRelatedLoading(true);
@@ -161,7 +163,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
         if (!controller.signal.aborted && requestGuardRef.current.isCurrent(requestGeneration)) setRelatedLoading(false);
       });
     return () => controller.abort();
-  }, [api, clusterId, pod, podName, podNamespace, resource, tab]);
+  }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
 
   return {
     content,

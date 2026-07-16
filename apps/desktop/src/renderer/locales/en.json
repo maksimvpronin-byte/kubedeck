@@ -31,6 +31,8 @@
     "secret.refreshKeys":  "Refresh keys",
     "secret.refreshingKeys":  "Refreshing keys...",
     "secret.keysUpdated":  "Keys updated",
+    "yaml.dryRunPassed":  "Dry-run passed",
+    "yaml.applied":  "YAML applied",
     "common.cancel":  "Cancel",
     "common.close":  "Close",
     "common.retry":  "Retry",

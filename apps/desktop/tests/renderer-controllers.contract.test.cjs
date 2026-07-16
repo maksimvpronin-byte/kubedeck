@@ -453,6 +453,38 @@ test("drawer request generations reject stale responses and reset resource data"
     relatedSources: {},
     relatedErrors: [],
   });
+
+  const firstRow = { uid: "pod-uid", name: "pod-a", namespace: "tools", status: "Running" };
+  const refreshedRow = { ...firstRow, status: "Pending", restarts: 2 };
+  const identity = model.drawerResourceIdentity("cluster-a", "pods", firstRow);
+  assert.equal(model.drawerResourceIdentity("cluster-a", "pods", refreshedRow), identity);
+  assert.notEqual(model.drawerResourceIdentity("cluster-b", "pods", refreshedRow), identity);
+  assert.notEqual(model.drawerResourceIdentity("cluster-a", "deployments", refreshedRow), identity);
+  assert.notEqual(model.drawerResourceIdentity("cluster-a", "pods", { ...refreshedRow, uid: "replacement-uid" }), identity);
+  assert.notEqual(model.drawerResourceIdentity("cluster-a", "pods", { ...refreshedRow, name: "pod-b" }), identity);
+  assert.notEqual(model.drawerResourceIdentity("cluster-a", "pods", { ...refreshedRow, namespace: "default" }), identity);
+  assert.equal(model.drawerResourceIdentity("cluster-a", "pods", null), "");
+});
+
+test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results", () => {
+  const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const yaml = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+  const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
+  const lightStyles = fs.readFileSync(path.join(rendererRoot, "styles/related-panel-polish.css"), "utf8");
+
+  assert.match(lifecycle, /}, \[currentObjectKey\]\);/);
+  assert.doesNotMatch(lifecycle, /}, \[api, clusterId, pod,/);
+  assert.match(lifecycle, /tab === "yaml" && yamlObjectKey === currentObjectKey/);
+  assert.match(drawer, /drawerResourceIdentity\(clusterId, resource, pod\)/);
+  assert.match(drawer, /setYamlStatus\(t\("yaml\.dryRunPassed"\)\)/);
+  assert.match(drawer, /setYamlStatus\(t\("yaml\.applied"\)\)/);
+  assert.match(yaml, /className="apply-result" role="status" aria-live="polite"/);
+  for (const source of [drawer, yaml, drawerStyles, lightStyles]) {
+    assert.doesNotMatch(source, /yaml-operation-output/);
+  }
+  assert.doesNotMatch(yaml, /Copy output/);
+  assert.match(drawer, /<ErrorPanel error=\{error\}/);
 });
 
 test("watch reconnect controller keeps one pending reconnect and stops cleanly", () => {
