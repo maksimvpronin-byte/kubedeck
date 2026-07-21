@@ -159,7 +159,7 @@ test("Node WatchManager stops active kubectl watches during shutdown", async () 
     createKubectlCommand({
       clusterId: "cluster-a",
       kubectlPath: "kubectl",
-      args: ["get", "pods", "-o", "json", "--watch=true", "--output-watch-events=true", "-A"],
+      args: ["get", "pods", "-o", "json", "--watch-only=true", "--output-watch-events=true", "-A"],
       timeoutSeconds: 0,
       maxOutputBytes: 0,
     }),
@@ -204,7 +204,7 @@ test("Node WatchManager deduplicates, invalidates matching cache, publishes even
       "pods",
       "-o",
       "json",
-      "--watch=true",
+      "--watch-only=true",
       "--output-watch-events=true",
       "-A",
     ],
@@ -325,7 +325,7 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
     "pods",
     "-o",
     "json",
-    "--watch=true",
+    "--watch-only=true",
     "--output-watch-events=true",
     "-A",
   ]);

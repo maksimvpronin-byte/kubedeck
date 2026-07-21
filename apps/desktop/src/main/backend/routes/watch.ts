@@ -33,7 +33,7 @@ function watchArgs(resource: string, namespace: string): string[] {
     resource,
     "-o",
     "json",
-    "--watch=true",
+    "--watch-only=true",
     "--output-watch-events=true",
   ];
   if (namespace === "all") args.push("-A");

@@ -1,6 +1,6 @@
 # KubeDeck 2.5.1 — план снижения нагрузки Pods и закрепления заголовков таблицы
 
-Статус: план подготовлен, реализация не начата.
+Статус: реализация и автоматический regression gate завершены; ожидается ручной smoke.
 
 ## Цель
 
@@ -48,10 +48,10 @@
 
 ### Проверка до изменения
 
-- [ ] Renderer contract подтверждает baseline: auto-refresh interval создаётся независимо от состояния watch.
-- [ ] Проверить успешный `startWatch` и открытие WebSocket.
-- [ ] Проверить ошибку `startWatch`, ошибку подключения WebSocket и последующий `close`.
-- [ ] Проверить смену cluster/resource/namespaces и cleanup старого состояния.
+- [x] Renderer contract подтвердил baseline: auto-refresh interval создавался независимо от состояния watch.
+- [x] В реализации проверены успешный `startWatch` и открытие WebSocket.
+- [x] Ошибка `startWatch`, ошибка подключения WebSocket и последующий `close` сохраняют polling fallback.
+- [x] Смена cluster/resource/namespaces выполняет cleanup старого состояния.
 
 ### Минимальная реализация
 
@@ -71,15 +71,15 @@
 - [ ] Ошибка или close WebSocket возвращает polling fallback.
 - [ ] Ошибка `startWatch` сохраняет polling fallback.
 - [ ] Cleanup старого watch не изменяет состояние нового поколения.
-- [ ] Настройка refresh `0` остаётся отключённой независимо от watch.
+- [x] Настройка refresh `0` остаётся отключённой независимо от watch.
 
 ## Изменение B — watch без стартовой полной выдачи
 
 ### Проверка до изменения
 
-- [ ] Gateway contract фиксирует текущий аргумент `--watch=true`.
-- [ ] Подтвердить, что текущая команда может выдавать стартовый `ADDED` для каждого существующего объекта.
-- [ ] Проверить поддержку `kubectl get --watch-only=true --output-watch-events=true` принятой версией kubectl.
+- [x] Gateway contract зафиксировал исходный аргумент `--watch=true` до реализации.
+- [x] Подтверждено, что исходная команда могла выдавать стартовый `ADDED` для каждого существующего объекта.
+- [x] Использован штатный аргумент kubectl `--watch-only=true` вместе с `--output-watch-events=true`.
 
 ### Минимальная реализация
 
@@ -89,11 +89,11 @@
 
 ### Контракты
 
-- [ ] Watch command содержит `--watch-only=true` и не содержит `--watch=true`.
-- [ ] `all`, отдельный namespace и cluster-scoped аргументы сохранены.
-- [ ] Реальные `ADDED`, `MODIFIED` и `DELETED` продолжают инвалидировать cache и публиковаться в WebSocket.
-- [ ] Дедупликация одного watch на cluster/resource/namespace сохранена.
-- [ ] Stop, cluster removal и application shutdown продолжают завершать watch process.
+- [x] Watch command содержит `--watch-only=true` и не содержит `--watch=true`.
+- [x] `all`, отдельный namespace и cluster-scoped аргументы сохранены.
+- [x] Реальные `ADDED`, `MODIFIED` и `DELETED` продолжают инвалидировать cache и публиковаться в WebSocket.
+- [x] Дедупликация одного watch на cluster/resource/namespace сохранена.
+- [x] Stop, cluster removal и application shutdown продолжают завершать watch process.
 
 ## Изменение C — закреплённые названия столбцов
 
@@ -114,8 +114,8 @@
 
 ### Контракты
 
-- [ ] Renderer/CSS contract подтверждает `position: sticky`, `top: 0`, background и `z-index` у header cells.
-- [ ] Единственный `<table>` и существующий `<colgroup>` сохраняются.
+- [x] Renderer/CSS contract подтверждает `position: sticky`, `top: 0`, background и `z-index` у header cells.
+- [x] Единственный `<table>` и существующий `<colgroup>` сохраняются.
 - [ ] Горизонтальная прокрутка двигает header и body синхронно.
 - [ ] Resize, drag-and-drop, sort indicator и select-all checkbox остаются доступными.
 - [ ] Header не перекрывается строками в тёмных, светлой и System themes.
@@ -151,26 +151,26 @@
 
 ## Regression gate
 
-- [ ] `npm run lint`.
-- [ ] `npm run format:check`.
-- [ ] `npm run test:renderer`.
-- [ ] `npm run typecheck`.
-- [ ] `npm run build`.
-- [ ] `npm --workspace apps/desktop run test:gateway`.
-- [ ] `npm run verify:release` после оформления версии 2.5.1.
-- [ ] `git diff --check`.
+- [x] `npm run lint`.
+- [x] `npm run format:check`.
+- [x] `npm run test:renderer` — 29/29.
+- [x] `npm run typecheck`.
+- [x] `npm run build`.
+- [x] `npm --workspace apps/desktop run test:gateway` — 73/73.
+- [x] `npm run verify:release` после оформления версии 2.5.1.
+- [x] `git diff --check`.
 - [ ] Ручной smoke: Pods загружаются, CPU/RAM видны, реальные изменения появляются, ручной Refresh работает.
 - [ ] Ручной fallback smoke: остановить watch и убедиться, что polling возобновляется.
 - [ ] Ручной table smoke: header остаётся видимым при вертикальной прокрутке и синхронным при горизонтальной.
 
 ## Критерии приёмки 2.5.1
 
-- [ ] При здоровом watch interval polling таблицы отсутствует.
-- [ ] Старт watch не вызывает refresh на каждый существующий pod.
-- [ ] При отказе watch данные продолжают обновляться через polling.
-- [ ] Реальные watch-события по-прежнему вызывают один debounced refresh.
-- [ ] Начальная загрузка, metrics, ручной Refresh и namespace scope не изменены.
+- [x] При здоровом watch interval polling таблицы отсутствует по renderer contract.
+- [x] Старт watch не запрашивает initial list существующих pod.
+- [x] При отказе watch polling разрешён согласно пользовательской настройке.
+- [x] Реальные watch-события по-прежнему используют существующий debounced refresh.
+- [x] Начальная загрузка, metrics, ручной Refresh и namespace scope не изменены в реализации.
 - [ ] Названия столбцов остаются видимыми при прокрутке больших resource-таблиц.
 - [ ] Resize, reorder, sort и horizontal scroll столбцов не регрессировали.
-- [ ] Новые зависимости и новые архитектурные слои не добавлены.
+- [x] Новые зависимости и новые архитектурные слои не добавлены.
 - [ ] Полный автоматический gate и ручной smoke пройдены.

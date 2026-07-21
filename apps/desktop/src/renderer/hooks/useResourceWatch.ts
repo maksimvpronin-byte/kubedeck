@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ApiClient } from "../api";
 
 interface UseResourceWatchOptions {
@@ -44,12 +44,19 @@ export function createWatchReconnectController(schedule: (callback: () => void, 
 
 export function useResourceWatch({ api, clusterId, resource, namespaces, clusterScoped, enabled, refresh }: UseResourceWatchOptions) {
   const refreshTimerRef = useRef<number | null>(null);
+  const [watchHealthy, setWatchHealthy] = useState(false);
 
   useEffect(() => {
+    setWatchHealthy(false);
     if (!api || !clusterId || !enabled || resource === "port-forwards") return undefined;
     const watchNamespace = clusterScoped ? "_cluster" : namespaces.length === 1 ? namespaces[0] : "all";
     let socket: WebSocket | null = null;
     let closed = false;
+    let backendReady = false;
+    let socketReady = false;
+    const updateHealth = () => {
+      if (!closed) setWatchHealthy(backendReady && socketReady);
+    };
 
     const scheduleRefresh = () => {
       if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
@@ -59,7 +66,17 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
       }, 350);
     };
 
-    void api.startWatch(clusterId, resource, watchNamespace).catch(() => undefined);
+    void api
+      .startWatch(clusterId, resource, watchNamespace)
+      .then(() => {
+        if (closed) return;
+        backendReady = true;
+        updateHealth();
+      })
+      .catch(() => {
+        backendReady = false;
+        updateHealth();
+      });
 
     const reconnectController = createWatchReconnectController(window.setTimeout, window.clearTimeout);
     const connectSocket = () => {
@@ -67,14 +84,29 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
       try {
         const nextSocket = new WebSocket(api.resourceWatchEventsUrl(clusterId, resource, watchNamespace));
         socket = nextSocket;
+        socketReady = false;
+        updateHealth();
         const generation = reconnectController.connectionStarted();
+        nextSocket.onopen = () => {
+          if (socket !== nextSocket || closed) return;
+          socketReady = true;
+          updateHealth();
+        };
         nextSocket.onmessage = (event) => {
           const payload = api.parseResourceWatchEvent(String(event.data ?? ""));
           if (payload?.type === "resource.changed") scheduleRefresh();
         };
-        nextSocket.onerror = () => undefined;
+        nextSocket.onerror = () => {
+          if (socket !== nextSocket || closed) return;
+          socketReady = false;
+          updateHealth();
+        };
         nextSocket.onclose = () => {
-          if (socket === nextSocket) socket = null;
+          if (socket === nextSocket) {
+            socket = null;
+            socketReady = false;
+            updateHealth();
+          }
           reconnectController.connectionClosed(generation, connectSocket);
         };
       } catch {
@@ -86,6 +118,7 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
 
     return () => {
       closed = true;
+      setWatchHealthy(false);
       reconnectController.stop();
       if (refreshTimerRef.current !== null) {
         window.clearTimeout(refreshTimerRef.current);
@@ -94,4 +127,6 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
       if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
     };
   }, [api, clusterId, resource, namespaces, clusterScoped, enabled, refresh]);
+
+  return watchHealthy;
 }
