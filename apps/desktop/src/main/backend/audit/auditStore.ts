@@ -18,6 +18,7 @@ const SENSITIVE_MARKERS = [
 ];
 
 const MAX_AUDIT_LINE_BYTES = 32 * 1024;
+const DEFAULT_AUDIT_FILE_BYTES = 20 * 1024 * 1024;
 const DEFAULT_AUDIT_LIMIT = 200;
 const MAX_AUDIT_LIMIT = 1000;
 
@@ -79,7 +80,11 @@ export class AuditStore {
   readonly filePath: string;
   private readonly log: (message: string) => void;
 
-  constructor(rootOverride: string | undefined, log: (message: string) => void) {
+  constructor(
+    rootOverride: string | undefined,
+    log: (message: string) => void,
+    private readonly maxFileBytes = DEFAULT_AUDIT_FILE_BYTES,
+  ) {
     const paths = ensureAppPaths(rootOverride);
     this.filePath = path.join(paths.logs, "audit.jsonl");
     this.log = log;
@@ -108,6 +113,15 @@ export class AuditStore {
     }
 
     try {
+      if (
+        this.maxFileBytes > 0 &&
+        fs.existsSync(this.filePath) &&
+        fs.statSync(this.filePath).size + Buffer.byteLength(line, "utf8") + 1 > this.maxFileBytes
+      ) {
+        const previousPath = path.join(path.dirname(this.filePath), "audit.previous.jsonl");
+        fs.rmSync(previousPath, { force: true });
+        fs.renameSync(this.filePath, previousPath);
+      }
       fs.appendFileSync(this.filePath, `${line}\n`, "utf8");
     } catch (error) {
       this.log(
@@ -124,8 +138,11 @@ export class AuditStore {
     }
 
     try {
-      const lines = fs
-        .readFileSync(this.filePath, "utf8")
+      const previousPath = path.join(path.dirname(this.filePath), "audit.previous.jsonl");
+      const lines = [previousPath, this.filePath]
+        .filter((filePath) => fs.existsSync(filePath))
+        .map((filePath) => fs.readFileSync(filePath, "utf8"))
+        .join("")
         .split(/\r?\n/)
         .filter(Boolean)
         .slice(-safeLimit)

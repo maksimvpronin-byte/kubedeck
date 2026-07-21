@@ -9,6 +9,8 @@ let mainWindow: BrowserWindow | null = null;
 let gatewayUrl = "";
 let gateway: GatewayHandle | null = null;
 let gatewaySessionToken = "";
+let gatewayShutdown: Promise<void> | null = null;
+let quitAfterGatewayShutdown = false;
 
 
 type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
@@ -88,15 +90,17 @@ async function startNodeGateway() {
   gatewayUrl = gateway.baseUrl;
 }
 
-function stopNodeGateway(reason: string) {
-  if (!gateway) return;
+function stopNodeGateway(reason: string): Promise<void> {
+  if (gatewayShutdown) return gatewayShutdown;
+  if (!gateway) return Promise.resolve();
   logDesktop(`node gateway stop reason=${reason}`);
   const current = gateway;
   gateway = null;
   gatewayUrl = "";
-  void current.close().catch((error: unknown) => {
+  gatewayShutdown = current.close().catch((error: unknown) => {
     logDesktop(`node gateway stop failed: ${String(error)}`);
   });
+  return gatewayShutdown;
 }
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -389,15 +393,15 @@ app.on("activate", () => {
 
 app.on("window-all-closed", () => {
   if (process.platform === "darwin") return;
-  stopNodeGateway("window-all-closed");
   app.quit();
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (quitAfterGatewayShutdown) return;
+  event.preventDefault();
   logDesktop("desktop shutdown");
-  stopNodeGateway("before-quit");
-});
-
-app.on("will-quit", () => {
-  stopNodeGateway("will-quit");
+  void stopNodeGateway("before-quit").finally(() => {
+    quitAfterGatewayShutdown = true;
+    app.quit();
+  });
 });

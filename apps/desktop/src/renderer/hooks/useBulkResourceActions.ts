@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, ResourceDefinition, ResourceRow } from "../types";
@@ -7,6 +7,7 @@ import { findResourceDefinition } from "../utils/kubeResources";
 
 export type NodeActionKind = "cordon" | "uncordon" | "drain";
 export interface NodeActionConfirmation {
+  clusterId: string;
   action: NodeActionKind;
   rows: ResourceRow[];
   commandPreview: string;
@@ -15,6 +16,7 @@ export interface NodeActionConfirmation {
   previewError?: string;
 }
 export interface BulkDeleteTarget {
+  clusterId: string;
   resource: string;
   rows: ResourceRow[];
 }
@@ -109,6 +111,7 @@ export function useBulkResourceActions(options: Options) {
   const [bulkDelete, setBulkDelete] = useState<BulkDeleteTarget | null>(null);
   const [nodeActionConfirmation, setNodeActionConfirmation] = useState<NodeActionConfirmation | null>(null);
   const [nodeActionMessage, setNodeActionMessage] = useState("");
+  const nodePreviewRequestRef = useRef(0);
 
   const clearPendingActions = useCallback(() => {
     setBulkDelete(null);
@@ -116,8 +119,9 @@ export function useBulkResourceActions(options: Options) {
   }, []);
 
   const requestBulkDelete = useCallback((resource: string, rows: ResourceRow[]) => {
-    setBulkDelete({ resource, rows });
-  }, []);
+    if (!activeCluster) return;
+    setBulkDelete({ clusterId: activeCluster.id, resource, rows });
+  }, [activeCluster]);
 
   const closeBulkDelete = useCallback(() => setBulkDelete(null), []);
   const closeNodeAction = useCallback(() => setNodeActionConfirmation(null), []);
@@ -132,7 +136,7 @@ export function useBulkResourceActions(options: Options) {
   }, [bulkDelete, setError]);
 
   const confirmBulkDelete = useCallback(async () => {
-    if (!api || !activeCluster || !bulkDelete) return;
+    if (!api || !bulkDelete) return;
     const target = bulkDelete;
     setBulkDelete(null);
     setError(null);
@@ -152,7 +156,7 @@ export function useBulkResourceActions(options: Options) {
       try {
         const definition = findResourceDefinition(resourceDefinitions, target.resource);
         const namespace = definition?.namespaced === false ? "_cluster" : String(row.namespace || "_cluster");
-        await api.resourceAction(activeCluster.id, target.resource, namespace, row.name, "delete");
+        await api.resourceAction(target.clusterId, target.resource, namespace, row.name, "delete");
         deletedRows.push(row);
       } catch (error) {
         const info = asErrorInfo(error);
@@ -164,7 +168,7 @@ export function useBulkResourceActions(options: Options) {
       setSelectedRow(selectedRowAfterBulkDelete(target.resource, selectedResource, selectedRow, deletedRows, failures));
     }
     let reloadError: ErrorInfo | null = null;
-    await reloadResources(activeCluster.id, target.resource, selectedNamespaces).catch((error) => {
+    await reloadResources(target.clusterId, target.resource, selectedNamespaces).catch((error) => {
       reloadError = asErrorInfo(error);
     });
     if (failures.length) {
@@ -180,36 +184,41 @@ export function useBulkResourceActions(options: Options) {
       return;
     }
     setError(reloadError);
-  }, [api, activeCluster, bulkDelete, t, setError, setRows, selectedResource, selectedRow, setSelectedRow, resourceDefinitions, reloadResources, selectedNamespaces]);
+  }, [api, bulkDelete, t, setError, setRows, selectedResource, selectedRow, setSelectedRow, resourceDefinitions, reloadResources, selectedNamespaces]);
 
   const requestNodeAction = useCallback(
     async (action: NodeActionKind, rows: ResourceRow[]) => {
       if (!api || !activeCluster || rows.length === 0) return;
+      const clusterId = activeCluster.id;
+      const requestId = nodePreviewRequestRef.current + 1;
+      nodePreviewRequestRef.current = requestId;
       const commandPreview = rows
         .map((row) => (action === "drain" ? `kubectl drain ${row.name} --ignore-daemonsets --delete-emptydir-data --timeout=300s` : `kubectl ${action} ${row.name}`))
         .join("\n");
       if (action !== "drain") {
-        setNodeActionConfirmation({ action, rows, commandPreview });
+        setNodeActionConfirmation({ clusterId, action, rows, commandPreview });
         return;
       }
       const nodeNames = new Set(rows.map((row) => String(row.name)));
-      setNodeActionConfirmation({ action, rows, commandPreview, affectedPods: [], previewLoading: true });
+      setNodeActionConfirmation({ clusterId, action, rows, commandPreview, affectedPods: [], previewLoading: true });
       try {
-        const response = await api.resources(activeCluster.id, "pods", "all", undefined, { useCache: false, forceRefresh: true });
+        const response = await api.resources(clusterId, "pods", "all", undefined, { useCache: false, forceRefresh: true });
+        if (nodePreviewRequestRef.current !== requestId) return;
         const affectedPods = response.items
           .filter((pod) => nodeNames.has(String(pod.node ?? "")))
           .sort((left, right) => `${left.namespace ?? ""}/${left.name}`.localeCompare(`${right.namespace ?? ""}/${right.name}`, undefined, { numeric: true }));
-        setNodeActionConfirmation({ action, rows, commandPreview, affectedPods, previewLoading: false });
+        setNodeActionConfirmation({ clusterId, action, rows, commandPreview, affectedPods, previewLoading: false });
       } catch (error) {
+        if (nodePreviewRequestRef.current !== requestId) return;
         const info = asErrorInfo(error);
-        setNodeActionConfirmation({ action, rows, commandPreview, affectedPods: [], previewLoading: false, previewError: info.message || info.code || "Failed to load affected pods preview" });
+        setNodeActionConfirmation({ clusterId, action, rows, commandPreview, affectedPods: [], previewLoading: false, previewError: info.message || info.code || "Failed to load affected pods preview" });
       }
     },
     [api, activeCluster],
   );
 
   const confirmNodeAction = useCallback(async () => {
-    if (!api || !activeCluster || !nodeActionConfirmation) return;
+    if (!api || !nodeActionConfirmation) return;
     const target = nodeActionConfirmation;
     const label = nodeActionLabel(target.action);
     setNodeActionConfirmation(null);
@@ -219,14 +228,14 @@ export function useBulkResourceActions(options: Options) {
     const failures: BulkActionFailure[] = [];
     for (const row of target.rows) {
       try {
-        await api.resourceAction(activeCluster.id, "nodes", "_cluster", row.name, target.action);
+        await api.resourceAction(target.clusterId, "nodes", "_cluster", row.name, target.action);
         completed.push(row);
       } catch (error) {
         const info = asErrorInfo(error);
         failures.push({ row, message: info.message || info.code || `${label} failed` });
       }
     }
-    await reloadResources(activeCluster.id, "nodes", ["_cluster"]).catch((error) => setError(asErrorInfo(error)));
+    await reloadResources(target.clusterId, "nodes", ["_cluster"]).catch((error) => setError(asErrorInfo(error)));
     if (failures.length) {
       const error = buildPartialActionError({ label, resource: "nodes", completedCount: completed.length, failures, commandPreview: target.commandPreview });
       setNodeActionMessage("");
@@ -235,7 +244,13 @@ export function useBulkResourceActions(options: Options) {
     }
     setNodeActionMessage(`${label} completed. Nodes: ${completed.length}.`);
     setError(null);
-  }, [api, activeCluster, nodeActionConfirmation, reloadResources, setError]);
+  }, [api, nodeActionConfirmation, reloadResources, setError]);
+
+  useEffect(() => {
+    nodePreviewRequestRef.current += 1;
+    setBulkDelete(null);
+    setNodeActionConfirmation(null);
+  }, [activeCluster?.id]);
 
   return {
     bulkDelete,

@@ -188,6 +188,29 @@ test("Node PortForwardManager rejects occupied ports and startup errors", async 
   );
   assert.equal(failed.activeCount(), 0);
   await failed.close();
+
+  const silentState = { commands: [], children: [], kills: [] };
+  const silent = new PortForwardManager(() => {}, {
+    spawnProcess: createPortForwardSpawn(silentState, "silent"),
+    portProbe: async () => true,
+    readinessTimeoutMs: 10,
+    stopTimeoutMs: 100,
+  });
+  await assert.rejects(
+    silent.start(commandFactory, "cluster-a", {
+      resource: "service",
+      namespace: "default",
+      name: "demo",
+      localPort: 63001,
+      remotePort: 8080,
+    }),
+    (error) =>
+      error.code === "PORT_FORWARD_FAILED" &&
+      /did not become ready/i.test(error.message),
+  );
+  assert.equal(silent.activeCount(), 0);
+  assert.deepEqual(silentState.kills, ["SIGTERM"]);
+  await silent.close();
 });
 
 test("Node Gateway owns Port Forward HTTP contracts and reports process count", async (t) => {

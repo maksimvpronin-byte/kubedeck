@@ -49,7 +49,6 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
     if (!api || !clusterId || !enabled || resource === "port-forwards") return undefined;
     const watchNamespace = clusterScoped ? "_cluster" : namespaces.length === 1 ? namespaces[0] : "all";
     let socket: WebSocket | null = null;
-    let autoStartedWatchId: string | null = null;
     let closed = false;
 
     const scheduleRefresh = () => {
@@ -60,16 +59,7 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
       }, 350);
     };
 
-    void api
-      .startWatch(clusterId, resource, watchNamespace)
-      .then((watch) => {
-        if (closed) {
-          if (!watch.alreadyRunning) void api.stopWatch(watch.id).catch(() => undefined);
-          return;
-        }
-        if (!watch.alreadyRunning) autoStartedWatchId = watch.id;
-      })
-      .catch(() => undefined);
+    void api.startWatch(clusterId, resource, watchNamespace).catch(() => undefined);
 
     const reconnectController = createWatchReconnectController(window.setTimeout, window.clearTimeout);
     const connectSocket = () => {
@@ -102,7 +92,6 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
         refreshTimerRef.current = null;
       }
       if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
-      if (autoStartedWatchId) void api.stopWatch(autoStartedWatchId).catch(() => undefined);
     };
   }, [api, clusterId, resource, namespaces, clusterScoped, enabled, refresh]);
 }

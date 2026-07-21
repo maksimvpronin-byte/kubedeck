@@ -491,7 +491,7 @@ test("bulk delete stays silent while node actions retain status feedback", () =>
   assert.doesNotMatch(bulkFlow, /setNodeActionMessage/);
   assert.doesNotMatch(bulkFlow, /bulkDelete\.(?:requested|completed)/);
   assert.doesNotMatch(bulkFlow, /if \(deletedRows\.length\)/);
-  assert.match(bulkFlow, /await reloadResources\(activeCluster\.id, target\.resource, selectedNamespaces\)/);
+  assert.match(bulkFlow, /await reloadResources\(target\.clusterId, target\.resource, selectedNamespaces\)/);
   assert.match(bulkFlow, /setError\(error\)/);
   assert.match(actions, /nodeActionMessage/);
   assert.match(actions, /setNodeActionMessage\(`\$\{label\} completed/);
@@ -505,6 +505,18 @@ test("bulk delete stays silent while node actions retain status feedback", () =>
   for (const locale of locales) {
     assert.doesNotMatch(locale, /bulkDelete\.(?:requested|completed|completedAt|resultTitle|copyResult|failureDetails|failedMessage|total)/);
   }
+});
+
+test("bulk confirmations remain bound to their source cluster", () => {
+  const actions = fs.readFileSync(path.join(rendererRoot, "hooks/useBulkResourceActions.ts"), "utf8");
+  assert.match(actions, /interface BulkDeleteTarget \{\s*clusterId: string;/);
+  assert.match(actions, /interface NodeActionConfirmation \{\s*clusterId: string;/);
+  assert.match(actions, /setBulkDelete\(\{ clusterId: activeCluster\.id, resource, rows \}\)/);
+  assert.match(actions, /api\.resourceAction\(target\.clusterId, target\.resource/);
+  assert.match(actions, /api\.resourceAction\(target\.clusterId, "nodes"/);
+  assert.match(actions, /reloadResources\(target\.clusterId, "nodes"/);
+  assert.match(actions, /nodePreviewRequestRef\.current !== requestId/);
+  assert.match(actions, /}, \[activeCluster\?\.id\]\)/);
 });
 
 test("bulk partial failures preserve counts and command preview without leaking Secret data", () => {
@@ -630,6 +642,13 @@ test("watch reconnect controller keeps one pending reconnect and stops cleanly",
   assert.deepEqual(cancelled, [1]);
   controller.connectionClosed(second, () => undefined);
   assert.equal(scheduled.length, 1);
+});
+
+test("resource watch lifecycle does not stop a shared backend watch", () => {
+  const source = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWatch.ts"), "utf8");
+  assert.match(source, /\.startWatch\(clusterId, resource, watchNamespace\)/);
+  assert.doesNotMatch(source, /\.stopWatch\(/);
+  assert.doesNotMatch(source, /autoStartedWatchId/);
 });
 
 test("lazy panel boundary resets its failure after navigation", () => {

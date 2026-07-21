@@ -181,6 +181,7 @@ async function searchSource(
   namespaces: string[],
   query: string,
   limitPerResource: number,
+  signal?: AbortSignal,
 ): Promise<SearchSourceResult> {
   const namespaceModes = spec.scope === "cluster" ? ["_cluster"] : namespaces;
   const collected: SearchResultRow[] = [];
@@ -195,6 +196,7 @@ async function searchSource(
           SEARCH_KUBECTL_TIMEOUT_SECONDS,
           SEARCH_MAX_OUTPUT_BYTES,
         ),
+        signal,
       );
       const items = asItems(data);
       rawCount += items.length;
@@ -248,6 +250,7 @@ async function collectSearchSources(
   worker: (spec: SearchResourceSpec) => Promise<void>,
   timeoutSeconds: number,
   concurrency: number,
+  onTimeout: () => void,
 ): Promise<boolean> {
   let index = 0;
   let completed = false;
@@ -274,6 +277,7 @@ async function collectSearchSources(
     }),
   ]);
   if (timer) clearTimeout(timer);
+  if (!completed) onTimeout();
   return completed;
 }
 
@@ -311,6 +315,7 @@ export async function buildSearchResponse(
   const sources: Record<string, number> = {};
   const limitPerResource = Math.max(10, Math.floor(options.limit / 3));
   let stopCollecting = false;
+  const controller = new AbortController();
 
   const totalTimeoutSeconds = runtime.totalTimeoutSeconds ?? SEARCH_TOTAL_TIMEOUT_SECONDS;
   const concurrency = runtime.concurrency ?? SEARCH_CONCURRENCY;
@@ -326,6 +331,7 @@ export async function buildSearchResponse(
         options.namespaces,
         options.query,
         limitPerResource,
+        controller.signal,
       );
       sources[spec.resource] = source.rawCount;
       if (source.error) errors.push(source.error);
@@ -334,10 +340,13 @@ export async function buildSearchResponse(
     },
     totalTimeoutSeconds,
     concurrency,
+    () => {
+      stopCollecting = true;
+      controller.abort();
+    },
   );
 
   if (!completed) {
-    stopCollecting = true;
     errors.push({
       code: "SEARCH_TIMEOUT",
       message: `Global search stopped after ${totalTimeoutSeconds}s. Narrow the query or namespace.`,

@@ -349,6 +349,7 @@ test("Global Search validates query, limit, route, and missing cluster", async (
 });
 
 test("Global Search returns a partial response on total timeout", async () => {
+  let aborted = false;
   const runner = {
     async run() {
       return {
@@ -359,8 +360,15 @@ test("Global Search returns a partial response on total timeout", async () => {
         returnCode: 0,
       };
     },
-    async runJson() {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+    async runJson(_command, signal) {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, 50);
+        signal.addEventListener("abort", () => {
+          aborted = true;
+          clearTimeout(timer);
+          reject(new Error("cancelled"));
+        }, { once: true });
+      });
       return { items: [] };
     },
   };
@@ -380,4 +388,5 @@ test("Global Search returns a partial response on total timeout", async () => {
   );
   assert.ok(body.errors.some((error) => error.code === "SEARCH_TIMEOUT"));
   assert.equal(body.summary.errors, 1);
+  assert.equal(aborted, true);
 });

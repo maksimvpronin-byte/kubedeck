@@ -76,6 +76,11 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
   assert.match(mainSource, /nodeIntegration:\s*false/);
   assert.match(mainSource, /sandbox:\s*true/);
   assert.match(mainSource, /will-navigate/);
+  assert.match(mainSource, /app\.on\("before-quit", \(event\) =>/);
+  assert.match(mainSource, /event\.preventDefault\(\)/);
+  assert.match(mainSource, /stopNodeGateway\("before-quit"\)\.finally/);
+  assert.match(mainSource, /quitAfterGatewayShutdown = true;\s*app\.quit\(\)/s);
+  assert.doesNotMatch(mainSource, /app\.on\("will-quit"/);
   assert.doesNotMatch(
     builderSource,
     /PyInstaller|pip\s+install|requirements\.txt|apps[\\/]backend|\.build-venv|\bpy\s+-3\b/,

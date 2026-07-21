@@ -39,7 +39,7 @@ export class KubectlRunner {
     private readonly spawnProcess: SpawnProcess = spawn as SpawnProcess,
   ) {}
 
-  run(command: KubectlCommand): Promise<CommandResult> {
+  run(command: KubectlCommand, signal?: AbortSignal): Promise<CommandResult> {
     if (this.closed) {
       return Promise.reject(new KubectlError({
         code: "KUBECTL_RUNTIME_STOPPED",
@@ -86,8 +86,11 @@ export class KubectlRunner {
       let settled = false;
       let timer: NodeJS.Timeout | undefined;
 
+      const onAbort = () => cancel("kubectl command cancelled");
+
       const cleanup = () => {
         if (timer) clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
         this.active.delete(processKey);
       };
 
@@ -117,6 +120,11 @@ export class KubectlRunner {
       };
 
       this.active.set(processKey, { child, cancel });
+      if (signal?.aborted) {
+        cancel("kubectl command cancelled");
+        return;
+      }
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       const collect = (target: Buffer[], chunk: Buffer | string) => {
         if (settled) return;
@@ -214,8 +222,8 @@ export class KubectlRunner {
     });
   }
 
-  async runJson(command: KubectlCommand): Promise<Record<string, unknown>> {
-    const result = await this.run(command);
+  async runJson(command: KubectlCommand, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    const result = await this.run(command, signal);
 
     if (!result.stdout.trim()) {
       throw new KubectlError({

@@ -460,11 +460,7 @@ export class PortForwardManager {
     child.stdin.end();
 
     readinessTimer = setTimeout(() => {
-      if (child.exitCode === null && session.status === "starting") {
-        finishReady();
-      } else {
-        failReady("kubectl port-forward did not become ready");
-      }
+      failReady("kubectl port-forward did not become ready");
     }, this.readinessTimeoutMs);
 
     try {

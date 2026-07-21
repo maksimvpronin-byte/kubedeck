@@ -1,4 +1,12 @@
-﻿## 2.4.4 - Windows terminal paste correctness
+## 2.4.5 - Runtime correctness and bounded persistence
+
+- Bound bulk actions to the cluster where they were requested and discard stale confirmations after a cluster switch.
+- Prevent one resource view from stopping shared watches used by another view.
+- Require real port-forward readiness, scope search cancellation to its own kubectl commands and serialize application shutdown.
+- Preserve unreadable cluster configuration, await cluster-owned runtime cleanup and report managed kubeconfig removal failures.
+- Rotate the audit log at 20 MiB while retaining the immediately previous segment.
+
+## 2.4.4 - Windows terminal paste correctness
 
 - Removed the competing manual clipboard and host paste paths from Pod Terminal.
 - Delegated clipboard input to xterm so one paste produces exactly one WebSocket input message on Windows and macOS.

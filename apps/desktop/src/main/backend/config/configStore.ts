@@ -265,6 +265,10 @@ function managedPath(pathname: string, baseDirectory: string): boolean {
   return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
 }
 
+function readConfigFile(filePath: string): AppConfig {
+  return normalizeConfig(JSON.parse(fs.readFileSync(filePath, "utf8")));
+}
+
 export class ConfigStore {
   readonly paths: AppPaths;
 
@@ -276,15 +280,29 @@ export class ConfigStore {
   }
 
   load(): AppConfig {
+    let raw: string;
     try {
-      const raw = fs.readFileSync(this.paths.config, "utf8");
+      raw = fs.readFileSync(this.paths.config, "utf8");
+    } catch (error) {
+      throw error;
+    }
+
+    try {
       return normalizeConfig(JSON.parse(raw));
     } catch {
       const brokenPath = path.join(this.paths.root, "config.broken.json");
+      const backupPath = path.join(this.paths.root, "config.backup.json");
       try {
         fs.copyFileSync(this.paths.config, brokenPath);
       } catch {
         // Best effort only.
+      }
+
+      let recovered: AppConfig | null = null;
+      try {
+        recovered = readConfigFile(backupPath);
+      } catch {
+        // Missing or invalid backups are not recovery candidates.
       }
 
       try {
@@ -293,7 +311,7 @@ export class ConfigStore {
         // The following save will report a useful error if the file is locked.
       }
 
-      return this.save(defaultConfig(), false);
+      return this.save(recovered ?? defaultConfig(), false);
     }
   }
 
@@ -447,8 +465,12 @@ export class ConfigStore {
     if (managedPath(cluster.kubeconfigPath, this.paths.kubeconfigs)) {
       const stat = fs.statSync(cluster.kubeconfigPath);
       if (stat.isFile()) {
-        fs.unlinkSync(cluster.kubeconfigPath);
-        removedManagedFile = true;
+        try {
+          fs.unlinkSync(cluster.kubeconfigPath);
+          removedManagedFile = true;
+        } catch {
+          // The cluster is already removed from config; keep the orphaned managed copy recoverable.
+        }
       }
     }
 

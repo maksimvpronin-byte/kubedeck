@@ -296,18 +296,22 @@ function handleRequest(
       return;
     }
 
-    void services.watchManager.stopCluster(clusterId);
-    void services.portForwardManager.stopCluster(clusterId);
-    void services.terminalWebSocket.stopCluster(clusterId);
-    void services.sshWebSocket.stopCluster(clusterId);
-    services.resourceCache.clear(clusterId, "cluster.remove");
+    void (async () => {
+      await Promise.all([
+        services.watchManager.stopCluster(clusterId),
+        services.portForwardManager.stopCluster(clusterId),
+        services.terminalWebSocket.stopCluster(clusterId),
+        services.sshWebSocket.stopCluster(clusterId),
+      ]);
+      services.resourceCache.clear(clusterId, "cluster.remove");
       clearResourceDefinitionCache(clusterId);
-      void writeRemoveCluster(
-      response,
-      clusterId,
-      services.configStore,
-      services.auditStore,
-    ).catch((error) => {
+      await writeRemoveCluster(
+        response,
+        clusterId,
+        services.configStore,
+        services.auditStore,
+      );
+    })().catch((error) => {
       options.log(`gateway cluster remove failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");
     });

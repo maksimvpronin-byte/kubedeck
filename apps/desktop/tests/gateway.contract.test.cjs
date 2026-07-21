@@ -11,8 +11,91 @@ const { PassThrough } = require("node:stream");
 const { startGateway } = require("../dist/main/backend/gateway.js");
 const { createKubectlCommand } = require("../dist/main/backend/kubectl/command.js");
 const { KubectlRunner } = require("../dist/main/backend/kubectl/runner.js");
+const { ConfigStore } = require("../dist/main/backend/config/configStore.js");
+const { AuditStore } = require("../dist/main/backend/audit/auditStore.js");
 
 const TOKEN = "gateway-contract-test-token";
+
+test("cluster removal stays successful when its managed kubeconfig cannot be unlinked", (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-remove-cluster-"));
+  const source = path.join(appDataRoot, "source.yaml");
+  fs.writeFileSync(source, "apiVersion: v1\n", "utf8");
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+
+  const store = new ConfigStore(appDataRoot);
+  const cluster = store.importCluster(source, "test");
+  const originalUnlink = fs.unlinkSync;
+  fs.unlinkSync = (target) => {
+    if (target === cluster.kubeconfigPath) {
+      const error = new Error("busy");
+      error.code = "EBUSY";
+      throw error;
+    }
+    return originalUnlink(target);
+  };
+  t.after(() => {
+    fs.unlinkSync = originalUnlink;
+  });
+
+  const result = store.removeCluster(cluster.id);
+  assert.equal(result.removedManagedFile, false);
+  assert.deepEqual(store.listClusters(), []);
+  assert.equal(fs.existsSync(cluster.kubeconfigPath), true);
+});
+
+test("config recovery uses a valid backup and preserves files on access errors", (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-config-recovery-"));
+  const source = path.join(appDataRoot, "source.yaml");
+  fs.writeFileSync(source, "apiVersion: v1\n", "utf8");
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+
+  const store = new ConfigStore(appDataRoot);
+  const cluster = store.importCluster(source, "before rename");
+  store.renameCluster(cluster.id, "after rename");
+  fs.writeFileSync(store.paths.config, "{broken", "utf8");
+
+  const recovered = store.load();
+  assert.equal(recovered.clusters.length, 1);
+  assert.equal(recovered.clusters[0].displayName, "before rename");
+  assert.equal(fs.existsSync(path.join(appDataRoot, "config.broken.json")), true);
+
+  const configPath = store.paths.config;
+  const beforeAccessError = fs.readFileSync(configPath, "utf8");
+  const originalRead = fs.readFileSync;
+  fs.readFileSync = (target, ...args) => {
+    if (target === configPath) {
+      const error = new Error("denied");
+      error.code = "EACCES";
+      throw error;
+    }
+    return originalRead(target, ...args);
+  };
+  try {
+    assert.throws(() => store.load(), { code: "EACCES" });
+  } finally {
+    fs.readFileSync = originalRead;
+  }
+  assert.equal(fs.readFileSync(configPath, "utf8"), beforeAccessError);
+});
+
+test("audit storage rotates at its configured size without losing the newest event", (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-audit-rotation-"));
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+  const audit = new AuditStore(appDataRoot, () => {}, 512);
+
+  for (let index = 0; index < 20; index += 1) {
+    audit.append({ action: "bench", status: "ok", message: `event-${index}` });
+  }
+
+  const previousPath = path.join(appDataRoot, "logs", "audit.previous.jsonl");
+  assert.equal(fs.existsSync(previousPath), true);
+  assert.equal(audit.read(20)[0].message, "event-19");
+  for (const file of [audit.filePath, previousPath]) {
+    for (const line of fs.readFileSync(file, "utf8").trim().split("\n")) {
+      assert.doesNotThrow(() => JSON.parse(line));
+    }
+  }
+});
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -509,4 +592,19 @@ test("Node kubectl runtime enforces timeout, output limit, and shutdown", async 
   );
   assert.equal(shutdownState.kills, 1);
   assert.equal(shutdownRunner.activeCount(), 0);
+
+  const abortState = { kills: 0, children: [] };
+  const abortRunner = new KubectlRunner(() => {}, hangingSpawnFactory(abortState));
+  const controller = new AbortController();
+  const aborted = abortRunner.run(createKubectlCommand({
+    args: ["get", "pods"],
+    kubectlPath: "kubectl",
+    timeoutSeconds: 0,
+    maxOutputBytes: 1024,
+  }), controller.signal);
+  controller.abort();
+  await assert.rejects(aborted, (error) => error.info?.code === "KUBECTL_CANCELLED");
+  assert.equal(abortState.kills, 1);
+  assert.equal(abortRunner.activeCount(), 0);
+  await abortRunner.close();
 });
