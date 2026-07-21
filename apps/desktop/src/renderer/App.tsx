@@ -27,7 +27,7 @@ import { canDeleteResource, findResourceDefinition, groupCrds } from "./utils/ku
 import type { ErrorInfo, GlobalSearchItem, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
-import { getAutoRefreshIntervalSeconds } from "./utils/refresh";
+import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
@@ -200,6 +200,18 @@ export function App() {
     },
     [loadResources, activeCluster?.id, resourceTab, selectedNamespaces],
   );
+  const selectedDefinition = findResourceDefinition(resourceDefinitions, resourceTab);
+  const isClusterScoped = selectedDefinition?.namespaced === false || namespace === "_cluster";
+  const isResourceTableView = !["help", "about", "settings", "problems", "audit", "port-forwards"].includes(section) && !isPlaceholderSection(section);
+  const watchHealthy = useResourceWatch({
+    api,
+    clusterId: activeCluster?.id,
+    resource: resourceTab,
+    namespaces: selectedNamespaces,
+    clusterScoped: isClusterScoped,
+    enabled: isResourceTableView,
+    refresh: loadResources,
+  });
   const { openResourceLocator, openRelatedResource, consumeKeepSelection, keepCurrentSelection, cancelResourceNavigation } = useResourceNavigation({
     api,
     activeCluster,
@@ -243,12 +255,12 @@ export function App() {
   useEffect(() => {
     if (!activeCluster || !api || isPlaceholderSection(section) || section === "settings" || section === "help" || section === "port-forwards" || section === "problems") return;
     const intervalSeconds = getAutoRefreshIntervalSeconds(settings);
-    if (intervalSeconds <= 0) return;
+    if (!shouldPollResources(intervalSeconds, watchHealthy)) return;
     const timer = window.setInterval(() => {
       loadResources(activeCluster.id, resourceTab, selectedNamespaces, true);
     }, intervalSeconds * 1000);
     return () => window.clearInterval(timer);
-  }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources]);
+  }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources, watchHealthy]);
 
   async function saveSettings(next: Settings) {
     if (!api) return;
@@ -372,7 +384,6 @@ export function App() {
 
   const clusters = config?.clusters ?? [];
   const activeRows = rows[resourceTab] ?? [];
-  const selectedDefinition = findResourceDefinition(resourceDefinitions, resourceTab);
   useEffect(() => {
     if (!activeCluster || !selectedDefinition) return;
     if (selectedDefinition.namespaced === false) {
@@ -383,7 +394,6 @@ export function App() {
   }, [activeCluster?.id, selectedDefinition?.namespaced, selectedNamespaces, setNamespaceSelection, restoreNamespacedSelection]);
   const isCrdDefinitionTab = resourceTab === "customresourcedefinitions" || resourceTab === "customresourcedefinitions.apiextensions.k8s.io";
   const isCrdInstanceTab = section === "crd" && !isCrdDefinitionTab;
-  const isClusterScoped = selectedDefinition?.namespaced === false || namespace === "_cluster";
   const crdGroups = useMemo(() => groupCrds(rows.customresourcedefinitions ?? []), [rows.customresourcedefinitions]);
   const commandItems = useMemo<CommandPaletteItem[]>(() => {
     const items: CommandPaletteItem[] = [];
@@ -551,18 +561,6 @@ export function App() {
           { key: "type", label: t("col.type") },
           { key: "createdAt", label: t("col.age") },
         ]);
-  const isResourceTableView = !["help", "about", "settings", "problems", "audit", "port-forwards"].includes(section) && !isPlaceholderSection(section);
-
-  useResourceWatch({
-    api,
-    clusterId: activeCluster?.id,
-    resource: resourceTab,
-    namespaces: selectedNamespaces,
-    clusterScoped: isClusterScoped,
-    enabled: isResourceTableView,
-    refresh: loadResources,
-  });
-
   function startSidebarResize(event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault();
     const startX = event.clientX;

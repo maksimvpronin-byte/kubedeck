@@ -651,6 +651,30 @@ test("resource watch lifecycle does not stop a shared backend watch", () => {
   assert.doesNotMatch(source, /autoStartedWatchId/);
 });
 
+test("resource polling is only a fallback while live watch is unavailable", () => {
+  const refresh = loadTypeScript("utils/refresh.ts");
+  assert.equal(refresh.shouldPollResources(10, false), true);
+  assert.equal(refresh.shouldPollResources(10, true), false);
+  assert.equal(refresh.shouldPollResources(0, false), false);
+
+  const watch = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWatch.ts"), "utf8");
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  assert.match(watch, /backendReady && socketReady/);
+  assert.match(watch, /nextSocket\.onopen/);
+  assert.match(watch, /return watchHealthy/);
+  assert.match(app, /const watchHealthy = useResourceWatch\(/);
+  assert.match(app, /shouldPollResources\(intervalSeconds, watchHealthy\)/);
+});
+
+test("resource table keeps one sticky header inside its scroll container", () => {
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
+  assert.equal((table.match(/<table\b/g) ?? []).length, 1);
+  assert.equal((table.match(/<colgroup>/g) ?? []).length, 1);
+  assert.match(table, /<div className="table-scroll">[\s\S]*<thead>/);
+  assert.match(styles, /\.resource-table th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;[^}]*z-index:\s*\d+;[^}]*background:\s*var\(--table-head\);/s);
+});
+
 test("lazy panel boundary resets its failure after navigation", () => {
   class Component {
     constructor(props) {

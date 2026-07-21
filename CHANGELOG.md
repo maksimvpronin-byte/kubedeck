@@ -1,3 +1,10 @@
+## 2.5.1 - Pod watch load and sticky table headers
+
+- Disabled interval polling while the live resource watch is healthy and retained the configured polling fallback after watch failure.
+- Started kubectl watches with `--watch-only=true` to avoid replaying existing resources as an initial event burst.
+- Kept resource table column names visible during vertical scrolling with the existing table and scroll container.
+- Added focused renderer and Gateway contracts without new dependencies or architecture layers.
+
 ## 2.5.0 - Verified code cleanup
 
 - Removed an unreachable Pod Terminal pipes fallback while preserving the required PTY behavior.

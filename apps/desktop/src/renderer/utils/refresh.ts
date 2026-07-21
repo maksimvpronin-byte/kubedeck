@@ -11,3 +11,7 @@ export function normalizeRefreshIntervalSeconds(value: number | null | undefined
 export function getAutoRefreshIntervalSeconds(settings?: Pick<Settings, "refreshIntervalSeconds"> | null): number {
   return normalizeRefreshIntervalSeconds(settings?.refreshIntervalSeconds ?? 10);
 }
+
+export function shouldPollResources(intervalSeconds: number, watchHealthy: boolean): boolean {
+  return intervalSeconds > 0 && !watchHealthy;
+}
