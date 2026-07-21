@@ -25,10 +25,10 @@
 ## Manual smoke
 
 - [x] Пользователь подтвердил, что приложение и затронутые сценарии работают после cleanup.
-- [ ] Проверить финальные Windows/macOS packaged artifacts после их сборки.
+- [x] Финальные packaged artifacts и пользовательские сценарии проверены пользователем.
 
 ## Acceptance
 
 - [x] Автоматические контракты KubeDeck `2.5.0` выполнены после version bump.
 - [x] Версии root, desktop, shared package и lock-файла синхронизированы на `2.5.0`.
-- [ ] Финальные packaged artifacts проверены.
+- [x] Финальные packaged artifacts проверены.

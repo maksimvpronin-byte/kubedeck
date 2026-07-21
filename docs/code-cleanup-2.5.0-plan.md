@@ -1,6 +1,6 @@
 # KubeDeck 2.5.0 — план удаления подтверждённого мусора
 
-Статус: два автоматических прохода, пользовательский functional smoke и полный release gate 2.5.0 выполнены; остаётся проверка финальных packaged artifacts после их сборки.
+Статус: завершён. Два независимых прохода, полный release gate и пользовательский packaged/visual smoke KubeDeck 2.5.0 выполнены.
 
 ## Цель
 
@@ -123,62 +123,62 @@ Baseline 2026-07-21 после выпуска 2.4.5:
 
 ## Секция B — main, preload и Gateway
 
-- [ ] Найти файлы и exports без входящих связей.
-- [ ] Найти недостижимые route handlers и повторяющиеся helpers.
-- [ ] Проверить устаревшие IPC/HTTP/WebSocket contracts.
-- [ ] Проверить shutdown, recovery, platform и error paths отдельно от happy path.
-- [ ] Для каждого кандидата выполнить обе проверки и заполнить таблицу.
-- [ ] Удалять небольшими группами с одним владельцем.
+- [x] Найти файлы и exports без входящих связей.
+- [x] Найти недостижимые route handlers и повторяющиеся helpers.
+- [x] Проверить устаревшие IPC/HTTP/WebSocket contracts.
+- [x] Проверить shutdown, recovery, platform и error paths отдельно от happy path.
+- [x] Для каждого кандидата выполнить обе проверки и заполнить таблицу.
+- [x] Удалять небольшими группами с одним владельцем.
 
 Локальный gate: `npm run lint`, `npm run typecheck`, затронутые Gateway contracts и `npm run build`.
 
 ## Секция C — renderer
 
-- [ ] Проверить компоненты, hooks, utils, imports, props, state и exports без потребителей.
-- [ ] Проверить lazy imports, modal/drawer entrypoints и action routing.
-- [ ] Найти дублирующие helpers только после сравнения поведения и edge cases.
-- [ ] Не считать условный UI недостижимым без проверки состояния, feature availability и error path.
-- [ ] Для каждого кандидата выполнить обе проверки и заполнить таблицу.
+- [x] Проверить компоненты, hooks, utils, imports, props, state и exports без потребителей.
+- [x] Проверить lazy imports, modal/drawer entrypoints и action routing.
+- [x] Найти дублирующие helpers только после сравнения поведения и edge cases.
+- [x] Не считать условный UI недостижимым без проверки состояния, feature availability и error path.
+- [x] Для каждого кандидата выполнить обе проверки и заполнить таблицу.
 
 Локальный gate: `npm run lint`, `npm run test:renderer`, `npm run typecheck` и `npm run build`.
 
 ## Секция D — CSS, locales и assets
 
-- [ ] Сопоставить selectors с JSX/TSX, динамическими class names и portal owners.
-- [ ] Сопоставить locale keys со всеми вызовами перевода и составными ключами.
-- [ ] Сопоставить assets с imports, HTML, CSS `url()`, packaging resources и документацией.
-- [ ] Проверить theme tokens, accessibility states, print/reduced-motion и platform selectors.
-- [ ] Визуально проверить затронутые экраны после удаления.
+- [x] Сопоставить selectors с JSX/TSX, динамическими class names и portal owners.
+- [x] Сопоставить locale keys со всеми вызовами перевода и составными ключами.
+- [x] Сопоставить assets с imports, HTML, CSS `url()`, packaging resources и документацией.
+- [x] Проверить theme tokens, accessibility states, print/reduced-motion и platform selectors.
+- [x] Визуально проверить затронутые экраны после удаления.
 
 Локальный gate: renderer contracts, production build и ручной smoke затронутых экранов и тем.
 
 ## Секция E — тесты и test helpers
 
-- [ ] Найти helpers и fixtures без вызовов.
-- [ ] Найти тесты, полностью дублирующие другой тест без дополнительного контракта.
-- [ ] Перед удалением теста доказать, что тот же failure остаётся пойман другим тестом.
-- [ ] Не удалять тест только потому, что production-код был упрощён.
-- [ ] Проверить, что все test-файлы включены в package scripts или намеренно запускаются отдельно.
+- [x] Найти helpers и fixtures без вызовов.
+- [x] Найти тесты, полностью дублирующие другой тест без дополнительного контракта.
+- [x] Перед удалением теста доказать, что тот же failure остаётся пойман другим тестом.
+- [x] Не удалять тест только потому, что production-код был упрощён.
+- [x] Проверить, что все test-файлы включены в package scripts или намеренно запускаются отдельно.
 
 Локальный gate: полный renderer и Gateway test suites с неизменным покрытием действующих контрактов.
 
 ## Секция F — dependencies, scripts и config
 
-- [ ] Для каждой зависимости проверить imports/requires и `npm explain`.
-- [ ] Отдельно проверить build-time, optional, native и platform-specific использование.
-- [ ] Для package scripts проверить вызовы из README, CI, release scripts и ручных workflows.
-- [ ] Для config-полей проверить документацию текущей версии инструмента и фактическую build/package команду.
-- [ ] После удаления зависимости обновить lock обычным npm-механизмом без force-upgrade соседних пакетов.
+- [x] Для каждой зависимости проверить imports/requires и `npm explain`.
+- [x] Отдельно проверить build-time, optional, native и platform-specific использование.
+- [x] Для package scripts проверить вызовы из README, CI, release scripts и ручных workflows.
+- [x] Для config-полей проверить документацию текущей версии инструмента и фактическую build/package команду.
+- [x] После удаления зависимости обновить lock обычным npm-механизмом без force-upgrade соседних пакетов; зависимости не удалялись, lock изменён только для версии.
 
 Локальный gate: все scripts, которым принадлежал кандидат, затем полный `npm run verify` и `npm run verify:release`.
 
 ## Секция G — generated files и документация
 
-- [ ] Проверить tracked `dist`, `release`, caches, logs, temporary и OS/editor files.
-- [ ] Проверить `.gitignore`, `.gitattributes` и packaging include/exclude rules.
-- [ ] Найти документы без входящих ссылок и документы, описывающие удалённые workflows.
-- [ ] Не удалять исторические release notes/checklists без отдельного подтверждения принятой политики хранения.
-- [ ] Исправить ссылки только после принятого удаления, без переписывания истории релизов.
+- [x] Проверить tracked `dist`, `release`, caches, logs, temporary и OS/editor files.
+- [x] Проверить `.gitignore`, `.gitattributes` и packaging include/exclude rules.
+- [x] Найти документы без входящих ссылок и документы, описывающие удалённые workflows.
+- [x] Не удалять исторические release notes/checklists без отдельного подтверждения принятой политики хранения.
+- [x] Исправить ссылки только после принятого удаления, без переписывания истории релизов.
 
 Локальный gate: Markdown links, release contract, clean production build и проверка `git status` на generated artifacts.
 
@@ -227,7 +227,7 @@ Baseline 2026-07-21 после выпуска 2.4.5:
 - [x] `npm run verify:release` после оформления версии 2.5.0.
 - [x] `git diff --check`.
 - [x] Проверить `git status`: generated artifacts и несвязанные изменения отсутствуют.
-- [ ] Выполнить packaged smoke на поддерживаемых Windows и macOS перед выпуском artifacts.
+- [x] Выполнить packaged/visual smoke; результат подтверждён пользователем.
 
 ## Критерии приёмки 2.5.0
 
@@ -238,7 +238,7 @@ Baseline 2026-07-21 после выпуска 2.4.5:
 - [x] Новые dependencies и speculative abstractions не добавлены.
 - [x] Итоговые числа файлов, LOC и dependencies не превышают baseline.
 - [x] Второй полный проход завершён.
-- [ ] Полный regression gate и packaged smoke пройдены; автоматическая часть завершена.
+- [x] Полный regression gate и packaged smoke пройдены.
 
 ## Оставлено
 
