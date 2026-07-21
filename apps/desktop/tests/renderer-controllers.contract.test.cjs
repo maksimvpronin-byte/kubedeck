@@ -120,6 +120,18 @@ test("Pod Terminal delegates paste to the single xterm input path", () => {
   assert.doesNotMatch(source, /navigator\.clipboard\?\.readText/);
 });
 
+test("pinned Pod Terminal is owned outside resource drawer navigation", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const panel = fs.readFileSync(path.join(rendererRoot, "components/PinnedTerminalPanel.tsx"), "utf8");
+  assert.match(app, /const \[pinnedTerminal, setPinnedTerminal\] = useState/);
+  assert.match(app, /<PinnedTerminalPanel[\s\S]*target=\{pinnedTerminal\}/);
+  assert.match(drawer, /onOpenTerminal\(pod, containers, containerName/);
+  assert.doesNotMatch(drawer, /<TerminalTab/);
+  assert.match(panel, /className=\{`pinned-terminal \$\{collapsed \? "collapsed" : ""\}`\}/);
+  assert.match(panel, /<TerminalTab/);
+});
+
 test("theme preferences normalize legacy values and resolve System safely", () => {
   const model = loadTypeScript("utils/theme.ts");
   const darkMedia = { matches: true };

@@ -10,6 +10,7 @@ import { ErrorPanel } from "./components/ErrorPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
 import { LazyPanelBoundary } from "./components/LazyPanelBoundary";
 import { AppResourceTable } from "./components/AppResourceTable";
+import type { PinnedTerminalTarget } from "./components/PinnedTerminalPanel";
 import { PlaceholderSection } from "./components/PlaceholderSection";
 import { RenameClusterModal } from "./components/RenameClusterModal";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
@@ -41,6 +42,7 @@ const HelpPanel = lazy(() => import("./components/HelpPanel").then((module) => (
 const PortForwardsPanel = lazy(() => import("./components/PortForwardsPanel").then((module) => ({ default: module.PortForwardsPanel })));
 const ProblemsPanel = lazy(() => import("./components/ProblemsPanel").then((module) => ({ default: module.ProblemsPanel })));
 const PodDrawer = lazy(() => import("./components/PodDrawer").then((module) => ({ default: module.PodDrawer })));
+const PinnedTerminalPanel = lazy(() => import("./components/PinnedTerminalPanel").then((module) => ({ default: module.PinnedTerminalPanel })));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
 export function App() {
@@ -53,6 +55,7 @@ export function App() {
   const [drawerWidth, setDrawerWidth] = useState(initialUiState.drawerWidth ?? 520);
   const [sidebarWidth, setSidebarWidth] = useState(initialUiState.sidebarWidth ?? 236);
   const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
+  const [pinnedTerminal, setPinnedTerminal] = useState<PinnedTerminalTarget | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
   const loadResourcesRef = useRef<number | null>(null);
@@ -576,6 +579,18 @@ export function App() {
     window.addEventListener("mouseup", onUp, { once: true });
   }
 
+  function openPinnedTerminal(pod: ResourceRow, containers: string[], container: string) {
+    if (!activeCluster) return;
+    const next = { clusterId: activeCluster.id, clusterName: activeCluster.displayName, pod, containers, container };
+    const sameTarget =
+      pinnedTerminal?.clusterId === next.clusterId &&
+      pinnedTerminal.pod.namespace === pod.namespace &&
+      pinnedTerminal.pod.name === pod.name &&
+      pinnedTerminal.container === container;
+    if (pinnedTerminal && !sameTarget && !window.confirm("Close the current terminal and open a new session?")) return;
+    setPinnedTerminal(next);
+  }
+
   return (
     <div className="app-shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
       <LazyPanelBoundary resetKey={`${section}:${resourceTab}:${selectedPod?.uid ?? "none"}`}>
@@ -838,6 +853,7 @@ export function App() {
                     setSection("port-forwards");
                     setResourceTab("port-forwards");
                   }}
+                  onOpenTerminal={openPinnedTerminal}
                   onClose={() => setSelectedTarget(null)}
                   copyLabel={t("error.copy")}
                   settings={settings}
@@ -884,6 +900,16 @@ export function App() {
           />
         </Suspense>
       </LazyPanelBoundary>
+      {api && pinnedTerminal ? (
+        <Suspense fallback={null}>
+          <PinnedTerminalPanel
+            key={`${pinnedTerminal.clusterId}:${String(pinnedTerminal.pod.namespace)}:${pinnedTerminal.pod.name}:${pinnedTerminal.container}`}
+            api={api}
+            target={pinnedTerminal}
+            onClose={() => setPinnedTerminal(null)}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

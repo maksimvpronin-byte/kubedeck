@@ -105,6 +105,76 @@
   min-height: 0;
 }
 
+.pinned-terminal {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 40;
+  width: min(900px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 80px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 35%);
+  overflow: hidden;
+}
+
+.pinned-terminal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pinned-terminal > header > div:first-child {
+  display: grid;
+  min-width: 0;
+}
+
+.pinned-terminal > header span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinned-terminal-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.pinned-terminal-body {
+  min-height: 0;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.pinned-terminal-body > .pod-terminal,
+.pinned-terminal-body .xterm-host {
+  height: 100%;
+  min-height: 0;
+}
+
+.pinned-terminal.collapsed {
+  width: min(560px, calc(100vw - 32px));
+  height: auto;
+  grid-template-rows: auto 0;
+}
+
+.pinned-terminal.collapsed > header {
+  border-bottom: 0;
+}
+
+.pinned-terminal.collapsed .pinned-terminal-body {
+  visibility: hidden;
+  padding: 0;
+}
+
 .xterm-host .xterm {
   width: 100%;
   height: 100%;

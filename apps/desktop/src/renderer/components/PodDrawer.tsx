@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { ApiClient } from "../api";
 import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, ResourceRow, Settings } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
-import { TerminalTab } from "./TerminalTab";
 import { NodeSshTab } from "./NodeSshTab";
 import { LogsTab } from "./LogsTab";
 import { YamlTab } from "./YamlTab";
@@ -31,6 +30,7 @@ interface Props {
   onActionComplete: () => void;
   onOpenRelated: (resource: string, namespace: string, name: string) => void;
   onPortForwardStarted?: (session: PortForwardSession) => void;
+  onOpenTerminal: (pod: ResourceRow, containers: string[], container: string) => void;
   onClose: () => void;
   copyLabel: string;
   settings?: Settings;
@@ -43,7 +43,7 @@ interface Props {
   };
 }
 
-export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onClose, copyLabel, labels, settings, t }: Props) {
+export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onOpenTerminal, onClose, copyLabel, labels, settings, t }: Props) {
   const [tab, setTab] = useState<DrawerTab>("summary");
   const [applyResult, setApplyResult] = useState("");
   const [yamlStatus, setYamlStatus] = useState("");
@@ -57,9 +57,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   const [relatedResourceFilter, setRelatedResourceFilter] = useState("all");
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsDownloadLoading, setLogsDownloadLoading] = useState(false);
-  const [terminalContainer, setTerminalContainer] = useState("");
   const [terminalPickerOpen, setTerminalPickerOpen] = useState(false);
-  const [terminalConnectToken, setTerminalConnectToken] = useState(0);
   const [logsTail, setLogsTail] = useState(500);
   const [logsPrevious, setLogsPrevious] = useState(false);
   const [logsTimestamps, setLogsTimestamps] = useState(false);
@@ -121,7 +119,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setYamlApplyConfirmOpen(false);
     setApplyResult("");
     setYamlStatus("");
-    setTerminalContainer("");
     setTerminalPickerOpen(false);
     setLogsFollow(false);
     setLogsQuery("");
@@ -140,7 +137,6 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
     setLlmElapsedMs(0);
     setLlmContextChars(0);
     setLlmTruncated(false);
-    setTab((current) => (current === "terminal" ? "summary" : current));
   }, [currentObjectKey]);
 
   useEffect(() => {
@@ -414,10 +410,8 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       setTerminalPickerOpen(true);
       return;
     }
-    setTerminalContainer(containerName ?? containers[0] ?? "");
+    onOpenTerminal(pod, containers, containerName ?? containers[0] ?? "");
     setTerminalPickerOpen(false);
-    setTab("terminal");
-    setTerminalConnectToken((current) => current + 1);
   }
 
   function requestClose() {
@@ -562,20 +556,8 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
           />
         ) : tab === "secret" ? (
           <SecretTab api={api} clusterId={clusterId} row={pod} copyLabel={copyLabel} t={t} />
-        ) : tab === "terminal" ? (
-          isNodeResource ? (
-            <NodeSshTab api={api} clusterId={clusterId} node={pod} settings={settings} />
-          ) : (
-            <TerminalTab
-              api={api}
-              clusterId={clusterId}
-              pod={pod}
-              containers={containerNames(pod)}
-              container={terminalContainer}
-              setContainer={setTerminalContainer}
-              autoConnectToken={terminalConnectToken}
-            />
-          )
+        ) : tab === "terminal" && isNodeResource ? (
+          <NodeSshTab api={api} clusterId={clusterId} node={pod} settings={settings} />
         ) : (
           <>
             {loading ? <div className="muted">Loading...</div> : null}
