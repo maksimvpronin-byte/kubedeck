@@ -1,6 +1,6 @@
 # KubeDeck 2.5.0 — план удаления подтверждённого мусора
 
-Статус: два автоматических прохода и полный regression gate выполнены; подтверждённый мусор удалён, packaged visual smoke и оформление версии 2.5.0 отложены до выпуска.
+Статус: два автоматических прохода, пользовательский functional smoke и полный release gate 2.5.0 выполнены; остаётся проверка финальных packaged artifacts после их сборки.
 
 ## Цель
 
@@ -224,7 +224,7 @@ Baseline 2026-07-21 после выпуска 2.4.5:
 - [x] `npm run typecheck`.
 - [x] `npm run build`.
 - [x] `npm --workspace apps/desktop run test:gateway`; 73/73 tests.
-- [x] `npm run verify:release` для текущего baseline 2.4.5; повторить после оформления версии 2.5.0.
+- [x] `npm run verify:release` после оформления версии 2.5.0.
 - [x] `git diff --check`.
 - [x] Проверить `git status`: generated artifacts и несвязанные изменения отсутствуют.
 - [ ] Выполнить packaged smoke на поддерживаемых Windows и macOS перед выпуском artifacts.
@@ -234,7 +234,7 @@ Baseline 2026-07-21 после выпуска 2.4.5:
 - [x] Каждый удалённый кандидат имеет две записанные независимые проверки.
 - [x] Для каждого оставленного спорного кандидата записана причина.
 - [x] Действующие API, HTTP, WebSocket и shared type contracts не изменены; удалены только два неиспользуемых IPC channel.
-- [ ] Пользовательское поведение и внешний вид подтверждены packaged visual smoke.
+- [x] Пользовательское поведение и внешний вид подтверждены пользователем после functional smoke.
 - [x] Новые dependencies и speculative abstractions не добавлены.
 - [x] Итоговые числа файлов, LOC и dependencies не превышают baseline.
 - [x] Второй полный проход завершён.

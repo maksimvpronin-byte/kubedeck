@@ -1,3 +1,11 @@
+## 2.5.0 - Verified code cleanup
+
+- Removed an unreachable Pod Terminal pipes fallback while preserving the required PTY behavior.
+- Removed unused desktop IPC channels and the obsolete external Pod Shell script generator.
+- Removed unused shared migration types, stale restart diagnostics CSS and seven obsolete PowerShell maintenance scripts.
+- Completed two independent cleanup passes and retained ambiguous runtime, CSS, dependency and historical documentation owners.
+- Reduced maintained code and scripts by 1,120 lines without adding dependencies or changing active product behavior.
+
 ## 2.4.5 - Runtime correctness and bounded persistence
 
 - Bound bulk actions to the cluster where they were requested and discard stale confirmations after a cluster switch.
