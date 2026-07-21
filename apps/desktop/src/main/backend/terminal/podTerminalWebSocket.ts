@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import fs from "node:fs";
 import type { IncomingMessage } from "node:http";
 import path from "node:path";
@@ -12,7 +11,7 @@ import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { buildKubectlCommand, type BuiltKubectlCommand } from "../kubectl/command";
 import { KubectlError, sanitizeKubectlText, truncateKubectlText } from "../kubectl/errors";
-import type { KubectlRunner, SpawnProcess } from "../kubectl/runner";
+import type { KubectlRunner } from "../kubectl/runner";
 import { RequestValidationError, validateIdentifier } from "../validation";
 import { clampInteger, rawDataByteLength, rawDataText, safeSend } from "../webSocketMessages";
 
@@ -25,12 +24,10 @@ const MIN_ROWS = 5;
 const MAX_ROWS = 200;
 const MIN_COLS = 20;
 const MAX_COLS = 500;
-const STOP_TIMEOUT_MS = 1200;
 const ERROR_TEXT_LIMIT = 12_000;
 const EXTRA_PTY_PATH_DIRS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 
 type TerminalShell = "auto" | "sh" | "bash" | "ash";
-type TerminalTransport = "pty" | "pipes";
 
 export interface PodTerminalTarget {
   clusterId: string;
@@ -74,15 +71,13 @@ interface TerminalSession {
   id: string;
   target: PodTerminalTarget;
   socket: WebSocket;
-  transport: TerminalTransport;
+  transport: "pty";
   commandPreview: string;
   stop: (reason: string) => Promise<void>;
 }
 
 interface PodTerminalWebSocketOptions {
-  spawnProcess?: SpawnProcess;
   ptyFactory?: TerminalPtyFactory | null;
-  stopTimeoutMs?: number;
 }
 
 interface PtyCommand {
@@ -246,17 +241,6 @@ async function verifyTerminalAuthorization(configStore: ConfigStore, runner: Kub
   return result.commandPreview;
 }
 
-function waitForChildClose(child: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<void> {
-  if (child.exitCode !== null) return Promise.resolve();
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, timeoutMs);
-    child.once("close", () => {
-      clearTimeout(timer);
-      resolve();
-    });
-  });
-}
-
 export class PodTerminalWebSocketServer {
   private readonly server = new WebSocketServer({
     noServer: true,
@@ -264,9 +248,7 @@ export class PodTerminalWebSocketServer {
     maxPayload: MAX_CLIENT_MESSAGE_BYTES,
   });
   private readonly sessions = new Map<string, TerminalSession>();
-  private readonly spawnProcess: SpawnProcess;
   private readonly ptyFactory: TerminalPtyFactory | null;
-  private readonly stopTimeoutMs: number;
   private closed = false;
 
   constructor(
@@ -276,9 +258,7 @@ export class PodTerminalWebSocketServer {
     private readonly log: (message: string) => void,
     options: PodTerminalWebSocketOptions = {},
   ) {
-    this.spawnProcess = options.spawnProcess ?? (spawn as SpawnProcess);
     this.ptyFactory = options.ptyFactory === undefined ? loadNodePty(log) : options.ptyFactory;
-    this.stopTimeoutMs = options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
   }
 
   handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): boolean {
@@ -464,111 +444,6 @@ export class PodTerminalWebSocketServer {
     };
   }
 
-  private startPipeSession(id: string, socket: WebSocket, target: PodTerminalTarget): TerminalSession {
-    const command = terminalCommand(this.configStore, target, false);
-    const built = buildKubectlCommand(command);
-    const child = this.spawnPipeProcess(built);
-    let finished = false;
-    let stopping: Promise<void> | null = null;
-
-    const finish = async (reason: string, terminate: boolean): Promise<void> => {
-      if (stopping) return stopping;
-      stopping = (async () => {
-        if (finished) return;
-        finished = true;
-        if (terminate && child.exitCode === null && !child.killed) {
-          try {
-            child.kill("SIGTERM");
-          } catch {
-            // Best effort only.
-          }
-          const closed = waitForChildClose(child, this.stopTimeoutMs);
-          await closed;
-          if (child.exitCode === null) {
-            try {
-              child.kill("SIGKILL");
-            } catch {
-              // Best effort only.
-            }
-          }
-        }
-        this.completeSession(id, target, built, "pipes", reason, socket);
-      })();
-      return stopping;
-    };
-
-    child.stdout.on("data", (chunk: Buffer | string) => {
-      safeSend(socket, {
-        type: "output",
-        stream: "stdout",
-        data: Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk),
-      });
-    });
-    child.stderr.on("data", (chunk: Buffer | string) => {
-      safeSend(socket, {
-        type: "output",
-        stream: "stderr",
-        data: Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk),
-      });
-    });
-    child.on("error", (error: NodeJS.ErrnoException) => {
-      safeSend(socket, {
-        type: "error",
-        data: error.code === "ENOENT" ? `kubectl not found: ${command.kubectlPath}` : truncateKubectlText(sanitizeKubectlText(error.message), ERROR_TEXT_LIMIT),
-      });
-      void finish("Terminal process error", false);
-    });
-    child.on("close", (code) => {
-      void finish(`Terminal process exited with code ${code ?? -1}`, false);
-    });
-    child.stdin.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code !== "EPIPE") {
-        safeSend(socket, {
-          type: "error",
-          data: truncateKubectlText(sanitizeKubectlText(error.message), ERROR_TEXT_LIMIT),
-        });
-      }
-    });
-
-    socket.on("message", (data) => {
-      if (rawDataByteLength(data) > MAX_CLIENT_MESSAGE_BYTES) {
-        socket.close(1009, "Message too large");
-        return;
-      }
-      this.handleClientMessage(socket, rawDataText(data), {
-        input: (value) => {
-          if (!child.stdin.destroyed && child.stdin.writable) {
-            child.stdin.write(value, "utf8");
-          }
-        },
-        resize: () => undefined,
-        close: () => void finish("Closed by user", true),
-      });
-    });
-    socket.once("close", () => void finish("WebSocket closed", true));
-    socket.once("error", (error) => {
-      this.log(`node terminal websocket error: ${error.message}`);
-      void finish("WebSocket error", true);
-    });
-
-    return {
-      id,
-      target,
-      socket,
-      transport: "pipes",
-      commandPreview: built.preview,
-      stop: (reason) => finish(reason, true),
-    };
-  }
-
-  private spawnPipeProcess(built: BuiltKubectlCommand): ChildProcessWithoutNullStreams {
-    return this.spawnProcess(built.executable, built.args, {
-      shell: false,
-      windowsHide: true,
-      env: built.environment,
-    });
-  }
-
   private handleClientMessage(
     socket: WebSocket,
     text: string,
@@ -605,7 +480,7 @@ export class PodTerminalWebSocketServer {
     safeSend(socket, { type: "error", data: "Unsupported terminal message" });
   }
 
-  private completeSession(id: string, target: PodTerminalTarget, built: BuiltKubectlCommand, transport: TerminalTransport, reason: string, socket: WebSocket): void {
+  private completeSession(id: string, target: PodTerminalTarget, built: BuiltKubectlCommand, transport: "pty", reason: string, socket: WebSocket): void {
     const existed = this.sessions.delete(id);
     if (!existed) return;
     this.auditStore.append({

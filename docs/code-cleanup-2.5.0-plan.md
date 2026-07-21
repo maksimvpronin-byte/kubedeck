@@ -1,6 +1,6 @@
 # KubeDeck 2.5.0 — план удаления подтверждённого мусора
 
-Статус: план подготовлен, проверка кода не начата.
+Статус: два автоматических прохода и полный regression gate выполнены; подтверждённый мусор удалён, packaged visual smoke и оформление версии 2.5.0 отложены до выпуска.
 
 ## Цель
 
@@ -90,7 +90,11 @@
 
 | ID | Кандидат | Проверка 1 | Проверка 2 | Риск | Решение | Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| — | — | — | — | — | — | — |
+| C-01 | Неиспользуемый pipes fallback Pod Terminal | Единственный `startPipeSession` не имел вызовов | `tsc --noUnusedLocals` отметил функцию; PTY/unavailable contracts подтверждают действующий flow | Средний | удалить | targeted terminal 4/4 |
+| C-02 | IPC `getBackendUrl` и внешний `openPodShell` с генератором scripts | Renderer, tests, docs и scripts не имеют вызовов | Production build и terminal/auth contracts используют `getBackendAuth` + PTY WebSocket | Средний | удалить | build + targeted contracts |
+| C-03 | `GatewayRouteOwner`, `GatewayRouteTransport`, `GatewayMigrationStatus` в shared-types | Symbol scan показал только определения | Backend `/migration/status` использует отдельный действующий `MigrationStatus`; typecheck/build проходят | Низкий | удалить | typecheck + build |
+| C-04 | Семь repair/validate/finalize/cleanup PowerShell scripts старого layout | Действующих ссылок нет | Scripts требуют 1.0.x, Python backend или отсутствующие каталоги и противоречат Node-only release contract | Низкий | удалить | node-only/release contracts |
+| C-05 | Старый CSS-блок `restart-diagnostics-*` | Selectors существуют только в CSS | Текущий `ResourceSummary` использует `pod-restart-*`; renderer contracts и build проходят | Низкий | удалить | renderer 27/27 + build |
 
 Допустимые решения: `удалить`, `оставить`, `отложить`. Для `оставить` и `отложить` обязательно записать краткую причину.
 
@@ -99,8 +103,8 @@
 - [x] Зафиксировать baseline: tracked files, строки production/test-кода и размеры build chunks.
 - [x] Составить карту root scripts, Electron main/preload/renderer entrypoints и Gateway routes.
 - [x] Отметить dynamic и string-based связи, которые статический анализ может пропустить.
-- [ ] Зафиксировать platform-only, migration, recovery и release-only владельцев.
-- [ ] Не удалять код на этом этапе.
+- [x] Зафиксировать platform-only, migration, recovery и release-only владельцев.
+- [x] Не удалять код на этом этапе.
 
 Критерий готовности: дальнейшие поиски опираются на полную карту входов, а не только на TypeScript imports.
 
@@ -182,13 +186,24 @@ Baseline 2026-07-21 после выпуска 2.4.5:
 
 После первого цикла и всех принятых удалений провести проверку проекта заново, начиная от entrypoints.
 
-- [ ] Повторно построить список файлов, exports, dependencies, scripts, selectors, locale keys и assets.
-- [ ] Проверить новые сироты, появившиеся после удаления их последних потребителей.
-- [ ] Каждый новый кандидат снова провести через две независимые проверки.
-- [ ] Сравнить baseline и итог: production/test LOC, число файлов, dependencies и build chunks.
-- [ ] Если второй проход не находит доказанного мусора, завершить удаление.
+- [x] Повторно построить список файлов, exports, dependencies, scripts, selectors, locale keys и assets.
+- [x] Проверить новые сироты, появившиеся после удаления их последних потребителей.
+- [x] Каждый новый кандидат снова провести через две независимые проверки.
+- [x] Сравнить baseline и итог: production/test LOC, число файлов, dependencies и build chunks.
+- [x] Если второй проход не находит доказанного мусора, завершить удаление.
 
 Второй полный проход не заменяет две проверки кандидата: это дополнительный контроль всей уборки.
+
+Результат второго прохода:
+
+- `tsc --noUnusedLocals --noUnusedParameters` чист для main/preload и renderer;
+- import graph не нашёл сирот, кроме `theme-bootstrap.js`, напрямую подключённого `index.html` и присутствующего в production build;
+- exported-symbol scan и locale-key scan не нашли новых кандидатов;
+- все 20 test-файлов входят в package scripts; доказуемых дублирующих контрактов нет;
+- dependencies имеют runtime, build, test или CLI-владельцев; удаления не требуются;
+- tracked generated artifacts отсутствуют, `dist` и `release` корректно игнорируются;
+- итоговый diff до release-документов: 14 файлов, 3 добавленные и 1 120 удалённых строк;
+- renderer CSS bundle уменьшился с 115,44 до 113,20 КБ без изменения JS chunks.
 
 ## Правила внесения изменений
 
@@ -203,27 +218,27 @@ Baseline 2026-07-21 после выпуска 2.4.5:
 
 ## Полный regression gate
 
-- [ ] `npm run lint`.
-- [ ] `npm run format:check`.
-- [ ] `npm run test:renderer`.
-- [ ] `npm run typecheck`.
-- [ ] `npm run build`.
-- [ ] `npm --workspace apps/desktop run test:gateway`.
-- [ ] `npm run verify:release` после оформления версии 2.5.0.
-- [ ] `git diff --check`.
-- [ ] Проверить `git status`: generated artifacts и несвязанные изменения отсутствуют.
+- [x] `npm run lint`.
+- [x] `npm run format:check`.
+- [x] `npm run test:renderer`; 27/27 tests.
+- [x] `npm run typecheck`.
+- [x] `npm run build`.
+- [x] `npm --workspace apps/desktop run test:gateway`; 73/73 tests.
+- [x] `npm run verify:release` для текущего baseline 2.4.5; повторить после оформления версии 2.5.0.
+- [x] `git diff --check`.
+- [x] Проверить `git status`: generated artifacts и несвязанные изменения отсутствуют.
 - [ ] Выполнить packaged smoke на поддерживаемых Windows и macOS перед выпуском artifacts.
 
 ## Критерии приёмки 2.5.0
 
-- [ ] Каждый удалённый кандидат имеет две записанные независимые проверки.
-- [ ] Для каждого оставленного спорного кандидата записана причина.
-- [ ] Публичные API, IPC, HTTP, WebSocket и shared type contracts не изменены.
-- [ ] Пользовательское поведение и внешний вид не изменены.
-- [ ] Новые dependencies и speculative abstractions не добавлены.
-- [ ] Итоговые числа файлов, LOC и dependencies не превышают baseline; исключения объяснены.
-- [ ] Второй полный проход завершён.
-- [ ] Полный regression gate и packaged smoke пройдены.
+- [x] Каждый удалённый кандидат имеет две записанные независимые проверки.
+- [x] Для каждого оставленного спорного кандидата записана причина.
+- [x] Действующие API, HTTP, WebSocket и shared type contracts не изменены; удалены только два неиспользуемых IPC channel.
+- [ ] Пользовательское поведение и внешний вид подтверждены packaged visual smoke.
+- [x] Новые dependencies и speculative abstractions не добавлены.
+- [x] Итоговые числа файлов, LOC и dependencies не превышают baseline.
+- [x] Второй полный проход завершён.
+- [ ] Полный regression gate и packaged smoke пройдены; автоматическая часть завершена.
 
 ## Оставлено
 
@@ -231,4 +246,8 @@ Baseline 2026-07-21 после выпуска 2.4.5:
 
 | Кандидат | Причина оставить | Условие повторной проверки |
 | --- | --- | --- |
-| — | — | — |
+| `theme-bootstrap.js` | Загружается напрямую из `index.html`, до React восстанавливает тему и копируется в production build | Только при замене раннего theme bootstrap другим механизмом |
+| Dynamic/xterm CSS selectors | `is-*` создаются шаблонно, `xterm-*` создаёт библиотека | Удалять только с DOM coverage и visual smoke |
+| Смешанные `*-polish.css` overrides | Часть selectors устарела, но правила объединены с действующими владельцами | Разбирать отдельным visual cleanup на всех темах |
+| CLI и `@types` dependencies | Используются package scripts, TypeScript или platform packaging без прямого import | Повторить после удаления соответствующего workflow/tool |
+| Исторические release notes/checklists | Политика хранения истории отдельно не менялась | Удалять только после отдельного решения о retention документации |

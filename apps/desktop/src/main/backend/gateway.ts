@@ -562,7 +562,6 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     kubectlRunner,
     options.log,
     {
-      spawnProcess: options.spawnKubectl,
       ptyFactory: options.terminalPtyFactory,
     },
   );

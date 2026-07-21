@@ -15,11 +15,6 @@ let quitAfterGatewayShutdown = false;
 
 type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
 
-type BackendConfig = {
-  clusters: Array<{ id: string; kubeconfigPath: string }>;
-  settings: { kubectlPath: string };
-};
-
 const SENSITIVE_MARKERS = [
   "token",
   "password",
@@ -170,7 +165,6 @@ function isAllowedRendererNavigation(url: string, devUrl: string) {
 }
 
 ipcMain.handle("kubedeck:getBackendAuth", () => ({ baseUrl: gatewayUrl, token: gatewaySessionToken }));
-ipcMain.handle("kubedeck:getBackendUrl", () => gatewayUrl);
 ipcMain.handle("kubedeck:selectKubeconfig", async () => {
   const result = await dialog.showOpenDialog({
     title: "Select kubeconfig",
@@ -215,149 +209,6 @@ ipcMain.handle("kubedeck:getDesktopInfo", () => ({
     kubeconfigs: kubeconfigsDir(),
   },
 }));
-ipcMain.handle("kubedeck:openPodShell", async (_event, rawRequest: unknown) => {
-  if (!rawRequest || typeof rawRequest !== "object") throw new Error("Invalid pod shell request");
-  const request = rawRequest as Record<string, unknown>;
-  if (typeof request.clusterId !== "string" || typeof request.namespace !== "string" || typeof request.pod !== "string") {
-    throw new Error("Invalid pod shell request");
-  }
-  if (request.container !== undefined && typeof request.container !== "string") throw new Error("Invalid pod shell container");
-  assertSafeKubernetesName(request.namespace, "namespace");
-  assertSafeKubernetesName(request.pod, "pod");
-  if (request.container) assertSafeKubernetesName(request.container, "container");
-
-  const config = await fetchBackendConfig();
-  const cluster = config.clusters.find((item) => item.id === request.clusterId);
-  if (!cluster) throw new Error("Cluster not found");
-  const kubectlPath = config.settings.kubectlPath;
-  const kubeconfigPath = cluster.kubeconfigPath;
-  if (!isSafeKubectlPath(kubectlPath)) throw new Error("Unsafe kubectl path in settings");
-  if (!fs.existsSync(kubeconfigPath)) throw new Error("Kubeconfig file not found");
-
-  const dir = path.join(appDataRoot(), "terminals");
-  fs.mkdirSync(dir, { recursive: true });
-  cleanupOldTerminalScripts(dir);
-  if (process.platform !== "win32" && process.platform !== "darwin") {
-    throw new Error("External Pod Shell is supported only on Windows and macOS");
-  }
-
-  const isMac = process.platform === "darwin";
-  const scriptPath = path.join(
-    dir,
-    `kubedeck-shell-${Date.now()}${isMac ? ".command" : ".cmd"}`,
-  );
-
-  if (isMac) {
-    const args = [
-      quotePosixArg(kubectlPath),
-      "--kubeconfig",
-      quotePosixArg(kubeconfigPath),
-      "exec",
-      "-i",
-      "-t",
-      "-n",
-      quotePosixArg(request.namespace),
-      quotePosixArg(request.pod),
-      ...(request.container ? ["-c", quotePosixArg(request.container)] : []),
-      "--",
-      "sh",
-      "-c",
-      quotePosixArg("clear; (bash || sh || ash)"),
-    ];
-    const body = [
-      "#!/bin/zsh",
-      "clear",
-      `printf '\\033]0;KubeDeck shell: ${request.namespace}/${request.pod}\\007'`,
-      args.join(" "),
-      "status=$?",
-      "echo",
-      'echo "Session closed."',
-      'printf "Press Enter to exit..."',
-      "read -r",
-      'exit "$status"',
-      "",
-    ].join("\n");
-    fs.writeFileSync(scriptPath, body, "utf-8");
-    fs.chmodSync(scriptPath, 0o700);
-  } else {
-    const args = [
-      quoteCmdArg(kubectlPath),
-      "--kubeconfig",
-      quoteCmdArg(kubeconfigPath),
-      "exec",
-      "-i",
-      "-t",
-      "-n",
-      quoteCmdArg(request.namespace),
-      quoteCmdArg(request.pod),
-      ...(request.container ? ["-c", quoteCmdArg(request.container)] : []),
-      "--",
-      "sh",
-      "-c",
-      quoteCmdArg("clear; (bash || sh || ash)"),
-    ];
-    const body = [
-      "@echo off",
-      "chcp 65001 >nul",
-      `title KubeDeck shell: ${request.namespace}/${request.pod}`,
-      args.join(" "),
-      "echo.",
-      "echo Session closed. Press any key to exit.",
-      "pause >nul",
-      "",
-    ].join("\r\n");
-    fs.writeFileSync(scriptPath, body, "utf-8");
-  }
-  const openError = await shell.openPath(scriptPath);
-  if (openError) throw new Error(openError);
-  logDesktop(`open pod shell cluster=${request.clusterId} namespace=${request.namespace} pod=${request.pod} container=${request.container ?? ""}`);
-});
-
-async function fetchBackendConfig(): Promise<BackendConfig> {
-  if (!gatewayUrl || !gatewaySessionToken) throw new Error("Backend is not ready");
-  const response = await fetch(`${gatewayUrl}/config`, { headers: { "X-KubeDeck-Token": gatewaySessionToken } });
-  if (!response.ok) throw new Error(`Backend config request failed: ${response.status}`);
-  return (await response.json()) as BackendConfig;
-}
-
-function isSafeKubectlPath(value: string) {
-  const text = String(value || "").trim();
-  if (text === "kubectl" || text === "kubectl.exe") return true;
-  return ["kubectl", "kubectl.exe"].includes(path.basename(text).toLowerCase()) && fs.existsSync(text);
-}
-
-function assertSafeKubernetesName(value: string, field: string) {
-  if (!/^[a-zA-Z0-9_.-]+$/.test(value)) {
-    throw new Error(`Unsafe ${field} value`);
-  }
-}
-
-function quoteCmdArg(value: string) {
-  return `"${String(value).replace(/"/g, '""')}"`;
-}
-
-function quotePosixArg(value: string) {
-  return `'${String(value).replace(/'/g, "'\\''")}'`;
-}
-
-function cleanupOldTerminalScripts(dir: string) {
-  const maxAgeMs = 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  try {
-    for (const entry of fs.readdirSync(dir)) {
-      if (
-        !entry.startsWith("kubedeck-shell-") ||
-        (!entry.endsWith(".cmd") && !entry.endsWith(".command"))
-      ) continue;
-      const file = path.join(dir, entry);
-      const stat = fs.statSync(file);
-      if (now - stat.mtimeMs > maxAgeMs) fs.rmSync(file, { force: true });
-    }
-  } catch (error) {
-    logDesktop(`terminal script cleanup failed: ${String(error)}`);
-  }
-}
-
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!gotSingleInstanceLock) {

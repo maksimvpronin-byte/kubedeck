@@ -60,13 +60,3 @@ export interface ErrorInfo {
   rawStderr: string;
   commandPreview: string;
 }
-
-export type GatewayRouteOwner = "node" | "python";
-export type GatewayRouteTransport = "http" | "websocket";
-
-export interface GatewayMigrationStatus {
-  mode: "hybrid" | "node-only";
-  gateway: { runtime: "node"; version: string; processId: number; nodeVersion: string };
-  legacyBackend: { enabled: boolean; healthy: boolean; processId?: number };
-  routes: { totalExisting: number; nodeOwned: number; pythonOwned: number };
-}
