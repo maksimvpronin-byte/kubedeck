@@ -1,3 +1,9 @@
+## 2.5.2 - Large resource pages and namespace search
+
+- Added a 2,000-row page size while retaining the 200-row default and all existing choices.
+- Kept selected namespaces visible while searching so the active selection can be replaced without clearing the query.
+- Preserved backend loading, watch behavior, multi-select and per-cluster namespace state.
+
 ## 2.5.1 - Pod watch load and sticky table headers
 
 - Disabled interval polling while the live resource watch is healthy and retained the configured polling fallback after watch failure.

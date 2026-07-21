@@ -82,6 +82,17 @@ test("namespace selector keeps complete long names readable", () => {
   assert.doesNotMatch(layout, /\.namespace-menu-label\s*\{[^}]*(?:text-overflow|overflow-wrap):/s);
 });
 
+test("namespace search keeps selected namespaces visible", () => {
+  const model = loadTypeScript("components/NamespaceSelector.tsx", {
+    "lucide-react": { ChevronDown: () => null, Search: () => null, X: () => null },
+  });
+  const namespaces = ["default", "netshoot", "payments", "production"];
+  assert.deepEqual(model.filterNamespaces(namespaces, ["netshoot"], "pay"), ["netshoot", "payments"]);
+  assert.deepEqual(model.filterNamespaces(namespaces, ["payments"], "pay"), ["payments"]);
+  assert.deepEqual(model.filterNamespaces(namespaces, ["netshoot"], ""), namespaces);
+  assert.deepEqual(model.filterNamespaces(namespaces, [], "missing"), []);
+});
+
 test("cluster selector uses the themed in-app menu instead of a native select", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/ClusterSelector.tsx"), "utf8");
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
@@ -673,6 +684,13 @@ test("resource table keeps one sticky header inside its scroll container", () =>
   assert.equal((table.match(/<colgroup>/g) ?? []).length, 1);
   assert.match(table, /<div className="table-scroll">[\s\S]*<thead>/);
   assert.match(styles, /\.resource-table th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;[^}]*z-index:\s*\d+;[^}]*background:\s*var\(--table-head\);/s);
+});
+
+test("resource table offers a 2000 row page without changing its default", () => {
+  const state = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
+  assert.match(state, /PAGE_SIZE_OPTIONS\s*=\s*\[50, 100, 200, 500, 1000, 2000\]/);
+  assert.match(state, /DEFAULT_PAGE_SIZE\s*=\s*200/);
+  assert.match(state, /visibleRows\.slice\(pageStart, pageStart \+ pageSize\)/);
 });
 
 test("lazy panel boundary resets its failure after navigation", () => {
