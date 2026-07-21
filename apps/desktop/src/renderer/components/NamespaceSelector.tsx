@@ -25,11 +25,7 @@ export function NamespaceSelector({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const normalized = normalizeNamespaceSelection(selected);
-  const filteredNamespaces = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return namespaces;
-    return namespaces.filter((namespace) => namespace.toLowerCase().includes(needle));
-  }, [namespaces, query]);
+  const filteredNamespaces = useMemo(() => filterNamespaces(namespaces, selected, query), [namespaces, selected, query]);
   const isAll = normalized.includes("all");
   const isClusterScoped = normalized.includes("_cluster");
   const label = isClusterScoped
@@ -116,6 +112,13 @@ export function NamespaceSelector({
       ) : null}
     </div>
   );
+}
+
+export function filterNamespaces(namespaces: string[], selected: string[], query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return namespaces;
+  const selectedSet = new Set(normalizeNamespaceSelection(selected));
+  return namespaces.filter((namespace) => selectedSet.has(namespace) || namespace.toLowerCase().includes(needle));
 }
 
 function normalizeNamespaceSelection(value: string | string[]) {

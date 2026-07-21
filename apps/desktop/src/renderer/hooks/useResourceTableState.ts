@@ -9,7 +9,7 @@ export interface ResourceTableColumn {
   label: string;
 }
 
-export const PAGE_SIZE_OPTIONS = [50, 100, 200, 500, 1000];
+export const PAGE_SIZE_OPTIONS = [50, 100, 200, 500, 1000, 2000];
 const DEFAULT_PAGE_SIZE = 200;
 const COMPACT_TABLE_WIDTH = 920;
 const NARROW_TABLE_WIDTH = 760;
