@@ -782,6 +782,11 @@ test("activating a saved resource tab preserves the namespace selector", () => {
   assert.doesNotMatch(activation, /setRows\(/);
 });
 
+test("transient resource drawer occupies the workspace content row without saved tabs", () => {
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
+  assert.match(styles, /\.resource-workspace\s*>\s*\.drawer\s*\{[^}]*grid-row:\s*2;/s);
+});
+
 test("lazy panel boundary resets its failure after navigation", () => {
   class Component {
     constructor(props) {

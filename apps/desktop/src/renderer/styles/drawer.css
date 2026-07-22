@@ -23,6 +23,7 @@
 }
 
 .resource-workspace > .drawer {
+  grid-row: 2;
   width: 100% !important;
   min-width: 0;
   border-left: 0;
