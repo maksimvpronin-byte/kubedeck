@@ -124,7 +124,24 @@
   min-height: min(320px, calc(100vh - 80px));
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 32px);
-  resize: both;
+  resize: none;
+}
+
+.pinned-terminal-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  border-top: 3px solid var(--primary-border);
+  border-left: 3px solid var(--primary-border);
+  border-radius: 8px 0 0;
+}
+
+.pinned-terminal-resize-handle:hover {
+  border-color: var(--primary);
 }
 
 .pinned-terminal > header {

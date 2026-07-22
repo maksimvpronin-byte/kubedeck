@@ -42,8 +42,25 @@ export function PinnedTerminalPanel({ api, target, onClose }: { api: ApiClient; 
     };
   }, [collapsed]);
 
+  function startResize(event: React.MouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startSize = size;
+    const move = (moveEvent: MouseEvent) => {
+      setSize(resizePinnedTerminal(startSize, startX - moveEvent.clientX, startY - moveEvent.clientY, window.innerWidth - 32, window.innerHeight - 32));
+    };
+    const stop = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", stop);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", stop, { once: true });
+  }
+
   return (
     <section ref={panelRef} className={`pinned-terminal ${collapsed ? "collapsed" : ""}`} style={collapsed ? undefined : { width: size.width, height: size.height }} aria-label={`Terminal ${namespace}/${target.pod.name}`}>
+      {!collapsed ? <div className="pinned-terminal-resize-handle" onMouseDown={startResize} role="separator" aria-label="Resize terminal" /> : null}
       <header>
         <div>
           <strong>Terminal</strong>
@@ -61,4 +78,11 @@ export function PinnedTerminalPanel({ api, target, onClose }: { api: ApiClient; 
       </div>
     </section>
   );
+}
+
+export function resizePinnedTerminal(size: { width: number; height: number }, widthDelta: number, heightDelta: number, maxWidth: number, maxHeight: number) {
+  return {
+    width: Math.min(maxWidth, Math.max(420, size.width + widthDelta)),
+    height: Math.min(maxHeight, Math.max(320, size.height + heightDelta)),
+  };
 }

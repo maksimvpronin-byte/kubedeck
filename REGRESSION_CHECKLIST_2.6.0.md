@@ -21,7 +21,7 @@
 - [x] Target содержит cluster, namespace, pod и container identity.
 - [x] Повторный запуск другого target требует подтверждения.
 - [x] Pod drawer больше не владеет `TerminalTab`.
-- [x] Native resize сохраняет ширину и высоту через существующий UI state.
+- [x] Видимый drag-handle сохраняет ширину и высоту через существующий UI state.
 - [x] Новые зависимости и backend routes отсутствуют.
 
 ## Manual smoke
