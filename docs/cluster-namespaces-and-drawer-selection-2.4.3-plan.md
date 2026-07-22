@@ -167,8 +167,8 @@ Lifecycle drawer уже использует identity `cluster/resource/namespac
 - [x] Синхронизировать `2.4.3` в root, desktop, shared package и lock-файле.
 - [x] Обновить README и README.ru.
 - [x] Обновить CHANGELOG и Node migration status.
-- [x] Создать `RELEASE_NOTES_2.4.3.md`.
-- [x] Создать `REGRESSION_CHECKLIST_2.4.3.md`.
+- [x] Создать `docs/releases/RELEASE_NOTES_2.4.3.md`.
+- [x] Создать `docs/releases/REGRESSION_CHECKLIST_2.4.3.md`.
 - [x] Проверить одинаковую версию и artifact naming для macOS и Windows через release contract.
 - [x] Собрать macOS arm64 DMG/ZIP и автоматически проверить payload.
 - [ ] Собрать Windows Portable x64 позже на Windows.

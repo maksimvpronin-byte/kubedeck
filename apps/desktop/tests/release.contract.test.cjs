@@ -22,8 +22,8 @@ test("KubeDeck release metadata stays synchronized", () => {
   const lock = readJson("package-lock.json");
   const readme = read("README.md");
   const progress = read("NODE_MIGRATION_PROGRESS.md");
-  const notes = read(`RELEASE_NOTES_${expectedVersion}.md`);
-  const checklist = read(`REGRESSION_CHECKLIST_${expectedVersion}.md`);
+  const notes = read(`docs/releases/RELEASE_NOTES_${expectedVersion}.md`);
+  const checklist = read(`docs/releases/REGRESSION_CHECKLIST_${expectedVersion}.md`);
   const windowsVersionScript = read("scripts/set-version.ps1");
   const attributes = read(".gitattributes");
 

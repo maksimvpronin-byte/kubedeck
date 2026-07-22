@@ -193,8 +193,8 @@ Baseline-карта: Resource Table использует Promise из `useResour
 - [x] Синхронизировать `2.4.0` в root, desktop, shared package и lock-файле.
 - [x] Обновить README и README.ru.
 - [x] Обновить CHANGELOG.
-- [x] Создать `RELEASE_NOTES_2.4.0.md`.
-- [x] Создать `REGRESSION_CHECKLIST_2.4.0.md`.
+- [x] Создать `docs/releases/RELEASE_NOTES_2.4.0.md`.
+- [x] Создать `docs/releases/REGRESSION_CHECKLIST_2.4.0.md`.
 - [x] Обновить актуальные ссылки и версию в Node migration/release документации.
 - [x] Проверить Windows/macOS artifact naming через release contract.
 - [x] Собрать и автоматически проверить macOS arm64 DMG/ZIP.

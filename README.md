@@ -225,6 +225,6 @@ macOS:
 
 ## Documentation
 
-- [Release notes 2.7.3](./RELEASE_NOTES_2.7.3.md)
-- [Regression checklist 2.7.3](./REGRESSION_CHECKLIST_2.7.3.md)
+- [Release notes 2.7.3](./docs/releases/RELEASE_NOTES_2.7.3.md)
+- [Regression checklist 2.7.3](./docs/releases/REGRESSION_CHECKLIST_2.7.3.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)

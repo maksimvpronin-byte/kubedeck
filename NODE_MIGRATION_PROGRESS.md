@@ -50,7 +50,7 @@
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.7.3.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.7.3.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
