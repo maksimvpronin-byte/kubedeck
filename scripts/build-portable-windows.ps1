@@ -99,6 +99,14 @@ function Test-NpmDependenciesReady {
             return $false
         }
     }
+    $DesktopPackage = Read-JsonFile -Path (Join-Path $Root "apps\desktop\package.json")
+    foreach ($Dependency in $DesktopPackage.dependencies.PSObject.Properties.Name) {
+        $ModulePath = $Dependency.Replace('/', '\')
+        if (-not (Test-Path -LiteralPath (Join-Path $Root "node_modules\$ModulePath")) -and
+            -not (Test-Path -LiteralPath (Join-Path $Root "apps\desktop\node_modules\$ModulePath"))) {
+            return $false
+        }
+    }
     return $true
 }
 
@@ -107,18 +115,19 @@ function Ensure-NpmDependencies {
         [Parameter(Mandatory = $true)][string]$Root,
         [switch]$Install
     )
-    if (Test-NpmDependenciesReady -Root $Root) {
-        Write-Ok "npm build tools OK."
+    if ($Install) {
+        Write-Info "Installing npm dependencies because -InstallNpmDeps was specified."
+        Invoke-Native -FilePath "npm.cmd" -Arguments @("ci", "--no-audit", "--no-fund")
+        if (-not (Test-NpmDependenciesReady -Root $Root)) {
+            throw "npm dependencies are still incomplete after npm ci."
+        }
+        Write-Ok "npm dependencies installed."
         return
     }
-    if (-not $Install) {
+    if (-not (Test-NpmDependenciesReady -Root $Root)) {
         throw "npm dependencies are incomplete. Run 'npm.cmd ci --no-audit --no-fund', or rerun with -InstallNpmDeps."
     }
-    Write-Info "Installing npm dependencies because -InstallNpmDeps was specified."
-    Invoke-Native -FilePath "npm.cmd" -Arguments @("ci", "--no-audit", "--no-fund")
-    if (-not (Test-NpmDependenciesReady -Root $Root)) {
-        throw "npm dependencies are still incomplete after npm ci."
-    }
+    Write-Ok "npm dependencies OK."
 }
 
 function Ensure-RolldownNativeModule {

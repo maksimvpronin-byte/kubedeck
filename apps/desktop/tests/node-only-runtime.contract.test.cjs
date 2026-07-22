@@ -85,6 +85,10 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
     builderSource,
     /PyInstaller|pip\s+install|requirements\.txt|apps[\\/]backend|\.build-venv|\bpy\s+-3\b/,
   );
+  assert.match(builderSource, /foreach \(\$Dependency in \$DesktopPackage\.dependencies\.PSObject\.Properties\.Name\)/);
+  const installBranch = builderSource.indexOf("if ($Install)");
+  const readyCheck = builderSource.indexOf("if (-not (Test-NpmDependenciesReady -Root $Root))", installBranch);
+  assert.ok(installBranch >= 0 && readyCheck > installBranch, "-InstallNpmDeps must run npm ci before accepting existing build tools");
   assert.match(builderSource, /verify-node-only\.ps1/);
   assert.doesNotMatch(
     setupSource,
