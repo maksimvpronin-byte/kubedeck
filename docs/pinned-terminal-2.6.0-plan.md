@@ -19,6 +19,7 @@
 - После запуска terminal живёт на уровне `App`, независимо от текущего drawer и выбранного ресурса.
 - Постоянная вкладка показывает cluster, namespace, pod и container.
 - Терминал можно открыть, свернуть, развернуть и явно закрыть.
+- Размер панели можно менять вручную; последняя ширина и высота восстанавливаются при следующем запуске terminal.
 - Навигация между Pods и другими ресурсами не размонтирует terminal.
 - Переключение активного cluster не закрывает terminal; вкладка явно показывает исходный cluster.
 - Закрытие вкладки завершает WebSocket и освобождает xterm.
@@ -56,12 +57,14 @@
 - [x] Смена cluster не переназначает terminal на новый cluster.
 - [x] Повторный запуск не создаёт две скрытые сессии.
 - [x] Paste остаётся на единственном xterm input path.
+- [x] Native resize сохраняет ширину и высоту в существующем UI state.
 
 ## Ручной smoke
 
 - [ ] Запустить netshoot terminal и выполнить команду.
 - [ ] Открыть другой Pod, Service, Deployment и Node; terminal продолжает работать.
 - [ ] Свернуть и вернуть terminal; вывод и ввод сохранены.
+- [ ] Изменить ширину и высоту, закрыть terminal и открыть снова; размер восстановлен.
 - [ ] Переключить cluster; terminal исходного cluster доступен и правильно подписан.
 - [ ] Закрыть terminal и подтвердить завершение сессии.
 - [ ] Запустить terminal повторно для другого pod/container.
@@ -70,7 +73,7 @@
 
 - [x] `npm run lint`.
 - [x] `npm run format:check`.
-- [x] `npm run test:renderer` — 32/32.
+- [x] `npm run test:renderer` — 33/33.
 - [x] `npm run typecheck`.
 - [x] `npm run build`.
 - [x] `npm --workspace apps/desktop run test:gateway` — 73/73.

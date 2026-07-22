@@ -132,6 +132,17 @@ test("pinned Pod Terminal is owned outside resource drawer navigation", () => {
   assert.match(panel, /<TerminalTab/);
 });
 
+test("pinned Pod Terminal supports native resize and persists its dimensions", () => {
+  const panel = fs.readFileSync(path.join(rendererRoot, "components/PinnedTerminalPanel.tsx"), "utf8");
+  const uiState = fs.readFileSync(path.join(rendererRoot, "uiState.ts"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
+  assert.match(uiState, /pinnedTerminalWidth\?: number/);
+  assert.match(uiState, /pinnedTerminalHeight\?: number/);
+  assert.match(panel, /new ResizeObserver/);
+  assert.match(panel, /saveUiState\(\{ \.\.\.loadUiState\(\), pinnedTerminalWidth: width, pinnedTerminalHeight: height \}\)/);
+  assert.match(styles, /\.pinned-terminal\s*\{[^}]*resize:\s*both;/s);
+});
+
 test("theme preferences normalize legacy values and resolve System safely", () => {
   const model = loadTypeScript("utils/theme.ts");
   const darkMedia = { matches: true };
