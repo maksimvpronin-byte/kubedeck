@@ -12,7 +12,7 @@ const SECRET_JSON_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 export const SECRET_VALUE_MAX_BYTES = 2 * 1024 * 1024;
 const SECRET_REQUEST_MAX_BYTES = 64 * 1024;
 
-export type SecretOperation = "keys" | "reveal" | "copy";
+export type SecretOperation = "keys" | "reveal" | "copy" | "update";
 
 export interface SecretRouteTarget {
   clusterId: string;
@@ -44,7 +44,7 @@ export function matchSecretRoute(
   pathname: string,
 ): SecretRouteTarget | null {
   const match = pathname.match(
-    /^\/clusters\/([^/]+)\/secrets\/([^/]+)\/([^/]+)\/(keys|reveal|copy)$/,
+    /^\/clusters\/([^/]+)\/secrets\/([^/]+)\/([^/]+)\/(keys|reveal|copy|update)$/,
   );
   if (!match) return null;
 
@@ -297,6 +297,27 @@ async function writeSecretCopy(
   writeJson(response, { ok: true });
 }
 
+async function writeSecretUpdate(request: IncomingMessage, response: ServerResponse, target: SecretRouteTarget, configStore: ConfigStore, auditStore: AuditStore, runner: KubectlRunner) {
+  const body = await readJsonBody(request, SECRET_VALUE_MAX_BYTES + SECRET_REQUEST_MAX_BYTES);
+  if (!isRecord(body) || typeof body.key !== "string" || typeof body.value !== "string") throw new RequestValidationError(422, "INVALID_REQUEST", "Request body must contain key and value");
+  const key = validateIdentifier(body.key, "secret key", 512);
+  const bytes = Buffer.byteLength(body.value, "utf8");
+  if (bytes > SECRET_VALUE_MAX_BYTES) throw new RequestValidationError(413, "SECRET_VALUE_TOO_LARGE", "Secret value is too large");
+  const secret = await loadSecretRaw(target, configStore, runner);
+  if (secret.immutable === true) throw new RequestValidationError(409, "SECRET_IMMUTABLE", "Immutable Secret cannot be updated");
+  const data = secretDataMap(secret);
+  if (!Object.hasOwn(data, key)) throw new RequestValidationError(404, "SECRET_KEY_NOT_FOUND", "Secret key was not found");
+  const metadata = isRecord(secret.metadata) ? secret.metadata : {};
+  const resourceVersion = String(metadata.resourceVersion || "");
+  const escape = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
+  const patch = JSON.stringify([{ op: "test", path: "/metadata/resourceVersion", value: resourceVersion }, { op: "replace", path: `/data/${escape(key)}`, value: Buffer.from(body.value, "utf8").toString("base64") }]);
+  const command = clusterCommand(configStore, target.clusterId, ["patch", "secret", target.name, "-n", target.namespace, "--type=json", "--patch-file=-"], 30, SECRET_JSON_MAX_OUTPUT_BYTES);
+  command.stdinText = patch;
+  await runner.run(command);
+  auditStore.append({ action: "secret.update", status: "success", clusterId: target.clusterId, namespace: target.namespace, resource: "secrets", name: target.name, extra: { key, decodedBytes: bytes } });
+  writeJson(response, { ok: true });
+}
+
 function writeRouteError(
   response: ServerResponse,
   error: unknown,
@@ -358,7 +379,9 @@ export function handleSecretRequest(
         auditStore,
         runner,
       )
-      : writeSecretCopy(request, response, target, auditStore);
+      : target.operation === "copy"
+        ? writeSecretCopy(request, response, target, auditStore)
+        : writeSecretUpdate(request, response, target, configStore, auditStore, runner);
 
   void operation.catch((error) => writeRouteError(response, error, log));
   return true;

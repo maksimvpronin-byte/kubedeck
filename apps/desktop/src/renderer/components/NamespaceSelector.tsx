@@ -116,9 +116,9 @@ export function NamespaceSelector({
 
 export function filterNamespaces(namespaces: string[], selected: string[], query: string) {
   const needle = query.trim().toLowerCase();
-  if (!needle) return namespaces;
-  const selectedSet = new Set(normalizeNamespaceSelection(selected));
-  return namespaces.filter((namespace) => selectedSet.has(namespace) || namespace.toLowerCase().includes(needle));
+  const selectedOrder = normalizeNamespaceSelection(selected).filter((item) => item !== "all" && item !== "_cluster" && namespaces.includes(item));
+  const selectedSet = new Set(selectedOrder);
+  return [...selectedOrder, ...namespaces.filter((namespace) => !selectedSet.has(namespace) && (!needle || namespace.toLowerCase().includes(needle)))];
 }
 
 function normalizeNamespaceSelection(value: string | string[]) {

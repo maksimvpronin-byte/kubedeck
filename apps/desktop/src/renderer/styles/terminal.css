@@ -1,6 +1,6 @@
 .terminal-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   flex-wrap: wrap;
   --kd-action-bg: var(--button-bg);

@@ -29,6 +29,7 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "GET", path: "/clusters/{cluster_id}/secrets/{namespace}/{name}/keys", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.1", sourceModule: "routes_resources.py" },
   { method: "POST", path: "/clusters/{cluster_id}/secrets/{namespace}/{name}/reveal", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.1", sourceModule: "routes_resources.py" },
   { method: "POST", path: "/clusters/{cluster_id}/secrets/{namespace}/{name}/copy", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4.1", sourceModule: "routes_resources.py" },
+  { method: "POST", path: "/clusters/{cluster_id}/secrets/{namespace}/{name}/update", transport: "http", owner: "node", targetRelease: "2.7.2", migratedIn: "2.7.2", sourceModule: "routes/secrets.ts" },
   { method: "GET", path: "/clusters/{cluster_id}/deployments/{namespace}/{name}/log-targets", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.3.3", sourceModule: "routes_resources.py" },
   { method: "GET", path: "/clusters/{cluster_id}/deployments/{namespace}/{name}/logs", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.3.3", sourceModule: "routes_resources.py" },
   { method: "GET", path: "/clusters/{cluster_id}/resource-definitions", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3.2", sourceModule: "routes_resources.py" },

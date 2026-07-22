@@ -110,7 +110,6 @@ export function useBulkResourceActions(options: Options) {
   const { api, activeCluster, resourceDefinitions, selectedResource, selectedRow, selectedNamespaces, setRows, setSelectedRow, setError, reloadResources, t } = options;
   const [bulkDelete, setBulkDelete] = useState<BulkDeleteTarget | null>(null);
   const [nodeActionConfirmation, setNodeActionConfirmation] = useState<NodeActionConfirmation | null>(null);
-  const [nodeActionMessage, setNodeActionMessage] = useState("");
   const nodePreviewRequestRef = useRef(0);
 
   const clearPendingActions = useCallback(() => {
@@ -222,7 +221,6 @@ export function useBulkResourceActions(options: Options) {
     const target = nodeActionConfirmation;
     const label = nodeActionLabel(target.action);
     setNodeActionConfirmation(null);
-    setNodeActionMessage(`${label} requested: ${target.rows.length} node(s)`);
     setError(null);
     const completed: ResourceRow[] = [];
     const failures: BulkActionFailure[] = [];
@@ -238,11 +236,9 @@ export function useBulkResourceActions(options: Options) {
     await reloadResources(target.clusterId, "nodes", ["_cluster"]).catch((error) => setError(asErrorInfo(error)));
     if (failures.length) {
       const error = buildPartialActionError({ label, resource: "nodes", completedCount: completed.length, failures, commandPreview: target.commandPreview });
-      setNodeActionMessage("");
       setError(error);
       return;
     }
-    setNodeActionMessage(`${label} completed. Nodes: ${completed.length}.`);
     setError(null);
   }, [api, nodeActionConfirmation, reloadResources, setError]);
 
@@ -255,8 +251,6 @@ export function useBulkResourceActions(options: Options) {
   return {
     bulkDelete,
     nodeActionConfirmation,
-    nodeActionMessage,
-    clearNodeActionMessage: () => setNodeActionMessage(""),
     clearPendingActions,
     requestBulkDelete,
     closeBulkDelete,

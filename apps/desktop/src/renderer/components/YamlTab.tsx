@@ -1,8 +1,12 @@
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import type { MutableRefObject, ReactNode } from "react";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 import { AsyncActionButton, reloadActionLabels } from "./AsyncActionButton";
+import type { ApiClient } from "../api";
+import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
+
+const ManifestCompare = lazy(() => import("./ManifestCompare").then((module) => ({ default: module.ManifestCompare })));
 
 interface YamlTabProps {
   yamlDraft: string;
@@ -18,6 +22,9 @@ interface YamlTabProps {
   readOnly?: boolean;
   readOnlyReason?: string;
   t: (key: string) => string;
+  api: ApiClient;
+  current: { clusterId: string; resource: string; namespace: string; name: string; label: string };
+  candidates: ResourceWorkspaceTab[];
 }
 
 export function YamlTab({
@@ -34,6 +41,7 @@ export function YamlTab({
   t,
   readOnly = false,
   readOnlyReason = "",
+  api, current, candidates,
 }: YamlTabProps) {
   const [yamlQuery, setYamlQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(-1);
@@ -41,6 +49,7 @@ export function YamlTab({
   const highlightRef = useRef<HTMLPreElement | null>(null);
   const matchCount = yamlQuery ? countMatches(yamlDraft, yamlQuery) : 0;
   const reloadFeedback = useAsyncActionFeedback();
+  const [compareOpen, setCompareOpen] = useState(false);
   const labels = reloadActionLabels(t);
 
   function jumpMatch(direction: 1 | -1) {
@@ -94,6 +103,7 @@ export function YamlTab({
         <button className="primary" disabled={loading || yamlDraft.trim() === "" || !yamlChanged || readOnly} onClick={onRequestApply}>
           Apply
         </button>
+        <button disabled={!candidates.length || !yamlDraft} title={candidates.length ? "Compare with open resource" : "Open another resource tab of the same kind"} onClick={() => setCompareOpen(true)}>Compare</button>
         {readOnly && readOnlyReason ? <span className="yaml-readonly-indicator">{readOnlyReason}</span> : null}
         {yamlChanged ? <span className="yaml-dirty-indicator">modified · auto-refresh paused</span> : null}
         {status ? (
@@ -102,6 +112,7 @@ export function YamlTab({
           </span>
         ) : null}
       </div>
+      {compareOpen ? <Suspense fallback={null}><ManifestCompare api={api} current={current} currentYaml={yamlDraft} unsaved={yamlChanged} candidates={candidates} onClose={() => setCompareOpen(false)} /></Suspense> : null}
       <div className="yaml-ide-editor">
         <pre className="yaml-editor yaml-highlight-layer" ref={highlightRef} aria-hidden="true">
           {highlightYaml(yamlDraft)}

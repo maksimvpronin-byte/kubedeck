@@ -880,14 +880,6 @@ export function App() {
                     </section>
                   ) : null}
                   <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
-                  {bulkActions.nodeActionMessage ? (
-                    <section className="action-status-panel">
-                      <span>{bulkActions.nodeActionMessage}</span>
-                      <button type="button" onClick={bulkActions.clearNodeActionMessage}>
-                        {t("common.close")}
-                      </button>
-                    </section>
-                  ) : null}
                   {section === "help" ? (
                     <HelpPanel t={t} />
                   ) : section === "about" ? (
@@ -1001,6 +993,9 @@ export function App() {
                         onResize={setDrawerWidth}
                         onActionComplete={() => loadResources(activeCluster.id, selectedResource, selectedNamespaces)}
                         onOpenRelated={openRelatedResource}
+                        onDeleteRelatedPods={(rows) => bulkActions.requestBulkDelete("pods", rows)}
+                        workspaceTabs={resourceWorkspaceTabs}
+                        currentWorkspaceTabId={displayedResourceWorkspaceTab.id}
                         onPortForwardStarted={() => {
                           setSection("port-forwards");
                           setResourceTab("port-forwards");

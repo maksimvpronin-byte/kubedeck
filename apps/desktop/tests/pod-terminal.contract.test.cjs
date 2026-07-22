@@ -343,7 +343,7 @@ test("Node Gateway rejects Pod Terminal when PTY is unavailable", async (t) => {
 
   const migrationResponse = await fetch(`${gateway.baseUrl}/migration/status`, { headers });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.nodeOwned, 50);
+  assert.equal(migration.routes.nodeOwned, 51);
   assert.equal(migration.routes.pythonOwned, 0);
   assert.equal(migration.processes.terminals, 0);
   assert.equal(state.kills.length, 0);

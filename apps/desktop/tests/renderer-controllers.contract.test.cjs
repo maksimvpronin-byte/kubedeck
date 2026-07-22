@@ -89,8 +89,47 @@ test("namespace search keeps selected namespaces visible", () => {
   const namespaces = ["default", "netshoot", "payments", "production"];
   assert.deepEqual(model.filterNamespaces(namespaces, ["netshoot"], "pay"), ["netshoot", "payments"]);
   assert.deepEqual(model.filterNamespaces(namespaces, ["payments"], "pay"), ["payments"]);
-  assert.deepEqual(model.filterNamespaces(namespaces, ["netshoot"], ""), namespaces);
+  assert.deepEqual(model.filterNamespaces(namespaces, ["netshoot"], ""), ["netshoot", "default", "payments", "production"]);
   assert.deepEqual(model.filterNamespaces(namespaces, [], "missing"), []);
+});
+
+test("manifest compare scrolls inside the modal and uses themed controls", () => {
+  const component = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");
+  assert.match(component, /className="icon-text manifest-compare-mode" type="button"/);
+  assert.match(component, /\{raw \? "Raw" : "Clean"\}<\/button>/);
+  assert.match(component, /className="icon-button" type="button"/);
+  assert.match(styles, /\.manifest-compare\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(styles, /\.manifest-compare-grid\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(styles, /\.manifest-compare-grid > div\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(styles, /\.manifest-diff-code\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/s);
+});
+
+test("manifest compare marks equal, changed, added, and removed lines", () => {
+  const model = loadTypeScript("components/ManifestCompare.tsx", { diff: require("diff"), yaml: require("yaml") });
+  const rows = model.buildManifestDiff("same\nold\nleft-only\n", "same\nnew\nright-only\n");
+  assert.equal(rows[0].leftTone, "equal");
+  assert.equal(rows[0].rightTone, "equal");
+  assert.ok(rows.some((row) => row.leftTone === "changed" && row.rightTone === "changed"));
+
+  const removed = model.buildManifestDiff("same\nremoved\n", "same\n");
+  assert.ok(removed.some((row) => row.leftTone === "removed"));
+  const added = model.buildManifestDiff("same\n", "same\nadded\n");
+  assert.ok(added.some((row) => row.rightTone === "added"));
+  const uneven = model.buildManifestDiff("old\n", "new\nextra\n");
+  assert.ok(uneven.some((row) => row.left === null && row.rightTone === "added"));
+});
+
+test("revealed text secrets edit immediately with themed safe confirmation", () => {
+  const component = fs.readFileSync(path.join(rendererRoot, "components/SecretTab.tsx"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");
+  assert.doesNotMatch(component, /window\.confirm|<Pencil|>Edit<\/button>/);
+  assert.match(component, /if \(!data\.binary && !response\?\.immutable\)/);
+  assert.match(component, /setDraft\(data\.value\)/);
+  assert.match(component, /className="confirm-modal" role="dialog" aria-modal="true"/);
+  assert.match(component, /The decoded value is not shown in this confirmation\./);
+  assert.doesNotMatch(component, /<code>\{draft\}|<p>\{draft\}/);
+  assert.match(styles, /\.secret-edit textarea\s*\{[^}]*background:\s*var\(--code-bg\);[^}]*color:\s*var\(--text\);[^}]*caret-color:\s*var\(--focus-ring\);/s);
 });
 
 test("cluster selector uses the themed in-app menu instead of a native select", () => {
@@ -522,7 +561,7 @@ test("bulk action helpers preserve identity, scope summary, and terminating stat
   assert.equal(model.selectedRowAfterBulkDelete("pods", "deployments", rows[0], [rows[0]], []), rows[0]);
 });
 
-test("bulk delete stays silent while node actions retain status feedback", () => {
+test("bulk delete and successful node actions stay silent", () => {
   const actions = fs.readFileSync(path.join(rendererRoot, "hooks/useBulkResourceActions.ts"), "utf8");
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const modal = fs.readFileSync(path.join(rendererRoot, "components/BulkActionModals.tsx"), "utf8");
@@ -536,10 +575,8 @@ test("bulk delete stays silent while node actions retain status feedback", () =>
   assert.doesNotMatch(bulkFlow, /if \(deletedRows\.length\)/);
   assert.match(bulkFlow, /await reloadResources\(target\.clusterId, target\.resource, selectedNamespaces\)/);
   assert.match(bulkFlow, /setError\(error\)/);
-  assert.match(actions, /nodeActionMessage/);
-  assert.match(actions, /setNodeActionMessage\(`\$\{label\} completed/);
-  assert.match(app, /bulkActions\.nodeActionMessage/);
-  assert.match(app, /bulkActions\.clearNodeActionMessage/);
+  assert.doesNotMatch(actions, /nodeActionMessage/);
+  assert.doesNotMatch(app, /bulkActions\.nodeActionMessage/);
   assert.doesNotMatch(app, /bulkActions\.(?:message|clearMessage)/);
   assert.match(modal, /bulk-delete-modal/);
   assert.match(modal, /onCopyBulkDelete/);

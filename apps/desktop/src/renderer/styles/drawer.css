@@ -179,6 +179,15 @@
   margin-bottom: 12px;
 }
 
+.quota-usage { display: grid; gap: 10px; }
+.quota-usage-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(90px, 2fr) 48px; gap: 10px; align-items: center; }
+.quota-usage-row > div:first-child { display: grid; gap: 2px; }
+.quota-usage-row span { color: var(--muted); font-size: 11px; }
+.quota-usage-track { height: 8px; overflow: hidden; border-radius: 999px; background: var(--surface); }
+.quota-usage-track span { display: block; height: 100%; background: var(--success-text); }
+.quota-usage-row.is-warning .quota-usage-track span { background: var(--warning-text); }
+.quota-usage-row.is-danger .quota-usage-track span { background: var(--danger-text); }
+
 .resource-overview div {
   border: 1px solid var(--border);
   border-radius: 8px;

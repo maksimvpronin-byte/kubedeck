@@ -526,6 +526,23 @@ export function genericSummary(item: JsonObject): ResourceRow {
   };
 }
 
+export function resourceQuotaSummary(item: JsonObject): ResourceRow {
+  const spec = record(item.spec);
+  const status = record(item.status);
+  const hard = record(status.hard);
+  const used = record(status.used);
+  const resources = Array.from(new Set([...Object.keys(hard), ...Object.keys(used)])).sort();
+  return {
+    ...meta(item),
+    apiVersion: text(item.apiVersion),
+    kind: text(item.kind, "ResourceQuota"),
+    status: resources.length ? "Active" : "Pending",
+    quotaUsage: resources.map((resource) => ({ resource, used: String(used[resource] ?? "0"), hard: String(hard[resource] ?? "") })),
+    scopes: strings(spec.scopes),
+    scopeSelector: record(spec.scopeSelector),
+  };
+}
+
 const NORMALIZERS: Record<string, (item: JsonObject) => ResourceRow> = {
   pods: podSummary,
   pod: podSummary,
@@ -561,6 +578,8 @@ const NORMALIZERS: Record<string, (item: JsonObject) => ResourceRow> = {
   rolebinding: roleBindingSummary,
   clusterrolebindings: roleBindingSummary,
   clusterrolebinding: roleBindingSummary,
+  resourcequotas: resourceQuotaSummary,
+  resourcequota: resourceQuotaSummary,
 };
 
 export function normalizerForResource(

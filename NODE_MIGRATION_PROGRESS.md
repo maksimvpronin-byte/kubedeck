@@ -2,13 +2,13 @@
 
 Дата обновления: 2026-07-21
 Ветка: `main`
-Текущая проверяемая версия: `2.7.1`
+Текущая проверяемая версия: `2.7.3`
 
 ## Итог
 
 Все существующие backend-контракты перенесены из Python/FastAPI в Node.js внутри Electron main process.
 
-- Node routes: **50**.
+- Node routes: **51**.
 - Python routes: **0**.
 - Runtime mode: **node-only**.
 - Legacy HTTP/WebSocket proxy: удалён.
@@ -43,18 +43,18 @@
 - process-heavy Watch и Port Forward тесты проходят без cancelled;
 - Windows portable собирается;
 - приложение запускается без `python.exe`/`pythonw.exe`;
-- `/migration/status`: Node 50, Python 0, mode `node-only`;
+- `/migration/status`: Node 51, Python 0, mode `node-only`;
 - portable не содержит Python backend payload и встроенный `kubectl.exe`.
 
 ## 2.0.6 — stable release baseline
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.7.1.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `REGRESSION_CHECKLIST_2.7.3.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.7.1` сохраняет Node-only baseline и исправляет высоту содержимого transient resource drawer без новых маршрутов или зависимостей.
+`2.7.3` сохраняет Node-only baseline и исправляет Compare/Secret UI без изменения Gateway ownership.
 
 После принятия 2.0.6:
 

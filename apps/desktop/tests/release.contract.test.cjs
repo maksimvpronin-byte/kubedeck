@@ -41,11 +41,11 @@ test("KubeDeck release metadata stays synchronized", () => {
   }
 
   assert.match(notes, /Node-only/);
-  assert.match(notes, /50/);
-  assert.match(checklist, /Node 50 \/ Python 0/);
+  assert.match(notes, /51/);
+  assert.match(checklist, /Node 51 \/ Python 0/);
   assert.match(checklist, /cluster/i);
   assert.match(checklist, /LLM/);
-  assert.equal(contract.nodeRoutes, 50);
+  assert.equal(contract.nodeRoutes, 51);
   assert.equal(contract.pythonRoutes, 0);
   assert.match(windowsVersionScript, /vite\.config\.mts/);
   assert.doesNotMatch(windowsVersionScript, /packages\\ui|apps\\backend|vite\.config\.ts/);

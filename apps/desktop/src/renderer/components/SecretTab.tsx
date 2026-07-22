@@ -1,4 +1,4 @@
-import { Copy, Eye, EyeOff } from "lucide-react";
+import { Copy, Eye, EyeOff, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiClient } from "../api";
 import { toErrorInfo } from "../utils/errors";
@@ -28,6 +28,10 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
   const [revealingKey, setRevealingKey] = useState("");
   const [revealed, setRevealed] = useState<Record<string, RevealedValue>>({});
   const [copiedKey, setCopiedKey] = useState("");
+  const [editingKey, setEditingKey] = useState("");
+  const [draft, setDraft] = useState("");
+  const [confirmationKey, setConfirmationKey] = useState("");
+  const editingKeyRef = useRef("");
   const hideTimers = useRef<Record<string, number>>({});
   const refreshFeedback = useAsyncActionFeedback();
 
@@ -40,6 +44,19 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
       hideTimers.current = {};
     };
   }, [api, clusterId, namespace, name]);
+
+  useEffect(() => {
+    if (!confirmationKey) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !loading) setConfirmationKey("");
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [confirmationKey, loading]);
+
+  useEffect(() => {
+    editingKeyRef.current = editingKey;
+  }, [editingKey]);
 
   async function loadSecret(signal?: AbortSignal) {
     if (!namespace) return false;
@@ -69,6 +86,10 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
       const timeoutSeconds = data.revealTimeoutSeconds || response?.revealTimeoutSeconds || 30;
       const visibleUntil = Date.now() + timeoutSeconds * 1000;
       setRevealed((current) => ({ ...current, [key]: { ...data, visibleUntil } }));
+      if (!data.binary && !response?.immutable) {
+        setEditingKey(key);
+        setDraft(data.value);
+      }
       if (hideTimers.current[key]) window.clearTimeout(hideTimers.current[key]);
       hideTimers.current[key] = window.setTimeout(() => hideKey(key), timeoutSeconds * 1000);
     } catch (err) {
@@ -88,6 +109,11 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
       delete next[key];
       return next;
     });
+    if (editingKeyRef.current === key) {
+      setEditingKey("");
+      setDraft("");
+      setConfirmationKey("");
+    }
   }
 
   async function copyValue(key: string) {
@@ -101,6 +127,13 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
     } catch {
       // Copy must not fail just because audit logging failed.
     }
+  }
+
+  async function saveValue() {
+    if (!editingKey || confirmationKey !== editingKey) return;
+    setLoading(true); setError(null);
+    try { await api.updateSecret(clusterId, namespace, name, editingKey, draft); setConfirmationKey(""); setEditingKey(""); setDraft(""); await loadSecret(); }
+    catch (err) { setConfirmationKey(""); setError(toErrorInfo(err)); setLoading(false); }
   }
 
   const keys = response?.keys ?? [];
@@ -184,7 +217,7 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
                     <span>Auto-hide at {new Date(visible.visibleUntil).toLocaleTimeString()}</span>
                     {visible.binary ? <span>Binary-like data is shown as UTF-8 with replacement characters.</span> : null}
                   </div>
-                  <pre>{visible.value}</pre>
+                  {editingKey === item.key ? <div className="secret-edit"><textarea aria-label={`Secret value ${item.key}`} value={draft} onChange={(event) => setDraft(event.target.value)} /><div className="modal-actions"><button type="button" onClick={() => setDraft(visible.value)}>Cancel</button><button className="primary" type="button" disabled={loading || draft === visible.value} onClick={() => setConfirmationKey(item.key)}>Save</button></div></div> : <pre>{visible.value}</pre>}
                 </div>
               ) : (
                 <div className="secret-value-placeholder">Hidden</div>
@@ -193,6 +226,26 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
           );
         })}
       </div>
+      {confirmationKey ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="secret-update-confirm-title">
+            <header>
+              <h2 id="secret-update-confirm-title">Update Secret?</h2>
+              <button className="icon-button" type="button" disabled={loading} onClick={() => setConfirmationKey("")} aria-label="Close">
+                <X size={16} />
+              </button>
+            </header>
+            <div className="confirm-body">
+              <p>The decoded value is not shown in this confirmation.</p>
+              <code>{clusterId} · {namespace}/{name} · {confirmationKey}</code>
+            </div>
+            <footer className="modal-actions">
+              <button className="secondary" type="button" disabled={loading} onClick={() => setConfirmationKey("")}>Cancel</button>
+              <button className="primary" type="button" disabled={loading} onClick={() => void saveValue()}>{loading ? "Saving..." : "Confirm"}</button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

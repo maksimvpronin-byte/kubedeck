@@ -32,7 +32,7 @@ export function ClusterPanel(props: {
 }) {
   const [draggedClusterId, setDraggedClusterId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
-  const actionsDisabled = props.openingClusterId !== null || props.reorderingClusters;
+  const actionsDisabled = props.reorderingClusters;
 
   const move = (fromIndex: number, toIndex: number) => {
     const next = moveCluster(props.clusters, fromIndex, toIndex);
@@ -118,11 +118,11 @@ export function ClusterPanel(props: {
               >
                 <ChevronDown size={15} />
               </button>
-              <button disabled={actionsDisabled} onClick={() => props.openCluster(cluster)}>
+              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.openCluster(cluster)}>
                 {props.openingClusterId === cluster.id ? props.t("clusters.opening") : props.t("clusters.open")}
               </button>
-              <button disabled={actionsDisabled} onClick={() => props.renameCluster(cluster)}>{props.t("clusters.rename")}</button>
-              <button disabled={actionsDisabled} onClick={() => props.removeCluster(cluster)}>{props.t("clusters.remove")}</button>
+              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.renameCluster(cluster)}>{props.t("clusters.rename")}</button>
+              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.removeCluster(cluster)}>{props.t("clusters.remove")}</button>
             </div>
           </article>
         ))}

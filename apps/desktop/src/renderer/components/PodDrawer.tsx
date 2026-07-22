@@ -18,6 +18,7 @@ import { containerNames, downloadTextFile, eventTargetForOpen, isAbortError } fr
 import { availableDrawerTabs, PodDrawerActions, PodDrawerHeader, PodDrawerTabs, type DrawerTab } from "./PodDrawerChrome";
 import { drawerResourceIdentity, usePodDrawerResourceLifecycle } from "../hooks/usePodDrawerResourceLifecycle";
 import { toErrorInfo } from "../utils/errors";
+import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
 
 interface Props {
   api: ApiClient;
@@ -29,6 +30,9 @@ interface Props {
   onResize: (width: number) => void;
   onActionComplete: () => void;
   onOpenRelated: (resource: string, namespace: string, name: string) => void;
+  onDeleteRelatedPods: (rows: ResourceRow[]) => void;
+  workspaceTabs: ResourceWorkspaceTab[];
+  currentWorkspaceTabId: string;
   onPortForwardStarted?: (session: PortForwardSession) => void;
   onOpenTerminal: (pod: ResourceRow, containers: string[], container: string) => void;
   onClose: () => void;
@@ -56,6 +60,9 @@ export function PodDrawer({
   onResize,
   onActionComplete,
   onOpenRelated,
+  onDeleteRelatedPods,
+  workspaceTabs,
+  currentWorkspaceTabId,
   onPortForwardStarted,
   onOpenTerminal,
   onClose,
@@ -574,6 +581,8 @@ export function PodDrawer({
             resourceFilter={relatedResourceFilter}
             onResourceFilterChange={setRelatedResourceFilter}
             onOpenRelated={onOpenRelated}
+            onDeletePods={onDeleteRelatedPods}
+            sourceResource={resource}
           />
         ) : tab === "events" ? (
           <EventsTab
@@ -616,6 +625,9 @@ export function PodDrawer({
                 readOnly={yamlReadOnly}
                 readOnlyReason={yamlReadOnly ? "view-only CRD definition" : ""}
                 t={t}
+                api={api}
+                current={{ clusterId, resource, namespace: namespaceText, name: pod.name, label: `${clusterId} · ${namespaceText}/${pod.name}` }}
+                candidates={workspaceTabs.filter((item) => item.id !== currentWorkspaceTabId && item.resource.split(".")[0] === resource.split(".")[0])}
               />
             ) : tab === "logs" ? (
               <LogsTab

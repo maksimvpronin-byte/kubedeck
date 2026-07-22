@@ -135,7 +135,7 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
       const requestId = clusterOpenSequenceRef.current + 1;
       clusterOpenSequenceRef.current = requestId;
       if (!silent) setLoading(true);
-      setOpeningClusterId(cluster.id);
+      if (!silent) setOpeningClusterId(cluster.id);
       try {
         await api.clearResourceCache(cluster.id).catch(() => undefined);
         const result = await api.openCluster(cluster.id);
@@ -163,7 +163,7 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
         throw error;
       } finally {
         if (!silent && clusterOpenSequenceRef.current === requestId) setLoading(false);
-        setOpeningClusterId((current) => (current === cluster.id ? null : current));
+        if (!silent) setOpeningClusterId((current) => (current === cluster.id ? null : current));
       }
     },
     [api, namespaceController.activateClusterNamespaces, namespaceController.setNamespaces, reloadConfig, setError, setLoading, setRows],

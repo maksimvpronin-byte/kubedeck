@@ -12,6 +12,8 @@ interface RelatedTabProps {
   resourceFilter: string;
   onResourceFilterChange: (value: string) => void;
   onOpenRelated: (resource: string, namespace: string, name: string) => void;
+  onDeletePods: (rows: ResourceRow[]) => void;
+  sourceResource: string;
 }
 
 export function RelatedTab({
@@ -25,6 +27,8 @@ export function RelatedTab({
   resourceFilter,
   onResourceFilterChange,
   onOpenRelated,
+  onDeletePods,
+  sourceResource,
 }: RelatedTabProps) {
   const ownerLinks = ownerReferences(pod).map((owner) => {
     const resource = resourceForKind(owner.kind) || "";
@@ -44,6 +48,7 @@ export function RelatedTab({
   const visibleLinks = resourceFilter === "all" ? allLinks : allLinks.filter((link) => (link.resource || link.kind) === resourceFilter);
   const groups = groupRelatedLinks(visibleLinks);
   const relationSummary = summarizeRelationGroups(allLinks);
+  const pvcPods = sourceResource.startsWith("persistentvolumeclaim") ? allLinks.filter((link) => link.resource === "pods" && link.relation === "mounts this PVC") : [];
 
   return (
     <section className="drawer-panel-stack">
@@ -58,6 +63,7 @@ export function RelatedTab({
           </select>
         </label>
         <button className="icon-text" disabled={allLinks.length === 0} onClick={() => copyRelatedMap(pod, allLinks)}>Copy map</button>
+        {pvcPods.length ? <button className="danger" onClick={() => onDeletePods(pvcPods.map((link) => ({ uid: link.key, name: link.name, namespace: link.namespace, kind: "Pod" })))}>Delete all listed Pods ({pvcPods.length})</button> : null}
       </div>
       {relationSummary.length ? <RelationSummaryChips items={relationSummary} /> : null}
       {loading ? <div className="muted">Loading...</div> : null}

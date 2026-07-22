@@ -56,7 +56,7 @@ export function BulkActionModals(props: Props) {
               <div className="node-action-confirm-label">Command preview</div>
               <pre className="node-action-confirm-command">{nodeAction.commandPreview}</pre>
             </div>
-            <div className="node-action-confirm-actions">
+            <div className="node-action-confirm-actions modal-actions">
               <button className="secondary" type="button" onClick={props.onCloseNodeAction}>Cancel</button>
               <button className="primary" type="button" onClick={props.onConfirmNodeAction}>Confirm</button>
             </div>

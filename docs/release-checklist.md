@@ -43,7 +43,7 @@ npm run package:mac
 
 ## Smoke test
 
-1. Запустить packaged приложение и проверить `/health` и `/migration/status` (`node-only`, `50 Node / 0 Python`).
+1. Запустить packaged приложение и проверить `/health` и `/migration/status` (`node-only`, `51 Node / 0 Python`).
 2. Импортировать или открыть kubeconfig-backed cluster.
 3. Проверить namespace selector, resource list, refresh, cache и watch-driven update.
 4. Открыть resource drawer: Summary, YAML, Describe, Events, Related и Logs.

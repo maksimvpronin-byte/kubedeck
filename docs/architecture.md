@@ -99,7 +99,7 @@ Resource list responses могут сохраняться в `ResourceSnapshotCa
 
 ## Contract ownership
 
-Существующие HTTP/WebSocket маршруты принадлежат Node runtime. `/migration/status` сохранён как release diagnostic и должен сообщать `node-only`, `50 Node / 0 Python` для текущего contract baseline.
+Существующие HTTP/WebSocket маршруты принадлежат Node runtime. `/migration/status` сохранён как release diagnostic и должен сообщать `node-only`, `51 Node / 0 Python` для текущего contract baseline.
 
 Изменение request/response shape требует синхронного обновления типов renderer/main и соответствующего contract test. План 2.1 предусматривает перенос общих публичных контрактов в `@kubedeck/shared-types`.
 

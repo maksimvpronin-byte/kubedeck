@@ -67,6 +67,8 @@ export function ResourceSummary({ row, resource, now }: ResourceSummaryProps) {
         <RestartDiagnostics diagnostics={diagnostics} reportedRestartCount={restartCount} now={now} />
       ) : null}
 
+      {isResourceQuota(resource) ? <QuotaUsage value={row.quotaUsage} /> : null}
+
       {details.length > 0 ? (
         <section className="resource-summary-section" aria-label="Resource fields">
           <div className="resource-summary-section-title">Details</div>
@@ -81,6 +83,27 @@ export function ResourceSummary({ row, resource, now }: ResourceSummaryProps) {
       ) : null}
     </div>
   );
+}
+
+function QuotaUsage({ value }: { value: unknown }) {
+  const rows = Array.isArray(value) ? value.map(asRecord) : [];
+  if (!rows.length) return null;
+  return <section className="resource-summary-section quota-usage"><div className="resource-summary-section-title">Quota usage</div>{rows.map((row) => {
+    const used = valueText(row.used); const hard = valueText(row.hard); const ratio = quantityRatio(used, hard);
+    const tone = ratio !== null && ratio >= 95 ? "danger" : ratio !== null && ratio >= 80 ? "warning" : "normal";
+    return <div className={`quota-usage-row is-${tone}`} key={valueText(row.resource)}><div><strong>{valueText(row.resource)}</strong><span>{used} / {hard || "—"}</span></div>{ratio === null ? null : <><div className="quota-usage-track"><span style={{ width: `${Math.min(100, ratio)}%` }} /></div><b>{Math.round(ratio)}%</b></>}</div>;
+  })}</section>;
+}
+
+export function quantityRatio(used: string, hard: string) {
+  const parse = (value: string) => {
+    const match = value.match(/^(-?\d+(?:\.\d+)?)(m|Ki|Mi|Gi|Ti|k|M|G|T)?$/);
+    if (!match) return null;
+    const factors: Record<string, number> = { m: 0.001, k: 1e3, M: 1e6, G: 1e9, T: 1e12, Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4 };
+    return Number(match[1]) * (factors[match[2] || ""] || 1);
+  };
+  const left = parse(used); const right = parse(hard);
+  return left === null || right === null || right <= 0 ? null : left / right * 100;
 }
 
 function RestartDiagnostics({ diagnostics, reportedRestartCount, now }: { diagnostics: RestartDiagnostic[]; reportedRestartCount: number; now: number }) {
@@ -274,6 +297,8 @@ function isPodResource(resource: string) {
   const normalized = resource.toLowerCase();
   return normalized === "pod" || normalized === "pods";
 }
+
+function isResourceQuota(resource: string) { return ["resourcequota", "resourcequotas"].includes(resource.toLowerCase()); }
 
 function isProblemRestart(item: RestartDiagnostic) {
   const reason = valueText(item.lastReason || item.currentReason).toLowerCase();

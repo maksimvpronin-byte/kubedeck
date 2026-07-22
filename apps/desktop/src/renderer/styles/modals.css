@@ -94,6 +94,37 @@
   padding: 18px 20px 20px;
 }
 
+.manifest-compare { width: min(1200px, calc(100vw - 48px)); height: min(780px, calc(100vh - 48px)); max-height: calc(100vh - 48px); display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.manifest-compare > header, .manifest-compare-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.manifest-compare-controls, .manifest-compare-legend { display: flex; align-items: center; gap: 8px; }
+.manifest-compare-mode { flex: 0 0 auto; }
+.manifest-compare-legend { color: var(--muted); font-size: 11px; }
+.manifest-compare-legend span { border-radius: 999px; padding: 3px 7px; border: 1px solid var(--border); }
+.manifest-compare-legend .is-equal { background: var(--surface); }
+.manifest-compare-legend .is-changed { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning-text); }
+.manifest-compare-legend .is-added { border-color: var(--success-border); background: var(--success-bg); color: var(--success-text); }
+.manifest-compare-legend .is-removed { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
+.manifest-compare-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; min-height: 0; overflow: hidden; }
+.manifest-compare-grid > div { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+.manifest-diff-code { min-width: 0; min-height: 0; overflow: auto; border: 1px solid var(--border); background: var(--code-bg); padding-bottom: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space: pre; }
+.manifest-diff-line { display: grid; grid-template-columns: 4ch 2ch max-content; min-width: max-content; min-height: 1.45em; }
+.manifest-diff-line.is-equal { color: var(--muted-strong); }
+.manifest-diff-line.is-changed { background: var(--warning-bg); color: var(--warning-text); }
+.manifest-diff-line.is-added { background: var(--success-bg); color: var(--success-text); }
+.manifest-diff-line.is-removed { background: var(--danger-bg); color: var(--danger-text); }
+.manifest-diff-number, .manifest-diff-marker { user-select: none; text-align: right; color: var(--muted-soft); }
+.manifest-diff-number { padding: 0 6px; border-right: 1px solid var(--border); }
+.manifest-diff-marker { padding-right: 5px; }
+.manifest-diff-line code { padding-right: 12px; color: inherit; font: inherit; }
+.secret-edit { display: grid; gap: 8px; }
+.secret-edit textarea { min-height: 110px; width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 6px; background: var(--code-bg); color: var(--text); caret-color: var(--focus-ring); padding: 10px; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+.secret-edit textarea:focus-visible { border-color: var(--focus-ring); }
+
+@media (max-width: 760px) {
+  .manifest-compare-toolbar, .manifest-compare-controls { align-items: stretch; flex-direction: column; }
+  .manifest-compare-grid { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+}
+
 /* KubeDeck 1.0.4 Patch 3: node drain preview */
 .node-drain-pod-list {
   display: grid;
