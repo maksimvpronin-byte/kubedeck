@@ -70,6 +70,7 @@ interface Options {
   setExpandedSections: Dispatch<SetStateAction<Set<string>>>;
   setNamespaceSelection: (next: string | string[]) => void;
   setError: Dispatch<SetStateAction<ErrorInfo | null>>;
+  canNavigate?: () => boolean;
 }
 
 export function useResourceNavigation(options: Options) {
@@ -90,6 +91,7 @@ export function useResourceNavigation(options: Options) {
     setExpandedSections,
     setNamespaceSelection,
     setError,
+    canNavigate,
   } = options;
   const keepSelectionRef = useRef(false);
   const navigationRequestRef = useRef(0);
@@ -117,6 +119,7 @@ export function useResourceNavigation(options: Options) {
 
   const openResourceLocator = useCallback(
     async (locator: ResourceRow) => {
+      if (canNavigate && !canNavigate()) return;
       if (!api || !activeCluster) {
         setSelectedTarget(null);
         return;
@@ -184,6 +187,7 @@ export function useResourceNavigation(options: Options) {
       setNamespaceSelection,
       setRows,
       setError,
+      canNavigate,
     ],
   );
 

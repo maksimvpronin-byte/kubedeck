@@ -24,6 +24,73 @@
   min-width: 118px;
 }
 
+.themed-select {
+  position: relative;
+  min-width: 140px;
+}
+
+.terminal-toolbar .themed-select-trigger {
+  width: 100%;
+  justify-content: space-between;
+  font-weight: 500;
+}
+
+.themed-select-trigger span,
+.themed-select-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.themed-select-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  min-width: 100%;
+  max-height: 240px;
+  padding: 5px;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: var(--shadow-menu);
+}
+
+.terminal-toolbar .themed-select-option {
+  display: flex;
+  justify-content: flex-start;
+  gap: 7px;
+  width: 100%;
+  min-height: 28px;
+  height: 28px;
+  padding: 4px 8px;
+  border: 0 !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  font-weight: 500;
+}
+
+.terminal-toolbar .themed-select-option:hover,
+.terminal-toolbar .themed-select-option:focus-visible,
+.terminal-toolbar .themed-select-option.is-selected {
+  background: var(--surface-hover) !important;
+}
+
+.themed-select-option svg {
+  flex: 0 0 14px;
+  opacity: 0;
+}
+
+.themed-select-option svg.is-visible {
+  opacity: 1;
+  color: var(--primary);
+}
+
 .terminal-toolbar button {
   appearance: none;
   display: inline-flex;
@@ -40,7 +107,11 @@
   font-weight: 600;
   line-height: 1;
   box-shadow: none !important;
-  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, opacity 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
   white-space: nowrap;
 }
 
@@ -105,100 +176,140 @@
   min-height: 0;
 }
 
-.pinned-terminal {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 40;
-  width: min(900px, calc(100vw - 32px));
-  height: min(560px, calc(100vh - 80px));
+.content.with-bottom-terminal {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(280px, 42vh);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.content.with-bottom-terminal:has(.bottom-terminal-panel.collapsed) {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.content-upper {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bottom-terminal-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  background: var(--panel);
-  box-shadow: 0 18px 60px rgb(0 0 0 / 35%);
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
-  box-sizing: border-box;
-  min-width: min(420px, calc(100vw - 32px));
-  min-height: min(320px, calc(100vh - 80px));
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 32px);
-  resize: none;
+  border-top: 1px solid var(--border-strong);
+  background: var(--panel);
 }
 
-.pinned-terminal-resize-handle {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 3;
-  width: 18px;
-  height: 18px;
-  cursor: nwse-resize;
-  border-top: 3px solid var(--primary-border);
-  border-left: 3px solid var(--primary-border);
-  border-radius: 8px 0 0;
+.bottom-terminal-panel.collapsed {
+  grid-template-rows: auto;
 }
 
-.pinned-terminal-resize-handle:hover {
-  border-color: var(--primary);
+.bottom-terminal-panel.collapsed .bottom-terminal-body {
+  display: none;
 }
 
-.pinned-terminal > header {
+.bottom-terminal-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.pinned-terminal > header > div:first-child {
-  display: grid;
   min-width: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-muted);
 }
 
-.pinned-terminal > header span {
-  color: var(--muted);
-  font-size: 12px;
+.bottom-terminal-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 10px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.bottom-terminal-tab {
+  display: flex;
+  flex: 0 0 190px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--button-bg);
+  color: var(--text);
+}
+
+.bottom-terminal-tab.active {
+  border-color: var(--primary-border);
+  background: var(--surface-active);
+}
+
+.bottom-terminal-tab:hover {
+  border-color: var(--primary-border);
+  background: var(--surface-hover);
+}
+
+.bottom-terminal-tab button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.bottom-terminal-tab > button:first-child {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.bottom-terminal-tab strong,
+.bottom-terminal-tab small {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pinned-terminal-actions {
-  display: flex;
-  gap: 6px;
+.bottom-terminal-tab small {
+  color: var(--muted);
+  font-size: 10px;
 }
 
-.pinned-terminal-body {
+.bottom-terminal-tab > button:last-child {
+  padding: 5px;
+  border-left: 1px solid var(--border);
+}
+
+.bottom-terminal-collapse {
+  flex: 0 0 auto;
+  margin-right: 10px;
+}
+
+.bottom-terminal-body,
+.bottom-terminal-session,
+.bottom-terminal-session > .pod-terminal {
   min-height: 0;
-  padding: 10px;
-  overflow: hidden;
-}
-
-.pinned-terminal-body > .pod-terminal,
-.pinned-terminal-body .xterm-host {
   height: 100%;
-  min-height: 0;
 }
 
-.pinned-terminal.collapsed {
-  width: min(560px, calc(100vw - 32px));
+.bottom-terminal-body {
+  padding: 8px 10px 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.bottom-terminal-session {
+  position: absolute;
+  inset: 8px 10px 10px;
   height: auto;
-  grid-template-rows: auto 0;
-  min-width: 0;
-  min-height: 0;
-  resize: none;
-}
-
-.pinned-terminal.collapsed > header {
-  border-bottom: 0;
-}
-
-.pinned-terminal.collapsed .pinned-terminal-body {
   visibility: hidden;
-  padding: 0;
+  pointer-events: none;
+}
+
+.bottom-terminal-session.active {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .xterm-host .xterm {

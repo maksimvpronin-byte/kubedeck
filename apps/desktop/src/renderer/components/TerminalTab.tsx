@@ -5,6 +5,7 @@ import "@xterm/xterm/css/xterm.css";
 import type { ApiClient } from "../api";
 import type { ResourceRow } from "../types";
 import { terminalThemeFromCss } from "../utils/terminalTheme";
+import { ThemedSelect } from "./ThemedSelect";
 
 type TerminalShell = "auto" | "sh" | "bash" | "ash";
 type TerminalMessage = { type: string; data?: string; transport?: "pty" | "pipes"; commandPreview?: string };
@@ -18,9 +19,11 @@ interface TerminalTabProps {
   container: string;
   setContainer: (value: string) => void;
   autoConnectToken: number;
+  active?: boolean;
+  onStatusChange?: (status: string) => void;
 }
 
-export function TerminalTab({ api, clusterId, pod, containers, container, setContainer, autoConnectToken }: TerminalTabProps) {
+export function TerminalTab({ api, clusterId, pod, containers, container, setContainer, autoConnectToken, active = true, onStatusChange }: TerminalTabProps) {
   const selectedContainer = container || containers[0] || "";
   const [shell, setShell] = useState<TerminalShell>("auto");
   const [connected, setConnected] = useState(false);
@@ -36,7 +39,23 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
   const reconnectTimerRef = useRef<number | null>(null);
   const lastResizeRef = useRef<TerminalSize | null>(null);
   const firstOutputFitRef = useRef(false);
+  const onStatusChangeRef = useRef(onStatusChange);
+  const activeRef = useRef(active);
+  onStatusChangeRef.current = onStatusChange;
+  activeRef.current = active;
   const containersKey = containers.join("\u0000");
+
+  useEffect(() => onStatusChangeRef.current?.(status), [status]);
+
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setTimeout(() => {
+      const terminal = terminalRef.current;
+      const fit = fitRef.current;
+      if (terminal && fit) fitAndResizeTerminal(fit, socketRef.current, terminal, lastResizeRef);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [active]);
 
   useEffect(() => {
     if (!container && containers[0]) setContainer(containers[0]);
@@ -78,11 +97,14 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
     fitRef.current = fit;
 
     const scheduleFitAndResize = () => {
+      if (!activeRef.current) return;
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(fitAndResize);
       });
     };
     const fitAndResize = () => {
+      const bounds = hostRef.current?.getBoundingClientRect();
+      if (!activeRef.current || !bounds || bounds.width <= 0 || bounds.height <= 0) return;
       try {
         fit.fit();
         sendTerminalResizeIfChanged(socketRef.current, terminal, lastResizeRef);
@@ -219,23 +241,28 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       <div className="terminal-toolbar">
         <label>
           Container
-          <select value={selectedContainer} disabled={terminalBusy} onChange={(event) => setContainer(event.target.value)}>
-            {containers.length === 0 ? <option value="">default</option> : null}
-            {containers.map((name) => (
-              <option value={name} key={name}>
-                {name}
-              </option>
-            ))}
-          </select>
+          <ThemedSelect
+            ariaLabel="Container"
+            value={selectedContainer}
+            disabled={terminalBusy}
+            options={containers.length ? containers.map((name) => ({ value: name, label: name })) : [{ value: "", label: "default" }]}
+            onChange={setContainer}
+          />
         </label>
         <label>
           Shell
-          <select value={shell} disabled={terminalBusy} onChange={(event) => setShell(event.target.value as TerminalShell)}>
-            <option value="auto">Auto</option>
-            <option value="sh">sh</option>
-            <option value="bash">bash</option>
-            <option value="ash">ash</option>
-          </select>
+          <ThemedSelect
+            ariaLabel="Shell"
+            value={shell}
+            disabled={terminalBusy}
+            options={[
+              { value: "auto", label: "Auto" },
+              { value: "sh", label: "sh" },
+              { value: "bash", label: "bash" },
+              { value: "ash", label: "ash" },
+            ]}
+            onChange={(value) => setShell(value as TerminalShell)}
+          />
         </label>
         <button className="primary" disabled={!selectedContainer || terminalBusy} onClick={connect}>
           {connecting ? "Connecting..." : "Connect"}

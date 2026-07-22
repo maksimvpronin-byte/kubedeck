@@ -10,7 +10,9 @@ import { ErrorPanel } from "./components/ErrorPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
 import { LazyPanelBoundary } from "./components/LazyPanelBoundary";
 import { AppResourceTable } from "./components/AppResourceTable";
-import type { PinnedTerminalTarget } from "./components/PinnedTerminalPanel";
+import type { BottomTerminalTarget } from "./components/BottomTerminalPanel";
+import { ResourceWorkspaceTabs } from "./components/ResourceWorkspaceTabs";
+import type { DrawerTab } from "./components/PodDrawerChrome";
 import { PlaceholderSection } from "./components/PlaceholderSection";
 import { RenameClusterModal } from "./components/RenameClusterModal";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
@@ -30,6 +32,7 @@ import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
+import { closeResourceWorkspaceTab, resourceWorkspaceTabId, upsertResourceWorkspaceTab, type ResourceWorkspaceTab } from "./utils/workspaceTabs";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -37,12 +40,12 @@ const initialResourceTab = initialUiState.section === "overview" || initialSecti
 const initialSelectedNamespaces = initialSection === "nodes" ? ["_cluster"] : ["all"];
 
 const AboutPanel = lazy(() => import("./components/AboutPanel").then((module) => ({ default: module.AboutPanel })));
+const BottomTerminalPanel = lazy(() => import("./components/BottomTerminalPanel").then((module) => ({ default: module.BottomTerminalPanel })));
 const AuditPanel = lazy(() => import("./components/AuditPanel").then((module) => ({ default: module.AuditPanel })));
 const HelpPanel = lazy(() => import("./components/HelpPanel").then((module) => ({ default: module.HelpPanel })));
 const PortForwardsPanel = lazy(() => import("./components/PortForwardsPanel").then((module) => ({ default: module.PortForwardsPanel })));
 const ProblemsPanel = lazy(() => import("./components/ProblemsPanel").then((module) => ({ default: module.ProblemsPanel })));
 const PodDrawer = lazy(() => import("./components/PodDrawer").then((module) => ({ default: module.PodDrawer })));
-const PinnedTerminalPanel = lazy(() => import("./components/PinnedTerminalPanel").then((module) => ({ default: module.PinnedTerminalPanel })));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
 export function App() {
@@ -55,7 +58,13 @@ export function App() {
   const [drawerWidth, setDrawerWidth] = useState(initialUiState.drawerWidth ?? 520);
   const [sidebarWidth, setSidebarWidth] = useState(initialUiState.sidebarWidth ?? 236);
   const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
-  const [pinnedTerminal, setPinnedTerminal] = useState<PinnedTerminalTarget | null>(null);
+  const [resourceWorkspaceTabs, setResourceWorkspaceTabs] = useState<ResourceWorkspaceTab[]>([]);
+  const [bottomTerminals, setBottomTerminals] = useState<BottomTerminalTarget[]>([]);
+  const [activeBottomTerminalId, setActiveBottomTerminalId] = useState<string | null>(null);
+  const [activeResourceTabId, setActiveResourceTabId] = useState<string | null>(null);
+  const drawerDirtyRef = useRef(false);
+  const pinNextSelectionRef = useRef(false);
+  const resourceActivationRef = useRef(0);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
   const loadResourcesRef = useRef<number | null>(null);
@@ -117,6 +126,22 @@ export function App() {
   const currentSelectedTarget = currentSelectedResourceTarget(selectedTarget, activeCluster?.id, resourceTab);
   const selectedPod = currentSelectedTarget?.row ?? null;
   const selectedResource = currentSelectedTarget?.resource ?? resourceTab;
+  const activeResourceWorkspaceTab = resourceWorkspaceTabs.find((tab) => tab.id === activeResourceTabId) ?? null;
+  const displayedResourceWorkspaceTab: ResourceWorkspaceTab | null =
+    activeResourceWorkspaceTab ??
+    (activeCluster && currentSelectedTarget
+      ? {
+          id: resourceWorkspaceTabId(activeCluster.id, currentSelectedTarget.resource, currentSelectedTarget.row),
+          clusterId: activeCluster.id,
+          clusterName: activeCluster.displayName,
+          section,
+          resource: currentSelectedTarget.resource,
+          namespace: String(currentSelectedTarget.row.namespace || "_cluster"),
+          row: currentSelectedTarget.row,
+          drawerTab: "summary",
+          status: "ready",
+        }
+      : null);
   const activeLanguage = languagePreview ?? settings?.language ?? "system";
   const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
   const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
@@ -135,6 +160,33 @@ export function App() {
     t,
   });
   const namespace = selectedNamespaces.length === 1 ? selectedNamespaces[0] : selectedNamespaces.join(",");
+
+  const confirmDrawerNavigation = useCallback(() => !drawerDirtyRef.current || window.confirm("Discard unsaved YAML changes?"), []);
+
+  useEffect(() => {
+    if (!activeCluster || !selectedTarget || selectedTarget.clusterId !== activeCluster.id) return;
+    if (!pinNextSelectionRef.current) return;
+    pinNextSelectionRef.current = false;
+    const id = resourceWorkspaceTabId(activeCluster.id, selectedTarget.resource, selectedTarget.row);
+    const candidate: ResourceWorkspaceTab = {
+      id,
+      clusterId: activeCluster.id,
+      clusterName: activeCluster.displayName,
+      section,
+      resource: selectedTarget.resource,
+      namespace: String(selectedTarget.row.namespace || "_cluster"),
+      row: selectedTarget.row,
+      drawerTab: "summary",
+      status: "ready",
+    };
+    setResourceWorkspaceTabs((current) => {
+      const result = upsertResourceWorkspaceTab(current, candidate);
+      if (result.limited) {
+        setError({ code: "LIMIT_REACHED", message: "Close a resource tab before opening another (10 maximum).", rawStderr: "", commandPreview: "" });
+      } else setActiveResourceTabId(result.activeId);
+      return result.tabs;
+    });
+  }, [activeCluster?.id, activeCluster?.displayName, selectedTarget, section]);
 
   const {
     query: globalSearch,
@@ -232,6 +284,7 @@ export function App() {
     setNamespaceSelection,
     rememberedNamespaces: activeCluster ? (selectedNamespacesByClusterId[activeCluster.id] ?? ["all"]) : ["all"],
     setError,
+    canNavigate: confirmDrawerNavigation,
   });
 
   useEffect(() => {
@@ -280,6 +333,7 @@ export function App() {
   }
 
   function selectSection(next: Section) {
+    if (!confirmDrawerNavigation()) return;
     cancelResourceNavigation();
     setSection(next);
 
@@ -360,6 +414,7 @@ export function App() {
   }
 
   function selectTreeResource(sectionId: Section, resource: string) {
+    if (!confirmDrawerNavigation()) return;
     cancelResourceNavigation();
     if (resource === "port-forwards") {
       setSection("port-forwards");
@@ -446,6 +501,7 @@ export function App() {
         category: t("command.category.cluster"),
         keywords: `${cluster.displayName} ${cluster.kubeconfigPath}`,
         run: () => {
+          if (!confirmDrawerNavigation()) return;
           void openCluster(cluster);
         },
       });
@@ -462,6 +518,7 @@ export function App() {
         category: t("command.category.open"),
         keywords: `${resourceTab} ${rowName} ${rowNamespace} ${String(row.kind ?? "")} ${String(row.status ?? "")} ${String(row.phase ?? "")}`,
         run: () => {
+          if (!confirmDrawerNavigation()) return;
           cancelResourceNavigation();
           keepCurrentSelection();
           if (activeCluster) setSelectedTarget({ clusterId: activeCluster.id, resource: resourceTab, row });
@@ -579,16 +636,85 @@ export function App() {
     window.addEventListener("mouseup", onUp, { once: true });
   }
 
-  function openPinnedTerminal(pod: ResourceRow, containers: string[], container: string) {
+  function openBottomTerminal(pod: ResourceRow, containers: string[], container: string) {
     if (!activeCluster) return;
-    const next = { clusterId: activeCluster.id, clusterName: activeCluster.displayName, pod, containers, container };
-    const sameTarget =
-      pinnedTerminal?.clusterId === next.clusterId &&
-      pinnedTerminal.pod.namespace === pod.namespace &&
-      pinnedTerminal.pod.name === pod.name &&
-      pinnedTerminal.container === container;
-    if (pinnedTerminal && !sameTarget && !window.confirm("Close the current terminal and open a new session?")) return;
-    setPinnedTerminal(next);
+    const id = `${activeCluster.id}\u0000${String(pod.namespace || "default")}\u0000${pod.name}\u0000${container}`;
+    const existing = bottomTerminals.find((target) => target.id === id);
+    if (existing) {
+      setActiveBottomTerminalId(existing.id);
+      return;
+    }
+    if (bottomTerminals.length >= 5) {
+      setError({ code: "LIMIT_REACHED", message: "Close a terminal before opening another (5 maximum).", rawStderr: "", commandPreview: "" });
+      return;
+    }
+    setBottomTerminals((current) => [...current, { id, clusterId: activeCluster.id, clusterName: activeCluster.displayName, pod, containers, container }]);
+    setActiveBottomTerminalId(id);
+  }
+
+  function closeBottomTerminal(id: string) {
+    const index = bottomTerminals.findIndex((target) => target.id === id);
+    const next = bottomTerminals.filter((target) => target.id !== id);
+    setBottomTerminals(next);
+    if (id === activeBottomTerminalId) setActiveBottomTerminalId(next[Math.min(index, next.length - 1)]?.id ?? null);
+  }
+
+  const activateResourceTab = useCallback(
+    async (tab: ResourceWorkspaceTab) => {
+      if (!confirmDrawerNavigation()) return;
+      const cluster = clusters.find((item) => item.id === tab.clusterId);
+      if (!cluster || !api) {
+        setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "unavailable" } : item)));
+        return;
+      }
+      drawerDirtyRef.current = false;
+      const requestId = ++resourceActivationRef.current;
+      setActiveResourceTabId(tab.id);
+      setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "loading" } : item)));
+      if (activeCluster?.id !== cluster.id) await openCluster(cluster);
+      if (resourceActivationRef.current !== requestId) return;
+      keepCurrentSelection();
+      setSelectedTarget({ clusterId: tab.clusterId, resource: tab.resource, row: tab.row });
+      setSection(tab.section);
+      setResourceTab(tab.resource);
+      try {
+        const response = await api.resources(tab.clusterId, tab.resource, tab.namespace);
+        if (resourceActivationRef.current !== requestId) return;
+        const row = response.items.find((item) => item.uid === tab.row.uid || (item.name === tab.row.name && String(item.namespace || "_cluster") === tab.namespace));
+        setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, row: row ?? item.row, status: row ? "ready" : "not-found" } : item)));
+        setSelectedTarget(row ? { clusterId: tab.clusterId, resource: tab.resource, row } : null);
+      } catch (err) {
+        if (resourceActivationRef.current !== requestId) return;
+        setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "unavailable" } : item)));
+        setError(asErrorInfo(err));
+      }
+    },
+    [api, activeCluster?.id, clusters, confirmDrawerNavigation, keepCurrentSelection, openCluster],
+  );
+
+  function closeResourceTab(id: string) {
+    if (id === activeResourceTabId && !confirmDrawerNavigation()) return;
+    const result = closeResourceWorkspaceTab(resourceWorkspaceTabs, activeResourceTabId, id);
+    drawerDirtyRef.current = false;
+    setResourceWorkspaceTabs(result.tabs);
+    setActiveResourceTabId(result.activeId);
+    const next = result.tabs.find((tab) => tab.id === result.activeId);
+    if (next) void activateResourceTab(next);
+    else setSelectedTarget(null);
+  }
+
+  async function removeClusterWorkspace(cluster: (typeof clusters)[number]) {
+    const resourceCount = resourceWorkspaceTabs.filter((tab) => tab.clusterId === cluster.id).length;
+    const terminalCount = bottomTerminals.filter((target) => target.clusterId === cluster.id).length;
+    if (!window.confirm(`Remove ${cluster.displayName}? This also closes ${resourceCount} resource tab(s) and ${terminalCount} terminal(s).`)) return;
+    const removed = await removeCluster(cluster, true);
+    if (!removed) return;
+    const remainingTabs = resourceWorkspaceTabs.filter((tab) => tab.clusterId !== cluster.id);
+    const remainingTerminals = bottomTerminals.filter((target) => target.clusterId !== cluster.id);
+    setResourceWorkspaceTabs(remainingTabs);
+    setActiveResourceTabId((current) => (remainingTabs.some((tab) => tab.id === current) ? current : (remainingTabs[0]?.id ?? null)));
+    setBottomTerminals(remainingTerminals);
+    setActiveBottomTerminalId((current) => (remainingTerminals.some((target) => target.id === current) ? current : (remainingTerminals[0]?.id ?? null)));
   }
 
   return (
@@ -679,7 +805,9 @@ export function App() {
                 activeClusterId={activeCluster?.id}
                 openingClusterId={openingClusterId}
                 emptyLabel={t("clusters.none")}
-                onChange={(cluster) => void openCluster(cluster)}
+                onChange={(cluster) => {
+                  if (confirmDrawerNavigation()) void openCluster(cluster);
+                }}
               />
               <NamespaceSelector
                 namespaces={namespaces}
@@ -722,6 +850,7 @@ export function App() {
                   <button
                     className={resourceTab === tab ? "active" : ""}
                     onClick={() => {
+                      if (!confirmDrawerNavigation()) return;
                       setResourceTab(tab);
                       if (tab === "nodes") setSection("nodes");
                       if (tab === "events") setSection("events");
@@ -737,129 +866,168 @@ export function App() {
                 ))}
               </section>
             ) : null}
-            <section className="content">
-              <div className={isResourceTableView ? "main-panel main-panel-resource" : "main-panel"}>
-                {runtimeError ? (
-                  <section className="error-panel">
-                    <div className="error-header">
-                      <div>
-                        <strong>{t("app.desktopRuntimeUnavailable")}</strong>
-                        <p>{runtimeError}</p>
+            <section className={`content ${bottomTerminals.length ? "with-bottom-terminal" : ""}`}>
+              <div className="content-upper">
+                <div className={isResourceTableView ? "main-panel main-panel-resource" : "main-panel"}>
+                  {runtimeError ? (
+                    <section className="error-panel">
+                      <div className="error-header">
+                        <div>
+                          <strong>{t("app.desktopRuntimeUnavailable")}</strong>
+                          <p>{runtimeError}</p>
+                        </div>
                       </div>
-                    </div>
-                  </section>
-                ) : null}
-                <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
-                {bulkActions.nodeActionMessage ? (
-                  <section className="action-status-panel">
-                    <span>{bulkActions.nodeActionMessage}</span>
-                    <button type="button" onClick={bulkActions.clearNodeActionMessage}>
-                      {t("common.close")}
-                    </button>
-                  </section>
-                ) : null}
-                {section === "help" ? (
-                  <HelpPanel t={t} />
-                ) : section === "about" ? (
-                  <AboutPanel api={api} config={config} activeCluster={activeCluster} backendOk={backendOk} kubectlVersion={kubectlVersion} t={t} onError={setError} />
-                ) : section === "settings" && config ? (
-                  <SettingsPanel
-                    api={api}
-                    settings={config.settings}
-                    save={saveSettings}
-                    onLanguagePreview={setLanguagePreview}
-                    t={t}
-                    clusters={clusters}
-                    activeCluster={activeCluster}
-                    selectedNamespaces={selectedNamespaces}
-                    resourceTab={resourceTab}
-                    openingClusterId={openingClusterId}
-                    importKubeconfig={importKubeconfig}
-                    openCluster={openCluster}
-                    renameCluster={startRenameCluster}
-                    removeCluster={removeCluster}
-                    reorderClusters={reorderClusters}
-                    reorderingClusters={reorderingClusters}
-                    onError={setError}
-                  />
-                ) : section === "problems" ? (
-                  <ProblemsPanel
-                    api={api}
-                    cluster={activeCluster}
-                    settings={settings}
-                    copyLabel={t("error.copy")}
-                    t={t}
-                    onError={setError}
-                    onOpenResource={(row) => {
-                      void openResourceLocator(row);
-                    }}
-                  />
-                ) : section === "audit" ? (
-                  <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={setError} />
-                ) : section === "port-forwards" ? (
-                  <PortForwardsPanel api={api} cluster={activeCluster} copyLabel={t("error.copy")} t={t} onError={setError} />
-                ) : isPlaceholderSection(section) ? (
-                  <PlaceholderSection section={section} t={t} />
-                ) : (
-                  <>
-                    <UnavailableClusterPanel
-                      visible={Boolean(unavailableCluster && error)}
-                      displayName={unavailableCluster?.displayName ?? ""}
-                      opening={Boolean(unavailableCluster && openingClusterId === unavailableCluster.id)}
+                    </section>
+                  ) : null}
+                  <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
+                  {bulkActions.nodeActionMessage ? (
+                    <section className="action-status-panel">
+                      <span>{bulkActions.nodeActionMessage}</span>
+                      <button type="button" onClick={bulkActions.clearNodeActionMessage}>
+                        {t("common.close")}
+                      </button>
+                    </section>
+                  ) : null}
+                  {section === "help" ? (
+                    <HelpPanel t={t} />
+                  ) : section === "about" ? (
+                    <AboutPanel api={api} config={config} activeCluster={activeCluster} backendOk={backendOk} kubectlVersion={kubectlVersion} t={t} onError={setError} />
+                  ) : section === "settings" && config ? (
+                    <SettingsPanel
+                      api={api}
+                      settings={config.settings}
+                      save={saveSettings}
+                      onLanguagePreview={setLanguagePreview}
                       t={t}
-                      onRetry={() => {
-                        if (unavailableCluster) void openCluster(unavailableCluster);
-                      }}
-                      onRemove={() => {
-                        if (unavailableCluster) void removeCluster(unavailableCluster);
+                      clusters={clusters}
+                      activeCluster={activeCluster}
+                      selectedNamespaces={selectedNamespaces}
+                      resourceTab={resourceTab}
+                      openingClusterId={openingClusterId}
+                      importKubeconfig={importKubeconfig}
+                      openCluster={openCluster}
+                      renameCluster={startRenameCluster}
+                      removeCluster={removeClusterWorkspace}
+                      reorderClusters={reorderClusters}
+                      reorderingClusters={reorderingClusters}
+                      onError={setError}
+                    />
+                  ) : section === "problems" ? (
+                    <ProblemsPanel
+                      api={api}
+                      cluster={activeCluster}
+                      settings={settings}
+                      copyLabel={t("error.copy")}
+                      t={t}
+                      onError={setError}
+                      onOpenResource={(row) => {
+                        void openResourceLocator(row);
                       }}
                     />
-                    {activeCluster ? (
-                      <AppResourceTable
-                        title={sectionTitle(section, resourceTab, t)}
-                        rows={activeRows}
-                        columns={columns}
-                        loading={loading}
-                        resource={resourceTab}
-                        onRefresh={() => loadResources()}
-                        onNodeAction={bulkActions.requestNodeAction}
-                        onOpenLocator={openResourceLocator}
-                        onSelect={(selectedRow, resource) => {
-                          cancelResourceNavigation();
-                          setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
-                        }}
-                        selectedRow={selectedTarget?.clusterId === activeCluster.id && selectedTarget.resource === resourceTab ? selectedTarget.row : null}
-                        onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
-                        canBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition)}
-                        onBulkDelete={bulkActions.requestBulkDelete}
+                  ) : section === "audit" ? (
+                    <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={setError} />
+                  ) : section === "port-forwards" ? (
+                    <PortForwardsPanel api={api} cluster={activeCluster} copyLabel={t("error.copy")} t={t} onError={setError} />
+                  ) : isPlaceholderSection(section) ? (
+                    <PlaceholderSection section={section} t={t} />
+                  ) : (
+                    <>
+                      <UnavailableClusterPanel
+                        visible={Boolean(unavailableCluster && error)}
+                        displayName={unavailableCluster?.displayName ?? ""}
+                        opening={Boolean(unavailableCluster && openingClusterId === unavailableCluster.id)}
                         t={t}
+                        onRetry={() => {
+                          if (unavailableCluster) void openCluster(unavailableCluster);
+                        }}
+                        onRemove={() => {
+                          if (unavailableCluster) void removeClusterWorkspace(unavailableCluster);
+                        }}
+                      />
+                      {activeCluster ? (
+                        <AppResourceTable
+                          title={sectionTitle(section, resourceTab, t)}
+                          rows={activeRows}
+                          columns={columns}
+                          loading={loading}
+                          resource={resourceTab}
+                          onRefresh={() => loadResources()}
+                          onNodeAction={bulkActions.requestNodeAction}
+                          onOpenLocator={openResourceLocator}
+                          onSelect={(selectedRow, resource) => {
+                            if (!confirmDrawerNavigation()) return;
+                            pinNextSelectionRef.current = false;
+                            setActiveResourceTabId(null);
+                            cancelResourceNavigation();
+                            setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
+                          }}
+                          onPin={(selectedRow, resource) => {
+                            if (!confirmDrawerNavigation()) return;
+                            pinNextSelectionRef.current = true;
+                            cancelResourceNavigation();
+                            setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
+                          }}
+                          selectedRow={selectedTarget?.clusterId === activeCluster.id && selectedTarget.resource === resourceTab ? selectedTarget.row : null}
+                          onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
+                          canBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition)}
+                          onBulkDelete={bulkActions.requestBulkDelete}
+                          t={t}
+                        />
+                      ) : null}
+                    </>
+                  )}
+                </div>
+                {resourceWorkspaceTabs.length || selectedPod ? (
+                  <div className="resource-workspace" style={{ width: drawerWidth }}>
+                    {resourceWorkspaceTabs.length ? (
+                      <ResourceWorkspaceTabs tabs={resourceWorkspaceTabs} activeId={activeResourceTabId} onActivate={(tab) => void activateResourceTab(tab)} onClose={closeResourceTab} />
+                    ) : null}
+                    {activeResourceWorkspaceTab?.status && activeResourceWorkspaceTab.status !== "ready" && !selectedPod ? (
+                      <section className="resource-workspace-status">
+                        <strong>{activeResourceWorkspaceTab.row.name}</strong>
+                        <span>{activeResourceWorkspaceTab.status}</span>
+                        <button type="button" onClick={() => void activateResourceTab(activeResourceWorkspaceTab)}>
+                          Retry
+                        </button>
+                      </section>
+                    ) : api && activeCluster && selectedPod && displayedResourceWorkspaceTab ? (
+                      <PodDrawer
+                        api={api}
+                        clusterId={activeCluster.id}
+                        pod={selectedPod}
+                        resource={selectedResource}
+                        canLogs={selectedResource === "pods" || selectedResource === "deployments" || selectedResource === "deployments.apps"}
+                        width={drawerWidth}
+                        onResize={setDrawerWidth}
+                        onActionComplete={() => loadResources(activeCluster.id, selectedResource, selectedNamespaces)}
+                        onOpenRelated={openRelatedResource}
+                        onPortForwardStarted={() => {
+                          setSection("port-forwards");
+                          setResourceTab("port-forwards");
+                        }}
+                        onOpenTerminal={openBottomTerminal}
+                        initialTab={displayedResourceWorkspaceTab.drawerTab as DrawerTab}
+                        onTabChange={(drawerTab) =>
+                          setResourceWorkspaceTabs((current) => {
+                            const target = current.find((tab) => tab.id === displayedResourceWorkspaceTab.id);
+                            return !target || target.drawerTab === drawerTab ? current : current.map((tab) => (tab.id === target.id ? { ...tab, drawerTab } : tab));
+                          })
+                        }
+                        onDirtyChange={(dirty) => {
+                          drawerDirtyRef.current = dirty;
+                        }}
+                        onClose={() => closeResourceTab(displayedResourceWorkspaceTab.id)}
+                        copyLabel={t("error.copy")}
+                        settings={settings}
+                        t={t}
+                        labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
                       />
                     ) : null}
-                  </>
-                )}
+                  </div>
+                ) : null}
               </div>
-              {api && activeCluster ? (
-                <PodDrawer
-                  api={api}
-                  clusterId={activeCluster.id}
-                  pod={selectedPod}
-                  resource={selectedResource}
-                  canLogs={selectedResource === "pods" || selectedResource === "deployments" || selectedResource === "deployments.apps"}
-                  width={drawerWidth}
-                  onResize={setDrawerWidth}
-                  onActionComplete={() => loadResources(activeCluster.id, selectedResource, selectedNamespaces)}
-                  onOpenRelated={openRelatedResource}
-                  onPortForwardStarted={() => {
-                    setSection("port-forwards");
-                    setResourceTab("port-forwards");
-                  }}
-                  onOpenTerminal={openPinnedTerminal}
-                  onClose={() => setSelectedTarget(null)}
-                  copyLabel={t("error.copy")}
-                  settings={settings}
-                  t={t}
-                  labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
-                />
+              {api && bottomTerminals.length && activeBottomTerminalId ? (
+                <BottomTerminalPanel api={api} targets={bottomTerminals} activeId={activeBottomTerminalId} onActivate={setActiveBottomTerminalId} onClose={closeBottomTerminal} />
               ) : null}
             </section>
           </main>
@@ -900,16 +1068,6 @@ export function App() {
           />
         </Suspense>
       </LazyPanelBoundary>
-      {api && pinnedTerminal ? (
-        <Suspense fallback={null}>
-          <PinnedTerminalPanel
-            key={`${pinnedTerminal.clusterId}:${String(pinnedTerminal.pod.namespace)}:${pinnedTerminal.pod.name}:${pinnedTerminal.container}`}
-            api={api}
-            target={pinnedTerminal}
-            onClose={() => setPinnedTerminal(null)}
-          />
-        </Suspense>
-      ) : null}
     </div>
   );
 }

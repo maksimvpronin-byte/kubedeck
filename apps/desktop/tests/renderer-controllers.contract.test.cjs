@@ -120,35 +120,36 @@ test("Pod Terminal delegates paste to the single xterm input path", () => {
   assert.doesNotMatch(source, /navigator\.clipboard\?\.readText/);
 });
 
-test("pinned Pod Terminal is owned outside resource drawer navigation", () => {
-  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
-  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
-  const panel = fs.readFileSync(path.join(rendererRoot, "components/PinnedTerminalPanel.tsx"), "utf8");
-  assert.match(app, /const \[pinnedTerminal, setPinnedTerminal\] = useState/);
-  assert.match(app, /<PinnedTerminalPanel[\s\S]*target=\{pinnedTerminal\}/);
-  assert.match(drawer, /onOpenTerminal\(pod, containers, containerName/);
-  assert.doesNotMatch(drawer, /<TerminalTab/);
-  assert.match(panel, /className=\{`pinned-terminal \$\{collapsed \? "collapsed" : ""\}`\}/);
-  assert.match(panel, /<TerminalTab/);
+test("Pod Terminal selectors use the themed in-app listbox", () => {
+  const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
+  const select = fs.readFileSync(path.join(rendererRoot, "components/ThemedSelect.tsx"), "utf8");
+  assert.doesNotMatch(terminal, /<select/);
+  assert.match(terminal, /<ThemedSelect\s+ariaLabel="Container"/);
+  assert.match(terminal, /<ThemedSelect\s+ariaLabel="Shell"/);
+  assert.match(select, /role="listbox"/);
+  assert.match(select, /role="option"/);
+  assert.match(select, /window\.addEventListener\("pointerdown"/);
+  assert.match(select, /event\.key === "Escape"/);
 });
 
-test("pinned Pod Terminal has a visible resize handle and persists its dimensions", () => {
-  const panel = fs.readFileSync(path.join(rendererRoot, "components/PinnedTerminalPanel.tsx"), "utf8");
-  const uiState = fs.readFileSync(path.join(rendererRoot, "uiState.ts"), "utf8");
+test("bottom Pod Terminal tabs survive resource drawer navigation", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const panel = fs.readFileSync(path.join(rendererRoot, "components/BottomTerminalPanel.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
-  const model = loadTypeScript("components/PinnedTerminalPanel.tsx", {
-    "lucide-react": { ChevronDown: () => null, ChevronUp: () => null, X: () => null },
-    "../uiState": { loadUiState: () => ({}), saveUiState: () => undefined },
-    "./TerminalTab": { TerminalTab: () => null },
-  });
-  assert.match(uiState, /pinnedTerminalWidth\?: number/);
-  assert.match(uiState, /pinnedTerminalHeight\?: number/);
-  assert.match(panel, /new ResizeObserver/);
-  assert.match(panel, /saveUiState\(\{ \.\.\.loadUiState\(\), pinnedTerminalWidth: width, pinnedTerminalHeight: height \}\)/);
-  assert.match(panel, /className="pinned-terminal-resize-handle"/);
-  assert.match(styles, /\.pinned-terminal-resize-handle\s*\{[^}]*cursor:\s*nwse-resize;/s);
-  assert.deepEqual(model.resizePinnedTerminal({ width: 900, height: 560 }, 100, 80, 1200, 800), { width: 1000, height: 640 });
-  assert.deepEqual(model.resizePinnedTerminal({ width: 900, height: 560 }, -1000, -1000, 1200, 800), { width: 420, height: 320 });
+  assert.match(app, /const \[bottomTerminals, setBottomTerminals\] = useState/);
+  assert.match(app, /<BottomTerminalPanel/);
+  assert.match(app, /bottomTerminals\.length >= 5/);
+  assert.match(drawer, /onOpenTerminal\(pod, containers/);
+  assert.match(panel, /targets\.map/);
+  assert.match(panel, /bottom-terminal-session/);
+  assert.match(panel, /Collapse terminals/);
+  assert.match(app, /content-upper/);
+  assert.match(styles, /\.content\.with-bottom-terminal[\s\S]*grid-template-rows:/);
+  assert.match(styles, /\.bottom-terminal-session\s*\{[^}]*visibility:\s*hidden/s);
+  assert.doesNotMatch(styles, /\.bottom-terminal-session\s*\{[^}]*display:\s*none/s);
+  assert.doesNotMatch(app, /PinnedTerminalPanel/);
+  assert.doesNotMatch(drawer, /<TerminalTab/);
 });
 
 test("theme preferences normalize legacy values and resolve System safely", () => {
@@ -649,7 +650,8 @@ test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results",
   assert.match(lifecycle, /snapshotObjectKey === currentObjectKey/);
   assert.match(lifecycle, /content: snapshotIsCurrent \? content : ""/);
   assert.match(drawer, /drawerResourceIdentity\(clusterId, resource, pod\)/);
-  assert.match(drawer, /<div key=\{currentObjectKey\} className=/);
+  assert.doesNotMatch(drawer, /<div key=\{currentObjectKey\} className=/);
+  assert.match(drawer, /useEffect\(\(\) => setTab\(initialTab\), \[currentObjectKey, initialTab\]\)/);
   assert.match(drawer, /setYamlStatus\(t\("yaml\.dryRunPassed"\)\)/);
   assert.match(drawer, /setYamlStatus\(t\("yaml\.applied"\)\)/);
   assert.match(yaml, /className="apply-result" role="status" aria-live="polite"/);
@@ -722,6 +724,62 @@ test("resource table offers a 2000 row page without changing its default", () =>
   assert.match(state, /PAGE_SIZE_OPTIONS\s*=\s*\[50, 100, 200, 500, 1000, 2000\]/);
   assert.match(state, /DEFAULT_PAGE_SIZE\s*=\s*200/);
   assert.match(state, /visibleRows\.slice\(pageStart, pageStart \+ pageSize\)/);
+});
+
+test("workspace resource tabs add, deduplicate, limit, and close deterministically", () => {
+  const model = loadTypeScript("utils/workspaceTabs.ts");
+  const make = (name) => ({ id: name, clusterId: "c", clusterName: "C", section: "workloads", resource: "pods", namespace: "default", row: { uid: name, name }, drawerTab: "summary" });
+  const first = model.upsertResourceWorkspaceTab([], make("a"), 2);
+  assert.deepEqual(
+    first.tabs.map((tab) => tab.id),
+    ["a"],
+  );
+  const second = model.upsertResourceWorkspaceTab(first.tabs, make("b"), 2);
+  assert.deepEqual(
+    second.tabs.map((tab) => tab.id),
+    ["a", "b"],
+  );
+  assert.equal(model.upsertResourceWorkspaceTab(second.tabs, make("c"), 2).limited, true);
+  assert.deepEqual(
+    model.upsertResourceWorkspaceTab(second.tabs, { ...make("a"), drawerTab: "yaml" }, 2).tabs.map((tab) => tab.id),
+    ["a", "b"],
+  );
+  assert.deepEqual(model.closeResourceWorkspaceTab(second.tabs, "b", "b"), { tabs: [make("a")], activeId: "a" });
+});
+
+test("resource rows pin workspace tabs only on double click", () => {
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  assert.match(table, /onDoubleClick=\{\(\) => onPin\?\.\(row\)\}/);
+  assert.match(app, /pinNextSelectionRef\.current = true/);
+  assert.match(app, /if \(!pinNextSelectionRef\.current\) return/);
+});
+
+test("workspace callbacks do not create renderer update loops", () => {
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  assert.match(drawer, /onTabChangeRef\.current\?\.\(tab\), \[tab\]/);
+  assert.match(drawer, /onDirtyChangeRef\.current\?\.\(yamlChanged\)/);
+  assert.match(terminal, /onStatusChangeRef\.current\?\.\(status\), \[status\]/);
+  assert.match(app, /target\.drawerTab === drawerTab \? current/);
+});
+
+test("hidden terminals never fit or resize the PTY", () => {
+  const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
+  const panel = fs.readFileSync(path.join(rendererRoot, "components/BottomTerminalPanel.tsx"), "utf8");
+  assert.match(terminal, /const activeRef = useRef\(active\)/);
+  assert.match(terminal, /if \(!activeRef\.current\) return/);
+  assert.match(terminal, /bounds\.width <= 0 \|\| bounds\.height <= 0/);
+  assert.match(panel, /active=\{!collapsed && target\.id === activeId\}/);
+});
+
+test("activating a saved resource tab preserves the namespace selector", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const activation = app.slice(app.indexOf("const activateResourceTab"), app.indexOf("function closeResourceTab"));
+  assert.match(activation, /api\.resources\(tab\.clusterId, tab\.resource, tab\.namespace\)/);
+  assert.doesNotMatch(activation, /setNamespaceSelection\(tab\.namespace\)/);
+  assert.doesNotMatch(activation, /setRows\(/);
 });
 
 test("lazy panel boundary resets its failure after navigation", () => {

@@ -19,6 +19,7 @@ interface Props {
   loading: boolean;
   onRefresh: () => void | boolean | Promise<void | boolean>;
   onOpen?: (row: ResourceRow) => void;
+  onPin?: (row: ResourceRow) => void;
   onNamespaceClick?: (namespace: string) => void;
   onBulkDelete?: (rows: ResourceRow[]) => void;
   onBulkCordon?: (rows: ResourceRow[]) => void;
@@ -57,6 +58,7 @@ export function ResourceTable({
   loading,
   onRefresh,
   onOpen,
+  onPin,
   onNamespaceClick,
   onBulkDelete,
   onBulkCordon,
@@ -269,7 +271,13 @@ export function ResourceTable({
             {renderedRows.map((row) => {
               const key = rowKey(row);
               return (
-                <tr key={key} className={`${selectedRowKey === key ? "selected" : ""} ${rowHealthClass(row)}`.trim()} onClick={() => onOpen?.(row)} onContextMenu={(event) => event.preventDefault()}>
+                <tr
+                  key={key}
+                  className={`${selectedRowKey === key ? "selected" : ""} ${rowHealthClass(row)}`.trim()}
+                  onClick={() => onOpen?.(row)}
+                  onDoubleClick={() => onPin?.(row)}
+                  onContextMenu={(event) => event.preventDefault()}
+                >
                   <td className="select-col" onClick={(event) => event.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(key)} onChange={() => toggleRow(key)} />
                   </td>

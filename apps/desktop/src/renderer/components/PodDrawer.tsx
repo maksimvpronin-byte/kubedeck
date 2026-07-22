@@ -41,10 +41,33 @@ interface Props {
     describe: string;
     logs: string;
   };
+  initialTab?: DrawerTab;
+  onTabChange?: (tab: DrawerTab) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onResize, onActionComplete, onOpenRelated, onPortForwardStarted, onOpenTerminal, onClose, copyLabel, labels, settings, t }: Props) {
-  const [tab, setTab] = useState<DrawerTab>("summary");
+export function PodDrawer({
+  api,
+  clusterId,
+  pod,
+  resource,
+  canLogs,
+  width,
+  onResize,
+  onActionComplete,
+  onOpenRelated,
+  onPortForwardStarted,
+  onOpenTerminal,
+  onClose,
+  copyLabel,
+  labels,
+  settings,
+  t,
+  initialTab = "summary",
+  onTabChange,
+  onDirtyChange,
+}: Props) {
+  const [tab, setTab] = useState<DrawerTab>(initialTab);
   const [applyResult, setApplyResult] = useState("");
   const [yamlStatus, setYamlStatus] = useState("");
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -76,6 +99,10 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   const [llmContextChars, setLlmContextChars] = useState(0);
   const [llmTruncated, setLlmTruncated] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const onTabChangeRef = useRef(onTabChange);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onTabChangeRef.current = onTabChange;
+  onDirtyChangeRef.current = onDirtyChange;
 
   const podUid = pod?.uid ? String(pod.uid) : "";
   const podName = pod?.name ?? "";
@@ -104,6 +131,13 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
   const now = useUiClock(Boolean(pod), 1000);
   const isDeploymentResource = resource === "deployments" || resource === "deployments.apps" || resource === "deployment";
   const isNodeResource = resource === "nodes" || resource === "node";
+
+  useEffect(() => onTabChangeRef.current?.(tab), [tab]);
+  useEffect(() => setTab(initialTab), [currentObjectKey, initialTab]);
+  useEffect(() => {
+    onDirtyChangeRef.current?.(yamlChanged);
+    return () => onDirtyChangeRef.current?.(false);
+  }, [yamlChanged]);
 
   useEffect(() => {
     if (!canLogs && !(resource === "nodes" || resource === "node") && (tab === "logs" || tab === "terminal")) setTab("summary");
@@ -466,7 +500,7 @@ export function PodDrawer({ api, clusterId, pod, resource, canLogs, width, onRes
       />
       <PodDrawerHeader resource={resource} namespace={namespaceText} name={pod.name} onCopyName={() => copyText(`${resource}/${pod.name}`, "Name copied")} onClose={requestClose} />
       <PodDrawerTabs tabs={drawerTabs} active={tab} nodeResource={isNodeResource} labels={labels} llmLabel={t("llm.title")} onChange={setTab} />
-      <div key={currentObjectKey} className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
+      <div className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
         <PodDrawerActions
           actions={actions}
           resource={resource}

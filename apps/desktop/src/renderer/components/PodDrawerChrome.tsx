@@ -34,7 +34,9 @@ export function PodDrawerHeader({ resource, namespace, name, onCopyName, onClose
   return (
     <header>
       <div>
-        <span>{displayResource(resource)} · {namespace}</span>
+        <span>
+          {displayResource(resource)} · {namespace}
+        </span>
         <div className="drawer-title-row">
           <h2>{name}</h2>
           <button type="button" className="icon-button drawer-copy-name-button" onClick={onCopyName} title="Copy resource name" aria-label="Copy resource name">
@@ -42,7 +44,9 @@ export function PodDrawerHeader({ resource, namespace, name, onCopyName, onClose
           </button>
         </div>
       </div>
-      <button className="icon-button" onClick={onClose} title="Close"><X size={18} /></button>
+      <button className="icon-button" onClick={onClose} title="Close">
+        <X size={18} />
+      </button>
     </header>
   );
 }
@@ -61,7 +65,19 @@ export function PodDrawerTabs({ tabs, active, nodeResource, labels, llmLabel, on
     <nav className="drawer-tabs">
       {tabs.map((item) => (
         <button className={active === item ? "active" : ""} onClick={() => onChange(item)} key={item}>
-          {item === "events" ? "Events" : item === "related" ? "Related" : item === "terminal" ? (nodeResource ? "SSH" : "Terminal") : item === "secret" ? "Secret" : item === "llm" ? llmLabel : labels[item]}
+          {item === "events"
+            ? "Events"
+            : item === "related"
+              ? "Related"
+              : item === "terminal"
+                ? nodeResource
+                  ? "SSH"
+                  : "Terminal"
+                : item === "secret"
+                  ? "Secret"
+                  : item === "llm"
+                    ? llmLabel
+                    : labels[item]}
         </button>
       ))}
     </nav>
@@ -90,10 +106,20 @@ export function PodDrawerActions(props: ActionsProps) {
           {actionLabel(action, props.resource)}
         </button>
       ))}
-      {props.resource === "pods" ? <button className="icon-text" disabled={props.loading} onClick={props.onTerminal}>Terminal</button> : null}
-      {props.canPortForward ? <button className="icon-text" disabled={props.loading} onClick={props.onPortForward}>Port forward</button> : null}
+      {props.resource === "pods" ? (
+        <button className="icon-text" disabled={props.loading} onClick={props.onTerminal}>
+          Terminal
+        </button>
+      ) : null}
+      {props.canPortForward ? (
+        <button className="icon-text" disabled={props.loading} onClick={props.onPortForward}>
+          Port forward
+        </button>
+      ) : null}
       {props.involvedTarget ? (
-        <button className="icon-text" onClick={() => props.onOpenRelated(props.involvedTarget!.resource, props.involvedTarget!.namespace, props.involvedTarget!.name)}>Open involved object</button>
+        <button className="icon-text" onClick={() => props.onOpenRelated(props.involvedTarget!.resource, props.involvedTarget!.namespace, props.involvedTarget!.name)}>
+          Open involved object
+        </button>
       ) : null}
       {props.applyResult ? <span>{props.applyResult}</span> : null}
     </div>

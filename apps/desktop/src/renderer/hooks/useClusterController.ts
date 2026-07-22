@@ -226,13 +226,14 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
   }, [api, renameTarget, renameDraft, reloadConfig, setError]);
 
   const removeCluster = useCallback(
-    async (cluster: Cluster) => {
-      if (!api || !window.confirm(`Remove ${cluster.displayName}?`)) return;
+    async (cluster: Cluster, confirmed = false) => {
+      if (!api || (!confirmed && !window.confirm(`Remove ${cluster.displayName}?`))) return false;
       await api.removeCluster(cluster.id);
       setActiveCluster((current) => (current?.id === cluster.id ? null : current));
       setUnavailableCluster((current) => (current?.id === cluster.id ? null : current));
       namespaceController.forgetClusterNamespaces(cluster.id);
       await reloadConfig();
+      return true;
     },
     [api, namespaceController.forgetClusterNamespaces, reloadConfig],
   );
