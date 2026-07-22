@@ -120,6 +120,37 @@ test("Pod Terminal delegates paste to the single xterm input path", () => {
   assert.doesNotMatch(source, /navigator\.clipboard\?\.readText/);
 });
 
+test("pinned Pod Terminal is owned outside resource drawer navigation", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const panel = fs.readFileSync(path.join(rendererRoot, "components/PinnedTerminalPanel.tsx"), "utf8");
+  assert.match(app, /const \[pinnedTerminal, setPinnedTerminal\] = useState/);
+  assert.match(app, /<PinnedTerminalPanel[\s\S]*target=\{pinnedTerminal\}/);
+  assert.match(drawer, /onOpenTerminal\(pod, containers, containerName/);
+  assert.doesNotMatch(drawer, /<TerminalTab/);
+  assert.match(panel, /className=\{`pinned-terminal \$\{collapsed \? "collapsed" : ""\}`\}/);
+  assert.match(panel, /<TerminalTab/);
+});
+
+test("pinned Pod Terminal has a visible resize handle and persists its dimensions", () => {
+  const panel = fs.readFileSync(path.join(rendererRoot, "components/PinnedTerminalPanel.tsx"), "utf8");
+  const uiState = fs.readFileSync(path.join(rendererRoot, "uiState.ts"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
+  const model = loadTypeScript("components/PinnedTerminalPanel.tsx", {
+    "lucide-react": { ChevronDown: () => null, ChevronUp: () => null, X: () => null },
+    "../uiState": { loadUiState: () => ({}), saveUiState: () => undefined },
+    "./TerminalTab": { TerminalTab: () => null },
+  });
+  assert.match(uiState, /pinnedTerminalWidth\?: number/);
+  assert.match(uiState, /pinnedTerminalHeight\?: number/);
+  assert.match(panel, /new ResizeObserver/);
+  assert.match(panel, /saveUiState\(\{ \.\.\.loadUiState\(\), pinnedTerminalWidth: width, pinnedTerminalHeight: height \}\)/);
+  assert.match(panel, /className="pinned-terminal-resize-handle"/);
+  assert.match(styles, /\.pinned-terminal-resize-handle\s*\{[^}]*cursor:\s*nwse-resize;/s);
+  assert.deepEqual(model.resizePinnedTerminal({ width: 900, height: 560 }, 100, 80, 1200, 800), { width: 1000, height: 640 });
+  assert.deepEqual(model.resizePinnedTerminal({ width: 900, height: 560 }, -1000, -1000, 1200, 800), { width: 420, height: 320 });
+});
+
 test("theme preferences normalize legacy values and resolve System safely", () => {
   const model = loadTypeScript("utils/theme.ts");
   const darkMedia = { matches: true };

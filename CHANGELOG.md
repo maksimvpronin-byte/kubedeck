@@ -1,3 +1,11 @@
+## 2.6.0 - Pinned Pod Terminal
+
+- Moved the active Pod Terminal outside resource drawer identity so navigation no longer closes its WebSocket session.
+- Added a persistent terminal panel with cluster, namespace, pod and container identity plus collapse, expand and close controls.
+- Added a visible panel resize handle with locally persisted width and height.
+- Kept one terminal session at a time and require confirmation before replacing it with a different target.
+- Preserved the existing xterm, kubectl exec, PTY and paste paths without new dependencies or backend routes.
+
 ## 2.5.2 - Large resource pages and namespace search
 
 - Added a 2,000-row page size while retaining the 200-row default and all existing choices.
