@@ -290,14 +290,14 @@ function QuotaUsage({ rows }: { rows: Array<{ resource: string; used: string; ha
       {rows.map((row) => (
         <div className={`quota-usage-row is-${row.ratio !== null && row.ratio >= 95 ? "danger" : row.ratio !== null && row.ratio >= 80 ? "warning" : "normal"}`} key={row.resource}>
           <div>
-            <strong>{row.resource}</strong>
+            <strong title={row.resource}>{row.resource}</strong>
             <span>
               {row.used} / {row.hard || "—"}
             </span>
           </div>
           {row.ratio === null ? null : (
             <>
-              <div className="quota-usage-track">
+              <div className="quota-usage-track" title={`${row.resource}: ${row.used} / ${row.hard}`} aria-label={`${row.resource}: ${row.used} of ${row.hard}`}>
                 <span style={{ width: `${Math.min(100, row.ratio)}%` }} />
               </div>
               <b>{Math.round(row.ratio)}%</b>

@@ -1,8 +1,9 @@
 import { diffLines } from "diff";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parse, stringify } from "yaml";
 import type { ApiClient } from "../api";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
+import { ThemedSelect } from "./ThemedSelect";
 
 type DiffTone = "equal" | "changed" | "added" | "removed";
 export interface ManifestDiffRow {
@@ -104,15 +105,30 @@ export function ManifestCompare({ api, current, currentYaml, unsaved, candidates
   const [targetYaml, setTargetYaml] = useState("");
   const [raw, setRaw] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const requestRef = useRef(0);
+  useEffect(() => () => {
+    requestRef.current += 1;
+  }, []);
   const choose = async (id: string) => {
+    const request = ++requestRef.current;
     setTarget(id);
     setError("");
+    setTargetYaml("");
+    setLoading(Boolean(id));
+    if (!id) return;
     const tab = candidates.find((item) => item.id === id);
-    if (!tab) return;
+    if (!tab) {
+      setLoading(false);
+      return;
+    }
     try {
-      setTargetYaml(await api.resourceText(tab.clusterId, tab.resource, tab.namespace, tab.row.name, "yaml"));
+      const yaml = await api.resourceText(tab.clusterId, tab.resource, tab.namespace, tab.row.name, "yaml");
+      if (request === requestRef.current) setTargetYaml(yaml);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (request === requestRef.current) setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      if (request === requestRef.current) setLoading(false);
     }
   };
   const tab = candidates.find((item) => item.id === target);
@@ -134,10 +150,25 @@ export function ManifestCompare({ api, current, currentYaml, unsaved, candidates
       <section className="manifest-compare">
         <header><h2>Compare manifests</h2><button className="icon-button" type="button" onClick={onClose}>×</button></header>
         <div className="manifest-compare-toolbar">
-          <select value={target} onChange={(event) => void choose(event.target.value)}>
-            <option value="">Choose open resource…</option>
-            {candidates.map((item) => <option value={item.id} key={item.id}>{item.clusterName} · {item.namespace}/{item.row.name}</option>)}
-          </select>
+          <ThemedSelect
+            value={target}
+            disabled={!candidates.length}
+            ariaLabel="Choose resource to compare"
+            options={[
+              {
+                value: "",
+                label: candidates.length ? "Choose open resource…" : "No comparable open resources",
+                title: candidates.length ? "Choose open resource to compare" : "Open another resource of the same kind to compare",
+              },
+              ...candidates.map((item) => ({
+                value: item.id,
+                label: item.row.name,
+                description: `${item.clusterName} · ${item.namespace === "_cluster" ? "cluster" : item.namespace}`,
+                title: `${item.clusterName} · ${item.resource} · ${item.namespace}/${item.row.name}`,
+              })),
+            ]}
+            onChange={(id) => void choose(id)}
+          />
           <div className="manifest-compare-controls">
             <div className="manifest-compare-legend" aria-label="Diff legend"><span className="is-equal">Same</span><span className="is-changed">Changed</span><span className="is-added">Added</span><span className="is-removed">Removed</span></div>
             <button className="icon-text manifest-compare-mode" type="button" onClick={() => setRaw((value) => !value)}>{raw ? "Raw" : "Clean"}</button>
@@ -146,7 +177,7 @@ export function ManifestCompare({ api, current, currentYaml, unsaved, candidates
         {renderError ? <p className="error-text">{renderError}</p> : null}
         <div className="manifest-compare-grid">
           <div><strong>{current.label}{unsaved ? " · Unsaved" : ""}</strong><DiffPane side="left" rows={rows} /></div>
-          <div><strong>{tab ? `${tab.clusterName} · ${tab.namespace}/${tab.row.name}` : "Select target"}</strong><DiffPane side="right" rows={rows} /></div>
+          <div><strong>{loading ? "Loading manifest…" : tab ? `${tab.clusterName} · ${tab.namespace}/${tab.row.name}` : "Select target"}</strong><DiffPane side="right" rows={rows} /></div>
         </div>
       </section>
     </div>

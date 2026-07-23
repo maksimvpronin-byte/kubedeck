@@ -169,6 +169,24 @@ test("Pod Terminal selectors use the themed in-app listbox", () => {
   assert.match(select, /role="option"/);
   assert.match(select, /window\.addEventListener\("pointerdown"/);
   assert.match(select, /event\.key === "Escape"/);
+  assert.match(select, /event\.key === "ArrowDown"/);
+  assert.match(select, /event\.key === "Home"/);
+});
+
+test("2.7.5 Manifest Compare uses the themed chooser and quota rows cannot overlap", () => {
+  const compare = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
+  const select = fs.readFileSync(path.join(rendererRoot, "components/ThemedSelect.tsx"), "utf8");
+  const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
+  assert.doesNotMatch(compare, /<select/);
+  assert.match(compare, /<ThemedSelect/);
+  assert.match(compare, /request === requestRef\.current/);
+  assert.match(compare, /No comparable open resources/);
+  assert.match(select, /role="listbox"/);
+  assert.match(select, /aria-selected=\{isSelected\}/);
+  assert.match(drawerStyles, /\.quota-usage\s*\{[^}]*container-type:\s*inline-size/s);
+  assert.match(drawerStyles, /\.quota-usage-row\s*\{[^}]*grid-template-columns:/s);
+  assert.match(drawerStyles, /@container \(max-width: 430px\)/);
+  assert.match(drawerStyles, /overflow-wrap:\s*anywhere/);
 });
 
 test("2.7.4 resource surfaces stay compact and operational", () => {

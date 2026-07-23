@@ -96,6 +96,14 @@
 
 .manifest-compare { width: min(1200px, calc(100vw - 48px)); height: min(780px, calc(100vh - 48px)); max-height: calc(100vh - 48px); display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
 .manifest-compare > header, .manifest-compare-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.manifest-compare-toolbar > .themed-select { flex: 1 1 420px; max-width: min(620px, 100%); }
+.manifest-compare-toolbar .themed-select-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 34px; padding: 5px 9px; border: 1px solid var(--input-border); border-radius: 7px; background: var(--input-bg); color: var(--text); text-align: left; }
+.manifest-compare-toolbar .themed-select-trigger:hover:not(:disabled), .manifest-compare-toolbar .themed-select-trigger[aria-expanded="true"] { border-color: var(--primary-border); background: var(--surface-hover); }
+.manifest-compare-toolbar .themed-select-trigger:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.manifest-compare-toolbar .themed-select-menu { z-index: 80; width: min(620px, calc(100vw - 96px)); max-width: 100%; max-height: min(320px, calc(100vh - 140px)); }
+.manifest-compare-toolbar .themed-select-option { display: flex; align-items: center; justify-content: flex-start; gap: 7px; width: 100%; min-height: 38px; padding: 5px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text); text-align: left; }
+.manifest-compare-toolbar .themed-select-option:hover, .manifest-compare-toolbar .themed-select-option:focus-visible, .manifest-compare-toolbar .themed-select-option.is-selected { outline: none; background: var(--surface-hover); }
+.manifest-compare-toolbar .themed-select-option-copy { flex: 1; }
 .manifest-compare-controls, .manifest-compare-legend { display: flex; align-items: center; gap: 8px; }
 .manifest-compare-mode { flex: 0 0 auto; }
 .manifest-compare-legend { color: var(--muted); font-size: 11px; }

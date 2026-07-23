@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-07-21
 Ветка: `main`
-Текущая проверяемая версия: `2.7.4`
+Текущая проверяемая версия: `2.7.5`
 
 ## Итог
 
@@ -50,11 +50,11 @@
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.7.4.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.7.5.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.7.4` сохраняет Node-only baseline и упрощает resource drawer, Summary, resource tables и Pod Terminal без изменения Gateway ownership.
+`2.7.5` сохраняет Node-only baseline, переводит Manifest Compare на тематический chooser и исправляет читаемость длинных имён ResourceQuota без изменения Gateway ownership.
 
 После принятия 2.0.6:
 
