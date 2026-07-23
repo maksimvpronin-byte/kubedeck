@@ -35,7 +35,7 @@
   gap: 0;
   min-width: 0;
   padding: 4px 12px 0;
-  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -1px var(--border);
   overflow-x: auto;
 }
 
@@ -59,7 +59,17 @@
   border-color: color-mix(in srgb, var(--primary-border) 38%, var(--border));
   border-bottom-color: var(--panel-muted);
   background: transparent;
-  margin-bottom: -1px;
+}
+
+.resource-workspace-tab.active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  height: 1px;
+  background: var(--panel-muted);
+  content: "";
 }
 
 .resource-workspace-tab:not(.active) {
@@ -280,6 +290,7 @@
 }
 
 .drawer-content-fill > .yaml-ide-editor,
+.drawer-content-fill > .yaml-fold-view,
 .drawer-content-fill > .describe-viewer {
   flex: 1 1 0;
   height: auto;
@@ -560,6 +571,48 @@ dd {
   border-radius: 6px;
   background: var(--code-bg);
   overflow: hidden;
+}
+
+.yaml-fold-view {
+  height: clamp(360px, calc(100vh - 380px), 680px);
+  min-height: 360px;
+  margin: 0;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  background: var(--code-bg);
+}
+
+.yaml-fold-gutter {
+  display: inline-grid;
+  width: 20px;
+  place-items: center;
+  vertical-align: middle;
+}
+
+.yaml-fold-gutter button {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.yaml-fold-gutter button:hover,
+.yaml-fold-gutter button:focus-visible {
+  color: var(--text);
+}
+
+.yaml-fold-view .yaml-line-number {
+  width: 34px;
+  margin-right: 8px;
+}
+
+.yaml-fold-summary {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .yaml-editor {

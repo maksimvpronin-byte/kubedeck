@@ -168,6 +168,7 @@
     "bulkDelete.title":  "Удалить выбранные ресурсы",
     "bulkDelete.text":  "Будет удалено:",
     "bulkDelete.warning":  "Это действие нельзя отменить из KubeDeck.",
+    "bulkDelete.forcePodWarning":  "Поды будут принудительно удалены без graceful shutdown. Контроллеры могут пересоздать управляемые Pod; standalone Pod не восстановятся.",
     "bulkDelete.more":  "ещё",
     "bulkDelete.resource":  "Ресурс",
     "bulkDelete.namespaces":  "Namespace",

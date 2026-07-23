@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
 import { formatAge } from "../utils/time";
+import { metricPercent, ResourceUsageBar } from "./ResourceUsageBar";
 
 interface Props {
   row: ResourceRow;
@@ -18,6 +19,7 @@ export function ResourceSummary({ row, resource, now, events = [] }: Props) {
   const failures = isPod(resource) ? restartFailures(row) : [];
   const warnings = warningEvents(events).slice(0, 5);
   const quota = isQuota(resource) ? quotaRows(row.quotaUsage) : [];
+  const workloadConditions = Array.isArray(row.workloadConditions) ? row.workloadConditions as Array<{ label: string; reason?: string; message?: string; tone?: string }> : [];
 
   return (
     <div className="resource-summary-layout">
@@ -26,6 +28,19 @@ export function ResourceSummary({ row, resource, now, events = [] }: Props) {
           <SummaryTile key={item.label} {...item} />
         ))}
       </section>
+
+      {workloadConditions.length ? (
+        <section className="resource-summary-section" aria-label="Workload conditions">
+          <div className="resource-summary-section-title">Conditions</div>
+          <div className="workload-condition-list summary-workload-conditions">
+            {workloadConditions.map((condition) => (
+              <span className={`workload-condition is-${condition.tone || "neutral"}`} title={`${condition.reason || condition.label}${condition.message ? `: ${condition.message}` : ""}`} key={condition.label}>
+                {condition.label}
+              </span>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {containers.length ? (
         <section className="resource-summary-section" aria-label="Containers">
@@ -140,9 +155,9 @@ function summaryFacts(row: ResourceRow, resource: string, now: number): Fact[] {
     addFact(facts, "Kubelet", row.kubeletVersion);
     addFact(facts, "Runtime", row.containerRuntime);
     addFact(facts, "Platform", [row.osImage || row.os, row.architecture].filter(Boolean).join(" · "));
-    addFact(facts, "CPU", usageText(row.cpuUsage, row.cpuAvailable, row.cpuAllocatable, row.cpuCapacity));
-    addFact(facts, "Memory", usageText(row.memoryUsage, row.memoryAvailable, row.memoryAllocatable, row.memoryCapacity));
-    addFact(facts, "Disk", usageText(row.diskUsage, row.diskAvailable, row.diskAllocatable, row.diskObservedCapacity ?? row.diskCapacity));
+    addFact(facts, "CPU", <ResourceUsageBar label="CPU" tone="cpu" percent={metricPercent(row.cpuUsagePercent)} used={row.cpuUsage} free={row.cpuAvailable} allocatable={row.cpuAllocatable ?? row.cpuCapacity} />);
+    addFact(facts, "Memory", <ResourceUsageBar label="RAM" tone="memory" percent={metricPercent(row.memoryUsagePercent)} used={row.memoryUsage} free={row.memoryAvailable} allocatable={row.memoryAllocatable ?? row.memoryCapacity} />);
+    addFact(facts, "Disk", <ResourceUsageBar label="Disk" tone="disk" percent={usagePercent(row.diskUsage, row.diskObservedCapacity ?? row.diskAllocatable ?? row.diskCapacity)} used={row.diskUsage} free={row.diskAvailable} allocatable={row.diskObservedCapacity ?? row.diskAllocatable ?? row.diskCapacity} />);
     addFact(facts, "Pods", capacityText(row.podsAllocatable, row.podsCapacity));
     return facts;
   }
@@ -231,7 +246,7 @@ function SummaryTile({ label, value, tone = "default" }: Fact) {
 
 function addFact(items: Fact[], label: string, value: unknown, tone?: Tone) {
   if (value === undefined || value === null || value === "" || value === "unknown" || value === "0/0") return;
-  items.push({ label, value: String(value), tone });
+  items.push({ label, value: value as ReactNode, tone });
 }
 
 function containerRows(row: ResourceRow) {
@@ -283,7 +298,7 @@ function warningEvents(events: ResourceRow[]) {
     .sort((a, b) => Date.parse(String(b.createdAt || "")) - Date.parse(String(a.createdAt || "")));
 }
 
-function QuotaUsage({ rows }: { rows: Array<{ resource: string; used: string; hard: string; ratio: number | null }> }) {
+function QuotaUsage({ rows }: { rows: Array<{ resource: string; used: string; hard: string; displayUsed: string; displayHard: string; ratio: number | null }> }) {
   return (
     <section className="resource-summary-section quota-usage">
       <div className="resource-summary-section-title">Quota usage</div>
@@ -291,8 +306,8 @@ function QuotaUsage({ rows }: { rows: Array<{ resource: string; used: string; ha
         <div className={`quota-usage-row is-${row.ratio !== null && row.ratio >= 95 ? "danger" : row.ratio !== null && row.ratio >= 80 ? "warning" : "normal"}`} key={row.resource}>
           <div>
             <strong title={row.resource}>{row.resource}</strong>
-            <span>
-              {row.used} / {row.hard || "—"}
+            <span title={`${row.used} / ${row.hard || "—"}`}>
+              {row.displayUsed} / {row.displayHard || "—"}
             </span>
           </div>
           {row.ratio === null ? null : (
@@ -317,21 +332,46 @@ function quotaRows(value: unknown) {
       const item = entry as Record<string, unknown>;
       const used = String(item.used || "0");
       const hard = String(item.hard || "");
-      return [{ resource: String(item.resource || "resource"), used, hard, ratio: quantityRatio(used, hard) }];
+      const resource = String(item.resource || "resource");
+      return [{ resource, used, hard, displayUsed: formatQuotaQuantity(resource, used), displayHard: formatQuotaQuantity(resource, hard), ratio: quantityRatio(used, hard) }];
     })
     .sort((a, b) => (b.ratio ?? -1) - (a.ratio ?? -1));
 }
 
 export function quantityRatio(used: string, hard: string) {
-  const parse = (value: string) => {
-    const match = value.match(/^(-?\d+(?:\.\d+)?)(m|Ki|Mi|Gi|Ti|k|M|G|T)?$/);
-    if (!match) return null;
-    const factors: Record<string, number> = { m: 0.001, k: 1e3, M: 1e6, G: 1e9, T: 1e12, Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4 };
-    return Number(match[1]) * (factors[match[2] || ""] || 1);
-  };
-  const left = parse(used);
-  const right = parse(hard);
+  const left = parseKubeQuantity(used);
+  const right = parseKubeQuantity(hard);
   return left === null || right === null || right <= 0 ? null : (left / right) * 100;
+}
+
+export function formatQuotaQuantity(resource: string, value: string) {
+  if (!value || value === "0" || !/(memory|storage)/i.test(resource)) return value;
+  const bytes = parseKubeQuantity(value);
+  if (bytes === null) return value;
+  const units: Array<[string, number]> = [["TiB", 1024 ** 4], ["GiB", 1024 ** 3], ["MiB", 1024 ** 2], ["KiB", 1024]];
+  const [suffix, divisor] = units.find(([, threshold]) => bytes >= threshold) ?? ["B", 1];
+  const rounded = Math.round((bytes / divisor) * 100) / 100;
+  return `${rounded} ${suffix}`;
+}
+
+function parseKubeQuantity(value: string) {
+  const match = value.match(/^(-?\d+(?:\.\d+)?)(m|Ki|Mi|Gi|Ti|k|K|M|G|T)?$/);
+  if (!match) return null;
+  const factors: Record<string, number> = { m: 0.001, k: 1e3, K: 1e3, M: 1e6, G: 1e9, T: 1e12, Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4 };
+  return Number(match[1]) * (factors[match[2] || ""] || 1);
+}
+
+function usagePercent(used: unknown, total: unknown) {
+  const left = parseDisplayBytes(used);
+  const right = parseDisplayBytes(total);
+  return left === null || right === null || right <= 0 ? null : Math.max(0, Math.min(100, Math.round((left / right) * 100)));
+}
+
+function parseDisplayBytes(value: unknown) {
+  const match = String(value ?? "").match(/^(\d+(?:\.\d+)?)\s*(B|KiB|MiB|GiB|TiB)$/);
+  if (!match) return null;
+  const factors: Record<string, number> = { B: 1, KiB: 1024, MiB: 1024 ** 2, GiB: 1024 ** 3, TiB: 1024 ** 4 };
+  return Number(match[1]) * factors[match[2]];
 }
 
 function primaryStatus(row: ResourceRow) {
@@ -340,7 +380,7 @@ function primaryStatus(row: ResourceRow) {
 function statusTone(status: string): Tone {
   const value = status.toLowerCase();
   if (/running|ready|active|bound|succeeded/.test(value)) return "success";
-  if (/error|failed|crash|unavailable|notready/.test(value)) return "danger";
+  if (/error|fail|crash|unavailable|notready/.test(value)) return "danger";
   if (/pending|terminating|waiting|cordon/.test(value)) return "warning";
   return "default";
 }
@@ -356,10 +396,6 @@ function capacityText(allocatable: unknown, capacity: unknown) {
   return allocatable || capacity ? `${String(allocatable || "—")} / ${String(capacity || "—")}` : "";
 }
 
-function usageText(used: unknown, available: unknown, allocatable: unknown, capacity: unknown) {
-  if (used || available) return `${String(used || "—")} used · ${String(available || "—")} free · ${String(allocatable || capacity || "—")} allocatable`;
-  return capacityText(allocatable, capacity);
-}
 function ownerText(value: unknown) {
   if (!Array.isArray(value)) return "";
   const owner = value.find((item) => item && typeof item === "object") as Record<string, unknown> | undefined;

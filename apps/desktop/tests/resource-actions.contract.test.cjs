@@ -60,6 +60,8 @@ test("resource action route, plans and confirmation contract", () => {
     "delete",
     "pods",
     "demo",
+    "--force",
+    "--grace-period=0",
     "--wait=false",
     "-n",
     "default",
@@ -69,6 +71,8 @@ test("resource action route, plans and confirmation contract", () => {
     resource: "pods",
     namespace: "default",
   }]);
+  const deploymentDeletePlan = buildResourceActionPlan(target(), "delete");
+  assert.doesNotMatch(deploymentDeletePlan.args.join(" "), /--force|--grace-period/);
 
   const restartPlan = buildResourceActionPlan(target(), "restart");
   assert.deepEqual(restartPlan.args, [

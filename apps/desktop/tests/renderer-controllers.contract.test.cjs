@@ -96,12 +96,12 @@ test("namespace search keeps selected namespaces visible", () => {
 test("manifest compare scrolls inside the modal and uses themed controls", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");
-  assert.match(component, /className="icon-text manifest-compare-mode" type="button"/);
-  assert.match(component, /\{raw \? "Raw" : "Clean"\}<\/button>/);
-  assert.match(component, /className="icon-button" type="button"/);
+  assert.match(component, /className="icon-text manifest-compare-mode"\s+type="button"/);
+  assert.match(component, /\{raw \? "Raw" : "Clean"\}\s*<\/button>/);
+  assert.match(component, /className="icon-button"\s+type="button"/);
   assert.match(styles, /\.manifest-compare\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
   assert.match(styles, /\.manifest-compare-grid\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
-  assert.match(styles, /\.manifest-compare-grid > div\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(styles, /\.manifest-context\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s);
   assert.match(styles, /\.manifest-diff-code\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/s);
 });
 
@@ -712,6 +712,7 @@ test("drawer request generations reject stale responses and reset resource data"
     relatedLinks: [],
     relatedSources: {},
     relatedErrors: [],
+    metrics: {},
   });
 
   const firstRow = { uid: "pod-uid", name: "pod-a", namespace: "tools", status: "Running" };
@@ -881,6 +882,64 @@ test("activating a saved resource tab preserves the namespace selector", () => {
 test("transient resource drawer occupies the workspace content row without saved tabs", () => {
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
   assert.match(styles, /\.resource-workspace\s*>\s*\.drawer\s*\{[^}]*grid-row:\s*2;/s);
+});
+
+test("2.7.6 resource surfaces align compare panes and render compact operational signals", () => {
+  const compare = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
+  const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
+  assert.match(compare, /target\.scrollTop !== source\.scrollTop/);
+  assert.match(compare, /target\.scrollLeft !== source\.scrollLeft/);
+  assert.match(compare, /aria-label=\{side === "left" \? "Current manifest" : "Compared manifest"\}/);
+  assert.match(table, /<ResourceUsageBar label="CPU"/);
+  assert.match(table, /<ResourceUsageBar label="RAM"/);
+  assert.match(table, /workload-condition-list/);
+  assert.match(table, /nodeLabelItems/);
+  assert.match(summary, /formatQuotaQuantity/);
+  assert.match(lifecycle, /\.resourceMetrics\(/);
+  assert.match(lifecycle, /metricsRequestRef/);
+  const model = loadTypeScript("components/ResourceSummary.tsx");
+  assert.equal(model.formatQuotaQuantity("requests.memory", "1024Ki"), "1 MiB");
+  assert.equal(model.formatQuotaQuantity("requests.memory", "1536Mi"), "1.5 GiB");
+  assert.equal(model.formatQuotaQuantity("limits.cpu", "200m"), "200m");
+  assert.equal(model.formatQuotaQuantity("pods", "25"), "25");
+});
+
+test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contracted", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+  const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
+  const terminalStyles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
+  assert.match(app, /key: "podResources", label: "Usage"/);
+  assert.match(app, /onVisibleNodeRows=\{loadVisibleNodeDisk\}/);
+  assert.match(app, /Promise\.all\(\[worker\(\), worker\(\)\]\)/);
+  assert.match(table, /label="Storage"/);
+  assert.match(table, /label="Disk"/);
+  assert.match(table, /function PodResourceUsage/);
+  assert.match(app, /function LazySurface/);
+  const appReturn = app.slice(app.indexOf("return (", app.indexOf("export function App")), app.indexOf('<aside className="sidebar">'));
+  assert.doesNotMatch(appReturn, /<Suspense/);
+  assert.match(yamlTab, /yamlFoldRegions/);
+  assert.match(yamlTab, /Collapse top-level YAML groups/);
+  assert.match(drawerStyles, /\.resource-workspace-tab\.active::after/);
+  assert.match(terminalStyles, /\.bottom-terminal-tab\.active::after/);
+});
+
+test("YAML folding preserves full source and hides only collection descendants", () => {
+  const model = loadTypeScript("utils/yamlFolding.ts", { yaml: require("yaml") });
+  const source = "apiVersion: v1\nmetadata:\n  name: demo\n  labels:\n    app: demo\nspec:\n  containers:\n    - name: app\n";
+  const regions = model.yamlFoldRegions(source);
+  const metadata = regions.find((region) => region.label === "metadata");
+  assert.ok(metadata);
+  const visible = model.visibleYamlLines(source, regions, new Set([metadata.path]));
+  assert.equal(
+    visible.some((line) => line.line.includes("name: demo")),
+    false,
+  );
+  assert.equal(source.includes("name: demo"), true);
+  assert.deepEqual(model.yamlFoldRegions("metadata:\n  name: ["), []);
 });
 
 test("lazy panel boundary resets its failure after navigation", () => {

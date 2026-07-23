@@ -1,5 +1,5 @@
 import { Search, Trash2, X } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
 import { useUiClock } from "../hooks/useUiClock";
@@ -8,6 +8,7 @@ import { formatElapsed } from "../utils/time";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
 import type { AsyncActionLabels } from "./AsyncActionButton";
+import { metricPercent, ResourceUsageBar } from "./ResourceUsageBar";
 
 export type Column = ResourceTableColumn;
 
@@ -25,6 +26,7 @@ interface Props {
   onBulkUncordon?: (rows: ResourceRow[]) => void;
   onBulkDrain?: (rows: ResourceRow[]) => void;
   selectedRow?: ResourceRow | null;
+  onVisibleNodeRows?: (rows: ResourceRow[]) => void;
   filterLabel: string;
   refreshLabel: string;
   refreshActionLabels?: AsyncActionLabels;
@@ -63,6 +65,7 @@ export function ResourceTable({
   onBulkUncordon,
   onBulkDrain,
   selectedRow,
+  onVisibleNodeRows,
   filterLabel,
   stateKey,
   labels,
@@ -138,6 +141,11 @@ export function ResourceTable({
   const allPageSelected = renderedRows.length > 0 && selectedPageRows.length === renderedRows.length;
   const nodeActionsVisible = selectedRows.length > 0 && Boolean(onBulkCordon || onBulkUncordon || onBulkDrain);
   const controlsDisabled = loading && rows.length === 0;
+  const nodeUsageVisible = visibleColumns.some((column) => column.key === "nodeResources");
+
+  useEffect(() => {
+    if (nodeUsageVisible) onVisibleNodeRows?.(renderedRows);
+  }, [nodeUsageVisible, onVisibleNodeRows, renderedRows]);
 
   return (
     <section className="resource-table-panel" ref={tableRef}>
@@ -329,22 +337,167 @@ function formatCell(row: ResourceRow, key: string, now: number): ReactNode {
     );
   }
   if (key === "containers") return renderContainerStatus(row);
-  if (key === "nodeResources") {
-    return (
-      <span className="node-resource-usage">
-        {String(row.nodeResources || "")
-          .split("\n")
-          .map((line) => (
-            <span key={line}>{line}</span>
-          ))}
-      </span>
-    );
-  }
+  if (key === "nodeResources") return <NodeResourceUsage row={row} />;
+  if (key === "namespaceResources") return <NamespaceResourceUsage row={row} />;
+  if (key === "podResources") return <PodResourceUsage row={row} />;
+  if (key === "status" && Array.isArray(row.workloadConditions)) return <WorkloadConditions row={row} />;
+  if (key === "labelsText" && Array.isArray(row.nodeLabelItems)) return <NodeLabels row={row} />;
   if (key !== "createdAt") return String(row[key] ?? "");
   const createdAt = String(row.createdAt ?? "");
   const createdMs = Date.parse(createdAt);
   if (!Number.isFinite(createdMs)) return createdAt;
   return formatElapsed(Math.max(0, now - createdMs));
+}
+
+function NodeResourceUsage({ row }: { row: ResourceRow }) {
+  return (
+    <span className="node-resource-usage">
+      <ResourceUsageBar label="CPU" tone="cpu" percent={metricPercent(row.cpuUsagePercent)} used={row.cpuUsage} free={row.cpuAvailable} allocatable={row.cpuAllocatable} />
+      <ResourceUsageBar label="RAM" tone="memory" percent={metricPercent(row.memoryUsagePercent)} used={row.memoryUsage} free={row.memoryAvailable} allocatable={row.memoryAllocatable} />
+      <ResourceUsageBar
+        label="Disk"
+        tone="disk"
+        percent={metricPercent(row.diskUsagePercent)}
+        used={row.diskUsage}
+        free={row.diskAvailable}
+        allocatable={row.diskObservedCapacity}
+        denominatorLabel="capacity"
+        unavailableLabel={row.diskLoading ? "…" : "N/A"}
+      />
+    </span>
+  );
+}
+
+function NamespaceResourceUsage({ row }: { row: ResourceRow }) {
+  const cpuPercent = metricPercent(row.namespaceCpuUsagePercent);
+  const memoryPercent = metricPercent(row.namespaceMemoryUsagePercent);
+  const storagePercent = metricPercent(row.namespaceStorageUsagePercent);
+  return (
+    <span className="node-resource-usage">
+      <ResourceUsageBar
+        label="CPU"
+        tone="cpu"
+        percent={cpuPercent}
+        used={row.namespaceCpuUsed}
+        denominator={row.namespaceCpuQuota}
+        denominatorLabel="quota"
+        unavailableLabel={row.namespaceCpuQuota === "no quota" ? "No quota" : "N/A"}
+      />
+      <ResourceUsageBar
+        label="RAM"
+        tone="memory"
+        percent={memoryPercent}
+        used={row.namespaceMemoryUsed}
+        denominator={row.namespaceMemoryQuota}
+        denominatorLabel="quota"
+        unavailableLabel={row.namespaceMemoryQuota === "no quota" ? "No quota" : "N/A"}
+      />
+      <ResourceUsageBar
+        label="Storage"
+        tone="disk"
+        percent={storagePercent}
+        used={row.namespaceStorageUsed}
+        denominator={row.namespaceStorageQuota}
+        denominatorLabel="quota"
+        unavailableLabel={row.namespaceStorageQuota === "no quota" ? "No quota" : "N/A"}
+      />
+    </span>
+  );
+}
+
+function PodResourceUsage({ row }: { row: ResourceRow }) {
+  const cpuLimit = formatCpuValue(row.podCpuLimitValue);
+  const memoryLimit = formatByteValue(row.podMemoryLimitValue);
+  return (
+    <span className="node-resource-usage">
+      <ResourceUsageBar
+        label="CPU"
+        tone="cpu"
+        percent={metricPercent(row.podCpuUsagePercent)}
+        used={row.cpuUsage}
+        denominator={cpuLimit}
+        denominatorLabel="limit"
+        unavailableLabel={row.cpuUsage ? "No limit" : "N/A"}
+      />
+      <ResourceUsageBar
+        label="RAM"
+        tone="memory"
+        percent={metricPercent(row.podMemoryUsagePercent)}
+        used={row.memoryUsage}
+        denominator={memoryLimit}
+        denominatorLabel="limit"
+        unavailableLabel={row.memoryUsage ? "No limit" : "N/A"}
+      />
+    </span>
+  );
+}
+
+function formatCpuValue(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return "";
+  return parsed % 1000 === 0 ? String(parsed / 1000) : `${Math.round(parsed * 100) / 100}m`;
+}
+
+function formatByteValue(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return "";
+  for (const [label, divisor] of [
+    ["GiB", 1024 ** 3],
+    ["MiB", 1024 ** 2],
+    ["KiB", 1024],
+  ] as const) {
+    if (parsed >= divisor) return `${Math.round((parsed / divisor) * 100) / 100} ${label}`;
+  }
+  return `${parsed} B`;
+}
+
+type WorkloadCondition = { label?: unknown; reason?: unknown; message?: unknown; tone?: unknown };
+
+function WorkloadConditions({ row }: { row: ResourceRow }) {
+  const conditions = (row.workloadConditions as WorkloadCondition[]).filter((condition) => condition && condition.label);
+  const replicaSummary = `Ready ${String(row.ready ?? "—")} · Updated ${String(row.updated ?? "—")} · Available ${String(row.available ?? "—")}`;
+  const full = conditions
+    .map((condition) => `${String(condition.label)}${condition.reason ? `: ${String(condition.reason)}` : ""}${condition.message ? ` — ${String(condition.message)}` : ""}`)
+    .join("; ");
+  return (
+    <span className="workload-condition-list" aria-label={`${full}. ${replicaSummary}`}>
+      {conditions.map((condition) => (
+        <span
+          className={`workload-condition is-${String(condition.tone || "neutral")}`}
+          title={`${String(condition.reason || condition.label)}${condition.message ? `: ${String(condition.message)}` : ""} · ${replicaSummary}`}
+          key={String(condition.label)}
+        >
+          {String(condition.label)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+type NodeLabel = { key?: unknown; label?: unknown; value?: unknown; full?: unknown };
+
+function NodeLabels({ row }: { row: ResourceRow }) {
+  const labels = (row.nodeLabelItems as NodeLabel[]).filter(Boolean);
+  const visible = labels.slice(0, 3);
+  const full = labels
+    .map((label) => String(label.full || label.key || ""))
+    .filter(Boolean)
+    .join(", ");
+  return (
+    <span className="node-label-list" aria-label={full || "No labels"}>
+      {visible.map((label) => (
+        <span className="node-label-chip" title={String(label.full || "")} key={String(label.key)}>
+          {String(label.label || label.key)}
+          {label.value ? `: ${String(label.value)}` : ""}
+        </span>
+      ))}
+      {labels.length > visible.length ? (
+        <span className="node-label-more" title={full} tabIndex={0}>
+          +{labels.length - visible.length}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 function renderContainerStatus(row: ResourceRow): ReactNode {

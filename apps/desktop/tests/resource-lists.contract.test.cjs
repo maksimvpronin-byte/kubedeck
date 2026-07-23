@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 
 const { ResourceSnapshotCache } = require("../dist/main/backend/cache/resourceSnapshotCache.js");
-const { normalizeResourceItems, podSummary, nodeSummary, keyValueSummary } = require("../dist/main/backend/resources/normalizers.js");
+const { normalizeResourceItems, podSummary, nodeSummary, keyValueSummary, deploymentSummary, nodeLabelItems } = require("../dist/main/backend/resources/normalizers.js");
 
 test("Secret summary exposes metadata without values", () => {
   const row = keyValueSummary({ metadata: { name: "api-key", namespace: "tools" }, kind: "Secret", type: "Opaque", data: { token: "c2VjcmV0", password: "c2VjcmV0Mg==" } });
@@ -12,12 +12,128 @@ test("Secret summary exposes metadata without values", () => {
   assert.equal(row.keyNames, "password, token");
   assert.doesNotMatch(JSON.stringify(row), /c2VjcmV0/);
 });
-const { parseNodeMetrics, parsePodMetrics } = require("../dist/main/backend/resources/metrics.js");
+const { applyNamespaceMetrics, applyNodeMetrics, applyPodMetrics, parseNodeMetrics, parsePodMetrics } = require("../dist/main/backend/resources/metrics.js");
 
 test("node metrics preserve CPU and memory usage for used/free calculations", () => {
   const metrics = parseNodeMetrics("worker-1 125m 6% 768Mi 39%\nworker-2 1 50% 2Gi 75%\n");
   assert.deepEqual(metrics.get("worker-1"), { cpu: "125m", cpuPercent: "6%", memory: "768Mi", memoryPercent: "39%" });
   assert.deepEqual(metrics.get("worker-2"), { cpu: "1", cpuPercent: "50%", memory: "2Gi", memoryPercent: "75%" });
+});
+
+test("node list metrics use one top command regardless of node count", async () => {
+  const commands = [];
+  const rows = Array.from({ length: 120 }, (_, index) => ({
+    uid: String(index),
+    name: `worker-${index}`,
+    cpuAllocatableRaw: "2",
+    memoryAllocatableRaw: "2Gi",
+  }));
+  const runner = {
+    async run(command) {
+      commands.push(command);
+      return {
+        stdout: rows.map((row) => `${row.name} 100m 5% 512Mi 25%`).join("\n"),
+      };
+    },
+  };
+  await applyNodeMetrics(fakeConfigStore(), runner, "cluster-1", rows);
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0].args, ["top", "nodes", "--no-headers"]);
+  assert.equal(rows[0].cpuUsage, "100m");
+  assert.equal(rows[119].memoryUsage, "512 MiB");
+  assert.equal(
+    commands.some((command) => command.args.some((arg) => arg.includes("/stats/summary"))),
+    false,
+  );
+});
+
+test("namespace usage aggregates quota without double-counting ephemeral storage", async () => {
+  const rows = [{ uid: "n1", name: "tools" }];
+  const runner = {
+    async run() {
+      return { stdout: "tools api 250m 512Mi\n" };
+    },
+    async runJson() {
+      return {
+        items: [
+          {
+            metadata: { namespace: "tools" },
+            status: {
+              hard: { "limits.cpu": "2", "limits.memory": "4Gi", "requests.storage": "20Gi", "requests.ephemeral-storage": "5Gi", "limits.ephemeral-storage": "8Gi" },
+              used: { "requests.storage": "2Gi", "requests.ephemeral-storage": "1Gi", "limits.ephemeral-storage": "3Gi" },
+            },
+          },
+        ],
+      };
+    },
+  };
+  await applyNamespaceMetrics(fakeConfigStore(), runner, "cluster-1", rows);
+  assert.equal(rows[0].namespaceCpuUsagePercent, 13);
+  assert.equal(rows[0].namespaceMemoryUsagePercent, 13);
+  assert.equal(rows[0].namespaceStorageQuota, "28 GiB");
+  assert.equal(rows[0].namespaceStorageUsed, "5 GiB");
+  assert.equal(rows[0].namespaceStorageUsagePercent, 18);
+});
+
+test("pod metrics use limits as denominator and keep unbounded pods percentage-free", async () => {
+  const rows = [
+    { uid: "p1", name: "api", namespace: "tools", podCpuLimitValue: 500, podMemoryLimitValue: 1024 ** 3 },
+    { uid: "p2", name: "worker", namespace: "tools", podCpuLimitValue: null, podMemoryLimitValue: null },
+  ];
+  const runner = {
+    async run() {
+      return { stdout: "tools api 125m 256Mi\ntools worker 50m 64Mi\n" };
+    },
+  };
+  await applyPodMetrics(fakeConfigStore(), runner, "cluster-1", "all", rows);
+  assert.equal(rows[0].podCpuUsagePercent, 25);
+  assert.equal(rows[0].podMemoryUsagePercent, 25);
+  assert.equal(rows[1].podCpuUsagePercent, null);
+  assert.equal(rows[1].podMemoryUsagePercent, null);
+});
+
+test("deployment conditions preserve simultaneous Lens-style labels", () => {
+  const row = deploymentSummary({
+    metadata: { uid: "d1", name: "web", namespace: "default", generation: 4 },
+    spec: { replicas: 3, template: { spec: { containers: [] } } },
+    status: {
+      observedGeneration: 4,
+      replicas: 3,
+      readyReplicas: 2,
+      updatedReplicas: 2,
+      availableReplicas: 2,
+      conditions: [
+        { type: "Available", status: "True", reason: "MinimumReplicasAvailable", message: "Deployment has minimum availability." },
+        { type: "Progressing", status: "True", reason: "ReplicaSetUpdated", message: "ReplicaSet is progressing." },
+        { type: "ReplicaFailure", status: "True", reason: "FailedCreate", message: "Quota exceeded." },
+      ],
+    },
+  });
+  assert.deepEqual(
+    row.workloadConditions.map((condition) => condition.label),
+    ["ReplicaFailure", "Available", "Progressing"],
+  );
+  assert.match(row.workloadConditionsText, /FailedCreate/);
+  assert.match(row.status, /Available/);
+  assert.match(row.status, /ReplicaFailure/);
+});
+
+test("node labels prioritize readable system labels and deduplicate beta aliases", () => {
+  const items = nodeLabelItems(
+    {
+      "node-role.kubernetes.io/control-plane": "",
+      "topology.kubernetes.io/zone": "eu-1a",
+      "failure-domain.beta.kubernetes.io/zone": "eu-1a",
+      "kubernetes.io/hostname": "worker-1",
+      "example.com/team": "platform",
+    },
+    "worker-1",
+  );
+  assert.deepEqual(
+    items.map((item) => `${item.label}:${item.value}`),
+    ["Role:control-plane", "Zone:eu-1a", "team:platform"],
+  );
+  assert.equal(items[2].full, "example.com/team=platform");
 });
 const { handleResourceListRequest, matchResourceListRoute } = require("../dist/main/backend/routes/resourceLists.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
@@ -69,8 +185,11 @@ test("resource normalizers preserve KubeDeck row contracts", () => {
         {
           name: "main",
           ports: [{ containerPort: 8080, protocol: "TCP" }],
+          resources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "500m", memory: "512Mi" } },
         },
       ],
+      initContainers: [{ name: "init", resources: { limits: { cpu: "250m", memory: "1Gi" } } }],
+      overhead: { cpu: "10m", memory: "16Mi" },
     },
     status: {
       phase: "Running",
@@ -111,6 +230,8 @@ test("resource normalizers preserve KubeDeck row contracts", () => {
   assert.equal(pod.ports, "8080/TCP");
   assert.equal(pod.cpuUsage, "");
   assert.equal(pod.memoryUsage, "");
+  assert.equal(pod.podCpuLimitValue, 510);
+  assert.equal(pod.podMemoryLimitValue, 1090519040);
 
   const node = nodeSummary({
     metadata: { uid: "node-uid", name: "worker-1" },

@@ -1,8 +1,11 @@
 import { diffLines } from "diff";
-import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, ListTree, UnfoldVertical } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject, UIEvent } from "react";
 import { parse, stringify } from "yaml";
 import type { ApiClient } from "../api";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
+import { yamlFoldRegions } from "../utils/yamlFolding";
 import { ThemedSelect } from "./ThemedSelect";
 
 type DiffTone = "equal" | "changed" | "added" | "removed";
@@ -81,18 +84,86 @@ export function buildManifestDiff(left: string, right: string): ManifestDiffRow[
   return rows;
 }
 
-function DiffPane({ side, rows }: { side: "left" | "right"; rows: ManifestDiffRow[] }) {
+type DiffFoldRange = { key: string; label: string; depth: number; start: number; end: number };
+type VisibleDiffRow = { row: ManifestDiffRow; originalIndex: number; fold?: DiffFoldRange; hiddenCount?: number };
+
+function diffFoldRanges(rows: ManifestDiffRow[], side: "left" | "right", source: string): DiffFoldRange[] {
+  const numberKey = `${side}Number` as const;
+  return yamlFoldRegions(source)
+    .map((region) => {
+      const start = rows.findIndex((row) => row[numberKey] === region.startLine);
+      let end = start;
+      for (let index = start; index >= 0 && index < rows.length; index += 1) {
+        const line = rows[index][numberKey];
+        if (line !== null && line > region.endLine) break;
+        end = index;
+      }
+      return { key: `${side}:${region.path}`, label: region.label, depth: region.depth, start, end };
+    })
+    .filter((region) => region.start >= 0 && region.end > region.start);
+}
+
+function visibleDiffRows(rows: ManifestDiffRow[], ranges: DiffFoldRange[], collapsed: ReadonlySet<string>): VisibleDiffRow[] {
+  const starts = new Map<number, DiffFoldRange[]>();
+  for (const range of ranges) {
+    const bucket = starts.get(range.start) ?? [];
+    bucket.push(range);
+    starts.set(range.start, bucket);
+  }
+  const result: VisibleDiffRow[] = [];
+  for (let index = 0; index < rows.length; index += 1) {
+    const candidates = (starts.get(index) ?? []).sort((left, right) => right.end - left.end);
+    const fold = candidates[0];
+    const active = candidates.find((candidate) => collapsed.has(candidate.key));
+    result.push({ row: rows[index], originalIndex: index, fold, hiddenCount: active ? active.end - active.start : undefined });
+    if (active) index = active.end;
+  }
+  return result;
+}
+
+function DiffPane({
+  side,
+  rows,
+  paneRef,
+  onScroll,
+  onToggle,
+  collapsed,
+}: {
+  side: "left" | "right";
+  rows: VisibleDiffRow[];
+  paneRef: RefObject<HTMLDivElement>;
+  onScroll: (event: UIEvent<HTMLDivElement>) => void;
+  onToggle: (key: string) => void;
+  collapsed: ReadonlySet<string>;
+}) {
   return (
-    <div className="manifest-diff-code" role="region" tabIndex={0}>
-      {rows.map((row, index) => {
+    <div className={`manifest-diff-code is-${side}`} role="region" aria-label={side === "left" ? "Current manifest" : "Compared manifest"} tabIndex={0} ref={paneRef} onScroll={onScroll}>
+      {rows.map(({ row, originalIndex, fold, hiddenCount }) => {
         const value = row[side];
         const number = row[`${side}Number`];
         const tone = row[`${side}Tone`];
+        const isCollapsed = Boolean(fold && collapsed.has(fold.key));
         return (
-          <div className={`manifest-diff-line is-${tone}`} key={`${side}-${index}`}>
+          <div className={`manifest-diff-line is-${tone}`} key={`${side}-${originalIndex}`}>
             <span className="manifest-diff-number">{number ?? ""}</span>
             <span className="manifest-diff-marker">{tone === "added" ? "+" : tone === "removed" ? "−" : tone === "changed" ? "~" : "="}</span>
-            <code>{value ?? " "}</code>
+            <span className="manifest-diff-fold-cell">
+              {fold ? (
+                <button
+                  className="manifest-diff-fold"
+                  type="button"
+                  aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${fold.label}`}
+                  aria-expanded={!isCollapsed}
+                  onClick={() => onToggle(fold.key)}
+                >
+                  {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                </button>
+              ) : null}
+            </span>
+            <code>
+              {value ?? " "}
+              {hiddenCount ? `  … ${hiddenCount} lines` : ""}
+            </code>
           </div>
         );
       })}
@@ -100,17 +171,51 @@ function DiffPane({ side, rows }: { side: "left" | "right"; rows: ManifestDiffRo
   );
 }
 
-export function ManifestCompare({ api, current, currentYaml, unsaved, candidates, onClose }: { api: ApiClient; current: { label: string }; currentYaml: string; unsaved: boolean; candidates: ResourceWorkspaceTab[]; onClose: () => void }) {
+export function ManifestCompare({
+  api,
+  current,
+  currentYaml,
+  unsaved,
+  candidates,
+  onClose,
+}: {
+  api: ApiClient;
+  current: { label: string };
+  currentYaml: string;
+  unsaved: boolean;
+  candidates: ResourceWorkspaceTab[];
+  onClose: () => void;
+}) {
   const [target, setTarget] = useState("");
   const [targetYaml, setTargetYaml] = useState("");
   const [raw, setRaw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const requestRef = useRef(0);
-  useEffect(() => () => {
-    requestRef.current += 1;
-  }, []);
+  const leftPaneRef = useRef<HTMLDivElement>(null);
+  const rightPaneRef = useRef<HTMLDivElement>(null);
+  const resetScroll = () => {
+    for (const pane of [leftPaneRef.current, rightPaneRef.current]) {
+      if (pane) {
+        pane.scrollTop = 0;
+        pane.scrollLeft = 0;
+      }
+    }
+  };
+  const syncScroll = (source: HTMLDivElement, target: HTMLDivElement | null) => {
+    if (!target) return;
+    if (target.scrollTop !== source.scrollTop) target.scrollTop = source.scrollTop;
+    if (target.scrollLeft !== source.scrollLeft) target.scrollLeft = source.scrollLeft;
+  };
+  useEffect(
+    () => () => {
+      requestRef.current += 1;
+    },
+    [],
+  );
   const choose = async (id: string) => {
+    resetScroll();
     const request = ++requestRef.current;
     setTarget(id);
     setError("");
@@ -143,12 +248,28 @@ export function ManifestCompare({ api, current, currentYaml, unsaved, candidates
   } catch (cause) {
     renderError ||= cause instanceof Error ? cause.message : String(cause);
   }
-  const rows = right ? buildManifestDiff(left, right) : lines(left).map((value, index) => ({ left: value, right: null, leftNumber: index + 1, rightNumber: null, leftTone: "equal" as const, rightTone: "equal" as const }));
+  const rows = right
+    ? buildManifestDiff(left, right)
+    : lines(left).map((value, index) => ({ left: value, right: null, leftNumber: index + 1, rightNumber: null, leftTone: "equal" as const, rightTone: "equal" as const }));
+  const foldRanges = useMemo(() => [...diffFoldRanges(rows, "left", left), ...(right ? diffFoldRanges(rows, "right", right) : [])], [left, right, rows]);
+  const displayedRows = useMemo(() => visibleDiffRows(rows, foldRanges, collapsed), [collapsed, foldRanges, rows]);
+  const toggleFold = (key: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   return (
     <div className="modal-backdrop">
       <section className="manifest-compare">
-        <header><h2>Compare manifests</h2><button className="icon-button" type="button" onClick={onClose}>×</button></header>
+        <header>
+          <h2>Compare manifests</h2>
+          <button className="icon-button" type="button" onClick={onClose}>
+            ×
+          </button>
+        </header>
         <div className="manifest-compare-toolbar">
           <ThemedSelect
             value={target}
@@ -170,16 +291,58 @@ export function ManifestCompare({ api, current, currentYaml, unsaved, candidates
             onChange={(id) => void choose(id)}
           />
           <div className="manifest-compare-controls">
-            <div className="manifest-compare-legend" aria-label="Diff legend"><span className="is-equal">Same</span><span className="is-changed">Changed</span><span className="is-added">Added</span><span className="is-removed">Removed</span></div>
-            <button className="icon-text manifest-compare-mode" type="button" onClick={() => setRaw((value) => !value)}>{raw ? "Raw" : "Clean"}</button>
+            <div className="manifest-compare-legend" aria-label="Diff legend">
+              <span className="is-equal">Same</span>
+              <span className="is-changed">Changed</span>
+              <span className="is-added">Added</span>
+              <span className="is-removed">Removed</span>
+            </div>
+            <button
+              className="icon-text manifest-compare-mode"
+              type="button"
+              onClick={() => {
+                resetScroll();
+                setCollapsed(new Set());
+                setRaw((value) => !value);
+              }}
+            >
+              {raw ? "Raw" : "Clean"}
+            </button>
+            <button
+              className="icon-button"
+              type="button"
+              title="Collapse top-level groups"
+              aria-label="Collapse top-level groups"
+              onClick={() => {
+                const minimumDepth = Math.min(...foldRanges.map((range) => range.depth));
+                setCollapsed(new Set(foldRanges.filter((range) => range.depth === minimumDepth).map((range) => range.key)));
+              }}
+              disabled={!foldRanges.length}
+            >
+              <ListTree size={16} />
+            </button>
+            <button className="icon-button" type="button" title="Expand all groups" aria-label="Expand all groups" disabled={!collapsed.size} onClick={() => setCollapsed(new Set())}>
+              <UnfoldVertical size={16} />
+            </button>
           </div>
         </div>
         {renderError ? <p className="error-text">{renderError}</p> : null}
         <div className="manifest-compare-grid">
-          <div><strong>{current.label}{unsaved ? " · Unsaved" : ""}</strong><DiffPane side="left" rows={rows} /></div>
-          <div><strong>{loading ? "Loading manifest…" : tab ? `${tab.clusterName} · ${tab.namespace}/${tab.row.name}` : "Select target"}</strong><DiffPane side="right" rows={rows} /></div>
+          <div className="manifest-context is-left" title={current.label}>
+            <strong>{shortResourceName(current.label)}</strong>
+            {unsaved ? <span>Unsaved</span> : null}
+          </div>
+          <div className="manifest-context is-right" title={tab ? `${tab.clusterName} · ${tab.namespace}/${tab.row.name}` : undefined}>
+            <strong>{loading ? "Loading manifest…" : tab ? tab.row.name : "Select target"}</strong>
+          </div>
+          <DiffPane side="left" rows={displayedRows} collapsed={collapsed} onToggle={toggleFold} paneRef={leftPaneRef} onScroll={(event) => syncScroll(event.currentTarget, rightPaneRef.current)} />
+          <DiffPane side="right" rows={displayedRows} collapsed={collapsed} onToggle={toggleFold} paneRef={rightPaneRef} onScroll={(event) => syncScroll(event.currentTarget, leftPaneRef.current)} />
         </div>
       </section>
     </div>
   );
+}
+
+function shortResourceName(label: string) {
+  return label.split("/").at(-1) || label;
 }

@@ -1,10 +1,11 @@
-import { ChevronDown, ChevronUp, FileCheck2, GitCompareArrows, RotateCcw, Save, Search } from "lucide-react";
-import { lazy, Suspense, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, ChevronUp, FileCheck2, GitCompareArrows, ListTree, Pencil, RotateCcw, Save, Search, UnfoldVertical } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, ReactNode } from "react";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 import { AsyncActionButton, reloadActionLabels } from "./AsyncActionButton";
 import type { ApiClient } from "../api";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
+import { visibleYamlLines, yamlFoldRegions } from "../utils/yamlFolding";
 
 const ManifestCompare = lazy(() => import("./ManifestCompare").then((module) => ({ default: module.ManifestCompare })));
 
@@ -52,13 +53,25 @@ export function YamlTab({
   const matchCount = yamlQuery ? countMatches(yamlDraft, yamlQuery) : 0;
   const reloadFeedback = useAsyncActionFeedback();
   const [compareOpen, setCompareOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const foldRegions = useMemo(() => yamlFoldRegions(yamlDraft), [yamlDraft]);
   const labels = reloadActionLabels(t);
 
+  useEffect(() => {
+    const paths = new Set(foldRegions.map((region) => region.path));
+    setCollapsed((current) => new Set([...current].filter((path) => paths.has(path))));
+  }, [foldRegions]);
+
   function jumpMatch(direction: 1 | -1) {
-    if (!editorRef.current || !yamlQuery || matchCount === 0) return;
+    if (!yamlQuery || matchCount === 0) return;
     const next = matchIndex < 0 && direction === 1 ? 0 : (matchIndex + direction + matchCount) % matchCount;
     setMatchIndex(next);
-    selectMatch(editorRef.current, yamlDraft, yamlQuery, next);
+    setCollapsed(new Set());
+    setEditing(true);
+    window.requestAnimationFrame(() => {
+      if (editorRef.current) selectMatch(editorRef.current, yamlDraft, yamlQuery, next);
+    });
   }
 
   return (
@@ -119,6 +132,38 @@ export function YamlTab({
               <GitCompareArrows size={18} />
             </button>
           </span>
+          {!readOnly ? (
+            <span className="yaml-action-tooltip" data-tooltip={editing ? "Fold view" : "Edit full YAML"}>
+              <button
+                className="icon-button yaml-icon-action"
+                aria-label={editing ? "Open fold view" : "Edit full YAML"}
+                onClick={() => {
+                  setCollapsed(new Set());
+                  setEditing((current) => !current);
+                }}
+              >
+                {editing ? <ListTree size={18} /> : <Pencil size={18} />}
+              </button>
+            </span>
+          ) : null}
+          <span className="yaml-action-tooltip" data-tooltip="Collapse top-level groups">
+            <button
+              className="icon-button yaml-icon-action"
+              disabled={editing || foldRegions.length === 0}
+              aria-label="Collapse top-level YAML groups"
+              onClick={() => {
+                const minimumDepth = Math.min(...foldRegions.map((region) => region.depth));
+                setCollapsed(new Set(foldRegions.filter((region) => region.depth === minimumDepth).map((region) => region.path)));
+              }}
+            >
+              <ListTree size={18} />
+            </button>
+          </span>
+          <span className="yaml-action-tooltip" data-tooltip="Expand all groups">
+            <button className="icon-button yaml-icon-action" disabled={editing || collapsed.size === 0} aria-label="Expand all YAML groups" onClick={() => setCollapsed(new Set())}>
+              <UnfoldVertical size={18} />
+            </button>
+          </span>
           {readOnly && readOnlyReason ? <span className="yaml-readonly-indicator">{readOnlyReason}</span> : null}
           {yamlChanged ? <span className="yaml-dirty-indicator">modified · auto-refresh paused</span> : null}
           {status ? (
@@ -133,34 +178,83 @@ export function YamlTab({
           <ManifestCompare api={api} current={current} currentYaml={yamlDraft} unsaved={yamlChanged} candidates={candidates} onClose={() => setCompareOpen(false)} />
         </Suspense>
       ) : null}
-      <div className="yaml-ide-editor">
-        <pre className="yaml-editor yaml-highlight-layer" ref={highlightRef} aria-hidden="true">
-          {highlightYaml(yamlDraft)}
-        </pre>
-        <textarea
-          ref={editorRef}
-          className="yaml-editor yaml-editor-input"
-          value={yamlDraft}
-          readOnly={readOnly}
-          onChange={(event) => {
-            if (readOnly) return;
-            setYamlDraft(event.target.value);
-          }}
-          onScroll={(event) => {
-            if (!highlightRef.current) return;
-            highlightRef.current.scrollTop = event.currentTarget.scrollTop;
-            highlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && yamlQuery && matchCount > 0) {
-              event.preventDefault();
-              jumpMatch(event.shiftKey ? -1 : 1);
-            }
-          }}
-          spellCheck={false}
+      {!editing ? (
+        <FoldedYamlView
+          source={yamlDraft}
+          collapsed={collapsed}
+          regions={foldRegions}
+          onToggle={(path) =>
+            setCollapsed((current) => {
+              const next = new Set(current);
+              if (next.has(path)) next.delete(path);
+              else next.add(path);
+              return next;
+            })
+          }
         />
-      </div>
+      ) : (
+        <div className="yaml-ide-editor">
+          <pre className="yaml-editor yaml-highlight-layer" ref={highlightRef} aria-hidden="true">
+            {highlightYaml(yamlDraft)}
+          </pre>
+          <textarea
+            ref={editorRef}
+            className="yaml-editor yaml-editor-input"
+            value={yamlDraft}
+            readOnly={readOnly}
+            onChange={(event) => {
+              if (readOnly) return;
+              setYamlDraft(event.target.value);
+            }}
+            onScroll={(event) => {
+              if (!highlightRef.current) return;
+              highlightRef.current.scrollTop = event.currentTarget.scrollTop;
+              highlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && yamlQuery && matchCount > 0) {
+                event.preventDefault();
+                jumpMatch(event.shiftKey ? -1 : 1);
+              }
+            }}
+            spellCheck={false}
+          />
+        </div>
+      )}
     </>
+  );
+}
+
+function FoldedYamlView({ source, regions, collapsed, onToggle }: { source: string; regions: ReturnType<typeof yamlFoldRegions>; collapsed: ReadonlySet<string>; onToggle: (path: string) => void }) {
+  const starts = new Map(regions.map((region) => [region.startLine, region]));
+  return (
+    <div className="yaml-fold-view yaml-editor" role="region" aria-label="YAML manifest" tabIndex={0}>
+      {visibleYamlLines(source, regions, collapsed).map(({ line, lineNumber, hiddenCount }) => {
+        const region = starts.get(lineNumber);
+        const isCollapsed = Boolean(region && collapsed.has(region.path));
+        return (
+          <span className="yaml-line" key={lineNumber}>
+            <span className="yaml-fold-gutter">
+              {region ? (
+                <button
+                  type="button"
+                  aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${region.label}`}
+                  aria-expanded={!isCollapsed}
+                  title={`${isCollapsed ? "Expand" : "Collapse"} ${region.label}`}
+                  onClick={() => onToggle(region.path)}
+                >
+                  {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                </button>
+              ) : null}
+            </span>
+            <span className="yaml-line-number">{lineNumber}</span>
+            <span className="yaml-line-code">{highlightYamlLine(line)}</span>
+            {hiddenCount ? <span className="yaml-fold-summary"> … {hiddenCount} lines</span> : null}
+            {"\n"}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 

@@ -26,6 +26,51 @@ function numberValue(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function cpuMillicores(value: unknown): number | null {
+  const raw = text(value).trim();
+  if (!raw) return null;
+  const parsed = raw.endsWith("m") ? Number(raw.slice(0, -1)) : raw.endsWith("u") ? Number(raw.slice(0, -1)) / 1000 : raw.endsWith("n") ? Number(raw.slice(0, -1)) / 1_000_000 : Number(raw) * 1000;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function memoryBytes(value: unknown): number | null {
+  const raw = text(value).trim();
+  if (!raw) return null;
+  const units: Array<[string, number]> = [
+    ["Ki", 1024],
+    ["Mi", 1024 ** 2],
+    ["Gi", 1024 ** 3],
+    ["Ti", 1024 ** 4],
+    ["K", 1000],
+    ["M", 1000 ** 2],
+    ["G", 1000 ** 3],
+    ["T", 1000 ** 4],
+  ];
+  for (const [suffix, multiplier] of units) {
+    if (!raw.endsWith(suffix)) continue;
+    const parsed = Number(raw.slice(0, -suffix.length));
+    return Number.isFinite(parsed) ? parsed * multiplier : null;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function containerResource(container: JsonObject, section: "requests" | "limits", resource: "cpu" | "memory"): number | null {
+  const resources = record(container.resources);
+  const values = record(resources[section]);
+  return resource === "cpu" ? cpuMillicores(values.cpu) : memoryBytes(values.memory);
+}
+
+function effectivePodResource(spec: JsonObject, section: "requests" | "limits", resource: "cpu" | "memory"): number | null {
+  const containers = records(spec.containers);
+  const regularValues = containers.map((container) => containerResource(container, section, resource));
+  if (section === "limits" && regularValues.some((value) => value === null)) return null;
+  const regularTotal = regularValues.reduce<number>((total, value) => total + (value ?? 0), 0);
+  const initMaximum = records(spec.initContainers).reduce((maximum, container) => Math.max(maximum, containerResource(container, section, resource) ?? 0), 0);
+  const overhead = resource === "cpu" ? cpuMillicores(record(spec.overhead).cpu) : memoryBytes(record(spec.overhead).memory);
+  return Math.max(regularTotal, initMaximum) + (overhead ?? 0);
+}
+
 export function meta(item: JsonObject): ResourceRow {
   const metadata = record(item.metadata);
   const labels = record(metadata.labels);
@@ -35,6 +80,7 @@ export function meta(item: JsonObject): ResourceRow {
     namespace: text(metadata.namespace),
     createdAt: text(metadata.creationTimestamp),
     deletionTimestamp: text(metadata.deletionTimestamp),
+    generation: numberValue(metadata.generation),
     labels,
     labelsText: Object.entries(labels)
       .sort(([left], [right]) => left.localeCompare(right))
@@ -42,6 +88,138 @@ export function meta(item: JsonObject): ResourceRow {
       .join(", "),
     ownerReferences: records(metadata.ownerReferences),
   };
+}
+
+const NODE_LABEL_ALIASES: Record<string, { label: string; priority: number; stable?: string }> = {
+  "node-role.kubernetes.io/control-plane": { label: "Role", priority: 1 },
+  "node-role.kubernetes.io/master": { label: "Role", priority: 1 },
+  "node-role.kubernetes.io/worker": { label: "Role", priority: 1 },
+  "topology.kubernetes.io/region": { label: "Region", priority: 2 },
+  "failure-domain.beta.kubernetes.io/region": { label: "Region", priority: 2, stable: "topology.kubernetes.io/region" },
+  "topology.kubernetes.io/zone": { label: "Zone", priority: 3 },
+  "failure-domain.beta.kubernetes.io/zone": { label: "Zone", priority: 3, stable: "topology.kubernetes.io/zone" },
+  "node.kubernetes.io/instance-type": { label: "Type", priority: 4 },
+  "beta.kubernetes.io/instance-type": { label: "Type", priority: 4, stable: "node.kubernetes.io/instance-type" },
+  "kubernetes.io/os": { label: "OS", priority: 5 },
+  "beta.kubernetes.io/os": { label: "OS", priority: 5, stable: "kubernetes.io/os" },
+  "kubernetes.io/arch": { label: "Arch", priority: 6 },
+  "beta.kubernetes.io/arch": { label: "Arch", priority: 6, stable: "kubernetes.io/arch" },
+  "kubernetes.io/hostname": { label: "Hostname", priority: 7 },
+};
+
+export interface NodeLabelItem {
+  key: string;
+  label: string;
+  value: string;
+  full: string;
+  priority: number;
+}
+
+export function nodeLabelItems(labelsValue: unknown, nodeName: string): NodeLabelItem[] {
+  const labels = record(labelsValue);
+  const suffixCounts = new Map<string, number>();
+  for (const key of Object.keys(labels)) {
+    const suffix = key.split("/").at(-1) ?? key;
+    suffixCounts.set(suffix, (suffixCounts.get(suffix) ?? 0) + 1);
+  }
+
+  return Object.entries(labels)
+    .filter(([key, value]) => {
+      const alias = NODE_LABEL_ALIASES[key];
+      if (alias?.stable && labels[alias.stable] === value) return false;
+      return !(key === "kubernetes.io/hostname" && String(value) === nodeName);
+    })
+    .map(([key, value]) => {
+      const raw = String(value);
+      const alias = NODE_LABEL_ALIASES[key];
+      const suffix = key.split("/").at(-1) ?? key;
+      const role = key.startsWith("node-role.kubernetes.io/") ? suffix : "";
+      return {
+        key,
+        label: alias?.label ?? (suffixCounts.get(suffix) === 1 ? suffix : key),
+        value: raw || role,
+        full: raw ? `${key}=${raw}` : key,
+        priority: alias?.priority ?? 100,
+      };
+    })
+    .sort((left, right) => left.priority - right.priority || left.key.localeCompare(right.key));
+}
+
+type WorkloadConditionItem = {
+  type: string;
+  label: string;
+  status: string;
+  reason: string;
+  message: string;
+  tone: "success" | "info" | "warning" | "danger" | "neutral";
+  lastUpdateTime: string;
+  lastTransitionTime: string;
+};
+
+const WORKLOAD_CONDITION_PRIORITY: Record<string, number> = {
+  Terminating: 1,
+  ReplicaFailure: 2,
+  ProgressDeadlineExceeded: 2,
+  Unavailable: 3,
+  Available: 4,
+  Progressing: 5,
+};
+
+export function workloadConditionItems(item: JsonObject): WorkloadConditionItem[] {
+  const metadata = record(item.metadata);
+  const spec = record(item.spec);
+  const status = record(item.status);
+  const result: WorkloadConditionItem[] = [];
+  if (metadata.deletionTimestamp) {
+    result.push({ type: "Terminating", label: "Terminating", status: "True", reason: "", message: "", tone: "warning", lastUpdateTime: "", lastTransitionTime: "" });
+  }
+  for (const condition of records(status.conditions)) {
+    const type = text(condition.type);
+    const conditionStatus = text(condition.status);
+    const reason = text(condition.reason);
+    let label = type;
+    let tone: WorkloadConditionItem["tone"] = "neutral";
+    if (conditionStatus === "True") {
+      tone = type === "Available" ? "success" : type === "Progressing" ? "info" : type === "ReplicaFailure" ? "danger" : "neutral";
+    } else if (type === "Progressing" && reason === "ProgressDeadlineExceeded") {
+      label = reason;
+      tone = "danger";
+    } else if (type === "Available" && conditionStatus === "False") {
+      label = "Unavailable";
+      tone = "danger";
+    } else if (conditionStatus !== "Unknown") {
+      continue;
+    }
+    result.push({
+      type,
+      label,
+      status: conditionStatus,
+      reason,
+      message: text(condition.message),
+      tone,
+      lastUpdateTime: text(condition.lastUpdateTime),
+      lastTransitionTime: text(condition.lastTransitionTime),
+    });
+  }
+  if (!result.length) {
+    const desired = Math.trunc(numberValue(spec.replicas));
+    const ready = Math.trunc(numberValue(status.readyReplicas));
+    const available = Math.trunc(numberValue(status.availableReplicas));
+    const label = desired === 0 ? "Scaled to zero" : desired > 0 && ready >= desired && available >= desired ? "Available" : Object.keys(status).length ? "Progressing" : "Unknown";
+    result.push({
+      type: label,
+      label,
+      status: "Unknown",
+      reason: "",
+      message: "",
+      tone: label === "Available" ? "success" : label === "Progressing" ? "info" : "neutral",
+      lastUpdateTime: "",
+      lastTransitionTime: "",
+    });
+  }
+  return result
+    .filter((condition, index, items) => items.findIndex((item) => item.label === condition.label) === index)
+    .sort((left, right) => (WORKLOAD_CONDITION_PRIORITY[left.label] ?? 100) - (WORKLOAD_CONDITION_PRIORITY[right.label] ?? 100) || left.label.localeCompare(right.label));
 }
 
 function formatContainerPorts(containers: JsonObject[]): string {
@@ -208,6 +386,10 @@ export function podSummary(item: JsonObject): ResourceRow {
 
   const base = meta(item);
   const deleting = Boolean(base.deletionTimestamp);
+  const podCpuRequestValue = effectivePodResource(spec, "requests", "cpu");
+  const podCpuLimitValue = effectivePodResource(spec, "limits", "cpu");
+  const podMemoryRequestValue = effectivePodResource(spec, "requests", "memory");
+  const podMemoryLimitValue = effectivePodResource(spec, "limits", "memory");
   return {
     ...base,
     phase: deleting ? "Terminating" : text(status.phase),
@@ -230,6 +412,10 @@ export function podSummary(item: JsonObject): ResourceRow {
     ports: formatContainerPorts(specContainers),
     cpuUsage: "",
     memoryUsage: "",
+    podCpuRequestValue,
+    podCpuLimitValue,
+    podMemoryRequestValue,
+    podMemoryLimitValue,
   };
 }
 
@@ -298,20 +484,30 @@ export function deploymentSummary(item: JsonObject): ResourceRow {
   const spec = record(item.spec);
   const template = record(spec.template);
   const podSpec = record(template.spec);
+  const workloadConditions = workloadConditionItems(item);
+  const desired = Math.trunc(numberValue(spec.replicas));
+  const ready = Math.trunc(numberValue(status.readyReplicas));
+  const updated = Math.trunc(numberValue(status.updatedReplicas));
+  const available = Math.trunc(numberValue(status.availableReplicas));
   return {
     ...meta(item),
-    ready: `${Math.trunc(numberValue(status.readyReplicas))}/${Math.trunc(numberValue(spec.replicas))}`,
-    desired: Math.trunc(numberValue(spec.replicas)),
+    ready: `${ready}/${desired}`,
+    desired,
     current: Math.trunc(numberValue(status.replicas ?? status.currentReplicas)),
-    updated: Math.trunc(numberValue(status.updatedReplicas)),
-    available: Math.trunc(numberValue(status.availableReplicas)),
+    updated,
+    available,
+    unavailable: Math.trunc(numberValue(status.unavailableReplicas)),
+    observedGeneration: Math.trunc(numberValue(status.observedGeneration)),
     images: records(podSpec.containers)
       .map((container) => text(container.image))
       .filter(Boolean)
       .join(", "),
-    conditions: records(status.conditions)
-      .filter((condition) => condition.status !== "True")
-      .map((condition) => `${text(condition.type)}: ${text(condition.reason)} ${text(condition.message)}`.trim())
+    workloadConditions,
+    workloadConditionsText: workloadConditions.map((condition) => `${condition.label} ${condition.reason} ${condition.message}`.trim()).join("; "),
+    status: workloadConditions.map((condition) => condition.label).join(", "),
+    conditions: workloadConditions
+      .filter((condition) => condition.tone === "danger" || condition.tone === "warning")
+      .map((condition) => `${condition.label}: ${condition.reason} ${condition.message}`.trim())
       .join("; "),
   };
 }
@@ -531,6 +727,8 @@ export function nodeSummary(item: JsonObject): ResourceRow {
   const pressure = conditions
     .filter((condition) => condition.type !== "Ready" && condition.status === "True")
     .map((condition) => `${text(condition.type)}: ${text(condition.reason)} ${text(condition.message)}`.trim());
+  const labels = record(record(item.metadata).labels);
+  const displayLabels = nodeLabelItems(labels, text(record(item.metadata).name));
 
   return {
     ...meta(item),
@@ -558,6 +756,8 @@ export function nodeSummary(item: JsonObject): ResourceRow {
     memoryAllocatableRaw: String(allocatable.memory ?? ""),
     diskAllocatableRaw: String(allocatable["ephemeral-storage"] ?? ""),
     pressure: pressure.join("; "),
+    nodeLabelItems: displayLabels,
+    nodeLabelsSearch: displayLabels.map((label) => `${label.full} ${label.label} ${label.value}`.trim()).join(" "),
   };
 }
 

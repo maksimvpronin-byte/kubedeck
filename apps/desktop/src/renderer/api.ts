@@ -202,6 +202,10 @@ export class ApiClient {
     return this.request<string>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/${view}`, { signal });
   }
 
+  resourceMetrics(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {
+    return this.request<ResourceRow>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/metrics`, { signal });
+  }
+
   resourceEvents(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {
     return this.request<ResourceEventsResponse>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/events`, { signal });
   }

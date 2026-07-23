@@ -93,7 +93,9 @@ function defaultColumnWidth(key: string) {
     cpuUsage: 80,
     memoryUsage: 100,
     nodeResources: 260,
+    podResources: 260,
     labelsText: 240,
+    status: 180,
     namespaceResources: 260,
   };
   return widths[key] ?? 120;
@@ -165,7 +167,15 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     const filtered = lower
       ? rows.filter((row) =>
           columns.some((column) =>
-            String(column.key === "phase" ? canonicalPhase(row) : (row[column.key] ?? ""))
+            String(
+              column.key === "phase"
+                ? canonicalPhase(row)
+                : column.key === "labelsText"
+                  ? `${String(row.labelsText ?? "")} ${String(row.nodeLabelsSearch ?? "")}`
+                  : column.key === "status"
+                    ? `${String(row.status ?? "")} ${String(row.workloadConditionsText ?? "")}`
+                    : (row[column.key] ?? ""),
+            )
               .toLowerCase()
               .includes(lower),
           ),

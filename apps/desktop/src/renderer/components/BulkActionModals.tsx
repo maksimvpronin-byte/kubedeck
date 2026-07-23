@@ -71,7 +71,10 @@ export function BulkActionModals(props: Props) {
               <button className="icon-button" onClick={props.onCloseBulkDelete} title={t("common.close")}><X size={16} /></button>
             </header>
             <div className="confirm-body">
-              <p>{t("bulkDelete.text")} <strong>{bulkDelete.rows.length}</strong>. {t("bulkDelete.warning")}</p>
+              <p>
+                {t("bulkDelete.text")} <strong>{bulkDelete.rows.length}</strong>.{" "}
+                {bulkDelete.resource === "pods" ? t("bulkDelete.forcePodWarning") : t("bulkDelete.warning")}
+              </p>
               <div className="bulk-delete-meta" aria-label="Bulk delete scope">
                 <span>{t("bulkDelete.resource")}: <strong>{bulkDelete.resource}</strong></span>
                 <span>{t("bulkDelete.namespaces")}: <strong>{bulkDeleteNamespaceSummary(bulkDelete.rows)}</strong></span>

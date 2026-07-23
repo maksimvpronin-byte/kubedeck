@@ -13,7 +13,7 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function parseCpuMillicores(value: unknown): number | null {
+export function parseCpuMillicores(value: unknown): number | null {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
 
@@ -26,7 +26,7 @@ function parseCpuMillicores(value: unknown): number | null {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
 }
 
-function parseMemoryBytes(value: unknown): number | null {
+export function parseMemoryBytes(value: unknown): number | null {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
 
@@ -56,14 +56,14 @@ function parseMemoryBytes(value: unknown): number | null {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
 }
 
-function formatCpu(value: number | null): string {
+export function formatCpu(value: number | null): string {
   if (value === null) return "N/A";
   if (value === 0) return "0m";
   if (value % 1000 === 0) return String(value / 1000);
   return `${value}m`;
 }
 
-function formatMemory(value: number | null): string {
+export function formatMemory(value: number | null): string {
   if (value === null) return "N/A";
   if (value === 0) return "0Mi";
 
@@ -137,25 +137,27 @@ export async function applyNodeMetrics(configStore: ConfigStore, runner: Kubectl
   } catch (error) {
     if (!(error instanceof KubectlError)) throw error;
   }
+}
 
-  await Promise.all(
-    rows.map(async (row) => {
-      try {
-        const data = await runner.runJson(
-          clusterCommand(configStore, clusterId, ["get", `--raw=/api/v1/nodes/${text(row.name)}/proxy/stats/summary`], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES),
-        );
-        const fs = asRecord(asRecord(data.node).fs);
-        const used = finiteNumber(fs.usedBytes);
-        const available = finiteNumber(fs.availableBytes);
-        const capacity = finiteNumber(fs.capacityBytes);
-        if (used !== null) row.diskUsage = formatNodeBytes(used);
-        if (available !== null) row.diskAvailable = formatNodeBytes(available);
-        if (capacity !== null) row.diskObservedCapacity = formatNodeBytes(capacity);
-      } catch (error) {
-        if (!(error instanceof KubectlError)) throw error;
-      }
-    }),
-  );
+export async function loadNodeDiskMetrics(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, nodeName: string): Promise<ResourceRow> {
+  const data = await runner.runJson(clusterCommand(configStore, clusterId, ["get", `--raw=/api/v1/nodes/${nodeName}/proxy/stats/summary`], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES));
+  const fs = asRecord(asRecord(data.node).fs);
+  const used = finiteNumber(fs.usedBytes);
+  const available = finiteNumber(fs.availableBytes);
+  const capacity = finiteNumber(fs.capacityBytes);
+  return {
+    uid: "",
+    name: nodeName,
+    diskUsage: formatNodeBytes(used),
+    diskAvailable: formatNodeBytes(available),
+    diskObservedCapacity: formatNodeBytes(capacity),
+    diskUsagePercent: percentage(used, capacity ?? (used !== null && available !== null ? used + available : null)),
+  };
+}
+
+function percentage(used: number | null, total: number | null): number | null {
+  if (used === null || total === null || total <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((used / total) * 100)));
 }
 
 function remaining(total: number | null, used: number | null): number | null {
@@ -163,6 +165,7 @@ function remaining(total: number | null, used: number | null): number | null {
 }
 
 function finiteNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
@@ -197,6 +200,12 @@ export async function applyPodMetrics(configStore: ConfigStore, runner: KubectlR
       const metric = metrics.get(key);
       row.cpuUsage = metric?.cpu ?? "";
       row.memoryUsage = metric?.memory ?? "";
+      const cpuUsed = parseCpuMillicores(metric?.cpu);
+      const memoryUsed = parseMemoryBytes(metric?.memory);
+      const cpuLimit = finiteNumber(row.podCpuLimitValue);
+      const memoryLimit = finiteNumber(row.podMemoryLimitValue);
+      row.podCpuUsagePercent = percentage(cpuUsed, cpuLimit);
+      row.podMemoryUsagePercent = percentage(memoryUsed, memoryLimit);
     }
   } catch (error) {
     if (!(error instanceof KubectlError)) throw error;
@@ -211,6 +220,7 @@ interface NamespaceUsage {
 interface NamespaceQuota {
   cpu: number | null;
   memory: number | null;
+  storage: number | null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -265,10 +275,25 @@ export async function applyNamespaceMetrics(configStore: ConfigStore, runner: Ku
         if (memory !== null) break;
       }
 
-      const bucket = quota.get(namespace) ?? { cpu: null, memory: null };
+      const persistentStorage = parseMemoryBytes(hard["requests.storage"]);
+      const ephemeralStorage = parseMemoryBytes(hard["limits.ephemeral-storage"]) ?? parseMemoryBytes(hard["requests.ephemeral-storage"]);
+      const storage = persistentStorage === null && ephemeralStorage === null ? null : (persistentStorage ?? 0) + (ephemeralStorage ?? 0);
+      const usedValues = asRecord(status.used);
+      const persistentStorageUsed = parseMemoryBytes(usedValues["requests.storage"]);
+      const ephemeralStorageUsed = parseMemoryBytes(usedValues["limits.ephemeral-storage"]) ?? parseMemoryBytes(usedValues["requests.ephemeral-storage"]);
+      const storageUsed = persistentStorageUsed === null && ephemeralStorageUsed === null ? null : (persistentStorageUsed ?? 0) + (ephemeralStorageUsed ?? 0);
+
+      const bucket = quota.get(namespace) ?? { cpu: null, memory: null, storage: null };
       if (cpu !== null) bucket.cpu = (bucket.cpu ?? 0) + cpu;
       if (memory !== null) bucket.memory = (bucket.memory ?? 0) + memory;
+      if (storage !== null) bucket.storage = (bucket.storage ?? 0) + storage;
       quota.set(namespace, bucket);
+      const usageBucket = usage.get(namespace) as (NamespaceUsage & { storage?: number }) | undefined;
+      if (storageUsed !== null) {
+        const next = usageBucket ?? { cpu: 0, memory: 0 };
+        next.storage = (next.storage ?? 0) + storageUsed;
+        usage.set(namespace, next);
+      }
     }
   } catch (error) {
     if (!(error instanceof KubectlError)) throw error;
@@ -277,7 +302,7 @@ export async function applyNamespaceMetrics(configStore: ConfigStore, runner: Ku
   for (const row of rows) {
     const namespace = text(row.name) || text(row.namespace);
     const used = usage.get(namespace) ?? { cpu: 0, memory: 0 };
-    const hard = quota.get(namespace) ?? { cpu: null, memory: null };
+    const hard = quota.get(namespace) ?? { cpu: null, memory: null, storage: null };
     const usedCpu = metricsAvailable ? used.cpu : null;
     const usedMemory = metricsAvailable ? used.memory : null;
     const cpuQuota = hard.cpu === null ? "no quota" : formatCpu(hard.cpu);
@@ -288,6 +313,18 @@ export async function applyNamespaceMetrics(configStore: ConfigStore, runner: Ku
     row.namespaceMemoryUsed = formatMemory(usedMemory);
     row.namespaceCpuQuota = cpuQuota;
     row.namespaceMemoryQuota = memoryQuota;
+    const storageUsed = (used as NamespaceUsage & { storage?: number }).storage ?? 0;
+    row.namespaceCpuUsedValue = usedCpu;
+    row.namespaceCpuQuotaValue = hard.cpu;
+    row.namespaceCpuUsagePercent = percentage(usedCpu, hard.cpu);
+    row.namespaceMemoryUsedValue = usedMemory;
+    row.namespaceMemoryQuotaValue = hard.memory;
+    row.namespaceMemoryUsagePercent = percentage(usedMemory, hard.memory);
+    row.namespaceStorageUsed = formatNodeBytes(storageUsed);
+    row.namespaceStorageQuota = hard.storage === null ? "no quota" : formatNodeBytes(hard.storage);
+    row.namespaceStorageUsedValue = storageUsed;
+    row.namespaceStorageQuotaValue = hard.storage;
+    row.namespaceStorageUsagePercent = percentage(storageUsed, hard.storage);
     row.namespaceResources = `CPU ${formatCpu(usedCpu)} / ${cpuQuota}; ` + `RAM ${formatMemory(usedMemory)} / ${memoryQuota}${metricsSuffix}`;
   }
 }

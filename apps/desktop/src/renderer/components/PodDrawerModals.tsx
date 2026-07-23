@@ -179,6 +179,7 @@ function actionDescription(action: ResourceAction, resource: string, name: strin
   if (action === "restart" && resource === "pods") return `Restart ${name} by deleting the pod and letting its controller recreate it.`;
   if (action === "redeploy") return `Trigger a rollout restart for ${name}.`;
   if (action === "scale") return `Set desired replicas for ${name}.`;
+  if (action === "delete" && resource === "pods") return `Force delete ${name} immediately without graceful shutdown. A controller may recreate it; a standalone pod will not be restored.`;
   return `Delete ${name}. This action cannot be undone from KubeDeck.`;
 }
 
@@ -188,7 +189,8 @@ function commandPreview(action: ResourceAction, resource: string, namespace: str
   if (action === "restart" && resource === "pods") return `kubectl delete pod ${quoteKubectlArg(name)} --wait=false${ns}`;
   if (action === "redeploy") return `kubectl rollout restart ${quoteKubectlArg(target)}${ns}`;
   if (action === "scale") return `kubectl scale ${quoteKubectlArg(target)} --replicas=${replicas}${ns}`;
-  return `kubectl delete ${quoteKubectlArg(resource)} ${quoteKubectlArg(name)} --wait=false${ns}`;
+  const force = action === "delete" && resource === "pods" ? " --force --grace-period=0" : "";
+  return `kubectl delete ${quoteKubectlArg(resource)} ${quoteKubectlArg(name)}${force} --wait=false${ns}`;
 }
 
 function quoteKubectlArg(value: string) {

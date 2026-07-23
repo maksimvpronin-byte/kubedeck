@@ -21,6 +21,7 @@ interface Props {
   onNamespaceClick: (namespace: string) => void;
   onBulkDelete: (resource: string, rows: ResourceRow[]) => void;
   onNodeAction: (action: "cordon" | "uncordon" | "drain", rows: ResourceRow[]) => Promise<void>;
+  onVisibleNodeRows?: (rows: ResourceRow[]) => void;
 }
 
 export function AppResourceTable(props: Props) {
@@ -42,6 +43,7 @@ export function AppResourceTable(props: Props) {
       refreshActionLabels={refreshActionLabels(props.t)}
       labels={createResourceTableLabels(props.t)}
       stateKey={props.resource}
+      onVisibleNodeRows={props.resource === "nodes" ? props.onVisibleNodeRows : undefined}
     />
   );
 }

@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, Dispatch, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
+import type { CSSProperties, Dispatch, MouseEvent as ReactMouseEvent, ReactNode, SetStateAction } from "react";
 import type { CommandPaletteItem } from "./components/CommandPalette";
 import { AppCommandPalette } from "./components/AppCommandPalette";
 import { ClusterSelector } from "./components/ClusterSelector";
@@ -48,6 +48,22 @@ const ProblemsPanel = lazy(() => import("./components/ProblemsPanel").then((modu
 const PodDrawer = lazy(() => import("./components/PodDrawer").then((module) => ({ default: module.PodDrawer })));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 
+function LazySurface({ resetKey, children }: { resetKey: string; children: ReactNode }) {
+  return (
+    <LazyPanelBoundary resetKey={resetKey}>
+      <Suspense
+        fallback={
+          <div className="panel-loading" role="status">
+            Loading…
+          </div>
+        }
+      >
+        {children}
+      </Suspense>
+    </LazyPanelBoundary>
+  );
+}
+
 export function App() {
   const [section, setSection] = useState<Section>(initialSection);
   const [resourceTab, setResourceTab] = useState(initialResourceTab);
@@ -70,6 +86,9 @@ export function App() {
   const loadResourcesRef = useRef<number | null>(null);
   const actionReloadRef = useRef<(clusterId: string, resource: string, namespaces: string[]) => Promise<void>>(async () => undefined);
   const crdLoadedClusterRef = useRef<string | null>(null);
+  const nodeDiskCacheRef = useRef(new Map<string, { at: number; data: ResourceRow }>());
+  const nodeDiskPendingRef = useRef(new Set<string>());
+  const activeClusterIdRef = useRef<string | null>(null);
   const setSelectedPod = useCallback<Dispatch<SetStateAction<ResourceRow | null>>>(
     (next) => {
       setSelectedTarget((current) => {
@@ -123,6 +142,67 @@ export function App() {
     setLoading,
     setError,
   });
+  activeClusterIdRef.current = activeCluster?.id ?? null;
+
+  const loadVisibleNodeDisk = useCallback(
+    (visibleRows: ResourceRow[]) => {
+      if (!api || !activeCluster || resourceTab !== "nodes") return;
+      const clusterId = activeCluster.id;
+      const now = Date.now();
+      const queue = visibleRows.filter((row) => {
+        const key = `${clusterId}:${String(row.uid || row.name)}`;
+        const cached = nodeDiskCacheRef.current.get(key);
+        if (cached && now - cached.at < 60_000) {
+          if (row.diskUsage !== cached.data.diskUsage) {
+            setRows((current) => ({
+              ...current,
+              nodes: (current.nodes ?? []).map((item) => (item.uid === row.uid ? { ...item, ...cached.data, uid: item.uid, name: item.name } : item)),
+            }));
+          }
+          return false;
+        }
+        if (nodeDiskPendingRef.current.has(key)) return false;
+        nodeDiskPendingRef.current.add(key);
+        return true;
+      });
+      if (!queue.length) return;
+
+      const queuedKeys = new Set(queue.map((row) => String(row.uid || row.name)));
+      setRows((current) => ({
+        ...current,
+        nodes: (current.nodes ?? []).map((row) => (queuedKeys.has(String(row.uid || row.name)) ? { ...row, diskLoading: true } : row)),
+      }));
+
+      let index = 0;
+      const worker = async () => {
+        while (index < queue.length) {
+          const row = queue[index++];
+          const identity = String(row.uid || row.name);
+          const cacheKey = `${clusterId}:${identity}`;
+          try {
+            const data = await api.resourceMetrics(clusterId, "nodes", "_cluster", String(row.name));
+            nodeDiskCacheRef.current.set(cacheKey, { at: Date.now(), data });
+            if (activeClusterIdRef.current !== clusterId) continue;
+            setRows((current) => ({
+              ...current,
+              nodes: (current.nodes ?? []).map((item) => (String(item.uid || item.name) === identity ? { ...item, ...data, uid: item.uid, name: item.name, diskLoading: false } : item)),
+            }));
+          } catch {
+            nodeDiskCacheRef.current.set(cacheKey, { at: Date.now(), data: { uid: "", name: String(row.name), diskMetricsUnavailable: true } });
+            if (activeClusterIdRef.current !== clusterId) continue;
+            setRows((current) => ({
+              ...current,
+              nodes: (current.nodes ?? []).map((item) => (String(item.uid || item.name) === identity ? { ...item, diskLoading: false, diskMetricsUnavailable: true } : item)),
+            }));
+          } finally {
+            nodeDiskPendingRef.current.delete(cacheKey);
+          }
+        }
+      };
+      void Promise.all([worker(), worker()]);
+    },
+    [activeCluster, api, resourceTab],
+  );
   const currentSelectedTarget = currentSelectedResourceTarget(selectedTarget, activeCluster?.id, resourceTab);
   const selectedPod = currentSelectedTarget?.row ?? null;
   const selectedResource = currentSelectedTarget?.resource ?? resourceTab;
@@ -556,7 +636,7 @@ export function App() {
     namespaces: [
       { key: "name", label: t("col.name") },
       { key: "status", label: t("col.status") },
-      { key: "namespaceResources", label: "CPU/RAM" },
+      { key: "namespaceResources", label: "Usage" },
       { key: "createdAt", label: t("col.age") },
     ],
     pods: [
@@ -566,16 +646,24 @@ export function App() {
       { key: "ready", label: t("col.ready") },
       { key: "containers", label: t("col.containers") },
       { key: "restarts", label: t("col.restarts") },
-      { key: "cpuUsage", label: t("col.cpu") },
-      { key: "memoryUsage", label: t("col.memory") },
+      { key: "podResources", label: "Usage" },
       { key: "node", label: t("col.node") },
       { key: "createdAt", label: t("col.age") },
     ],
     deployments: [
       { key: "namespace", label: t("col.namespace") },
       { key: "name", label: t("col.name") },
+      { key: "status", label: t("col.status") },
       { key: "ready", label: t("col.ready") },
       { key: "updated", label: t("col.updated") },
+      { key: "available", label: t("col.available") },
+      { key: "createdAt", label: t("col.age") },
+    ],
+    replicasets: [
+      { key: "namespace", label: t("col.namespace") },
+      { key: "name", label: t("col.name") },
+      { key: "status", label: t("col.status") },
+      { key: "ready", label: t("col.ready") },
       { key: "available", label: t("col.available") },
       { key: "createdAt", label: t("col.age") },
     ],
@@ -733,353 +821,352 @@ export function App() {
 
   return (
     <div className="app-shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
-      <LazyPanelBoundary resetKey={`${section}:${resourceTab}:${selectedPod?.uid ?? "none"}`}>
-        <Suspense
-          fallback={
-            <div className="panel-loading" role="status">
-              Loading…
-            </div>
-          }
-        >
-          <aside className="sidebar">
-            <div className="sidebar-resize-handle" onMouseDown={startSidebarResize} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />
-            <div className="brand">
-              <Database size={22} />
-              <strong>KubeDeck</strong>
-            </div>
-            <nav>
-              {sections.map((item) => {
-                const Icon = item.icon;
-                const children = resourceTree[item.id] ?? [];
-                const expanded = expandedSections.has(item.id);
-                return (
-                  <div className="nav-group" key={item.id}>
+      <aside className="sidebar">
+        <div className="sidebar-resize-handle" onMouseDown={startSidebarResize} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />
+        <div className="brand">
+          <Database size={22} />
+          <strong>KubeDeck</strong>
+        </div>
+        <nav>
+          {sections.map((item) => {
+            const Icon = item.icon;
+            const children = resourceTree[item.id] ?? [];
+            const expanded = expandedSections.has(item.id);
+            return (
+              <div className="nav-group" key={item.id}>
+                <button
+                  className={section === item.id || (item.id === "network" && section === "port-forwards") ? "active" : ""}
+                  onClick={() => (children.length ? toggleSection(item.id) : selectSection(item.id))}
+                  aria-expanded={children.length ? expanded : undefined}
+                >
+                  <Icon size={17} />
+                  {t(item.label)}
+                  {children.length ? <span className="nav-expander">{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span> : null}
+                </button>
+                {item.id === "crd" && expanded ? (
+                  <div className="nav-children">
                     <button
-                      className={section === item.id || (item.id === "network" && section === "port-forwards") ? "active" : ""}
-                      onClick={() => (children.length ? toggleSection(item.id) : selectSection(item.id))}
-                      aria-expanded={children.length ? expanded : undefined}
+                      className={section === "crd" && resourceTab === "customresourcedefinitions" ? "active child" : "child"}
+                      onClick={() => selectTreeResource("crd", "customresourcedefinitions")}
                     >
-                      <Icon size={17} />
-                      {t(item.label)}
-                      {children.length ? <span className="nav-expander">{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span> : null}
+                      {t("crd.definitions")}
                     </button>
-                    {item.id === "crd" && expanded ? (
-                      <div className="nav-children">
-                        <button
-                          className={section === "crd" && resourceTab === "customresourcedefinitions" ? "active child" : "child"}
-                          onClick={() => selectTreeResource("crd", "customresourcedefinitions")}
-                        >
-                          {t("crd.definitions")}
+                    {crdGroups.map((group) => (
+                      <div className="nav-subgroup" key={group.group}>
+                        <button className="nav-subgroup-header" onClick={() => toggleCrdGroup(group.group)} title={group.group}>
+                          {expandedCrdGroups.has(group.group) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                          <span>{group.group}</span>
                         </button>
-                        {crdGroups.map((group) => (
-                          <div className="nav-subgroup" key={group.group}>
-                            <button className="nav-subgroup-header" onClick={() => toggleCrdGroup(group.group)} title={group.group}>
-                              {expandedCrdGroups.has(group.group) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                              <span>{group.group}</span>
-                            </button>
-                            {expandedCrdGroups.has(group.group) ? (
-                              <div className="nav-subgroup-items">
-                                {group.items.map((crd) => (
-                                  <button
-                                    key={crd.resource}
-                                    className={section === "crd" && resourceTab === crd.resource ? "active child" : "child"}
-                                    onClick={() => selectTreeResource("crd", crd.resource)}
-                                    title={`${crd.kind} (${crd.resource})`}
-                                  >
-                                    {crd.kind || crd.plural}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : null}
+                        {expandedCrdGroups.has(group.group) ? (
+                          <div className="nav-subgroup-items">
+                            {group.items.map((crd) => (
+                              <button
+                                key={crd.resource}
+                                className={section === "crd" && resourceTab === crd.resource ? "active child" : "child"}
+                                onClick={() => selectTreeResource("crd", crd.resource)}
+                                title={`${crd.kind} (${crd.resource})`}
+                              >
+                                {crd.kind || crd.plural}
+                              </button>
+                            ))}
                           </div>
-                        ))}
+                        ) : null}
                       </div>
-                    ) : children.length && expanded ? (
-                      <div className="nav-children">
-                        {children.map((resource) => (
-                          <button
-                            key={`${item.id}-${resource}`}
-                            className={(section === item.id || (item.id === "network" && section === "port-forwards")) && resourceTab === resource ? "active child" : "child"}
-                            onClick={() => selectTreeResource(item.id, resource)}
-                          >
-                            {resourceLabel(resource)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
+                    ))}
                   </div>
-                );
-              })}
-            </nav>
-          </aside>
-          <main className={resourceTabs.length > 1 ? "workspace" : "workspace workspace-no-tabs"}>
-            <header className="topbar">
-              <ClusterSelector
-                clusters={clusters}
-                activeClusterId={activeCluster?.id}
-                openingClusterId={openingClusterId}
-                emptyLabel={t("clusters.none")}
-                onChange={(cluster) => {
-                  if (confirmDrawerNavigation()) void openCluster(cluster);
-                }}
-              />
-              <NamespaceSelector
-                namespaces={namespaces}
-                selected={isClusterScoped ? ["_cluster"] : selectedNamespaces}
-                disabled={isClusterScoped}
-                allLabel={t("resources.allNamespaces")}
-                clusterScopedLabel={t("resources.clusterScoped")}
-                searchLabel={t("resources.namespaceSearch")}
-                emptySearchLabel={t("resources.namespaceSearchEmpty")}
-                onChange={setNamespaceSelection}
-              />
-              <label className="global-search" title="Ctrl+K">
-                <Search size={16} />
-                <input
-                  value={globalSearch}
-                  placeholder={`${t("app.search")} / Ctrl+K`}
-                  onFocus={() => setCommandPaletteOpen(true)}
-                  onChange={(event) => {
-                    setGlobalSearch(event.target.value);
-                    setCommandPaletteOpen(true);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") setCommandPaletteOpen(true);
-                    if (event.key === "Escape") setCommandPaletteOpen(false);
-                  }}
-                />
-              </label>
-              <div className="status-line">
-                <span>
-                  {t("status.backend")}: {backendOk ? t("common.ok") : "..."}
-                </span>
-                <span>
-                  {t("status.kubectl")}: {kubectlVersion || "..."}
-                </span>
-              </div>
-            </header>
-            {resourceTabs.length > 1 ? (
-              <section className="tabs">
-                {resourceTabs.map((tab) => (
-                  <button
-                    className={resourceTab === tab ? "active" : ""}
-                    onClick={() => {
-                      if (!confirmDrawerNavigation()) return;
-                      setResourceTab(tab);
-                      if (tab === "nodes") setSection("nodes");
-                      if (tab === "events") setSection("events");
-                      if (tab === "services") setSection("network");
-                      if (tab === "namespaces") setSection("namespaces");
-                      if (["serviceaccounts", "roles", "rolebindings", "clusterroles", "clusterrolebindings"].includes(tab)) setSection("rbac");
-                      if (tab === "pods" || tab === "deployments") setSection("workloads");
-                    }}
-                    key={tab}
-                  >
-                    {resourceLabel(tab)}
-                  </button>
-                ))}
-              </section>
-            ) : null}
-            <section className={`content ${bottomTerminals.length ? "with-bottom-terminal" : ""}`}>
-              <div className="content-upper">
-                <div className={isResourceTableView ? "main-panel main-panel-resource" : "main-panel"}>
-                  {runtimeError ? (
-                    <section className="error-panel">
-                      <div className="error-header">
-                        <div>
-                          <strong>{t("app.desktopRuntimeUnavailable")}</strong>
-                          <p>{runtimeError}</p>
-                        </div>
-                      </div>
-                    </section>
-                  ) : null}
-                  <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
-                  {section === "help" ? (
-                    <HelpPanel t={t} />
-                  ) : section === "about" ? (
-                    <AboutPanel api={api} config={config} activeCluster={activeCluster} backendOk={backendOk} kubectlVersion={kubectlVersion} t={t} onError={setError} />
-                  ) : section === "settings" && config ? (
-                    <SettingsPanel
-                      api={api}
-                      settings={config.settings}
-                      save={saveSettings}
-                      onLanguagePreview={setLanguagePreview}
-                      t={t}
-                      clusters={clusters}
-                      activeCluster={activeCluster}
-                      selectedNamespaces={selectedNamespaces}
-                      resourceTab={resourceTab}
-                      openingClusterId={openingClusterId}
-                      importKubeconfig={importKubeconfig}
-                      openCluster={openCluster}
-                      renameCluster={startRenameCluster}
-                      removeCluster={removeClusterWorkspace}
-                      reorderClusters={reorderClusters}
-                      reorderingClusters={reorderingClusters}
-                      onError={setError}
-                    />
-                  ) : section === "problems" ? (
-                    <ProblemsPanel
-                      api={api}
-                      cluster={activeCluster}
-                      settings={settings}
-                      copyLabel={t("error.copy")}
-                      t={t}
-                      onError={setError}
-                      onOpenResource={(row) => {
-                        void openResourceLocator(row);
-                      }}
-                    />
-                  ) : section === "audit" ? (
-                    <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={setError} />
-                  ) : section === "port-forwards" ? (
-                    <PortForwardsPanel api={api} cluster={activeCluster} copyLabel={t("error.copy")} t={t} onError={setError} />
-                  ) : isPlaceholderSection(section) ? (
-                    <PlaceholderSection section={section} t={t} />
-                  ) : (
-                    <>
-                      <UnavailableClusterPanel
-                        visible={Boolean(unavailableCluster && error)}
-                        displayName={unavailableCluster?.displayName ?? ""}
-                        opening={Boolean(unavailableCluster && openingClusterId === unavailableCluster.id)}
-                        t={t}
-                        onRetry={() => {
-                          if (unavailableCluster) void openCluster(unavailableCluster);
-                        }}
-                        onRemove={() => {
-                          if (unavailableCluster) void removeClusterWorkspace(unavailableCluster);
-                        }}
-                      />
-                      {activeCluster ? (
-                        <AppResourceTable
-                          title={sectionTitle(section, resourceTab, t)}
-                          rows={activeRows}
-                          columns={columns}
-                          loading={loading}
-                          resource={resourceTab}
-                          onRefresh={() => loadResources()}
-                          onNodeAction={bulkActions.requestNodeAction}
-                          onOpenLocator={openResourceLocator}
-                          onSelect={(selectedRow, resource) => {
-                            if (!confirmDrawerNavigation()) return;
-                            pinNextSelectionRef.current = false;
-                            setActiveResourceTabId(null);
-                            cancelResourceNavigation();
-                            setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
-                          }}
-                          onPin={(selectedRow, resource) => {
-                            if (!confirmDrawerNavigation()) return;
-                            pinNextSelectionRef.current = true;
-                            cancelResourceNavigation();
-                            setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
-                          }}
-                          selectedRow={selectedTarget?.clusterId === activeCluster.id && selectedTarget.resource === resourceTab ? selectedTarget.row : null}
-                          onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
-                          canBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition)}
-                          onBulkDelete={bulkActions.requestBulkDelete}
-                          t={t}
-                        />
-                      ) : null}
-                    </>
-                  )}
-                </div>
-                {resourceWorkspaceTabs.length || selectedPod ? (
-                  <div className="resource-workspace" style={{ width: drawerWidth }}>
-                    {resourceWorkspaceTabs.length ? (
-                      <ResourceWorkspaceTabs tabs={resourceWorkspaceTabs} activeId={activeResourceTabId} onActivate={(tab) => void activateResourceTab(tab)} onClose={closeResourceTab} />
-                    ) : null}
-                    {activeResourceWorkspaceTab?.status && activeResourceWorkspaceTab.status !== "ready" && !selectedPod ? (
-                      <section className="resource-workspace-status">
-                        <strong>{activeResourceWorkspaceTab.row.name}</strong>
-                        <span>{activeResourceWorkspaceTab.status}</span>
-                        <button type="button" onClick={() => void activateResourceTab(activeResourceWorkspaceTab)}>
-                          Retry
-                        </button>
-                      </section>
-                    ) : api && activeCluster && selectedPod && displayedResourceWorkspaceTab ? (
-                      <PodDrawer
-                        api={api}
-                        clusterId={activeCluster.id}
-                        pod={selectedPod}
-                        resource={selectedResource}
-                        canLogs={selectedResource === "pods" || selectedResource === "deployments" || selectedResource === "deployments.apps"}
-                        width={drawerWidth}
-                        onResize={setDrawerWidth}
-                        onActionComplete={() => loadResources(activeCluster.id, selectedResource, selectedNamespaces)}
-                        onOpenRelated={openRelatedResource}
-                        onDeleteRelatedPods={(rows) => bulkActions.requestBulkDelete("pods", rows)}
-                        workspaceTabs={resourceWorkspaceTabs}
-                        currentWorkspaceTabId={displayedResourceWorkspaceTab.id}
-                        onPortForwardStarted={() => {
-                          setSection("port-forwards");
-                          setResourceTab("port-forwards");
-                        }}
-                        onOpenTerminal={openBottomTerminal}
-                        onNodeAction={(action, targetRows) => {
-                          void bulkActions.requestNodeAction(action, targetRows);
-                        }}
-                        initialTab={displayedResourceWorkspaceTab.drawerTab as DrawerTab}
-                        onTabChange={(drawerTab) =>
-                          setResourceWorkspaceTabs((current) => {
-                            const target = current.find((tab) => tab.id === displayedResourceWorkspaceTab.id);
-                            return !target || target.drawerTab === drawerTab ? current : current.map((tab) => (tab.id === target.id ? { ...tab, drawerTab } : tab));
-                          })
-                        }
-                        onDirtyChange={(dirty) => {
-                          drawerDirtyRef.current = dirty;
-                        }}
-                        onClose={closeDisplayedResource}
-                        copyLabel={t("error.copy")}
-                        settings={settings}
-                        t={t}
-                        labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
-                      />
-                    ) : null}
+                ) : children.length && expanded ? (
+                  <div className="nav-children">
+                    {children.map((resource) => (
+                      <button
+                        key={`${item.id}-${resource}`}
+                        className={(section === item.id || (item.id === "network" && section === "port-forwards")) && resourceTab === resource ? "active child" : "child"}
+                        onClick={() => selectTreeResource(item.id, resource)}
+                      >
+                        {resourceLabel(resource)}
+                      </button>
+                    ))}
                   </div>
                 ) : null}
               </div>
-              {api && bottomTerminals.length && activeBottomTerminalId ? (
-                <BottomTerminalPanel api={api} targets={bottomTerminals} activeId={activeBottomTerminalId} onActivate={setActiveBottomTerminalId} onClose={closeBottomTerminal} />
+            );
+          })}
+        </nav>
+      </aside>
+      <main className={resourceTabs.length > 1 ? "workspace" : "workspace workspace-no-tabs"}>
+        <header className="topbar">
+          <ClusterSelector
+            clusters={clusters}
+            activeClusterId={activeCluster?.id}
+            openingClusterId={openingClusterId}
+            emptyLabel={t("clusters.none")}
+            onChange={(cluster) => {
+              if (confirmDrawerNavigation()) void openCluster(cluster);
+            }}
+          />
+          <NamespaceSelector
+            namespaces={namespaces}
+            selected={isClusterScoped ? ["_cluster"] : selectedNamespaces}
+            disabled={isClusterScoped}
+            allLabel={t("resources.allNamespaces")}
+            clusterScopedLabel={t("resources.clusterScoped")}
+            searchLabel={t("resources.namespaceSearch")}
+            emptySearchLabel={t("resources.namespaceSearchEmpty")}
+            onChange={setNamespaceSelection}
+          />
+          <label className="global-search" title="Ctrl+K">
+            <Search size={16} />
+            <input
+              value={globalSearch}
+              placeholder={`${t("app.search")} / Ctrl+K`}
+              onFocus={() => setCommandPaletteOpen(true)}
+              onChange={(event) => {
+                setGlobalSearch(event.target.value);
+                setCommandPaletteOpen(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") setCommandPaletteOpen(true);
+                if (event.key === "Escape") setCommandPaletteOpen(false);
+              }}
+            />
+          </label>
+          <div className="status-line">
+            <span>
+              {t("status.backend")}: {backendOk ? t("common.ok") : "..."}
+            </span>
+            <span>
+              {t("status.kubectl")}: {kubectlVersion || "..."}
+            </span>
+          </div>
+        </header>
+        {resourceTabs.length > 1 ? (
+          <section className="tabs">
+            {resourceTabs.map((tab) => (
+              <button
+                className={resourceTab === tab ? "active" : ""}
+                onClick={() => {
+                  if (!confirmDrawerNavigation()) return;
+                  setResourceTab(tab);
+                  if (tab === "nodes") setSection("nodes");
+                  if (tab === "events") setSection("events");
+                  if (tab === "services") setSection("network");
+                  if (tab === "namespaces") setSection("namespaces");
+                  if (["serviceaccounts", "roles", "rolebindings", "clusterroles", "clusterrolebindings"].includes(tab)) setSection("rbac");
+                  if (tab === "pods" || tab === "deployments") setSection("workloads");
+                }}
+                key={tab}
+              >
+                {resourceLabel(tab)}
+              </button>
+            ))}
+          </section>
+        ) : null}
+        <section className={`content ${bottomTerminals.length ? "with-bottom-terminal" : ""}`}>
+          <div className="content-upper">
+            <div className={isResourceTableView ? "main-panel main-panel-resource" : "main-panel"}>
+              {runtimeError ? (
+                <section className="error-panel">
+                  <div className="error-header">
+                    <div>
+                      <strong>{t("app.desktopRuntimeUnavailable")}</strong>
+                      <p>{runtimeError}</p>
+                    </div>
+                  </div>
+                </section>
               ) : null}
-            </section>
-          </main>
-          <RenameClusterModal
-            open={Boolean(renameTarget)}
-            draft={renameDraft}
-            renaming={renaming}
-            t={t}
-            onDraftChange={setRenameDraft}
-            onCancel={cancelRenameCluster}
-            onConfirm={confirmRenameCluster}
-          />
-          <AppCommandPalette
-            open={commandPaletteOpen}
-            query={globalSearch}
-            items={commandItems}
-            loading={globalSearchLoading}
-            placeholder={t("app.search")}
-            t={t}
-            onQueryChange={setGlobalSearch}
-            onClose={() => setCommandPaletteOpen(false)}
-          />
-          <BulkActionModals
-            bulkDelete={bulkActions.bulkDelete}
-            nodeAction={bulkActions.nodeActionConfirmation}
-            t={t}
-            onCloseBulkDelete={bulkActions.closeBulkDelete}
-            onCopyBulkDelete={() => {
-              void bulkActions.copyBulkDeleteList();
-            }}
-            onConfirmBulkDelete={() => {
-              void bulkActions.confirmBulkDelete();
-            }}
-            onCloseNodeAction={bulkActions.closeNodeAction}
-            onConfirmNodeAction={() => {
-              void bulkActions.confirmNodeAction();
-            }}
-          />
-        </Suspense>
-      </LazyPanelBoundary>
+              <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
+              {section === "help" ? (
+                <LazySurface resetKey="help">
+                  <HelpPanel t={t} />
+                </LazySurface>
+              ) : section === "about" ? (
+                <LazySurface resetKey="about">
+                  <AboutPanel api={api} config={config} activeCluster={activeCluster} backendOk={backendOk} kubectlVersion={kubectlVersion} t={t} onError={setError} />
+                </LazySurface>
+              ) : section === "settings" && config ? (
+                <LazySurface resetKey="settings">
+                  <SettingsPanel
+                    api={api}
+                    settings={config.settings}
+                    save={saveSettings}
+                    onLanguagePreview={setLanguagePreview}
+                    t={t}
+                    clusters={clusters}
+                    activeCluster={activeCluster}
+                    selectedNamespaces={selectedNamespaces}
+                    resourceTab={resourceTab}
+                    openingClusterId={openingClusterId}
+                    importKubeconfig={importKubeconfig}
+                    openCluster={openCluster}
+                    renameCluster={startRenameCluster}
+                    removeCluster={removeClusterWorkspace}
+                    reorderClusters={reorderClusters}
+                    reorderingClusters={reorderingClusters}
+                    onError={setError}
+                  />
+                </LazySurface>
+              ) : section === "problems" ? (
+                <LazySurface resetKey="problems">
+                  <ProblemsPanel
+                    api={api}
+                    cluster={activeCluster}
+                    settings={settings}
+                    copyLabel={t("error.copy")}
+                    t={t}
+                    onError={setError}
+                    onOpenResource={(row) => {
+                      void openResourceLocator(row);
+                    }}
+                  />
+                </LazySurface>
+              ) : section === "audit" ? (
+                <LazySurface resetKey="audit">
+                  <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={setError} />
+                </LazySurface>
+              ) : section === "port-forwards" ? (
+                <LazySurface resetKey="port-forwards">
+                  <PortForwardsPanel api={api} cluster={activeCluster} copyLabel={t("error.copy")} t={t} onError={setError} />
+                </LazySurface>
+              ) : isPlaceholderSection(section) ? (
+                <PlaceholderSection section={section} t={t} />
+              ) : (
+                <>
+                  <UnavailableClusterPanel
+                    visible={Boolean(unavailableCluster && error)}
+                    displayName={unavailableCluster?.displayName ?? ""}
+                    opening={Boolean(unavailableCluster && openingClusterId === unavailableCluster.id)}
+                    t={t}
+                    onRetry={() => {
+                      if (unavailableCluster) void openCluster(unavailableCluster);
+                    }}
+                    onRemove={() => {
+                      if (unavailableCluster) void removeClusterWorkspace(unavailableCluster);
+                    }}
+                  />
+                  {activeCluster ? (
+                    <AppResourceTable
+                      title={sectionTitle(section, resourceTab, t)}
+                      rows={activeRows}
+                      columns={columns}
+                      loading={loading}
+                      resource={resourceTab}
+                      onRefresh={() => loadResources()}
+                      onNodeAction={bulkActions.requestNodeAction}
+                      onVisibleNodeRows={loadVisibleNodeDisk}
+                      onOpenLocator={openResourceLocator}
+                      onSelect={(selectedRow, resource) => {
+                        if (!confirmDrawerNavigation()) return;
+                        pinNextSelectionRef.current = false;
+                        setActiveResourceTabId(null);
+                        cancelResourceNavigation();
+                        setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
+                      }}
+                      onPin={(selectedRow, resource) => {
+                        if (!confirmDrawerNavigation()) return;
+                        pinNextSelectionRef.current = true;
+                        cancelResourceNavigation();
+                        setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
+                      }}
+                      selectedRow={selectedTarget?.clusterId === activeCluster.id && selectedTarget.resource === resourceTab ? selectedTarget.row : null}
+                      onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
+                      canBulkDelete={!isCrdDefinitionTab && canDeleteResource(selectedDefinition)}
+                      onBulkDelete={bulkActions.requestBulkDelete}
+                      t={t}
+                    />
+                  ) : null}
+                </>
+              )}
+            </div>
+            {resourceWorkspaceTabs.length || selectedPod ? (
+              <div className="resource-workspace" style={{ width: drawerWidth }}>
+                {resourceWorkspaceTabs.length ? (
+                  <ResourceWorkspaceTabs tabs={resourceWorkspaceTabs} activeId={activeResourceTabId} onActivate={(tab) => void activateResourceTab(tab)} onClose={closeResourceTab} />
+                ) : null}
+                {activeResourceWorkspaceTab?.status && activeResourceWorkspaceTab.status !== "ready" && !selectedPod ? (
+                  <section className="resource-workspace-status">
+                    <strong>{activeResourceWorkspaceTab.row.name}</strong>
+                    <span>{activeResourceWorkspaceTab.status}</span>
+                    <button type="button" onClick={() => void activateResourceTab(activeResourceWorkspaceTab)}>
+                      Retry
+                    </button>
+                  </section>
+                ) : api && activeCluster && selectedPod && displayedResourceWorkspaceTab ? (
+                  <LazySurface resetKey={`drawer:${selectedPod.uid ?? selectedPod.name}`}>
+                    <PodDrawer
+                      api={api}
+                      clusterId={activeCluster.id}
+                      pod={selectedPod}
+                      resource={selectedResource}
+                      canLogs={selectedResource === "pods" || selectedResource === "deployments" || selectedResource === "deployments.apps"}
+                      width={drawerWidth}
+                      onResize={setDrawerWidth}
+                      onActionComplete={() => loadResources(activeCluster.id, selectedResource, selectedNamespaces)}
+                      onOpenRelated={openRelatedResource}
+                      onDeleteRelatedPods={(rows) => bulkActions.requestBulkDelete("pods", rows)}
+                      workspaceTabs={resourceWorkspaceTabs}
+                      currentWorkspaceTabId={displayedResourceWorkspaceTab.id}
+                      onPortForwardStarted={() => {
+                        setSection("port-forwards");
+                        setResourceTab("port-forwards");
+                      }}
+                      onOpenTerminal={openBottomTerminal}
+                      onNodeAction={(action, targetRows) => {
+                        void bulkActions.requestNodeAction(action, targetRows);
+                      }}
+                      initialTab={displayedResourceWorkspaceTab.drawerTab as DrawerTab}
+                      onTabChange={(drawerTab) =>
+                        setResourceWorkspaceTabs((current) => {
+                          const target = current.find((tab) => tab.id === displayedResourceWorkspaceTab.id);
+                          return !target || target.drawerTab === drawerTab ? current : current.map((tab) => (tab.id === target.id ? { ...tab, drawerTab } : tab));
+                        })
+                      }
+                      onDirtyChange={(dirty) => {
+                        drawerDirtyRef.current = dirty;
+                      }}
+                      onClose={closeDisplayedResource}
+                      copyLabel={t("error.copy")}
+                      settings={settings}
+                      t={t}
+                      labels={{ summary: t("drawer.summary"), yaml: t("drawer.yaml"), describe: t("drawer.describe"), logs: t("drawer.logs") }}
+                    />
+                  </LazySurface>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {api && bottomTerminals.length && activeBottomTerminalId ? (
+            <LazySurface resetKey={`terminal:${activeBottomTerminalId}`}>
+              <BottomTerminalPanel api={api} targets={bottomTerminals} activeId={activeBottomTerminalId} onActivate={setActiveBottomTerminalId} onClose={closeBottomTerminal} />
+            </LazySurface>
+          ) : null}
+        </section>
+      </main>
+      <RenameClusterModal open={Boolean(renameTarget)} draft={renameDraft} renaming={renaming} t={t} onDraftChange={setRenameDraft} onCancel={cancelRenameCluster} onConfirm={confirmRenameCluster} />
+      <AppCommandPalette
+        open={commandPaletteOpen}
+        query={globalSearch}
+        items={commandItems}
+        loading={globalSearchLoading}
+        placeholder={t("app.search")}
+        t={t}
+        onQueryChange={setGlobalSearch}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
+      <BulkActionModals
+        bulkDelete={bulkActions.bulkDelete}
+        nodeAction={bulkActions.nodeActionConfirmation}
+        t={t}
+        onCloseBulkDelete={bulkActions.closeBulkDelete}
+        onCopyBulkDelete={() => {
+          void bulkActions.copyBulkDeleteList();
+        }}
+        onConfirmBulkDelete={() => {
+          void bulkActions.confirmBulkDelete();
+        }}
+        onCloseNodeAction={bulkActions.closeNodeAction}
+        onConfirmNodeAction={() => {
+          void bulkActions.confirmNodeAction();
+        }}
+      />
     </div>
   );
 }

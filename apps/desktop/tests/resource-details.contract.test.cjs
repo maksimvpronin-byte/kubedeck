@@ -37,6 +37,19 @@ test("resource details command contract", () => {
     },
   );
 
+  const nodeMetrics = matchResourceDetailsPath(
+    "/clusters/demo/resources/nodes/_cluster/node-a/metrics",
+  );
+  assert.ok(nodeMetrics);
+  assert.deepEqual(
+    buildResourceDetailsInvocation(nodeMetrics, "/ignored"),
+    {
+      args: ["get", "--raw=/api/v1/nodes/node-a/proxy/stats/summary"],
+      timeoutSeconds: 12,
+      maxOutputBytes: 8 * 1024 * 1024,
+    },
+  );
+
   const deploymentDescribe = matchResourceDetailsPath(
     "/clusters/demo/resources/deployments/default/web/describe",
   );
@@ -131,6 +144,18 @@ test("resource details HTTP handler", async (t) => {
       }
       return { stdout: "MOCK OUTPUT", stderr: "", exitCode: 0 };
     },
+    runJson: async (command) => {
+      commands.push(command);
+      return {
+        node: {
+          fs: {
+            usedBytes: 1024 ** 3,
+            availableBytes: 3 * 1024 ** 3,
+            capacityBytes: 4 * 1024 ** 3,
+          },
+        },
+      };
+    },
   };
 
   const server = http.createServer((request, response) => {
@@ -161,6 +186,21 @@ test("resource details HTTP handler", async (t) => {
   assert.equal(await yamlResponse.text(), "MOCK OUTPUT");
   assert.deepEqual(commands.at(-1).args, ["get", "nodes", "node-a", "-o", "yaml"]);
   assert.equal(commands.at(-1).timeoutSeconds, 30);
+
+  const metricsResponse = await fetch(
+    `${baseUrl}/clusters/demo/resources/nodes/_cluster/node-a/metrics`,
+  );
+  assert.equal(metricsResponse.status, 200);
+  assert.match(metricsResponse.headers.get("content-type"), /^application\/json/);
+  assert.deepEqual(await metricsResponse.json(), {
+    uid: "",
+    name: "node-a",
+    diskUsage: "1 GiB",
+    diskAvailable: "3 GiB",
+    diskObservedCapacity: "4 GiB",
+    diskUsagePercent: 25,
+  });
+  assert.deepEqual(commands.at(-1).args, ["get", "--raw=/api/v1/nodes/node-a/proxy/stats/summary"]);
 
   const logsResponse = await fetch(
     `${baseUrl}/clusters/demo/pods/default/web-123/logs?tail=125&previous=true&timestamps=true&container=app`,

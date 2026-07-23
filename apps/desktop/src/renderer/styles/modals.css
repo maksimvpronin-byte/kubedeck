@@ -112,10 +112,16 @@
 .manifest-compare-legend .is-changed { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning-text); }
 .manifest-compare-legend .is-added { border-color: var(--success-border); background: var(--success-bg); color: var(--success-text); }
 .manifest-compare-legend .is-removed { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
-.manifest-compare-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; min-height: 0; overflow: hidden; }
-.manifest-compare-grid > div { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+.manifest-compare-grid { display: grid; grid-template: "left-context right-context" auto "left-pane right-pane" minmax(0, 1fr) / minmax(0, 1fr) minmax(0, 1fr); gap: 0 8px; min-height: 0; overflow: hidden; }
+.manifest-context { display: flex; gap: 7px; align-items: center; min-width: 0; min-height: 26px; overflow: hidden; }
+.manifest-context.is-left { grid-area: left-context; }
+.manifest-context.is-right { grid-area: right-context; }
+.manifest-context strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.manifest-context span { flex: 0 0 auto; border-radius: 999px; padding: 2px 6px; background: var(--warning-bg); color: var(--warning-text); font-size: 10px; }
+.manifest-diff-code.is-left { grid-area: left-pane; }
+.manifest-diff-code.is-right { grid-area: right-pane; }
 .manifest-diff-code { min-width: 0; min-height: 0; overflow: auto; border: 1px solid var(--border); background: var(--code-bg); padding-bottom: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space: pre; }
-.manifest-diff-line { display: grid; grid-template-columns: 4ch 2ch max-content; min-width: max-content; min-height: 1.45em; }
+.manifest-diff-line { display: grid; grid-template-columns: 4ch 2ch 18px max-content; min-width: max-content; min-height: 1.45em; }
 .manifest-diff-line.is-equal { color: var(--muted-strong); }
 .manifest-diff-line.is-changed { background: var(--warning-bg); color: var(--warning-text); }
 .manifest-diff-line.is-added { background: var(--success-bg); color: var(--success-text); }
@@ -124,13 +130,15 @@
 .manifest-diff-number { padding: 0 6px; border-right: 1px solid var(--border); }
 .manifest-diff-marker { padding-right: 5px; }
 .manifest-diff-line code { padding-right: 12px; color: inherit; font: inherit; }
+.manifest-diff-fold-cell { display: inline-grid; place-items: center; }
+.manifest-diff-fold { display: inline-grid; width: 16px; height: 16px; padding: 0; place-items: center; border: 0; background: transparent; color: var(--muted); }
 .secret-edit { display: grid; gap: 8px; }
 .secret-edit textarea { min-height: 110px; width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 6px; background: var(--code-bg); color: var(--text); caret-color: var(--focus-ring); padding: 10px; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 .secret-edit textarea:focus-visible { border-color: var(--focus-ring); }
 
 @media (max-width: 760px) {
   .manifest-compare-toolbar, .manifest-compare-controls { align-items: stretch; flex-direction: column; }
-  .manifest-compare-grid { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  .manifest-compare-grid { grid-template: "left-context" auto "left-pane" minmax(0, 1fr) "right-context" auto "right-pane" minmax(0, 1fr) / minmax(0, 1fr); gap: 0; }
 }
 
 /* KubeDeck 1.0.4 Patch 3: node drain preview */

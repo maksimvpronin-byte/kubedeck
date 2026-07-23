@@ -52,9 +52,96 @@
 
 .node-resource-usage {
   display: grid;
-  gap: 3px;
-  line-height: 1.3;
+  gap: 5px;
+  min-width: 190px;
   white-space: nowrap;
+}
+
+.resource-usage-bar {
+  display: grid;
+  grid-template-columns: 30px minmax(70px, 1fr) 34px;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.resource-usage-label {
+  color: var(--muted-strong);
+  font-weight: 700;
+}
+
+.resource-usage-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.resource-usage-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.resource-usage-bar.is-memory .resource-usage-track > span {
+  background: var(--success-text);
+}
+
+.resource-usage-bar.is-disk .resource-usage-track > span {
+  background: var(--warning-text);
+}
+
+.resource-usage-bar small {
+  color: var(--muted);
+  text-align: right;
+}
+
+.workload-condition-list,
+.node-label-list {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.workload-condition {
+  flex: 0 0 auto;
+  font-weight: 650;
+}
+
+.workload-condition.is-success { color: var(--success-text); }
+.workload-condition.is-info { color: var(--primary); }
+.workload-condition.is-warning { color: var(--warning-text); }
+.workload-condition.is-danger { color: var(--danger-text); }
+.workload-condition.is-neutral { color: var(--muted-strong); }
+
+.node-label-chip {
+  min-width: 0;
+  max-width: 120px;
+  overflow: hidden;
+  color: var(--muted-strong);
+  text-overflow: ellipsis;
+}
+
+.node-label-chip + .node-label-chip::before {
+  margin-right: 7px;
+  color: var(--muted-soft);
+  content: "·";
+}
+
+.node-label-more {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.summary-workload-conditions {
+  flex-wrap: wrap;
+  overflow: visible;
 }
 
 .table-columns-popover {

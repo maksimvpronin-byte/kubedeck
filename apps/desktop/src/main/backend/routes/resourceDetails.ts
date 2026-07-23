@@ -4,6 +4,7 @@ import { writeError } from "../errors";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
+import { loadNodeDiskMetrics } from "../resources/metrics";
 import {
   normalizeTailLines,
   parseBooleanQuery,
@@ -15,7 +16,7 @@ const TEXT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const LOGS_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const LOGS_FULL_MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
 
-type DetailOperation = "yaml" | "describe" | "logs";
+type DetailOperation = "yaml" | "describe" | "logs" | "metrics";
 
 export interface ResourceDetailsTarget {
   clusterId: string;
@@ -58,7 +59,7 @@ export function matchResourceDetailsPath(pathname: string): ResourceDetailsTarge
   }
 
   const resourceMatch = pathname.match(
-    /^\/clusters\/([^/]+)\/resources\/([^/]+)\/([^/]+)\/([^/]+)\/(yaml|describe)$/,
+    /^\/clusters\/([^/]+)\/resources\/([^/]+)\/([^/]+)\/([^/]+)\/(yaml|describe|metrics)$/,
   );
   if (!resourceMatch) return null;
 
@@ -84,6 +85,17 @@ export function buildResourceDetailsInvocation(
   target: ResourceDetailsTarget,
   requestUrl: string,
 ): ResourceDetailsInvocation {
+  if (target.operation === "metrics") {
+    if (!["node", "nodes"].includes(target.resource)) {
+      throw new RequestValidationError(400, "UNSUPPORTED_RESOURCE_METRICS", "Resource metrics are only available for nodes");
+    }
+    return {
+      args: ["get", `--raw=/api/v1/nodes/${target.name}/proxy/stats/summary`],
+      timeoutSeconds: 12,
+      maxOutputBytes: 8 * 1024 * 1024,
+    };
+  }
+
   if (target.operation === "logs") {
     const url = new URL(requestUrl, "http://127.0.0.1");
     const allLogs = parseBooleanQuery(url.searchParams.get("all"), "all");
@@ -177,6 +189,13 @@ async function executeResourceDetails(
   configStore: ConfigStore,
   runner: KubectlRunner,
 ): Promise<void> {
+  if (target.operation === "metrics") {
+    const metrics = await loadNodeDiskMetrics(configStore, runner, target.clusterId, target.name);
+    response.statusCode = 200;
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.end(JSON.stringify(metrics));
+    return;
+  }
   const invocation = buildResourceDetailsInvocation(target, request.url ?? "/");
   const result = await runner.run(clusterCommand(
     configStore,

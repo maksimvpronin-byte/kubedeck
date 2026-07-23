@@ -36,6 +36,7 @@ export function drawerResourceResetSnapshot() {
     relatedLinks: [] as RelatedLink[],
     relatedSources: {} as Record<string, number>,
     relatedErrors: [] as Array<ErrorInfo & { resource?: string; namespace?: string }>,
+    metrics: {} as ResourceRow,
   };
 }
 
@@ -50,6 +51,7 @@ function drawerError(error: unknown): ErrorInfo {
 
 export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey }: Options) {
   const requestGuardRef = useRef(createDrawerRequestGuard());
+  const metricsRequestRef = useRef(0);
   const [content, setContent] = useState("");
   const [describeContent, setDescribeContent] = useState("");
   const [yamlBaseline, setYamlBaseline] = useState("");
@@ -60,6 +62,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   const [relatedSources, setRelatedSources] = useState<Record<string, number>>({});
   const [relatedErrors, setRelatedErrors] = useState<Array<ErrorInfo & { resource?: string; namespace?: string }>>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
+  const [metrics, setMetrics] = useState<ResourceRow>({ uid: "", name: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [snapshotObjectKey, setSnapshotObjectKey] = useState(currentObjectKey);
@@ -70,6 +73,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   useEffect(() => {
     void currentObjectKey;
     requestGuardRef.current.invalidate();
+    metricsRequestRef.current += 1;
     const reset = drawerResourceResetSnapshot();
     setContent(reset.content);
     setDescribeContent(reset.describeContent);
@@ -80,6 +84,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     setRelatedLinks(reset.relatedLinks);
     setRelatedSources(reset.relatedSources);
     setRelatedErrors(reset.relatedErrors);
+    setMetrics(reset.metrics);
     setRelatedLoading(false);
     setLoading(false);
     setError(null);
@@ -143,6 +148,24 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
 
   useEffect(() => {
+    if (!currentObjectKey || tab !== "summary" || !["node", "nodes"].includes(resource)) return;
+    const controller = new AbortController();
+    const requestGeneration = ++metricsRequestRef.current;
+    api
+      .resourceMetrics(clusterId, resource, podNamespace, podName, controller.signal)
+      .then((response) => {
+        if (!controller.signal.aborted && requestGeneration === metricsRequestRef.current) setMetrics(response);
+      })
+      .catch((cause) => {
+        if (!isAbortError(cause) && requestGeneration === metricsRequestRef.current) setError(drawerError(cause));
+      });
+    return () => {
+      controller.abort();
+      metricsRequestRef.current += 1;
+    };
+  }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
+
+  useEffect(() => {
     if (!currentObjectKey || tab !== "related") return;
     const controller = new AbortController();
     const requestGeneration = requestGuardRef.current.next();
@@ -190,6 +213,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     setRelatedErrors,
     relatedLoading: snapshotIsCurrent && relatedLoading,
     setRelatedLoading,
+    metrics: snapshotIsCurrent ? metrics : { uid: "", name: "" },
     loading: snapshotIsCurrent && loading,
     setLoading,
     error: snapshotIsCurrent ? error : null,

@@ -196,9 +196,12 @@ export function buildResourceActionPlan(
   const namespaceArgs = namespaced ? ["-n", target.namespace] : [];
 
   if (action === "delete") {
+    const forceArgs = ["pod", "pods"].includes(resource)
+      ? ["--force", "--grace-period=0"]
+      : [];
     return {
       action,
-      args: ["delete", resource, target.name, "--wait=false", ...namespaceArgs],
+      args: ["delete", resource, target.name, ...forceArgs, "--wait=false", ...namespaceArgs],
       namespace: target.namespace,
       authorizationChecks: [{
         verb: "delete",
