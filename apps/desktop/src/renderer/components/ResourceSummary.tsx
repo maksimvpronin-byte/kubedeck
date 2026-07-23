@@ -2,97 +2,324 @@ import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
 import { formatAge } from "../utils/time";
 
-interface ResourceSummaryProps {
+interface Props {
   row: ResourceRow;
   resource: string;
   now: number;
+  events?: ResourceRow[];
 }
 
-type RestartDiagnostic = {
-  container: string;
-  restartCount: number;
-  ready?: boolean;
-  currentState?: string;
-  currentReason?: string;
-  currentMessage?: string;
-  lastReason?: string;
-  lastExitCode?: number | string | null;
-  lastSignal?: number | string | null;
-  lastStartedAt?: string;
-  lastFinishedAt?: string;
-  lastMessage?: string;
-};
+type Tone = "default" | "warning" | "danger" | "success";
+type Fact = { label: string; value: ReactNode; tone?: Tone };
 
-type SummaryItem = {
-  label: string;
-  value: ReactNode;
-  tone?: "default" | "warning" | "danger" | "success";
-};
-
-const HIDDEN_RAW_FIELDS = new Set([
-  "kind",
-  "namespace",
-  "phase",
-  "status",
-  "createdAt",
-  "age",
-  "ready",
-  "node",
-  "restarts",
-  "ports",
-  "restartDiagnostics",
-  "lastRestartReason",
-  "lastRestartExitCode",
-  "lastRestartFinishedAt",
-]);
-
-export function ResourceSummary({ row, resource, now }: ResourceSummaryProps) {
-  const restartCount = numberValue(row.restarts) ?? 0;
-  const isPod = isPodResource(resource);
-  const diagnostics = isPod ? restartDiagnosticsFor(row) : [];
-  const overview = overviewItems(row, resource, now);
-  const details = Object.entries(row).filter(([key, value]) => shouldShowRawField(key, value));
+export function ResourceSummary({ row, resource, now, events = [] }: Props) {
+  const facts = summaryFacts(row, resource, now);
+  const containers = isPod(resource) ? containerRows(row) : [];
+  const failures = isPod(resource) ? restartFailures(row) : [];
+  const warnings = warningEvents(events).slice(0, 5);
+  const quota = isQuota(resource) ? quotaRows(row.quotaUsage) : [];
 
   return (
     <div className="resource-summary-layout">
-      <section className="resource-summary-card-grid" aria-label="Resource overview">
-        {overview.map((item) => (
-          <SummaryTile key={`${item.label}:${String(item.value)}`} label={item.label} tone={item.tone}>
-            {item.value}
-          </SummaryTile>
+      <section className="resource-summary-card-grid" aria-label="Operational summary">
+        {facts.map((item) => (
+          <SummaryTile key={item.label} {...item} />
         ))}
       </section>
 
-      {isPod && (diagnostics.length > 0 || restartCount > 0) ? (
-        <RestartDiagnostics diagnostics={diagnostics} reportedRestartCount={restartCount} now={now} />
-      ) : null}
-
-      {isResourceQuota(resource) ? <QuotaUsage value={row.quotaUsage} /> : null}
-
-      {details.length > 0 ? (
-        <section className="resource-summary-section" aria-label="Resource fields">
-          <div className="resource-summary-section-title">Details</div>
-          <div className="resource-summary-details-grid">
-            {details.map(([key, value]) => (
-              <SummaryTile key={key} label={key} compact>
-                {formatSummaryValue(value)}
-              </SummaryTile>
+      {containers.length ? (
+        <section className="resource-summary-section" aria-label="Containers">
+          <div className="resource-summary-section-title">Containers</div>
+          <div className="summary-container-list">
+            {containers.map((item) => (
+              <div className={`summary-container-row is-${item.tone}`} key={item.name}>
+                <strong>{item.name}</strong>
+                <span>{item.state}</span>
+                <span>{item.ready ? "Ready" : "Not ready"}</span>
+                {item.restarts ? (
+                  <span>
+                    {item.restarts} restart{item.restarts === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+                {item.reason ? <small title={item.message}>{item.reason}</small> : null}
+              </div>
             ))}
           </div>
         </section>
       ) : null}
+
+      {failures.length ? (
+        <section className="resource-summary-section" aria-label="Last container failures">
+          <div className="resource-summary-section-title">Last failure</div>
+          <div className="summary-problem-list">
+            {failures.map((item) => (
+              <div className="summary-problem-row" key={`${item.container}:${item.reason}`}>
+                <strong>{item.container}</strong>
+                <span>
+                  {item.reason}
+                  {item.exitCode ? ` · exit ${item.exitCode}` : ""}
+                </span>
+                {item.finished ? <small>{formatAge(item.finished, now)} ago</small> : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {quota.length ? <QuotaUsage rows={quota} /> : null}
+
+      {warnings.length ? (
+        <section className="resource-summary-section" aria-label="Recent warning events">
+          <div className="resource-summary-section-title">Recent warnings</div>
+          <div className="summary-warning-list">
+            {warnings.map((event, index) => (
+              <div className="summary-warning-row" key={`${String(event.uid || event.reason)}:${index}`}>
+                <strong>{String(event.reason || "Warning")}</strong>
+                <span>{String(event.message || "")}</span>
+                <small>{formatAge(event.createdAt, now)} ago</small>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {!facts.length && !containers.length && !quota.length ? <p className="resource-summary-empty">No operational summary is available. Use YAML or Describe for full details.</p> : null}
     </div>
   );
 }
 
-function QuotaUsage({ value }: { value: unknown }) {
-  const rows = Array.isArray(value) ? value.map(asRecord) : [];
-  if (!rows.length) return null;
-  return <section className="resource-summary-section quota-usage"><div className="resource-summary-section-title">Quota usage</div>{rows.map((row) => {
-    const used = valueText(row.used); const hard = valueText(row.hard); const ratio = quantityRatio(used, hard);
-    const tone = ratio !== null && ratio >= 95 ? "danger" : ratio !== null && ratio >= 80 ? "warning" : "normal";
-    return <div className={`quota-usage-row is-${tone}`} key={valueText(row.resource)}><div><strong>{valueText(row.resource)}</strong><span>{used} / {hard || "—"}</span></div>{ratio === null ? null : <><div className="quota-usage-track"><span style={{ width: `${Math.min(100, ratio)}%` }} /></div><b>{Math.round(ratio)}%</b></>}</div>;
-  })}</section>;
+function summaryFacts(row: ResourceRow, resource: string, now: number): Fact[] {
+  const kind = baseResource(resource);
+  const status = primaryStatus(row);
+  const facts: Fact[] = [];
+  addFact(facts, "Status", status, statusTone(status));
+  addFact(facts, "Age", row.createdAt ? formatAge(row.createdAt, now) : "");
+
+  if (kind === "pod") {
+    addFact(facts, "Ready", row.ready, readyTone(row.ready));
+    addFact(facts, "Restarts", nonZero(row.restarts), "warning");
+    addFact(facts, "Node", row.node);
+    addFact(facts, "Pod IP", row.podIp);
+    if (String(row.serviceAccountName || "") !== "default") addFact(facts, "Service account", row.serviceAccountName);
+    addFact(facts, "Owner", ownerText(row.ownerReferences));
+    return facts;
+  }
+
+  if (["deployment", "statefulset", "daemonset", "replicaset"].includes(kind)) {
+    addFact(facts, "Ready", row.ready, readyTone(row.ready));
+    addFact(facts, "Desired", row.desired ?? row.replicas);
+    addFact(facts, "Available", row.available);
+    addFact(facts, "Updated", row.updated);
+    addFact(facts, "Images", row.images);
+    return facts;
+  }
+
+  if (kind === "service") {
+    addFact(facts, "Type", row.type);
+    addFact(facts, "Cluster IP", row.clusterIp);
+    addFact(facts, "External", row.externalIp ?? row.externalAddress);
+    addFact(facts, "Ports", row.ports);
+    addFact(facts, "Selector", row.selectorText);
+    addFact(facts, "Ready endpoints", row.readyEndpoints, Number(row.readyEndpoints) === 0 ? "warning" : undefined);
+    return facts;
+  }
+
+  if (kind === "ingress") {
+    addFact(facts, "Class", row.className);
+    addFact(facts, "Hosts", row.hosts);
+    addFact(facts, "Addresses", row.addressesText ?? row.address);
+    addFact(facts, "Backends", row.backendServicesText);
+    addFact(facts, "TLS", row.tlsHosts);
+    return facts;
+  }
+
+  if (kind === "node") {
+    addFact(facts, "Scheduling", row.unschedulable ? "Cordoned" : "Schedulable", row.unschedulable ? "warning" : undefined);
+    addFact(facts, "Pressure", row.pressure, row.pressure ? "warning" : undefined);
+    addFact(facts, "Internal IP", row.internalIp);
+    addFact(facts, "Kubelet", row.kubeletVersion);
+    addFact(facts, "Runtime", row.containerRuntime);
+    addFact(facts, "Platform", [row.osImage || row.os, row.architecture].filter(Boolean).join(" · "));
+    addFact(facts, "CPU", usageText(row.cpuUsage, row.cpuAvailable, row.cpuAllocatable, row.cpuCapacity));
+    addFact(facts, "Memory", usageText(row.memoryUsage, row.memoryAvailable, row.memoryAllocatable, row.memoryCapacity));
+    addFact(facts, "Disk", usageText(row.diskUsage, row.diskAvailable, row.diskAllocatable, row.diskObservedCapacity ?? row.diskCapacity));
+    addFact(facts, "Pods", capacityText(row.podsAllocatable, row.podsCapacity));
+    return facts;
+  }
+
+  if (["configmap", "secret"].includes(kind)) {
+    if (kind === "secret") addFact(facts, "Type", row.type);
+    addFact(facts, "Keys", row.keyCount ?? row.keysCount);
+    addFact(facts, "Key names", row.keyNames ?? row.keys);
+    if (row.immutable === true) addFact(facts, "Immutable", "Yes");
+    return facts;
+  }
+
+  if (["persistentvolumeclaim", "persistentvolume"].includes(kind)) {
+    addFact(facts, "Capacity", row.capacity ?? row.storage);
+    addFact(facts, "Access modes", row.accessModes);
+    addFact(facts, "Storage class", row.storageClassName ?? row.storageClass);
+    addFact(facts, kind === "persistentvolume" ? "Claim" : "Volume", row.claim ?? row.volumeName);
+    addFact(facts, "Reclaim policy", row.reclaimPolicy);
+    return facts;
+  }
+
+  if (kind === "storageclass") {
+    addFact(facts, "Provisioner", row.provisioner);
+    addFact(facts, "Reclaim policy", row.reclaimPolicy);
+    addFact(facts, "Binding mode", row.volumeBindingMode);
+    addFact(facts, "Expansion", row.allowVolumeExpansion === true ? "Allowed" : row.allowVolumeExpansion === false ? "Disabled" : "");
+    return facts;
+  }
+
+  if (["job", "cronjob"].includes(kind)) {
+    addFact(facts, "Active", row.active);
+    addFact(facts, "Succeeded", row.succeeded);
+    addFact(facts, "Failed", nonZero(row.failed), "danger");
+    addFact(facts, "Completions", row.completions);
+    addFact(facts, "Schedule", row.schedule);
+    addFact(facts, "Last schedule", row.lastScheduleTime ? formatAge(row.lastScheduleTime, now) : "");
+    return facts;
+  }
+
+  if (["role", "clusterrole"].includes(kind)) {
+    addFact(facts, "Rules", Array.isArray(row.rules) ? row.rules.length : row.ruleCount);
+    addFact(facts, "Permissions", row.rulesText);
+    return facts;
+  }
+
+  if (["rolebinding", "clusterrolebinding"].includes(kind)) {
+    addFact(facts, "Role", [row.roleRefKind, row.roleRefName].filter(Boolean).join("/"));
+    addFact(facts, "Subjects", Array.isArray(row.subjects) ? row.subjects.length : row.subjectCount);
+    addFact(facts, "Members", row.subjectsText);
+    return facts;
+  }
+
+  if (kind === "serviceaccount") {
+    addFact(facts, "Secrets", row.secrets);
+    addFact(facts, "Image pull secrets", row.imagePullSecrets);
+    return facts;
+  }
+
+  if (kind === "customresourcedefinition") {
+    addFact(facts, "Kind", row.kind);
+    addFact(facts, "Group", row.group);
+    addFact(facts, "Plural", row.plural);
+    addFact(facts, "Scope", row.scope);
+    addFact(facts, "Versions", row.versions);
+    addFact(facts, "Short names", row.shortNames);
+    return facts;
+  }
+
+  if (kind === "resourcequota") {
+    addFact(facts, "Scopes", arrayText(row.scopes));
+    return facts;
+  }
+
+  addFact(facts, "Type", row.type);
+  return facts;
+}
+
+function SummaryTile({ label, value, tone = "default" }: Fact) {
+  return (
+    <div className={`resource-summary-tile${tone === "default" ? "" : ` is-${tone}`}`}>
+      <span className="resource-summary-label">{label}</span>
+      <strong className="resource-summary-value">{value}</strong>
+    </div>
+  );
+}
+
+function addFact(items: Fact[], label: string, value: unknown, tone?: Tone) {
+  if (value === undefined || value === null || value === "" || value === "unknown" || value === "0/0") return;
+  items.push({ label, value: String(value), tone });
+}
+
+function containerRows(row: ResourceRow) {
+  if (!Array.isArray(row.containerStates)) return [];
+  return row.containerStates.flatMap((value, index) => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    const state = String(item.state || "unknown");
+    const ready = item.ready === true;
+    const reason = String(item.reason || "");
+    return [
+      {
+        name: String(item.name || `container-${index + 1}`),
+        state,
+        ready,
+        reason,
+        message: String(item.message || ""),
+        restarts: Number(item.restartCount || 0),
+        tone: ready ? "success" : reason || state === "terminated" ? "danger" : "warning",
+      },
+    ];
+  });
+}
+
+function restartFailures(row: ResourceRow) {
+  if (!Array.isArray(row.restartDiagnostics)) return [];
+  return row.restartDiagnostics.flatMap((value) => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    const exitCode = Number(item.lastExitCode);
+    const reason = String(item.lastReason || "");
+    if ((!Number.isFinite(exitCode) || exitCode === 0) && (!reason || reason.toLowerCase() === "completed")) return [];
+    return [
+      { container: String(item.container || "container"), reason: reason || "Terminated", exitCode: Number.isFinite(exitCode) ? String(exitCode) : "", finished: String(item.lastFinishedAt || "") },
+    ];
+  });
+}
+
+function warningEvents(events: ResourceRow[]) {
+  const seen = new Set<string>();
+  return events
+    .filter((event) => {
+      if (String(event.type || "").toLowerCase() !== "warning") return false;
+      const key = `${String(event.reason || "")}:${String(event.message || "")}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => Date.parse(String(b.createdAt || "")) - Date.parse(String(a.createdAt || "")));
+}
+
+function QuotaUsage({ rows }: { rows: Array<{ resource: string; used: string; hard: string; ratio: number | null }> }) {
+  return (
+    <section className="resource-summary-section quota-usage">
+      <div className="resource-summary-section-title">Quota usage</div>
+      {rows.map((row) => (
+        <div className={`quota-usage-row is-${row.ratio !== null && row.ratio >= 95 ? "danger" : row.ratio !== null && row.ratio >= 80 ? "warning" : "normal"}`} key={row.resource}>
+          <div>
+            <strong>{row.resource}</strong>
+            <span>
+              {row.used} / {row.hard || "—"}
+            </span>
+          </div>
+          {row.ratio === null ? null : (
+            <>
+              <div className="quota-usage-track">
+                <span style={{ width: `${Math.min(100, row.ratio)}%` }} />
+              </div>
+              <b>{Math.round(row.ratio)}%</b>
+            </>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function quotaRows(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const item = entry as Record<string, unknown>;
+      const used = String(item.used || "0");
+      const hard = String(item.hard || "");
+      return [{ resource: String(item.resource || "resource"), used, hard, ratio: quantityRatio(used, hard) }];
+    })
+    .sort((a, b) => (b.ratio ?? -1) - (a.ratio ?? -1));
 }
 
 export function quantityRatio(used: string, hard: string) {
@@ -102,257 +329,55 @@ export function quantityRatio(used: string, hard: string) {
     const factors: Record<string, number> = { m: 0.001, k: 1e3, M: 1e6, G: 1e9, T: 1e12, Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4 };
     return Number(match[1]) * (factors[match[2] || ""] || 1);
   };
-  const left = parse(used); const right = parse(hard);
-  return left === null || right === null || right <= 0 ? null : left / right * 100;
-}
-
-function RestartDiagnostics({ diagnostics, reportedRestartCount, now }: { diagnostics: RestartDiagnostic[]; reportedRestartCount: number; now: number }) {
-  const total = diagnostics.reduce((sum, item) => sum + (numberValue(item.restartCount) ?? 0), 0) || reportedRestartCount;
-
-  return (
-    <section className="pod-restart-card" aria-label="Pod restart diagnostics">
-      <div className="pod-restart-header">
-        <div>
-          <span className="pod-restart-eyebrow">Pod</span>
-          <strong>Restart diagnostics</strong>
-        </div>
-        <span className={total > 0 ? "pod-restart-count is-warning" : "pod-restart-count"}>{total} restart{total === 1 ? "" : "s"}</span>
-      </div>
-
-      {diagnostics.length === 0 ? (
-        <p className="pod-restart-empty">
-          Kubernetes reports restarts, but no last terminated container state is available. Check Events or Previous logs.
-        </p>
-      ) : (
-        <div className="pod-restart-list">
-          {diagnostics.map((item) => {
-            const exitCode = valueText(item.lastExitCode);
-            const signal = valueText(item.lastSignal);
-            const lastReason = valueText(item.lastReason);
-            const currentReason = valueText(item.currentReason);
-            const message = valueText(item.lastMessage || item.currentMessage);
-            const headline = lastReason || (exitCode ? `Exit code ${exitCode}` : currentReason || "Unknown");
-            const problem = isProblemRestart(item);
-
-            return (
-              <article key={`${item.container}:${item.restartCount}:${headline}`} className={problem ? "pod-restart-item is-warning" : "pod-restart-item"}>
-                <div className="pod-restart-title">
-                  <strong>{item.container || "container"}</strong>
-                  <span>{headline}</span>
-                </div>
-                <div className="pod-restart-fields">
-                  <DiagnosticField label="Restarts" value={String(item.restartCount ?? 0)} />
-                  <DiagnosticField label="Current state" value={valueText(item.currentState) || "unknown"} />
-                  <DiagnosticField label="Last reason" value={lastReason || "not reported"} />
-                  <DiagnosticField label="Exit code" value={exitCode || "not reported"} />
-                  {signal ? <DiagnosticField label="Signal" value={signal} /> : null}
-                  {item.lastFinishedAt ? <DiagnosticField label="Finished" value={`${formatAge(item.lastFinishedAt, now)} ago`} /> : null}
-                  {item.lastStartedAt && item.lastFinishedAt ? <DiagnosticField label="Duration" value={durationText(item.lastStartedAt, item.lastFinishedAt)} /> : null}
-                </div>
-                {message ? <p className="pod-restart-message">{message}</p> : null}
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      <p className="pod-restart-hint">For the exact stack trace, open the Logs tab and enable Previous logs for the same container.</p>
-    </section>
-  );
-}
-
-function DiagnosticField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="pod-restart-field">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function SummaryTile({ label, children, tone = "default", compact = false }: { label: string; children: ReactNode; tone?: SummaryItem["tone"]; compact?: boolean }) {
-  const classes = ["resource-summary-tile", compact ? "is-compact" : "", tone && tone !== "default" ? `is-${tone}` : ""].filter(Boolean).join(" ");
-  return (
-    <div className={classes}>
-      <span className="resource-summary-label">{label}</span>
-      <strong className="resource-summary-value">{children}</strong>
-    </div>
-  );
-}
-
-function overviewItems(row: ResourceRow, resource: string, now: number): SummaryItem[] {
-  const items: SummaryItem[] = [
-    { label: "Kind", value: String(row.kind || singularResource(resource)) },
-    { label: "Namespace", value: String(row.namespace || "_cluster") },
-    { label: "Status", value: primaryStatus(row), tone: statusTone(row) },
-    { label: "Age", value: formatAge(row.createdAt, now) },
-  ];
-
-  const candidates: Array<[string, unknown, SummaryItem["tone"]?]> = [
-    ["Ready", row.ready, readyTone(row.ready)],
-    ["Node", row.node],
-    ["Restarts", row.restarts, (numberValue(row.restarts) ?? 0) > 0 ? "warning" : undefined],
-    ["Last restart", row.lastRestartReason, restartTone(row.lastRestartReason, row.lastRestartExitCode)],
-    ["Exit code", row.lastRestartExitCode, restartTone(row.lastRestartReason, row.lastRestartExitCode)],
-    ["Ports", row.ports],
-    ["Type", row.type],
-    ["API Version", row.apiVersion],
-    ["Group", row.group],
-    ["Scope", row.scope],
-    ["Versions", row.versions],
-    ["Plural", row.plural],
-    ["Cluster IP", row.clusterIp],
-    ["Replicas", row.replicas ?? row.available ?? row.readyReplicas],
-    ["Storage", row.capacity ?? row.storage],
-    ["Class", row.storageClassName ?? row.storageClass],
-  ];
-
-  for (const [label, value, tone] of candidates) {
-    if (value === undefined || value === null || String(value) === "") continue;
-    items.push({ label, value: String(value), tone });
-  }
-
-  return items.slice(0, isPodResource(resource) ? 10 : 7);
-}
-
-function restartDiagnosticsFor(row: ResourceRow): RestartDiagnostic[] {
-  const fromBackend = toRestartDiagnostics(row.restartDiagnostics);
-  if (fromBackend.length > 0) return fromBackend;
-  return toRestartDiagnostics(row.containerStatuses);
-}
-
-function toRestartDiagnostics(value: unknown): RestartDiagnostic[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      const record = asRecord(item);
-      const state = asRecord(record.state);
-      const waiting = asRecord(state.waiting);
-      const running = asRecord(state.running);
-      const terminated = asRecord(state.terminated);
-      const lastState = asRecord(record.lastState);
-      const lastTerminated = asRecord(lastState.terminated);
-      const currentState = valueText(record.currentState) || (Object.keys(waiting).length ? "waiting" : Object.keys(terminated).length ? "terminated" : Object.keys(running).length ? "running" : "");
-
-      return {
-        container: valueText(record.container ?? record.name),
-        restartCount: numberValue(record.restartCount) ?? 0,
-        ready: Boolean(record.ready),
-        currentState,
-        currentReason: valueText(record.currentReason ?? waiting.reason ?? terminated.reason),
-        currentMessage: valueText(record.currentMessage ?? waiting.message ?? terminated.message),
-        lastReason: valueText(record.lastReason ?? lastTerminated.reason),
-        lastExitCode: restartDiagnosticScalar(record.lastExitCode ?? lastTerminated.exitCode),
-        lastSignal: restartDiagnosticScalar(record.lastSignal ?? lastTerminated.signal),
-        lastStartedAt: valueText(record.lastStartedAt ?? lastTerminated.startedAt),
-        lastFinishedAt: valueText(record.lastFinishedAt ?? lastTerminated.finishedAt),
-        lastMessage: valueText(record.lastMessage ?? lastTerminated.message),
-      };
-    })
-    .filter((item) => item.restartCount > 0 || Boolean(item.lastReason || item.currentReason || item.lastExitCode || item.lastSignal));
-}
-
-function shouldShowRawField(key: string, value: unknown) {
-  if (HIDDEN_RAW_FIELDS.has(key)) return false;
-  if (value === undefined || value === null || value === "") return false;
-  return true;
+  const left = parse(used);
+  const right = parse(hard);
+  return left === null || right === null || right <= 0 ? null : (left / right) * 100;
 }
 
 function primaryStatus(row: ResourceRow) {
-  return String(row.phase || row.status || row.type || row.reason || "unknown");
+  return String(row.phase || row.status || row.type || "");
 }
-
-function statusTone(row: ResourceRow): SummaryItem["tone"] {
-  const status = primaryStatus(row).toLowerCase();
-  if (["running", "ready", "active", "bound", "succeeded"].some((token) => status.includes(token))) return "success";
-  if (["error", "failed", "crash", "unknown", "unavailable"].some((token) => status.includes(token))) return "danger";
-  if (["pending", "terminating", "waiting"].some((token) => status.includes(token))) return "warning";
+function statusTone(status: string): Tone {
+  const value = status.toLowerCase();
+  if (/running|ready|active|bound|succeeded/.test(value)) return "success";
+  if (/error|failed|crash|unavailable|notready/.test(value)) return "danger";
+  if (/pending|terminating|waiting|cordon/.test(value)) return "warning";
   return "default";
 }
-
-function readyTone(value: unknown): SummaryItem["tone"] {
-  const ready = valueText(value).toLowerCase();
-  if (!ready) return undefined;
-  if (ready.includes("0/") || ready === "false") return "warning";
-  return "success";
+function readyTone(value: unknown): Tone | undefined {
+  const ready = String(value || "").toLowerCase();
+  return ready.includes("0/") || ready === "false" ? "warning" : ready ? "success" : undefined;
+}
+function nonZero(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : "";
+}
+function capacityText(allocatable: unknown, capacity: unknown) {
+  return allocatable || capacity ? `${String(allocatable || "—")} / ${String(capacity || "—")}` : "";
 }
 
-function restartTone(reason: unknown, exitCodeValue: unknown): SummaryItem["tone"] {
-  const reasonText = valueText(reason).toLowerCase();
-  const exitCode = numberValue(exitCodeValue);
-  if (reasonText.includes("oom") || reasonText.includes("error") || reasonText.includes("crash") || reasonText.includes("cannot")) return "danger";
-  if (exitCode !== undefined && exitCode !== 0) return "warning";
-  return undefined;
+function usageText(used: unknown, available: unknown, allocatable: unknown, capacity: unknown) {
+  if (used || available) return `${String(used || "—")} used · ${String(available || "—")} free · ${String(allocatable || capacity || "—")} allocatable`;
+  return capacityText(allocatable, capacity);
 }
-
-function singularResource(resource: string) {
-  const normalized = resource.split(".")[0];
-  if (normalized.endsWith("ies")) return `${normalized.slice(0, -3)}y`;
-  if (normalized.endsWith("ses")) return normalized.slice(0, -2);
-  if (normalized.endsWith("s")) return normalized.slice(0, -1);
-  return normalized;
+function ownerText(value: unknown) {
+  if (!Array.isArray(value)) return "";
+  const owner = value.find((item) => item && typeof item === "object") as Record<string, unknown> | undefined;
+  return owner ? [owner.kind, owner.name].filter(Boolean).join("/") : "";
 }
-
-function isPodResource(resource: string) {
-  const normalized = resource.toLowerCase();
-  return normalized === "pod" || normalized === "pods";
+function arrayText(value: unknown) {
+  return Array.isArray(value) ? value.join(", ") : value;
 }
-
-function isResourceQuota(resource: string) { return ["resourcequota", "resourcequotas"].includes(resource.toLowerCase()); }
-
-function isProblemRestart(item: RestartDiagnostic) {
-  const reason = valueText(item.lastReason || item.currentReason).toLowerCase();
-  const exitCode = numberValue(item.lastExitCode);
-  if (reason === "completed" && (!exitCode || exitCode === 0)) return false;
-  if (reason.includes("oom") || reason.includes("error") || reason.includes("crash") || reason.includes("cannot")) return true;
-  return exitCode !== undefined && exitCode !== 0;
+function baseResource(resource: string) {
+  const value = resource.toLowerCase().split(".")[0];
+  if (value.endsWith("ies")) return `${value.slice(0, -3)}y`;
+  if (value.endsWith("ses")) return value.slice(0, -2);
+  if (value.endsWith("s")) return value.slice(0, -1);
+  return value;
 }
-
-function asRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
-  return {};
+function isPod(resource: string) {
+  return baseResource(resource) === "pod";
 }
-
-function restartDiagnosticScalar(value: unknown): string | number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") return value;
-  return String(value);
-}
-
-function valueText(value: unknown) {
-  if (value === null || value === undefined) return "";
-  return String(value);
-}
-
-function numberValue(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return undefined;
-}
-
-function durationText(startedAt: string, finishedAt: string) {
-  const started = Date.parse(startedAt);
-  const finished = Date.parse(finishedAt);
-  if (!Number.isFinite(started) || !Number.isFinite(finished) || finished < started) return "unknown";
-  const seconds = Math.round((finished - started) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return `${minutes}m ${remainder}s`;
-}
-
-function formatSummaryValue(value: unknown) {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
-  if (Array.isArray(value)) {
-    if (value.every((item) => ["string", "number", "boolean"].includes(typeof item))) {
-      return value.map((item) => String(item)).join(", ");
-    }
-    return JSON.stringify(value);
-  }
-  return JSON.stringify(value);
+function isQuota(resource: string) {
+  return baseResource(resource) === "resourcequota";
 }

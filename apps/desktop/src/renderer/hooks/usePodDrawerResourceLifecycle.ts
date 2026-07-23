@@ -123,7 +123,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey, yamlObjectKey]);
 
   useEffect(() => {
-    if (!currentObjectKey || tab !== "events") return;
+    if (!currentObjectKey || (tab !== "summary" && tab !== "llm")) return;
     const controller = new AbortController();
     const requestGeneration = requestGuardRef.current.next();
     setLoading(true);

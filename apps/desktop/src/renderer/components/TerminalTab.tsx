@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CircleStop, Eraser, LoaderCircle, Play, RotateCw } from "lucide-react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
@@ -249,7 +250,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
             onChange={setContainer}
           />
         </label>
-        <label>
+        <label title="Auto tries bash, then sh, then ash">
           Shell
           <ThemedSelect
             ariaLabel="Shell"
@@ -264,24 +265,47 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
             onChange={(value) => setShell(value as TerminalShell)}
           />
         </label>
-        <button className="primary" disabled={!selectedContainer || terminalBusy} onClick={connect}>
-          {connecting ? "Connecting..." : "Connect"}
+        <button
+          className="primary terminal-icon-action"
+          title="Connect terminal"
+          data-tooltip="Connect terminal"
+          aria-label="Connect terminal"
+          disabled={!selectedContainer || terminalBusy}
+          onClick={connect}
+        >
+          {connecting ? <LoaderCircle className="terminal-action-spinner" size={16} /> : <Play size={16} />}
         </button>
-        <button disabled={!connected && !connecting} onClick={() => disconnectTerminal(socketRef, setConnected, setStatus, setConnecting)}>
-          Disconnect
+        <button
+          className="terminal-icon-action"
+          title="Disconnect terminal"
+          data-tooltip="Disconnect terminal"
+          aria-label="Disconnect terminal"
+          disabled={!connected && !connecting}
+          onClick={() => disconnectTerminal(socketRef, setConnected, setStatus, setConnecting)}
+        >
+          <CircleStop size={16} />
         </button>
-        <button disabled={!selectedContainer || connecting} onClick={reconnect}>
-          Reconnect
+        <button
+          className="terminal-icon-action"
+          title="Reconnect terminal"
+          data-tooltip="Reconnect terminal"
+          aria-label="Reconnect terminal"
+          disabled={!selectedContainer || connecting}
+          onClick={reconnect}
+        >
+          <RotateCw size={16} />
         </button>
-        <button onClick={() => terminalRef.current?.clear()}>Clear</button>
-        <span className={terminalStatusClass(status, connected, connecting)}>{status}</span>
-        {transport ? <span className={`terminal-transport ${transport}`}>{transport.toUpperCase()}</span> : null}
+        <button className="terminal-icon-action" title="Clear terminal" data-tooltip="Clear terminal" aria-label="Clear terminal" onClick={() => terminalRef.current?.clear()}>
+          <Eraser size={16} />
+        </button>
+        {transport && connected ? (
+          <span className={`terminal-transport ${transport}`} title={`Connected using ${transport.toUpperCase()}`}>
+            {transport.toUpperCase()}
+          </span>
+        ) : (
+          <span className={terminalStatusClass(status, connected, connecting)}>{status}</span>
+        )}
       </div>
-      <div className="terminal-command-preview">
-        kubectl exec -i -t -n {String(pod.namespace)} {pod.name}
-        {selectedContainer ? ` -c ${selectedContainer}` : ""} -- {shellCommandPreview(shell)}
-      </div>
-      <p className="terminal-muted terminal-hint">If the selected shell is missing, choose Auto or another shell. Changing container or shell closes the current session.</p>
       <div className="terminal-screen xterm-host" ref={hostRef} />
     </section>
   );
@@ -303,11 +327,6 @@ function disconnectTerminal(socketRef: { current: WebSocket | null }, setConnect
 
 function shellLabel(shell: TerminalShell) {
   return shell === "auto" ? "Auto shell" : shell;
-}
-
-function shellCommandPreview(shell: TerminalShell) {
-  if (shell === "auto") return "auto shell: bash → sh → ash";
-  return `${shell} -i`;
 }
 
 function terminalStatusClass(status: string, connected: boolean, connecting: boolean) {

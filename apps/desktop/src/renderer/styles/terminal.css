@@ -115,6 +115,20 @@
   white-space: nowrap;
 }
 
+.terminal-toolbar .terminal-icon-action {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+
+.terminal-action-spinner {
+  animation: terminal-action-spin 720ms linear infinite;
+}
+
+@keyframes terminal-action-spin {
+  to { transform: rotate(360deg); }
+}
+
 .terminal-toolbar button:hover:not(:disabled) {
   border-color: var(--kd-action-border-hover) !important;
   background: var(--kd-action-bg-hover) !important;
@@ -214,7 +228,7 @@
 
 .bottom-terminal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   min-width: 0;
   border-bottom: 1px solid var(--border);
   background: var(--panel-muted);
@@ -222,32 +236,48 @@
 
 .bottom-terminal-tabs {
   display: flex;
-  gap: 4px;
+  align-items: flex-end;
+  gap: 0;
   min-width: 0;
-  padding: 6px 10px;
+  padding: 4px 12px 0;
   overflow-x: auto;
   flex: 1;
 }
 
 .bottom-terminal-tab {
+  position: relative;
   display: flex;
-  flex: 0 0 190px;
-  min-width: 0;
+  flex: 0 0 170px;
+  min-width: 140px;
+  max-width: 180px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--button-bg);
+  margin-right: -1px;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
   color: var(--text);
 }
 
 .bottom-terminal-tab.active {
+  z-index: 2;
   border-color: var(--primary-border);
-  background: var(--surface-active);
+  border-bottom-color: var(--panel);
+  background: var(--panel);
+  margin-bottom: -1px;
+}
+
+.bottom-terminal-tab:not(.active) {
+  border-color: transparent;
+  border-right-color: var(--border);
 }
 
 .bottom-terminal-tab:hover {
   border-color: var(--primary-border);
   background: var(--surface-hover);
+}
+
+.bottom-terminal-tab.active:hover {
+  background: var(--panel);
 }
 
 .bottom-terminal-tab button {
@@ -257,15 +287,19 @@
 }
 
 .bottom-terminal-tab > button:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   flex: 1;
   min-width: 0;
-  padding: 5px 8px;
+  min-height: 30px;
+  padding: 0 8px;
   text-align: left;
 }
 
 .bottom-terminal-tab strong,
 .bottom-terminal-tab small {
-  display: block;
+  display: inline;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -274,16 +308,19 @@
 .bottom-terminal-tab small {
   color: var(--muted);
   font-size: 10px;
+  flex: 0 1 auto;
 }
 
 .bottom-terminal-tab > button:last-child {
-  padding: 5px;
-  border-left: 1px solid var(--border);
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-left: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
 }
 
 .bottom-terminal-collapse {
   flex: 0 0 auto;
-  margin-right: 10px;
+  margin: 0 10px 3px 0;
 }
 
 .bottom-terminal-body,
@@ -294,7 +331,7 @@
 }
 
 .bottom-terminal-body {
-  padding: 8px 10px 10px;
+  padding: 0 10px 10px;
   overflow: hidden;
   position: relative;
 }

@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Copy, Download, Search } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useControlledAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
@@ -156,13 +156,25 @@ export function LogsTab({
           <input type="checkbox" checked={follow} onChange={(event) => onFollowChange(event.target.checked)} />
           Follow
         </label>
-        <AsyncActionButton phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => refreshFeedback.trigger(onRefresh)} disabled={loading} />
-        <button onClick={onCopy} disabled={!content}>
-          Copy
-        </button>
-        <button onClick={() => setDownloadMenuOpen((current) => !current)} disabled={!content || downloadLoading}>
-          Download
-        </button>
+        <span className="logs-action-tooltip" data-tooltip="Refresh logs">
+          <AsyncActionButton
+            className="icon-button logs-icon-action"
+            phase={refreshFeedback.phase}
+            labels={refreshActionLabels(t)}
+            onClick={() => refreshFeedback.trigger(onRefresh)}
+            disabled={loading}
+          />
+        </span>
+        <span className="logs-action-tooltip" data-tooltip="Copy logs">
+          <button className="icon-button logs-icon-action" onClick={onCopy} disabled={!content} aria-label="Copy logs">
+            <Copy size={18} />
+          </button>
+        </span>
+        <span className="logs-action-tooltip" data-tooltip="Download logs">
+          <button className="icon-button logs-icon-action" onClick={() => setDownloadMenuOpen((current) => !current)} disabled={!content || downloadLoading} aria-label="Download logs">
+            <Download size={18} />
+          </button>
+        </span>
       </div>
       {downloadMenuOpen ? (
         <section className="logs-download-choice" aria-label="Download logs">

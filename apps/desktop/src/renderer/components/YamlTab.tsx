@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, FileCheck2, GitCompareArrows, RotateCcw, Save, Search } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import type { MutableRefObject, ReactNode } from "react";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
@@ -41,7 +41,9 @@ export function YamlTab({
   t,
   readOnly = false,
   readOnlyReason = "",
-  api, current, candidates,
+  api,
+  current,
+  candidates,
 }: YamlTabProps) {
   const [yamlQuery, setYamlQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(-1);
@@ -62,57 +64,75 @@ export function YamlTab({
   return (
     <>
       <div className="yaml-toolbar">
-        <label className="yaml-search">
-          <Search size={14} />
-          <input
-            ref={searchRef}
-            value={yamlQuery}
-            onChange={(event) => {
-              setYamlQuery(event.target.value);
-              setMatchIndex(-1);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                jumpMatch(event.shiftKey ? -1 : 1);
-              }
-            }}
-            placeholder="Find in YAML"
-          />
-        </label>
-        <span className="match-counter">{yamlQuery ? `${matchIndex >= 0 ? matchIndex + 1 : 0}/${matchCount}` : ""}</span>
-        <button className="icon-button" disabled={!matchCount} onClick={() => jumpMatch(-1)} title="Previous match">
-          <ChevronUp size={15} />
-        </button>
-        <button className="icon-button" disabled={!matchCount} onClick={() => jumpMatch(1)} title="Next match">
-          <ChevronDown size={15} />
-        </button>
-        <button disabled={loading || !yamlChanged || readOnly} onClick={onReset} title="Discard local edits and return to the last loaded YAML">
-          Reset
-        </button>
-        <AsyncActionButton
-          phase={reloadFeedback.phase}
-          labels={labels}
-          disabled={loading}
-          onClick={() => void reloadFeedback.run(onReloadFromCluster)}
-          title="Discard local edits and reload YAML from the cluster"
-        />
-        <button disabled={loading || yamlDraft.trim() === "" || readOnly} onClick={onDryRun}>
-          Dry-run
-        </button>
-        <button className="primary" disabled={loading || yamlDraft.trim() === "" || !yamlChanged || readOnly} onClick={onRequestApply}>
-          Apply
-        </button>
-        <button disabled={!candidates.length || !yamlDraft} title={candidates.length ? "Compare with open resource" : "Open another resource tab of the same kind"} onClick={() => setCompareOpen(true)}>Compare</button>
-        {readOnly && readOnlyReason ? <span className="yaml-readonly-indicator">{readOnlyReason}</span> : null}
-        {yamlChanged ? <span className="yaml-dirty-indicator">modified · auto-refresh paused</span> : null}
-        {status ? (
-          <span className="apply-result" role="status" aria-live="polite">
-            {status}
+        <div className="yaml-search-row">
+          <label className="yaml-search">
+            <Search size={14} />
+            <input
+              ref={searchRef}
+              value={yamlQuery}
+              onChange={(event) => {
+                setYamlQuery(event.target.value);
+                setMatchIndex(-1);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  jumpMatch(event.shiftKey ? -1 : 1);
+                }
+              }}
+              placeholder="Find in YAML"
+            />
+          </label>
+          <span className="match-counter">{yamlQuery ? `${matchIndex >= 0 ? matchIndex + 1 : 0}/${matchCount}` : ""}</span>
+          <span className="yaml-action-tooltip" data-tooltip="Previous match">
+            <button className="icon-button yaml-icon-action" disabled={!matchCount} onClick={() => jumpMatch(-1)} aria-label="Previous match">
+              <ChevronUp size={18} />
+            </button>
           </span>
-        ) : null}
+          <span className="yaml-action-tooltip" data-tooltip="Next match">
+            <button className="icon-button yaml-icon-action" disabled={!matchCount} onClick={() => jumpMatch(1)} aria-label="Next match">
+              <ChevronDown size={18} />
+            </button>
+          </span>
+        </div>
+        <div className="yaml-action-row">
+          <span className="yaml-action-tooltip" data-tooltip="Reset YAML">
+            <button className="icon-button yaml-icon-action" disabled={loading || !yamlChanged || readOnly} onClick={onReset} aria-label="Reset YAML">
+              <RotateCcw size={18} />
+            </button>
+          </span>
+          <span className="yaml-action-tooltip" data-tooltip="Reload YAML from cluster">
+            <AsyncActionButton className="icon-button yaml-icon-action" phase={reloadFeedback.phase} labels={labels} disabled={loading} onClick={() => void reloadFeedback.run(onReloadFromCluster)} />
+          </span>
+          <span className="yaml-action-tooltip" data-tooltip="Dry-run YAML">
+            <button className="icon-button yaml-icon-action" disabled={loading || yamlDraft.trim() === "" || readOnly} onClick={onDryRun} aria-label="Dry-run YAML">
+              <FileCheck2 size={18} />
+            </button>
+          </span>
+          <span className="yaml-action-tooltip" data-tooltip="Apply YAML">
+            <button className="icon-button yaml-icon-action primary" disabled={loading || yamlDraft.trim() === "" || !yamlChanged || readOnly} onClick={onRequestApply} aria-label="Apply YAML">
+              <Save size={18} />
+            </button>
+          </span>
+          <span className="yaml-action-tooltip" data-tooltip={candidates.length ? "Compare with open resource" : "Open another resource tab of the same kind"}>
+            <button className="icon-button yaml-icon-action" disabled={!candidates.length || !yamlDraft} aria-label="Compare YAML" onClick={() => setCompareOpen(true)}>
+              <GitCompareArrows size={18} />
+            </button>
+          </span>
+          {readOnly && readOnlyReason ? <span className="yaml-readonly-indicator">{readOnlyReason}</span> : null}
+          {yamlChanged ? <span className="yaml-dirty-indicator">modified · auto-refresh paused</span> : null}
+          {status ? (
+            <span className="apply-result" role="status" aria-live="polite">
+              {status}
+            </span>
+          ) : null}
+        </div>
       </div>
-      {compareOpen ? <Suspense fallback={null}><ManifestCompare api={api} current={current} currentYaml={yamlDraft} unsaved={yamlChanged} candidates={candidates} onClose={() => setCompareOpen(false)} /></Suspense> : null}
+      {compareOpen ? (
+        <Suspense fallback={null}>
+          <ManifestCompare api={api} current={current} currentYaml={yamlDraft} unsaved={yamlChanged} candidates={candidates} onClose={() => setCompareOpen(false)} />
+        </Suspense>
+      ) : null}
       <div className="yaml-ide-editor">
         <pre className="yaml-editor yaml-highlight-layer" ref={highlightRef} aria-hidden="true">
           {highlightYaml(yamlDraft)}

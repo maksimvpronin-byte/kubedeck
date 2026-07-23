@@ -171,6 +171,37 @@ test("Pod Terminal selectors use the themed in-app listbox", () => {
   assert.match(select, /event\.key === "Escape"/);
 });
 
+test("2.7.4 resource surfaces stay compact and operational", () => {
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const chrome = fs.readFileSync(path.join(rendererRoot, "components/PodDrawerChrome.tsx"), "utf8");
+  const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const columns = fs.readFileSync(path.join(rendererRoot, "components/ResourceTableColumnsMenu.tsx"), "utf8");
+  const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
+
+  assert.doesNotMatch(chrome, /\["events" as const\]/);
+  assert.match(drawer, /setTab\(initialTab === "events" \? "summary" : initialTab\)/);
+  assert.match(drawer, /copyText\(pod\.name, "Name copied"\)/);
+  assert.doesNotMatch(drawer, /copyText\(`\$\{resource\}\/\$\{pod\.name\}/);
+  assert.match(chrome, /drawer-header-actions/);
+  assert.match(chrome, /drawer-action-button/);
+  assert.match(chrome, /data-tooltip=\{label\}/);
+  assert.doesNotMatch(summary, /Object\.entries\(row\)/);
+  assert.match(summary, /String\(event\.type \|\| ""\)\.toLowerCase\(\) !== "warning"/);
+  assert.doesNotMatch(table, /<AsyncActionButton/);
+  assert.match(table, /className="phase-value"/);
+  assert.doesNotMatch(table, /className="cell-hint"/);
+  assert.match(columns, /aria-label="Choose visible columns"/);
+  assert.match(columns, /data-tooltip="Choose columns"/);
+  assert.doesNotMatch(columns, /<Columns3 size=\{14\} \/> \{label\}/);
+  for (const label of ["Connect terminal", "Disconnect terminal", "Reconnect terminal", "Clear terminal"]) {
+    assert.match(terminal, new RegExp(`aria-label="${label}"`));
+    assert.match(terminal, new RegExp(`data-tooltip="${label}"`));
+  }
+  assert.doesNotMatch(terminal, /className="terminal-command-preview"/);
+  assert.doesNotMatch(terminal, /bash → sh → ash/);
+});
+
 test("bottom Pod Terminal tabs survive resource drawer navigation", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
@@ -397,7 +428,6 @@ test("async action feedback cleanup cancels timers and late phase changes", asyn
 
 test("all manual refresh and reload surfaces use shared async feedback", () => {
   const required = [
-    ["components/ResourceTable.tsx", /AsyncActionButton[\s\S]*refreshFeedback\.run/],
     ["components/ProblemsPanel.tsx", /refreshActionLabels\(t\)/],
     ["components/AuditPanel.tsx", /refreshFeedback\.run\(\(\) => loadAudit\(\)\)/],
     ["components/PortForwardsPanel.tsx", /refreshFeedback\.run\(\(\) => refresh\(\)\)/],
@@ -412,6 +442,10 @@ test("all manual refresh and reload surfaces use shared async feedback", () => {
     const source = fs.readFileSync(path.join(rendererRoot, relativePath), "utf8");
     assert.match(source, pattern, `${relativePath} must use shared feedback`);
   }
+
+  const resourceTable = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  assert.doesNotMatch(resourceTable, /<AsyncActionButton/);
+  assert.doesNotMatch(resourceTable, />\s*Refresh\s*</);
 
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/base.css"), "utf8");
   assert.match(styles, /@keyframes async-action-spin/);
@@ -688,7 +722,7 @@ test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results",
   assert.match(lifecycle, /content: snapshotIsCurrent \? content : ""/);
   assert.match(drawer, /drawerResourceIdentity\(clusterId, resource, pod\)/);
   assert.doesNotMatch(drawer, /<div key=\{currentObjectKey\} className=/);
-  assert.match(drawer, /useEffect\(\(\) => setTab\(initialTab\), \[currentObjectKey, initialTab\]\)/);
+  assert.match(drawer, /setTab\(initialTab === "events" \? "summary" : initialTab\)/);
   assert.match(drawer, /setYamlStatus\(t\("yaml\.dryRunPassed"\)\)/);
   assert.match(drawer, /setYamlStatus\(t\("yaml\.applied"\)\)/);
   assert.match(yaml, /className="apply-result" role="status" aria-live="polite"/);
@@ -782,6 +816,13 @@ test("workspace resource tabs add, deduplicate, limit, and close deterministical
     ["a", "b"],
   );
   assert.deepEqual(model.closeResourceWorkspaceTab(second.tabs, "b", "b"), { tabs: [make("a")], activeId: "a" });
+});
+
+test("closing a background resource tab preserves the transient drawer", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  assert.match(app, /if \(!closingActiveTab\) return;/);
+  assert.match(app, /function closeDisplayedResource\(\)/);
+  assert.match(app, /onClose=\{closeDisplayedResource\}/);
 });
 
 test("resource rows pin workspace tabs only on double click", () => {

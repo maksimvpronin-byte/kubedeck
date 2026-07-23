@@ -14,9 +14,7 @@ function records(value: unknown): JsonObject[] {
 }
 
 function strings(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function text(value: unknown, fallback = ""): string {
@@ -30,13 +28,18 @@ function numberValue(value: unknown, fallback = 0): number {
 
 export function meta(item: JsonObject): ResourceRow {
   const metadata = record(item.metadata);
+  const labels = record(metadata.labels);
   return {
     uid: text(metadata.uid),
     name: text(metadata.name),
     namespace: text(metadata.namespace),
     createdAt: text(metadata.creationTimestamp),
     deletionTimestamp: text(metadata.deletionTimestamp),
-    labels: record(metadata.labels),
+    labels,
+    labelsText: Object.entries(labels)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${key}=${String(value)}`)
+      .join(", "),
     ownerReferences: records(metadata.ownerReferences),
   };
 }
@@ -76,9 +79,7 @@ export interface RestartDiagnostic {
   lastMessage: string;
 }
 
-export function podRestartDiagnostics(
-  containerStatuses: JsonObject[],
-): RestartDiagnostic[] {
+export function podRestartDiagnostics(containerStatuses: JsonObject[]): RestartDiagnostic[] {
   const diagnostics: RestartDiagnostic[] = [];
 
   for (const container of containerStatuses) {
@@ -95,12 +96,7 @@ export function podRestartDiagnostics(
     else if (Object.keys(terminated).length > 0) currentState = "terminated";
     else if (Object.keys(running).length > 0) currentState = "running";
 
-    if (
-      restartCount === 0 &&
-      Object.keys(lastTerminated).length === 0 &&
-      Object.keys(waiting).length === 0 &&
-      Object.keys(terminated).length === 0
-    ) {
+    if (restartCount === 0 && Object.keys(lastTerminated).length === 0 && Object.keys(waiting).length === 0 && Object.keys(terminated).length === 0) {
       continue;
     }
 
@@ -146,10 +142,7 @@ function containerStateSummary(containerName: string, status: JsonObject | undef
   };
 }
 
-function firstRestartDiagnosticValue(
-  diagnostics: RestartDiagnostic[],
-  key: keyof RestartDiagnostic,
-): unknown {
+function firstRestartDiagnosticValue(diagnostics: RestartDiagnostic[], key: keyof RestartDiagnostic): unknown {
   for (const diagnostic of diagnostics) {
     const value = diagnostic[key];
     if (diagnostic.restartCount > 0 && value !== undefined && value !== null && value !== "") {
@@ -173,10 +166,7 @@ export function podSummary(item: JsonObject): ResourceRow {
   const containerStatuses = records(status.containerStatuses);
   const specContainers = records(spec.containers);
   const containerStatusByName = new Map(containerStatuses.map((container) => [text(container.name), container]));
-  const restarts = containerStatuses.reduce(
-    (total, container) => total + Math.trunc(numberValue(container.restartCount)),
-    0,
-  );
+  const restarts = containerStatuses.reduce((total, container) => total + Math.trunc(numberValue(container.restartCount)), 0);
   const restartDiagnostics = podRestartDiagnostics(containerStatuses);
   const ready = containerStatuses.filter((container) => container.ready === true).length;
   const desiredContainers = Math.max(containerStatuses.length, specContainers.length);
@@ -188,6 +178,8 @@ export function podSummary(item: JsonObject): ResourceRow {
     if (!name) continue;
     seenContainers.add(name);
     containerStates.push(containerStateSummary(name, containerStatusByName.get(name)));
+    const image = text(container.image);
+    if (image) containerStates[containerStates.length - 1].image = image;
   }
   for (const container of containerStatuses) {
     const name = text(container.name);
@@ -203,18 +195,14 @@ export function podSummary(item: JsonObject): ResourceRow {
     const reason = text(waiting.reason) || text(terminated.reason);
     const message = text(waiting.message) || text(terminated.message);
     if (reason || message) {
-      containerProblems.push(
-        `${text(container.name)}: ${reason} ${message}`.trim(),
-      );
+      containerProblems.push(`${text(container.name)}: ${reason} ${message}`.trim());
     }
   }
 
   const conditionSummary: string[] = [];
   for (const condition of records(status.conditions)) {
     if (condition.status !== "True") {
-      conditionSummary.push(
-        `${text(condition.type)}=${text(condition.status)} ${text(condition.reason)} ${text(condition.message)}`.trim(),
-      );
+      conditionSummary.push(`${text(condition.type)}=${text(condition.status)} ${text(condition.reason)} ${text(condition.message)}`.trim());
     }
   }
 
@@ -236,18 +224,9 @@ export function podSummary(item: JsonObject): ResourceRow {
     containers: specContainers.map((container) => text(container.name)).filter(Boolean),
     containerStates,
     restartDiagnostics,
-    lastRestartReason: firstRestartDiagnosticValue(
-      restartDiagnostics,
-      "lastReason",
-    ),
-    lastRestartExitCode: firstRestartDiagnosticValue(
-      restartDiagnostics,
-      "lastExitCode",
-    ),
-    lastRestartFinishedAt: firstRestartDiagnosticValue(
-      restartDiagnostics,
-      "lastFinishedAt",
-    ),
+    lastRestartReason: firstRestartDiagnosticValue(restartDiagnostics, "lastReason"),
+    lastRestartExitCode: firstRestartDiagnosticValue(restartDiagnostics, "lastExitCode"),
+    lastRestartFinishedAt: firstRestartDiagnosticValue(restartDiagnostics, "lastFinishedAt"),
     ports: formatContainerPorts(specContainers),
     cpuUsage: "",
     memoryUsage: "",
@@ -281,7 +260,10 @@ export function serviceAccountSummary(item: JsonObject): ResourceRow {
   const imagePullSecrets = records(item.imagePullSecrets);
   return {
     ...meta(item),
-    secrets: secrets.map((secret) => text(secret.name)).filter(Boolean).join(", "),
+    secrets: secrets
+      .map((secret) => text(secret.name))
+      .filter(Boolean)
+      .join(", "),
     imagePullSecrets: imagePullSecrets
       .map((secret) => text(secret.name))
       .filter(Boolean)
@@ -314,11 +296,23 @@ export function roleBindingSummary(item: JsonObject): ResourceRow {
 export function deploymentSummary(item: JsonObject): ResourceRow {
   const status = record(item.status);
   const spec = record(item.spec);
+  const template = record(spec.template);
+  const podSpec = record(template.spec);
   return {
     ...meta(item),
     ready: `${Math.trunc(numberValue(status.readyReplicas))}/${Math.trunc(numberValue(spec.replicas))}`,
+    desired: Math.trunc(numberValue(spec.replicas)),
+    current: Math.trunc(numberValue(status.replicas ?? status.currentReplicas)),
     updated: Math.trunc(numberValue(status.updatedReplicas)),
     available: Math.trunc(numberValue(status.availableReplicas)),
+    images: records(podSpec.containers)
+      .map((container) => text(container.image))
+      .filter(Boolean)
+      .join(", "),
+    conditions: records(status.conditions)
+      .filter((condition) => condition.status !== "True")
+      .map((condition) => `${text(condition.type)}: ${text(condition.reason)} ${text(condition.message)}`.trim())
+      .join("; "),
   };
 }
 
@@ -330,7 +324,16 @@ export function serviceSummary(item: JsonObject): ResourceRow {
     ...meta(item),
     type: text(spec.type),
     clusterIp: text(spec.clusterIP),
-    ports: ports.map((port) => String(port.port ?? "")).filter(Boolean).join(", "),
+    ports: ports
+      .map((port) => {
+        const name = text(port.name);
+        const source = String(port.port ?? "");
+        const target = String(port.targetPort ?? source);
+        const protocol = text(port.protocol, "TCP");
+        return `${name ? `${name} · ` : ""}${source} → ${target}/${protocol}`;
+      })
+      .filter(Boolean)
+      .join(", "),
     selector,
     selectorText: Object.entries(selector)
       .map(([key, value]) => `${key}=${String(value)}`)
@@ -361,6 +364,8 @@ function ingressBackendServices(spec: JsonObject): string[] {
 
 export function ingressSummary(item: JsonObject): ResourceRow {
   const spec = record(item.spec);
+  const status = record(item.status);
+  const loadBalancer = record(status.loadBalancer);
   const services = [...new Set(ingressBackendServices(spec))].sort();
   return {
     ...meta(item),
@@ -372,6 +377,66 @@ export function ingressSummary(item: JsonObject): ResourceRow {
       .join(", "),
     backendServices: services,
     backendServicesText: services.join(", "),
+    routes: records(spec.rules)
+      .flatMap((rule) => records(record(rule.http).paths).map((path) => `${text(rule.host) || "*"}${text(path.path, "/")} → ${serviceNameFromBackend(record(path.backend))}`))
+      .join(", "),
+    tlsHosts: records(spec.tls)
+      .flatMap((tls) => strings(tls.hosts))
+      .join(", "),
+    addressesText: records(loadBalancer.ingress)
+      .map((address) => text(address.ip) || text(address.hostname))
+      .filter(Boolean)
+      .join(", "),
+  };
+}
+
+export function keyValueSummary(item: JsonObject): ResourceRow {
+  const data = record(item.data);
+  const stringData = record(item.stringData);
+  const keys = Array.from(new Set([...Object.keys(data), ...Object.keys(stringData)])).sort();
+  return {
+    ...meta(item),
+    kind: text(item.kind),
+    type: text(item.type),
+    immutable: item.immutable === true,
+    keyCount: keys.length,
+    keyNames: keys.join(", "),
+  };
+}
+
+export function jobSummary(item: JsonObject): ResourceRow {
+  const spec = record(item.spec);
+  const status = record(item.status);
+  return {
+    ...meta(item),
+    status: numberValue(status.failed) > 0 ? "Failed" : numberValue(status.active) > 0 ? "Running" : numberValue(status.succeeded) > 0 ? "Succeeded" : "Pending",
+    active: Math.trunc(numberValue(status.active)),
+    succeeded: Math.trunc(numberValue(status.succeeded)),
+    failed: Math.trunc(numberValue(status.failed)),
+    completions: spec.completions,
+    schedule: spec.schedule,
+    lastScheduleTime: text(status.lastScheduleTime),
+  };
+}
+
+export function storageSummary(item: JsonObject): ResourceRow {
+  const spec = record(item.spec);
+  const status = record(item.status);
+  const resources = record(spec.resources);
+  const requests = record(resources.requests);
+  const claimRef = record(spec.claimRef);
+  return {
+    ...meta(item),
+    status: text(status.phase),
+    capacity: String(record(status.capacity).storage ?? record(spec.capacity).storage ?? requests.storage ?? ""),
+    accessModes: strings(spec.accessModes).join(", "),
+    storageClassName: text(spec.storageClassName),
+    volumeName: text(spec.volumeName),
+    claim: [text(claimRef.namespace), text(claimRef.name)].filter(Boolean).join("/"),
+    reclaimPolicy: text(spec.persistentVolumeReclaimPolicy) || text(item.reclaimPolicy),
+    provisioner: text(item.provisioner),
+    volumeBindingMode: text(item.volumeBindingMode),
+    allowVolumeExpansion: item.allowVolumeExpansion,
   };
 }
 
@@ -403,11 +468,7 @@ export function eventSummary(item: JsonObject): ResourceRow {
   const involved = record(item.involvedObject);
   const series = record(item.series);
   const source = record(item.source);
-  const eventTime =
-    text(item.lastTimestamp) ||
-    text(item.eventTime) ||
-    text(item.firstTimestamp) ||
-    text(base.createdAt);
+  const eventTime = text(item.lastTimestamp) || text(item.eventTime) || text(item.firstTimestamp) || text(base.createdAt);
 
   return {
     ...base,
@@ -440,9 +501,7 @@ function formatBytesQuantity(value: unknown): string {
   for (const [suffix, multiplier] of suffixes) {
     if (raw.endsWith(suffix)) {
       const numeric = Number(raw.slice(0, -suffix.length));
-      return Number.isFinite(numeric)
-        ? `${((numeric * multiplier) / 1024 ** 3).toFixed(2)} GiB`
-        : raw;
+      return Number.isFinite(numeric) ? `${((numeric * multiplier) / 1024 ** 3).toFixed(2)} GiB` : raw;
     }
   }
 
@@ -468,23 +527,14 @@ export function nodeSummary(item: JsonObject): ResourceRow {
   }
 
   const conditions = records(status.conditions);
-  const ready =
-    conditions.find((condition) => condition.type === "Ready") ?? {};
+  const ready = conditions.find((condition) => condition.type === "Ready") ?? {};
   const pressure = conditions
-    .filter(
-      (condition) =>
-        condition.type !== "Ready" && condition.status === "True",
-    )
-    .map(
-      (condition) =>
-        `${text(condition.type)}: ${text(condition.reason)} ${text(condition.message)}`.trim(),
-    );
+    .filter((condition) => condition.type !== "Ready" && condition.status === "True")
+    .map((condition) => `${text(condition.type)}: ${text(condition.reason)} ${text(condition.message)}`.trim());
 
   return {
     ...meta(item),
-    status:
-      (ready.status === "True" ? "Ready" : "NotReady") +
-      (spec.unschedulable === true ? ", SchedulingDisabled" : ""),
+    status: (ready.status === "True" ? "Ready" : "NotReady") + (spec.unschedulable === true ? ", SchedulingDisabled" : ""),
     unschedulable: spec.unschedulable === true,
     internalIp: addressByType.get("InternalIP") ?? "",
     externalIp: addressByType.get("ExternalIP") ?? "",
@@ -504,6 +554,9 @@ export function nodeSummary(item: JsonObject): ResourceRow {
     podsAllocatable: String(allocatable.pods ?? ""),
     diskCapacity: formatBytesQuantity(capacity["ephemeral-storage"]),
     diskAllocatable: formatBytesQuantity(allocatable["ephemeral-storage"]),
+    cpuAllocatableRaw: String(allocatable.cpu ?? ""),
+    memoryAllocatableRaw: String(allocatable.memory ?? ""),
+    diskAllocatableRaw: String(allocatable["ephemeral-storage"] ?? ""),
     pressure: pressure.join("; "),
   };
 }
@@ -519,9 +572,7 @@ export function genericSummary(item: JsonObject): ResourceRow {
     ...base,
     apiVersion: text(item.apiVersion),
     kind: text(item.kind),
-    status:
-      text(status.phase) ||
-      (Object.keys(status).length > 0 ? text(lastCondition.type) : ""),
+    status: text(status.phase) || (Object.keys(status).length > 0 ? text(lastCondition.type) : ""),
     type: text(spec.type),
   };
 }
@@ -550,6 +601,16 @@ const NORMALIZERS: Record<string, (item: JsonObject) => ResourceRow> = {
   deployment: deploymentSummary,
   "deployments.apps": deploymentSummary,
   "deployment.apps": deploymentSummary,
+  statefulsets: deploymentSummary,
+  statefulset: deploymentSummary,
+  daemonsets: deploymentSummary,
+  daemonset: deploymentSummary,
+  replicasets: deploymentSummary,
+  replicaset: deploymentSummary,
+  jobs: jobSummary,
+  job: jobSummary,
+  cronjobs: jobSummary,
+  cronjob: jobSummary,
   services: serviceSummary,
   service: serviceSummary,
   svc: serviceSummary,
@@ -580,23 +641,26 @@ const NORMALIZERS: Record<string, (item: JsonObject) => ResourceRow> = {
   clusterrolebinding: roleBindingSummary,
   resourcequotas: resourceQuotaSummary,
   resourcequota: resourceQuotaSummary,
+  configmaps: keyValueSummary,
+  configmap: keyValueSummary,
+  secrets: keyValueSummary,
+  secret: keyValueSummary,
+  persistentvolumeclaims: storageSummary,
+  persistentvolumeclaim: storageSummary,
+  persistentvolumes: storageSummary,
+  persistentvolume: storageSummary,
+  storageclasses: storageSummary,
+  storageclass: storageSummary,
 };
 
-export function normalizerForResource(
-  resource: string,
-): (item: JsonObject) => ResourceRow {
+export function normalizerForResource(resource: string): (item: JsonObject) => ResourceRow {
   return NORMALIZERS[resource.trim().toLowerCase()] ?? genericSummary;
 }
 
-export function normalizeResourceItems(
-  resource: string,
-  items: unknown[],
-): ResourceRow[] {
+export function normalizeResourceItems(resource: string, items: unknown[]): ResourceRow[] {
   const normalizedResource = resource.trim().toLowerCase();
   const normalizer = normalizerForResource(normalizedResource);
-  const crdInstance =
-    !Object.prototype.hasOwnProperty.call(NORMALIZERS, normalizedResource) &&
-    normalizedResource.includes(".");
+  const crdInstance = !Object.prototype.hasOwnProperty.call(NORMALIZERS, normalizedResource) && normalizedResource.includes(".");
 
   return items.filter(isRecord).map((item) => {
     const summary = normalizer(item);

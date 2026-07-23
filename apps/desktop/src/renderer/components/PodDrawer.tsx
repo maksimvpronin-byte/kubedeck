@@ -6,7 +6,6 @@ import { NodeSshTab } from "./NodeSshTab";
 import { LogsTab } from "./LogsTab";
 import { YamlTab } from "./YamlTab";
 import { DescribeTab } from "./DescribeTab";
-import { EventsTab } from "./EventsTab";
 import { RelatedTab } from "./RelatedTab";
 import { SecretTab } from "./SecretTab";
 import { LlmTab } from "./LlmTab";
@@ -19,6 +18,7 @@ import { availableDrawerTabs, PodDrawerActions, PodDrawerHeader, PodDrawerTabs, 
 import { drawerResourceIdentity, usePodDrawerResourceLifecycle } from "../hooks/usePodDrawerResourceLifecycle";
 import { toErrorInfo } from "../utils/errors";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
+import type { NodeActionKind } from "../hooks/useBulkResourceActions";
 
 interface Props {
   api: ApiClient;
@@ -35,6 +35,7 @@ interface Props {
   currentWorkspaceTabId: string;
   onPortForwardStarted?: (session: PortForwardSession) => void;
   onOpenTerminal: (pod: ResourceRow, containers: string[], container: string) => void;
+  onNodeAction?: (action: NodeActionKind, rows: ResourceRow[]) => void;
   onClose: () => void;
   copyLabel: string;
   settings?: Settings;
@@ -65,6 +66,7 @@ export function PodDrawer({
   currentWorkspaceTabId,
   onPortForwardStarted,
   onOpenTerminal,
+  onNodeAction,
   onClose,
   copyLabel,
   labels,
@@ -82,8 +84,6 @@ export function PodDrawer({
   const [yamlApplyConfirmOpen, setYamlApplyConfirmOpen] = useState(false);
   const [portForwardDraft, setPortForwardDraft] = useState<PortForwardStartRequest | null>(null);
   const [replicas, setReplicas] = useState(1);
-  const [eventTypeFilter, setEventTypeFilter] = useState<"all" | "warning" | "normal">("all");
-  const [eventSort, setEventSort] = useState<"newest" | "oldest">("newest");
   const [relatedResourceFilter, setRelatedResourceFilter] = useState("all");
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsDownloadLoading, setLogsDownloadLoading] = useState(false);
@@ -140,7 +140,7 @@ export function PodDrawer({
   const isNodeResource = resource === "nodes" || resource === "node";
 
   useEffect(() => onTabChangeRef.current?.(tab), [tab]);
-  useEffect(() => setTab(initialTab), [currentObjectKey, initialTab]);
+  useEffect(() => setTab(initialTab === "events" ? "summary" : initialTab), [currentObjectKey, initialTab]);
   useEffect(() => {
     onDirtyChangeRef.current?.(yamlChanged);
     return () => onDirtyChangeRef.current?.(false);
@@ -151,7 +151,7 @@ export function PodDrawer({
   }, [canLogs, tab, resource]);
 
   useEffect(() => {
-    if (resource === "events" && (tab === "events" || tab === "related")) setTab("summary");
+    if (tab === "events" || (resource === "events" && tab === "related")) setTab("summary");
   }, [resource, tab]);
 
   useEffect(() => {
@@ -436,12 +436,17 @@ export function PodDrawer({
     setApplyResult((current) => (current.startsWith("Port forward started:") ? "" : current));
   }
 
-  function copyText(text: string, message = "Copied") {
-    void navigator.clipboard?.writeText(text);
-    setApplyResult(message);
-    window.setTimeout(() => {
-      setApplyResult((current) => (current === message ? "" : current));
-    }, 2500);
+  async function copyText(text: string, message = "Copied") {
+    try {
+      if (!navigator.clipboard) return;
+      await navigator.clipboard.writeText(text);
+      setApplyResult(message);
+      window.setTimeout(() => {
+        setApplyResult((current) => (current === message ? "" : current));
+      }, 2500);
+    } catch {
+      // Clipboard permission errors must not report a successful copy.
+    }
   }
 
   function openTerminal(containerName?: string) {
@@ -505,26 +510,35 @@ export function PodDrawer({
           window.addEventListener("mouseup", onUp);
         }}
       />
-      <PodDrawerHeader resource={resource} namespace={namespaceText} name={pod.name} onCopyName={() => copyText(`${resource}/${pod.name}`, "Name copied")} onClose={requestClose} />
+      <PodDrawerHeader
+        resource={resource}
+        namespace={namespaceText}
+        name={pod.name}
+        onCopyName={() => void copyText(pod.name, "Name copied")}
+        onClose={requestClose}
+        actions={
+          <PodDrawerActions
+            actions={actions}
+            resource={resource}
+            row={pod}
+            loading={loading}
+            applyResult={applyResult}
+            involvedTarget={involvedTarget}
+            onAction={setPendingAction}
+            onTerminal={() => (isNodeResource ? setTab("terminal") : openTerminal())}
+            onNodeAction={onNodeAction}
+            canPortForward={supportsPortForward(resource, pod)}
+            onPortForward={() => {
+              setError(null);
+              setApplyResult("");
+              setPortForwardDraft(defaultPortForwardDraft(resource, pod));
+            }}
+            onOpenRelated={onOpenRelated}
+          />
+        }
+      />
       <PodDrawerTabs tabs={drawerTabs} active={tab} nodeResource={isNodeResource} labels={labels} llmLabel={t("llm.title")} onChange={setTab} />
       <div className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
-        <PodDrawerActions
-          actions={actions}
-          resource={resource}
-          row={pod}
-          loading={loading}
-          applyResult={applyResult}
-          involvedTarget={involvedTarget}
-          onAction={setPendingAction}
-          onTerminal={() => openTerminal()}
-          canPortForward={supportsPortForward(resource, pod)}
-          onPortForward={() => {
-            setError(null);
-            setApplyResult("");
-            setPortForwardDraft(defaultPortForwardDraft(resource, pod));
-          }}
-          onOpenRelated={onOpenRelated}
-        />
         {isCrdDefinitionResource ? (
           <section className="crd-notice">
             <strong>CRD definition is view-only</strong>
@@ -537,7 +551,7 @@ export function PodDrawer({
           </section>
         ) : null}
         {tab === "summary" ? (
-          <ResourceSummary row={pod} resource={resource} now={now} />
+          <ResourceSummary row={pod} resource={resource} now={now} events={events} />
         ) : tab === "llm" ? (
           <LlmTab
             api={api}
@@ -583,19 +597,6 @@ export function PodDrawer({
             onOpenRelated={onOpenRelated}
             onDeletePods={onDeleteRelatedPods}
             sourceResource={resource}
-          />
-        ) : tab === "events" ? (
-          <EventsTab
-            events={events}
-            loading={loading}
-            error={error}
-            copyLabel={copyLabel}
-            typeFilter={eventTypeFilter}
-            onTypeFilterChange={setEventTypeFilter}
-            sort={eventSort}
-            onSortChange={setEventSort}
-            onOpenRelated={onOpenRelated}
-            now={now}
           />
         ) : tab === "secret" ? (
           <SecretTab api={api} clusterId={clusterId} row={pod} copyLabel={copyLabel} t={t} />

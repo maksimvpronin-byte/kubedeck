@@ -29,14 +29,24 @@ export function ResourceTableColumnsMenu({ columns, orderedColumns, hiddenColumn
 
   return (
     <div className="table-columns-menu" ref={menuRef}>
-      <button className="secondary-btn" type="button" onClick={() => setOpen((current) => !current)}>
-        <Columns3 size={14} /> {label}
+      <button
+        className={`secondary-btn table-columns-trigger ${open ? "is-open" : ""}`}
+        type="button"
+        title="Choose columns"
+        data-tooltip="Choose columns"
+        aria-label="Choose visible columns"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <Columns3 size={16} />
       </button>
       {open ? (
         <div className="table-columns-popover">
           <div className="table-columns-popover-header">
             <strong>{label}</strong>
-            <button type="button" onClick={onReset}>{resetLabel}</button>
+            <button type="button" onClick={onReset}>
+              {resetLabel}
+            </button>
           </div>
           <div className="table-columns-options">
             {orderedColumns.map((column) => {

@@ -3,12 +3,11 @@ import { useRef } from "react";
 import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
 import { useUiClock } from "../hooks/useUiClock";
-import { PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
+import { canonicalPhase, PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
 import { formatElapsed } from "../utils/time";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
-import { AsyncActionButton, type AsyncActionLabels } from "./AsyncActionButton";
-import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import type { AsyncActionLabels } from "./AsyncActionButton";
 
 export type Column = ResourceTableColumn;
 
@@ -56,7 +55,6 @@ export function ResourceTable({
   rows,
   columns,
   loading,
-  onRefresh,
   onOpen,
   onPin,
   onNamespaceClick,
@@ -66,8 +64,6 @@ export function ResourceTable({
   onBulkDrain,
   selectedRow,
   filterLabel,
-  refreshLabel,
-  refreshActionLabels,
   stateKey,
   labels,
 }: Props) {
@@ -142,13 +138,6 @@ export function ResourceTable({
   const allPageSelected = renderedRows.length > 0 && selectedPageRows.length === renderedRows.length;
   const nodeActionsVisible = selectedRows.length > 0 && Boolean(onBulkCordon || onBulkUncordon || onBulkDrain);
   const controlsDisabled = loading && rows.length === 0;
-  const refreshFeedback = useAsyncActionFeedback();
-  const refreshLabels = refreshActionLabels ?? {
-    idle: refreshLabel,
-    pending: "Refreshing...",
-    success: "Updated",
-    error: "Refresh failed",
-  };
 
   return (
     <section className="resource-table-panel" ref={tableRef}>
@@ -185,15 +174,6 @@ export function ResourceTable({
               <Trash2 size={14} /> {ui.deleteSelected} ({selectedRows.length})
             </button>
           ) : null}
-          <ResourceTableColumnsMenu
-            columns={columns}
-            orderedColumns={orderedColumns}
-            hiddenColumns={hiddenColumns}
-            label={ui.columns}
-            resetLabel={ui.resetColumns}
-            onToggle={toggleColumn}
-            onReset={resetColumns}
-          />
           <div className="table-filter">
             <Search size={14} />
             <input ref={filterInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={filterLabel} />
@@ -212,13 +192,14 @@ export function ResourceTable({
               </button>
             ) : null}
           </div>
-          <AsyncActionButton
-            className="secondary-btn"
-            type="button"
-            phase={refreshFeedback.phase}
-            labels={refreshLabels}
-            onClick={() => void refreshFeedback.run(onRefresh)}
-            disabled={controlsDisabled}
+          <ResourceTableColumnsMenu
+            columns={columns}
+            orderedColumns={orderedColumns}
+            hiddenColumns={hiddenColumns}
+            label={ui.columns}
+            resetLabel={ui.resetColumns}
+            onToggle={toggleColumn}
+            onReset={resetColumns}
           />
         </div>
       </div>
@@ -340,14 +321,25 @@ export function ResourceTable({
 function formatCell(row: ResourceRow, key: string, now: number): ReactNode {
   if (key === "phase") {
     const reason = rowHealthReason(row);
+    const phase = canonicalPhase(row);
     return (
-      <span>
-        {String(row.phase ?? "")}
-        {reason ? <span className="cell-hint">{reason}</span> : null}
+      <span className="phase-value" title={reason || undefined} aria-label={reason ? `${phase}: ${reason}` : phase} tabIndex={reason ? 0 : undefined}>
+        {phase}
       </span>
     );
   }
   if (key === "containers") return renderContainerStatus(row);
+  if (key === "nodeResources") {
+    return (
+      <span className="node-resource-usage">
+        {String(row.nodeResources || "")
+          .split("\n")
+          .map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+      </span>
+    );
+  }
   if (key !== "createdAt") return String(row[key] ?? "");
   const createdAt = String(row.createdAt ?? "");
   const createdMs = Date.parse(createdAt);

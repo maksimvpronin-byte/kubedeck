@@ -86,10 +86,7 @@ function formatMemory(value: number | null): string {
   return `${value}B`;
 }
 
-export function parsePodMetrics(
-  output: string,
-  allNamespaces: boolean,
-): Map<string, { cpu: string; memory: string }> {
+export function parsePodMetrics(output: string, allNamespaces: boolean): Map<string, { cpu: string; memory: string }> {
   const result = new Map<string, { cpu: string; memory: string }>();
 
   for (const rawLine of output.split(/\r?\n/)) {
@@ -110,28 +107,87 @@ export function parsePodMetrics(
   return result;
 }
 
-export async function applyPodMetrics(
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-  clusterId: string,
-  namespace: string,
-  rows: ResourceRow[],
-): Promise<void> {
+export function parseNodeMetrics(output: string): Map<string, { cpu: string; cpuPercent: string; memory: string; memoryPercent: string }> {
+  const result = new Map<string, { cpu: string; cpuPercent: string; memory: string; memoryPercent: string }>();
+  for (const rawLine of output.split(/\r?\n/)) {
+    const [name, cpu, cpuPercent, memory, memoryPercent] = rawLine.trim().split(/\s+/);
+    if (name && cpu && memory) result.set(name, { cpu, cpuPercent: cpuPercent ?? "", memory, memoryPercent: memoryPercent ?? "" });
+  }
+  return result;
+}
+
+export async function applyNodeMetrics(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, rows: ResourceRow[]): Promise<void> {
+  try {
+    const result = await runner.run(clusterCommand(configStore, clusterId, ["top", "nodes", "--no-headers"], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES));
+    const metrics = parseNodeMetrics(result.stdout);
+    for (const row of rows) {
+      const metric = metrics.get(text(row.name));
+      if (!metric) continue;
+      const cpuFree = remaining(parseCpuMillicores(row.cpuAllocatableRaw), parseCpuMillicores(metric.cpu));
+      const memoryUsed = parseMemoryBytes(metric.memory);
+      const memoryFree = remaining(parseMemoryBytes(row.memoryAllocatableRaw), memoryUsed);
+      row.cpuUsage = metric.cpu;
+      row.cpuUsagePercent = metric.cpuPercent;
+      row.cpuAvailable = formatCpu(cpuFree);
+      row.memoryUsage = formatNodeBytes(memoryUsed);
+      row.memoryUsagePercent = metric.memoryPercent;
+      row.memoryAvailable = formatNodeBytes(memoryFree);
+      row.nodeResources = `CPU ${metric.cpu} used · ${formatCpu(cpuFree)} free\nRAM ${formatNodeBytes(memoryUsed)} used · ${formatNodeBytes(memoryFree)} free`;
+    }
+  } catch (error) {
+    if (!(error instanceof KubectlError)) throw error;
+  }
+
+  await Promise.all(
+    rows.map(async (row) => {
+      try {
+        const data = await runner.runJson(
+          clusterCommand(configStore, clusterId, ["get", `--raw=/api/v1/nodes/${text(row.name)}/proxy/stats/summary`], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES),
+        );
+        const fs = asRecord(asRecord(data.node).fs);
+        const used = finiteNumber(fs.usedBytes);
+        const available = finiteNumber(fs.availableBytes);
+        const capacity = finiteNumber(fs.capacityBytes);
+        if (used !== null) row.diskUsage = formatNodeBytes(used);
+        if (available !== null) row.diskAvailable = formatNodeBytes(available);
+        if (capacity !== null) row.diskObservedCapacity = formatNodeBytes(capacity);
+      } catch (error) {
+        if (!(error instanceof KubectlError)) throw error;
+      }
+    }),
+  );
+}
+
+function remaining(total: number | null, used: number | null): number | null {
+  return total === null || used === null ? null : Math.max(0, total - used);
+}
+
+function finiteNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function formatNodeBytes(value: number | null): string {
+  if (value === null) return "N/A";
+  const units: Array<[string, number, number]> = [
+    ["GiB", 1024 ** 3, 2],
+    ["MiB", 1024 ** 2, 2],
+    ["KiB", 1024, 1],
+  ];
+  for (const [suffix, divisor, precision] of units) {
+    if (value >= divisor) return `${Number((value / divisor).toFixed(precision))} ${suffix}`;
+  }
+  return `${value} B`;
+}
+
+export async function applyPodMetrics(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, namespace: string, rows: ResourceRow[]): Promise<void> {
   const allNamespaces = namespace === "all";
   const args = ["top", "pods", "--no-headers"];
   if (allNamespaces) args.push("-A");
   else if (namespace !== "_cluster") args.push("-n", namespace);
 
   try {
-    const result = await runner.run(
-      clusterCommand(
-        configStore,
-        clusterId,
-        args,
-        METRICS_TIMEOUT_SECONDS,
-        METRICS_MAX_OUTPUT_BYTES,
-      ),
-    );
+    const result = await runner.run(clusterCommand(configStore, clusterId, args, METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES));
     const metrics = parsePodMetrics(result.stdout, allNamespaces);
 
     for (const row of rows) {
@@ -158,30 +214,15 @@ interface NamespaceQuota {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-export async function applyNamespaceMetrics(
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-  clusterId: string,
-  rows: ResourceRow[],
-): Promise<void> {
+export async function applyNamespaceMetrics(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, rows: ResourceRow[]): Promise<void> {
   const usage = new Map<string, NamespaceUsage>();
   let metricsAvailable = true;
 
   try {
-    const result = await runner.run(
-      clusterCommand(
-        configStore,
-        clusterId,
-        ["top", "pods", "-A", "--no-headers"],
-        METRICS_TIMEOUT_SECONDS,
-        METRICS_MAX_OUTPUT_BYTES,
-      ),
-    );
+    const result = await runner.run(clusterCommand(configStore, clusterId, ["top", "pods", "-A", "--no-headers"], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES));
 
     for (const rawLine of result.stdout.split(/\r?\n/)) {
       const parts = rawLine.trim().split(/\s+/);
@@ -201,15 +242,7 @@ export async function applyNamespaceMetrics(
 
   const quota = new Map<string, NamespaceQuota>();
   try {
-    const data = await runner.runJson(
-      clusterCommand(
-        configStore,
-        clusterId,
-        ["get", "resourcequota", "-A", "-o", "json"],
-        QUOTA_TIMEOUT_SECONDS,
-        QUOTA_MAX_OUTPUT_BYTES,
-      ),
-    );
+    const data = await runner.runJson(clusterCommand(configStore, clusterId, ["get", "resourcequota", "-A", "-o", "json"], QUOTA_TIMEOUT_SECONDS, QUOTA_MAX_OUTPUT_BYTES));
     const items = Array.isArray(data.items) ? data.items : [];
 
     for (const rawItem of items) {
@@ -248,16 +281,13 @@ export async function applyNamespaceMetrics(
     const usedCpu = metricsAvailable ? used.cpu : null;
     const usedMemory = metricsAvailable ? used.memory : null;
     const cpuQuota = hard.cpu === null ? "no quota" : formatCpu(hard.cpu);
-    const memoryQuota =
-      hard.memory === null ? "no quota" : formatMemory(hard.memory);
+    const memoryQuota = hard.memory === null ? "no quota" : formatMemory(hard.memory);
     const metricsSuffix = metricsAvailable ? "" : " (metrics N/A)";
 
     row.namespaceCpuUsed = formatCpu(usedCpu);
     row.namespaceMemoryUsed = formatMemory(usedMemory);
     row.namespaceCpuQuota = cpuQuota;
     row.namespaceMemoryQuota = memoryQuota;
-    row.namespaceResources =
-      `CPU ${formatCpu(usedCpu)} / ${cpuQuota}; ` +
-      `RAM ${formatMemory(usedMemory)} / ${memoryQuota}${metricsSuffix}`;
+    row.namespaceResources = `CPU ${formatCpu(usedCpu)} / ${cpuQuota}; ` + `RAM ${formatMemory(usedMemory)} / ${memoryQuota}${metricsSuffix}`;
   }
 }

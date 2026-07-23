@@ -159,6 +159,41 @@
   grid-template-rows: 56px 1fr;
 }
 
+/* Fast, consistent hover/focus tooltips for compact icon controls. */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 7px);
+  left: 50%;
+  width: max-content;
+  max-width: 220px;
+  padding: 5px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-menu);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -3px);
+  transition: opacity 100ms ease, transform 100ms ease;
+  white-space: normal;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .topbar {
   display: grid;
   grid-template-columns: 230px 220px minmax(260px, 1fr) auto;

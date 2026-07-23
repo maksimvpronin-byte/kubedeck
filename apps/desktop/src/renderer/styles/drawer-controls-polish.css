@@ -539,3 +539,132 @@
   cursor: not-allowed !important;
   opacity: 0.48 !important;
 }
+
+.drawer .yaml-toolbar button.yaml-icon-action {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+}
+
+.drawer .yaml-toolbar button.yaml-icon-action svg {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  stroke-width: 2.25;
+}
+
+.drawer .yaml-toolbar button.yaml-icon-action .async-action-labels {
+  display: none;
+}
+
+.drawer .yaml-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px !important;
+}
+
+.drawer .yaml-search-row,
+.drawer .yaml-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.drawer .yaml-action-row {
+  min-height: 32px;
+}
+
+.drawer .yaml-action-tooltip {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.drawer .yaml-action-row .yaml-action-tooltip:first-child::after {
+  right: auto;
+  left: 0;
+  transform: translate(0, -3px);
+}
+
+.drawer .yaml-action-row .yaml-action-tooltip:first-child:hover::after,
+.drawer .yaml-action-row .yaml-action-tooltip:first-child:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.drawer .yaml-action-row .yaml-action-tooltip:last-of-type::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, -3px);
+}
+
+.drawer .yaml-action-row .yaml-action-tooltip:last-of-type:hover::after,
+.drawer .yaml-action-row .yaml-action-tooltip:last-of-type:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.drawer .logs-toolbar button.logs-icon-action {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+}
+
+.drawer .logs-toolbar button.logs-icon-action svg {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  stroke-width: 2.25;
+}
+
+.drawer .logs-toolbar button.logs-icon-action .async-action-labels {
+  display: none;
+}
+
+.drawer .logs-action-tooltip {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.drawer .logs-toolbar .logs-action-tooltip:first-of-type::after {
+  right: auto;
+  left: 0;
+  transform: translate(0, -3px);
+}
+
+.drawer .logs-toolbar .logs-action-tooltip:first-of-type:hover::after,
+.drawer .logs-toolbar .logs-action-tooltip:first-of-type:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.drawer-tabs .drawer-tab-button:first-child::after {
+  right: auto;
+  left: 0;
+  transform: translate(0, -3px);
+}
+
+.drawer-tabs .drawer-tab-button:first-child:hover::after,
+.drawer-tabs .drawer-tab-button:first-child:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.drawer-tabs .drawer-tab-button:last-child::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, -3px);
+}
+
+.drawer-tabs .drawer-tab-button:last-child:hover::after,
+.drawer-tabs .drawer-tab-button:last-child:focus-visible::after {
+  transform: translate(0, 0);
+}

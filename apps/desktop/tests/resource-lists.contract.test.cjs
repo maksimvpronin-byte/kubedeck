@@ -2,24 +2,25 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
 
-const {
-  ResourceSnapshotCache,
-} = require("../dist/main/backend/cache/resourceSnapshotCache.js");
-const {
-  normalizeResourceItems,
-  podSummary,
-  nodeSummary,
-} = require("../dist/main/backend/resources/normalizers.js");
-const {
-  parsePodMetrics,
-} = require("../dist/main/backend/resources/metrics.js");
-const {
-  handleResourceListRequest,
-  matchResourceListRoute,
-} = require("../dist/main/backend/routes/resourceLists.js");
-const {
-  KubectlError,
-} = require("../dist/main/backend/kubectl/errors.js");
+const { ResourceSnapshotCache } = require("../dist/main/backend/cache/resourceSnapshotCache.js");
+const { normalizeResourceItems, podSummary, nodeSummary, keyValueSummary } = require("../dist/main/backend/resources/normalizers.js");
+
+test("Secret summary exposes metadata without values", () => {
+  const row = keyValueSummary({ metadata: { name: "api-key", namespace: "tools" }, kind: "Secret", type: "Opaque", data: { token: "c2VjcmV0", password: "c2VjcmV0Mg==" } });
+  assert.equal(row.type, "Opaque");
+  assert.equal(row.keyCount, 2);
+  assert.equal(row.keyNames, "password, token");
+  assert.doesNotMatch(JSON.stringify(row), /c2VjcmV0/);
+});
+const { parseNodeMetrics, parsePodMetrics } = require("../dist/main/backend/resources/metrics.js");
+
+test("node metrics preserve CPU and memory usage for used/free calculations", () => {
+  const metrics = parseNodeMetrics("worker-1 125m 6% 768Mi 39%\nworker-2 1 50% 2Gi 75%\n");
+  assert.deepEqual(metrics.get("worker-1"), { cpu: "125m", cpuPercent: "6%", memory: "768Mi", memoryPercent: "39%" });
+  assert.deepEqual(metrics.get("worker-2"), { cpu: "1", cpuPercent: "50%", memory: "2Gi", memoryPercent: "75%" });
+});
+const { handleResourceListRequest, matchResourceListRoute } = require("../dist/main/backend/routes/resourceLists.js");
+const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -130,17 +131,14 @@ test("resource normalizers preserve KubeDeck row contracts", () => {
   assert.equal(node.internalIp, "10.0.0.20");
   assert.equal(node.memoryCapacity, "8.00 GiB");
 
-  const crdRows = normalizeResourceItems(
-    "widgets.example.io",
-    [
-      {
-        apiVersion: "example.io/v1",
-        kind: "Widget",
-        metadata: { uid: "w1", name: "example", namespace: "default" },
-        status: { phase: "Ready" },
-      },
-    ],
-  );
+  const crdRows = normalizeResourceItems("widgets.example.io", [
+    {
+      apiVersion: "example.io/v1",
+      kind: "Widget",
+      metadata: { uid: "w1", name: "example", namespace: "default" },
+      status: { phase: "Ready" },
+    },
+  ]);
 
   assert.equal(crdRows[0].crdInstance, true);
   assert.equal(crdRows[0].resource, "widgets.example.io");
@@ -156,10 +154,7 @@ test("pod summary exposes per-container table indicators", () => {
       creationTimestamp: "2026-07-10T00:00:00Z",
     },
     spec: {
-      containers: [
-        { name: "api" },
-        { name: "sidecar" },
-      ],
+      containers: [{ name: "api" }, { name: "sidecar" }],
     },
     status: {
       phase: "Running",
@@ -233,19 +228,13 @@ test("resource cache expires, tracks hits, and clears by cluster", () => {
 });
 
 test("pod metrics parser supports namespaced and all-namespace output", () => {
-  const namespaced = parsePodMetrics(
-    "demo-1 25m 64Mi\ndemo-2 2m 12Mi\n",
-    false,
-  );
+  const namespaced = parsePodMetrics("demo-1 25m 64Mi\ndemo-2 2m 12Mi\n", false);
   assert.deepEqual(namespaced.get("demo-1"), {
     cpu: "25m",
     memory: "64Mi",
   });
 
-  const all = parsePodMetrics(
-    "default demo-1 25m 64Mi\nkube-system coredns 3m 20Mi\n",
-    true,
-  );
+  const all = parsePodMetrics("default demo-1 25m 64Mi\nkube-system coredns 3m 20Mi\n", true);
   assert.deepEqual(all.get("kube-system/coredns"), {
     cpu: "3m",
     memory: "20Mi",
@@ -327,46 +316,26 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
   const baseUrl = await listen(server);
   t.after(() => close(server));
 
-  const freshResponse = await fetch(
-    `${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&forceRefresh=true`,
-  );
+  const freshResponse = await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&forceRefresh=true`);
   assert.equal(freshResponse.status, 200);
   const fresh = await freshResponse.json();
   assert.equal(fresh.cached, false);
   assert.equal(fresh.rawCount, 1);
   assert.equal(fresh.items[0].cpuUsage, "25m");
   assert.equal(fresh.items[0].memoryUsage, "64Mi");
-  assert.deepEqual(commands[0].args, [
-    "get",
-    "pods",
-    "-n",
-    "default",
-    "-o",
-    "json",
-  ]);
+  assert.deepEqual(commands[0].args, ["get", "pods", "-n", "default", "-o", "json"]);
 
-  const cachedResponse = await fetch(
-    `${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&useCache=true`,
-  );
+  const cachedResponse = await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&useCache=true`);
   assert.equal(cachedResponse.status, 200);
   const cached = await cachedResponse.json();
   assert.equal(cached.cached, true);
-  assert.ok(
-    commands.some(
-      (command) =>
-        command.args[0] === "get" &&
-        command.args[1] === "--raw=/readyz",
-    ),
-  );
+  assert.ok(commands.some((command) => command.args[0] === "get" && command.args[1] === "--raw=/readyz"));
 
   const statusResponse = await fetch(`${baseUrl}/resource-cache/status`);
   assert.equal(statusResponse.status, 200);
   assert.equal((await statusResponse.json()).entries, 1);
 
-  const clearResponse = await fetch(
-    `${baseUrl}/resource-cache/clear?cluster_id=cluster-1`,
-    { method: "POST" },
-  );
+  const clearResponse = await fetch(`${baseUrl}/resource-cache/clear?cluster_id=cluster-1`, { method: "POST" });
   assert.equal(clearResponse.status, 200);
   assert.equal((await clearResponse.json()).cleared, 1);
   assert.deepEqual(discoveryClears, ["cluster-1"]);
@@ -410,9 +379,7 @@ test("cached rows are discarded when cluster readiness fails", async (t) => {
   const baseUrl = await listen(server);
   t.after(() => close(server));
 
-  const response = await fetch(
-    `${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&useCache=true`,
-  );
+  const response = await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&useCache=true`);
 
   assert.notEqual(response.status, 200);
   const body = await response.json();
@@ -421,27 +388,13 @@ test("cached rows are discarded when cluster readiness fails", async (t) => {
 });
 
 test("resource route matcher validates query and scope", () => {
-  assert.deepEqual(
-    matchResourceListRoute(
-      "GET",
-      "/clusters/cluster-1/resources/nodes",
-      "/clusters/cluster-1/resources/nodes?namespace=_cluster&useCache=true",
-    ),
-    {
-      clusterId: "cluster-1",
-      resource: "nodes",
-      namespace: "_cluster",
-      useCache: true,
-      forceRefresh: false,
-    },
-  );
+  assert.deepEqual(matchResourceListRoute("GET", "/clusters/cluster-1/resources/nodes", "/clusters/cluster-1/resources/nodes?namespace=_cluster&useCache=true"), {
+    clusterId: "cluster-1",
+    resource: "nodes",
+    namespace: "_cluster",
+    useCache: true,
+    forceRefresh: false,
+  });
 
-  assert.equal(
-    matchResourceListRoute(
-      "POST",
-      "/clusters/cluster-1/resources/nodes",
-      "/clusters/cluster-1/resources/nodes",
-    ),
-    null,
-  );
+  assert.equal(matchResourceListRoute("POST", "/clusters/cluster-1/resources/nodes", "/clusters/cluster-1/resources/nodes"), null);
 });

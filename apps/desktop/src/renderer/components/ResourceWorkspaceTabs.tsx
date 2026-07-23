@@ -23,14 +23,20 @@ export function ResourceWorkspaceTabs({
           title={`${tab.clusterName} · ${tab.resource} · ${tab.namespace}/${tab.row.name}`}
         >
           <button type="button" onClick={() => onActivate(tab)}>
-            <span>{tab.resource}</span>
-            <strong>{tab.namespace === "_cluster" ? tab.row.name : `${tab.namespace}/${tab.row.name}`}</strong>
+            <strong>{tab.row.name}</strong>
             <small>
-              {tab.clusterName}
+              {tab.namespace !== "_cluster" ? `· ${tab.namespace}` : "· cluster"}
               {tab.status && tab.status !== "ready" ? ` · ${tab.status}` : ""}
             </small>
           </button>
-          <button type="button" className="resource-workspace-tab-close" onClick={() => onClose(tab.id)} title="Close resource tab" aria-label={`Close ${tab.row.name}`}>
+          <button
+            type="button"
+            className="resource-workspace-tab-close"
+            onClick={() => onClose(tab.id)}
+            title="Close resource tab"
+            data-tooltip="Close resource tab"
+            aria-label={`Close ${tab.row.name}`}
+          >
             <X size={13} />
           </button>
         </div>

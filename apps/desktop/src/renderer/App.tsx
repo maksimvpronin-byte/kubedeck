@@ -548,6 +548,8 @@ export function App() {
     nodes: [
       { key: "name", label: t("col.name") },
       { key: "status", label: t("col.status") },
+      { key: "nodeResources", label: "Usage" },
+      { key: "labelsText", label: "Labels" },
       { key: "kubeletVersion", label: t("col.kubernetes") },
       { key: "createdAt", label: t("col.age") },
     ],
@@ -693,14 +695,26 @@ export function App() {
   );
 
   function closeResourceTab(id: string) {
-    if (id === activeResourceTabId && !confirmDrawerNavigation()) return;
+    const closingActiveTab = id === activeResourceTabId;
+    if (closingActiveTab && !confirmDrawerNavigation()) return;
     const result = closeResourceWorkspaceTab(resourceWorkspaceTabs, activeResourceTabId, id);
-    drawerDirtyRef.current = false;
     setResourceWorkspaceTabs(result.tabs);
+    if (!closingActiveTab) return;
+    drawerDirtyRef.current = false;
     setActiveResourceTabId(result.activeId);
     const next = result.tabs.find((tab) => tab.id === result.activeId);
     if (next) void activateResourceTab(next);
     else setSelectedTarget(null);
+  }
+
+  function closeDisplayedResource() {
+    if (activeResourceTabId) {
+      closeResourceTab(activeResourceTabId);
+      return;
+    }
+    if (!confirmDrawerNavigation()) return;
+    drawerDirtyRef.current = false;
+    setSelectedTarget(null);
   }
 
   async function removeClusterWorkspace(cluster: (typeof clusters)[number]) {
@@ -1001,6 +1015,9 @@ export function App() {
                           setResourceTab("port-forwards");
                         }}
                         onOpenTerminal={openBottomTerminal}
+                        onNodeAction={(action, targetRows) => {
+                          void bulkActions.requestNodeAction(action, targetRows);
+                        }}
                         initialTab={displayedResourceWorkspaceTab.drawerTab as DrawerTab}
                         onTabChange={(drawerTab) =>
                           setResourceWorkspaceTabs((current) => {
@@ -1011,7 +1028,7 @@ export function App() {
                         onDirtyChange={(dirty) => {
                           drawerDirtyRef.current = dirty;
                         }}
-                        onClose={() => closeResourceTab(displayedResourceWorkspaceTab.id)}
+                        onClose={closeDisplayedResource}
                         copyLabel={t("error.copy")}
                         settings={settings}
                         t={t}

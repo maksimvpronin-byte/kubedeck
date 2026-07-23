@@ -58,8 +58,8 @@ export function resourceTablePreferencePatch(stateKey: string, columns: Resource
 
 function compareRows(left: ResourceRow, right: ResourceRow, key: string) {
   if (key === "createdAt") return parseTimestamp(left.createdAt) - parseTimestamp(right.createdAt);
-  const leftValue = left[key];
-  const rightValue = right[key];
+  const leftValue = key === "phase" ? canonicalPhase(left) : left[key];
+  const rightValue = key === "phase" ? canonicalPhase(right) : right[key];
   if (typeof leftValue === "number" && typeof rightValue === "number") return leftValue - rightValue;
   return String(leftValue ?? "").localeCompare(String(rightValue ?? ""), undefined, { numeric: true, sensitivity: "base" });
 }
@@ -92,6 +92,8 @@ function defaultColumnWidth(key: string) {
     reason: 150,
     cpuUsage: 80,
     memoryUsage: 100,
+    nodeResources: 260,
+    labelsText: 240,
     namespaceResources: 260,
   };
   return widths[key] ?? 120;
@@ -163,7 +165,7 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     const filtered = lower
       ? rows.filter((row) =>
           columns.some((column) =>
-            String(row[column.key] ?? "")
+            String(column.key === "phase" ? canonicalPhase(row) : (row[column.key] ?? ""))
               .toLowerCase()
               .includes(lower),
           ),
@@ -283,4 +285,18 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     toggleColumn,
     resetColumns,
   };
+}
+
+export function canonicalPhase(row: ResourceRow) {
+  if (row.deletionTimestamp) return "Terminating";
+  const value = String(row.phase || "Unknown")
+    .trim()
+    .toLowerCase();
+  if (value === "completed") return "Succeeded";
+  if (value === "running") return "Running";
+  if (value === "pending") return "Pending";
+  if (value === "succeeded") return "Succeeded";
+  if (value === "failed") return "Failed";
+  if (value === "terminating") return "Terminating";
+  return "Unknown";
 }

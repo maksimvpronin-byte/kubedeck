@@ -40,11 +40,9 @@ export function BottomTerminalPanel({ api, targets, activeId, onActivate, onClos
                 title={`${target.clusterName} · ${target.pod.namespace}/${target.pod.name}`}
               >
                 <strong>{target.pod.name}</strong>
-                <small>
-                  {target.pod.namespace} · {target.container || "container"}
-                </small>
+                {target.container ? <small>· {target.container}</small> : null}
               </button>
-              <button type="button" onClick={() => onClose(target.id)} aria-label={`Close terminal ${target.pod.name}`}>
+              <button type="button" onClick={() => onClose(target.id)} title={`Close terminal ${target.pod.name}`} data-tooltip="Close terminal" aria-label={`Close terminal ${target.pod.name}`}>
                 <X size={13} />
               </button>
             </div>
@@ -56,6 +54,7 @@ export function BottomTerminalPanel({ api, targets, activeId, onActivate, onClos
           onClick={() => setCollapsed((value) => !value)}
           aria-label={collapsed ? "Expand terminals" : "Collapse terminals"}
           title={collapsed ? "Expand terminals" : "Collapse terminals"}
+          data-tooltip={collapsed ? "Expand terminals" : "Collapse terminals"}
         >
           {collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
