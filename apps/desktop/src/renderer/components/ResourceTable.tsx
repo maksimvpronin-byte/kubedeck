@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
 import { useUiClock } from "../hooks/useUiClock";
 import { canonicalPhase, PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
+import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { formatElapsed } from "../utils/time";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
@@ -262,7 +263,7 @@ export function ResourceTable({
               return (
                 <tr
                   key={key}
-                  className={`${selectedRowKey === key ? "selected" : ""} ${rowHealthClass(row)}`.trim()}
+                  className={selectedRowKey === key ? "selected" : ""}
                   onClick={() => onOpen?.(row)}
                   onDoubleClick={() => onPin?.(row)}
                   onContextMenu={(event) => event.preventDefault()}
@@ -331,7 +332,7 @@ function formatCell(row: ResourceRow, key: string, now: number): ReactNode {
     const reason = rowHealthReason(row);
     const phase = canonicalPhase(row);
     return (
-      <span className="phase-value" title={reason || undefined} aria-label={reason ? `${phase}: ${reason}` : phase} tabIndex={reason ? 0 : undefined}>
+      <span className={`phase-value is-${kubernetesStatusTone(row)}`} title={reason || undefined} aria-label={reason ? `${phase}: ${reason}` : phase} tabIndex={reason ? 0 : undefined}>
         {phase}
       </span>
     );
@@ -513,7 +514,7 @@ function renderContainerStatus(row: ResourceRow): ReactNode {
   );
 }
 
-type ContainerTone = "ready" | "running" | "waiting" | "terminated" | "unknown";
+type ContainerTone = "ready" | "running" | "waiting" | "danger" | "terminated" | "unknown";
 
 interface ContainerStatusItem {
   name: string;
@@ -532,7 +533,7 @@ function normalizeContainerStatusItems(row: ResourceRow): ContainerStatusItem[] 
       const ready = record.ready === true;
       const reason = String(record.reason || "");
       const restartCount = Number(record.restartCount ?? 0);
-      const tone = containerTone(state, ready);
+      const tone = containerTone(state, ready, reason);
       const details = [ready ? "ready" : "not ready", state && state !== "unknown" ? state : "", reason, Number.isFinite(restartCount) && restartCount > 0 ? `${restartCount} restarts` : ""]
         .filter(Boolean)
         .join(", ");
@@ -548,16 +549,14 @@ function normalizeContainerStatusItems(row: ResourceRow): ContainerStatusItem[] 
   });
 }
 
-function containerTone(state: string, ready: boolean): ContainerTone {
+function containerTone(state: string, ready: boolean, reason: string): ContainerTone {
   if (ready) return "ready";
-  if (state === "terminated") return "terminated";
+  if (/^not\s*ready$/i.test(reason.trim())) return "waiting";
+  if (isKubernetesFailure(reason)) return "danger";
+  if (state === "terminated") return "waiting";
   if (state === "waiting") return "waiting";
   if (state === "running") return "running";
   return "unknown";
-}
-
-function rowHealthClass(row: ResourceRow) {
-  return rowHealthReason(row) ? "resource-row-warning" : "";
 }
 
 function rowHealthReason(row: ResourceRow) {

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
+import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { formatAge } from "../utils/time";
 import { metricPercent, ResourceUsageBar } from "./ResourceUsageBar";
 
@@ -10,7 +11,7 @@ interface Props {
   events?: ResourceRow[];
 }
 
-type Tone = "default" | "warning" | "danger" | "success";
+type Tone = "default" | "neutral" | "pending" | "warning" | "danger" | "success";
 type Fact = { label: string; value: ReactNode; tone?: Tone };
 
 export function ResourceSummary({ row, resource, now, events = [] }: Props) {
@@ -107,7 +108,7 @@ function summaryFacts(row: ResourceRow, resource: string, now: number): Fact[] {
   const kind = baseResource(resource);
   const status = primaryStatus(row);
   const facts: Fact[] = [];
-  addFact(facts, "Status", status, statusTone(status));
+  addFact(facts, "Status", status, kubernetesStatusTone(row));
   addFact(facts, "Age", row.createdAt ? formatAge(row.createdAt, now) : "");
 
   if (kind === "pod") {
@@ -265,7 +266,7 @@ function containerRows(row: ResourceRow) {
         reason,
         message: String(item.message || ""),
         restarts: Number(item.restartCount || 0),
-        tone: ready ? "success" : reason || state === "terminated" ? "danger" : "warning",
+        tone: ready ? "success" : isKubernetesFailure(reason) || state === "terminated" ? "danger" : "pending",
       },
     ];
   });
@@ -376,13 +377,6 @@ function parseDisplayBytes(value: unknown) {
 
 function primaryStatus(row: ResourceRow) {
   return String(row.phase || row.status || row.type || "");
-}
-function statusTone(status: string): Tone {
-  const value = status.toLowerCase();
-  if (/running|ready|active|bound|succeeded/.test(value)) return "success";
-  if (/error|fail|crash|unavailable|notready/.test(value)) return "danger";
-  if (/pending|terminating|waiting|cordon/.test(value)) return "warning";
-  return "default";
 }
 function readyTone(value: unknown): Tone | undefined {
   const ready = String(value || "").toLowerCase();

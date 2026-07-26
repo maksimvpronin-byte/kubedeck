@@ -13,6 +13,7 @@ export const PAGE_SIZE_OPTIONS = [50, 100, 200, 500, 1000, 2000];
 const DEFAULT_PAGE_SIZE = 200;
 const COMPACT_TABLE_WIDTH = 920;
 const NARROW_TABLE_WIDTH = 760;
+const MIN_COLUMN_WIDTH = 72;
 const COMPACT_HIDDEN_COLUMNS = new Set(["ready", "restarts", "cpuUsage", "memoryUsage", "ports", "clusterIp", "externalIp", "labels", "conditions", "reason", "statusMessage", "containerProblems"]);
 const NARROW_HIDDEN_COLUMNS = new Set(["node", "storageClass", "accessModes", "capacity"]);
 
@@ -195,7 +196,7 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
 
   const widthFor = (column: ResourceTableColumn) => {
     const preferred = columnWidths[column.key] ?? defaultColumnWidth(column.key);
-    return compact ? Math.min(preferred, compactColumnWidth(column.key, narrow)) : preferred;
+    return Math.max(MIN_COLUMN_WIDTH, compact ? Math.min(preferred, compactColumnWidth(column.key, narrow)) : preferred);
   };
   const changeSort = (key: string) => {
     if (key === sortKey) setSortDirection((current) => (current === 1 ? -1 : 1));
@@ -221,7 +222,7 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     event.stopPropagation();
     const startX = event.clientX;
     const startWidth = widthFor(column);
-    const move = (moveEvent: MouseEvent) => setColumnWidths((current) => ({ ...current, [column.key]: Math.max(48, startWidth + moveEvent.clientX - startX) }));
+    const move = (moveEvent: MouseEvent) => setColumnWidths((current) => ({ ...current, [column.key]: Math.max(MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX) }));
     const up = () => {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);

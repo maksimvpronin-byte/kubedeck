@@ -17,6 +17,7 @@ asarUnpack:
   - node_modules/node-pty/**/*
 
 win:
+  icon: assets/icon.png
   signAndEditExecutable: false
   target:
     - target: portable
@@ -27,6 +28,7 @@ portable:
   artifactName: ${productName}-Portable-${version}-${arch}.${ext}
 
 mac:
+  icon: assets/icon.icns
   identity: null
   category: public.app-category.developer-tools
   hardenedRuntime: false

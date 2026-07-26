@@ -937,15 +937,6 @@ tr:hover td {
   background: var(--surface-hover);
 }
 
-tr.resource-row-warning td {
-  background: color-mix(in srgb, var(--danger-bg) 70%, transparent);
-  border-bottom-color: var(--danger-border);
-}
-
-tr.resource-row-warning:hover td {
-  background: color-mix(in srgb, var(--danger-bg) 86%, transparent);
-}
-
 tr.selected td {
   background: var(--primary-soft);
   border-bottom-color: var(--primary-border);
@@ -953,10 +944,6 @@ tr.selected td {
 
 tr.selected td:first-child {
   box-shadow: inset 3px 0 0 var(--primary-border);
-}
-
-tr.resource-row-warning td:first-child {
-  box-shadow: inset 3px 0 0 var(--danger-border);
 }
 
 .status-pill {

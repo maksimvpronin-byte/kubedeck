@@ -207,7 +207,7 @@ test("2.7.4 resource surfaces stay compact and operational", () => {
   assert.doesNotMatch(summary, /Object\.entries\(row\)/);
   assert.match(summary, /String\(event\.type \|\| ""\)\.toLowerCase\(\) !== "warning"/);
   assert.doesNotMatch(table, /<AsyncActionButton/);
-  assert.match(table, /className="phase-value"/);
+  assert.match(table, /className=\{`phase-value is-\$\{kubernetesStatusTone\(row\)\}`\}/);
   assert.doesNotMatch(table, /className="cell-hint"/);
   assert.match(columns, /aria-label="Choose visible columns"/);
   assert.match(columns, /data-tooltip="Choose columns"/);
@@ -336,6 +336,9 @@ test("every color theme exposes the shared token contract", () => {
     "shadow-menu",
     "shadow-lg",
     "success-bg",
+    "pending-bg",
+    "pending-border",
+    "pending-text",
     "warning-bg",
     "danger-bg",
     "error-bg",
@@ -363,6 +366,36 @@ test("every color theme exposes the shared token contract", () => {
       assert.ok(contrastRatio(palette[foreground], palette[background]) >= 4.5, `${theme} ${foreground}/${background} must meet WCAG AA`);
     }
   }
+});
+
+test("2.8.1 Kubernetes statuses distinguish pending from failure", () => {
+  const model = loadTypeScript("utils/kubernetesStatusTone.ts");
+  assert.equal(model.kubernetesStatusTone({ phase: "Running", ready: "1/1" }), "success");
+  assert.equal(model.kubernetesStatusTone({ phase: "Running", ready: "0/1" }), "pending");
+  assert.equal(model.kubernetesStatusTone({ phase: "Pending", reason: "ContainerCreating" }), "pending");
+  assert.equal(model.kubernetesStatusTone({ phase: "Pending", reason: "ImagePullBackOff" }), "pending");
+  assert.equal(model.kubernetesStatusTone({ phase: "Running", reason: "CrashLoopBackOff" }), "danger");
+  assert.equal(model.isKubernetesFailure("ImagePullBackOff"), true);
+  assert.equal(model.kubernetesStatusTone({ phase: "Succeeded" }), "success");
+  assert.equal(model.kubernetesStatusTone({ phase: "SomethingNew" }), "neutral");
+  assert.equal(model.kubernetesStatusTone({ phase: "Running", deletionTimestamp: "2026-07-27T00:00:00Z" }), "pending");
+
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
+  const tableStyles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
+  const layoutStyles = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
+  assert.match(table, /kubernetesStatusTone\(row\)/);
+  assert.match(summary, /kubernetesStatusTone\(row\)/);
+  assert.doesNotMatch(table, /resource-row-warning|rowHealthClass/);
+  assert.doesNotMatch(layoutStyles, /resource-row-warning/);
+  assert.match(table, /not\\s\*ready[\s\S]*return "waiting"/);
+  assert.match(tableStyles, /\.resource-table th,\s*\.resource-table td\s*\{[^}]*padding:\s*3px 10px;[^}]*line-height:\s*1\.1;/s);
+  assert.match(tableStyles, /\.resource-table tbody tr\s*\{[^}]*min-height:\s*28px;/s);
+  assert.match(tableStyles, /\.resource-table \.select-col input\[type="checkbox"\]\s*\{[^}]*padding:\s*0;[^}]*border:\s*0;/s);
+  assert.match(tableStyles, /\.table-footer\s*\{[^}]*border-top:\s*0;/s);
+  assert.match(tableStyles, /\.phase-value\s*\{[^}]*font-weight:\s*650;/s);
+  assert.match(tableStyles, /\.phase-value\.is-pending\s*\{[^}]*color:\s*var\(--pending-text\);/s);
+  assert.doesNotMatch(tableStyles, /\.phase-value\.is-pending\s*\{[^}]*(?:background|border-color):/s);
 });
 
 function cssHexTokens(blocks) {

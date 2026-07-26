@@ -44,6 +44,9 @@
   --warning-bg: #2b2214;
   --warning-border: #8a6727;
   --warning-text: #fde68a;
+  --pending-bg: var(--warning-bg);
+  --pending-border: var(--warning-border);
+  --pending-text: var(--warning-text);
   --success-bg: #14271e;
   --success-border: #3e7057;
   --success-text: #a7f3d0;

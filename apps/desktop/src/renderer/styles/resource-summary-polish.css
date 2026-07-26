@@ -101,6 +101,16 @@
   background: var(--warning-bg);
 }
 
+.resource-summary-tile.is-pending {
+  border-color: color-mix(in srgb, var(--pending-border) 70%, transparent);
+  background: var(--pending-bg);
+}
+
+.resource-summary-tile.is-neutral {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
 .resource-summary-tile.is-danger {
   border-color: color-mix(in srgb, var(--danger-border) 70%, transparent);
   background: var(--danger-bg);

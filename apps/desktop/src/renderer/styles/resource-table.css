@@ -48,11 +48,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 650;
 }
+
+.phase-value.is-success {
+  color: var(--success-text);
+}
+
+.phase-value.is-pending {
+  color: var(--pending-text);
+}
+
+.phase-value.is-danger {
+  color: var(--danger-text);
+}
+
+.phase-value.is-neutral { color: var(--muted-strong); }
 
 .node-resource-usage {
   display: grid;
-  gap: 5px;
+  gap: 2px;
   min-width: 190px;
   white-space: nowrap;
 }
@@ -60,10 +75,11 @@
 .resource-usage-bar {
   display: grid;
   grid-template-columns: 30px minmax(70px, 1fr) 34px;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
   min-width: 0;
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1;
 }
 
 .resource-usage-label {
@@ -72,7 +88,7 @@
 }
 
 .resource-usage-track {
-  height: 7px;
+  height: 6px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--surface);
@@ -296,11 +312,24 @@
 
 .resource-table th,
 .resource-table td {
+  padding: 3px 10px;
   vertical-align: middle;
+  line-height: 1.1;
 }
 
 .resource-table tbody tr {
-  min-height: 42px;
+  min-height: 28px;
+}
+
+.resource-table .select-col input[type="checkbox"] {
+  appearance: auto;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .container-status-cubes {
@@ -343,6 +372,11 @@
   background: var(--danger-text, #ffd0d0);
 }
 
+.container-status-cube.is-danger {
+  border-color: var(--danger-border, #6f3c3c);
+  background: var(--danger-text, #ffd0d0);
+}
+
 .container-status-cube.is-unknown {
   border-color: var(--border-strong, #334251);
   background: var(--muted-soft, #6f8196);
@@ -354,6 +388,7 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  border-top: 0;
 }
 
 .pagination-actions {
