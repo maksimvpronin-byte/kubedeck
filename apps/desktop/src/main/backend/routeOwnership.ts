@@ -22,6 +22,7 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "POST", path: "/llm/preview-resource-prompt", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },
   { method: "POST", path: "/llm/analyze-resource", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },
   { method: "GET", path: "/clusters/{cluster_id}/problems", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.10", sourceModule: "routes_problems.py" },
+  { method: "GET", path: "/clusters/{cluster_id}/overview", transport: "http", owner: "node", targetRelease: "2.9.0", migratedIn: "2.9.0", sourceModule: "routes/overview.ts" },
   { method: "GET", path: "/clusters/{cluster_id}/search", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.11", sourceModule: "routes_search.py" },
   { method: "POST", path: "/clusters/{cluster_id}/yaml/dry-run", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4", sourceModule: "routes_yaml.py" },
   { method: "PUT", path: "/clusters/{cluster_id}/yaml/apply", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4", sourceModule: "routes_yaml.py" },

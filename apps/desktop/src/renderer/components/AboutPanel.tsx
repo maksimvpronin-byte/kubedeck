@@ -97,13 +97,13 @@ export function AboutPanel({
     <section className="about-panel">
       <div className="about-hero">
         <div>
-          <span>{t("about.badge")}</span>
+          <span className="about-badge">{t("about.badge")}</span>
           <h2>{t("about.title")}</h2>
           <p>{t("about.description")}</p>
         </div>
         <div className="about-actions">
-          <AsyncActionButton phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => load())} disabled={loading} />
-          <button className="primary" onClick={copyDiagnostics}>
+          <AsyncActionButton className="secondary-btn about-action-button about-refresh-button" phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => load())} disabled={loading} />
+          <button className="primary about-action-button about-copy-button" onClick={copyDiagnostics}>
             {copied ? t("common.copied") : t("about.copyDiagnostics")}
           </button>
         </div>
@@ -112,14 +112,13 @@ export function AboutPanel({
       <div className="about-grid">
         <AboutCard title={t("about.application")}>
           <InfoRow label={t("about.name")} value={desktopInfo?.appName || "KubeDeck"} />
-          <InfoRow label={t("about.version")} value={desktopInfo?.appVersion || "1.1.0"} />
+          <InfoRow label={t("about.version")} value={desktopInfo?.appVersion || "—"} />
           <InfoRow label={t("about.mode")} value={desktopInfo?.isPackaged ? t("about.packaged") : t("about.development")} />
           <InfoRow label={t("about.platform")} value={desktopInfo ? `${desktopInfo.platform}/${desktopInfo.arch}` : "-"} />
         </AboutCard>
 
         <AboutCard title={t("about.components")}>
           <InfoRow label={t("about.backend")} value={backendInfo ? `${backendInfo.backendVersion} · ${backendInfo.service}` : backendOk ? t("common.ok") : "-"} />
-          <InfoRow label={t("about.python")} value={backendInfo?.pythonVersion || "-"} />
           <InfoRow label={t("about.kubectl")} value={kubectlVersion || "-"} />
           <InfoRow label={t("about.electron")} value={desktopInfo?.electronVersion || "-"} />
           <InfoRow label={t("about.chrome")} value={desktopInfo?.chromeVersion || "-"} />
@@ -140,17 +139,6 @@ export function AboutPanel({
           <InfoRow label={t("about.clusterCount")} value={String(config?.clusters.length ?? backendInfo?.clusters ?? 0)} />
         </AboutCard>
 
-        <AboutCard title={t("about.releaseChecklist")} wide>
-          <ul className="about-checklist">
-            <li>{t("about.checklist.typecheck")}</li>
-            <li>{t("about.checklist.build")}</li>
-            <li>{t("about.checklist.package")}</li>
-            <li>{t("about.checklist.smoke")}</li>
-          </ul>
-          <code>npm.cmd run typecheck</code>
-          <code>npm.cmd run build</code>
-          <code>npm.cmd run package:win</code>
-        </AboutCard>
       </div>
     </section>
   );
@@ -183,7 +171,7 @@ function PathRow({ label, value, action, t }: { label: string; value?: string; a
       <dd className="mono" title={value || "-"}>
         {value || "-"}
       </dd>
-      <button onClick={action} disabled={!value}>
+      <button className="secondary-btn" onClick={action} disabled={!value}>
         {t("about.open")}
       </button>
     </div>

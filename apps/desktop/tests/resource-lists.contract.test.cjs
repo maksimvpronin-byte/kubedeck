@@ -40,7 +40,9 @@ test("node list metrics use one top command regardless of node count", async () 
   assert.equal(commands.length, 1);
   assert.deepEqual(commands[0].args, ["top", "nodes", "--no-headers"]);
   assert.equal(rows[0].cpuUsage, "100m");
+  assert.equal(rows[0].cpuUsageRaw, "100m");
   assert.equal(rows[119].memoryUsage, "512 MiB");
+  assert.equal(rows[119].memoryUsageRaw, "512Mi");
   assert.equal(
     commands.some((command) => command.args.some((arg) => arg.includes("/stats/summary"))),
     false,

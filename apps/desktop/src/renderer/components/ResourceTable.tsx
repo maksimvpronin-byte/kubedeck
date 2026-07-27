@@ -183,33 +183,35 @@ export function ResourceTable({
               <Trash2 size={14} /> {ui.deleteSelected} ({selectedRows.length})
             </button>
           ) : null}
-          <div className="table-filter">
-            <Search size={14} />
-            <input ref={filterInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={filterLabel} />
-            {hasFilter ? (
-              <button
-                type="button"
-                className="table-filter-clear"
-                aria-label={ui.clearFilter}
-                title={ui.clearFilter}
-                onClick={() => {
-                  setQuery("");
-                  filterInputRef.current?.focus();
-                }}
-              >
-                <X size={14} />
-              </button>
-            ) : null}
+          <div className="table-view-controls">
+            <div className="table-filter">
+              <Search size={14} />
+              <input ref={filterInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={filterLabel} />
+              {hasFilter ? (
+                <button
+                  type="button"
+                  className="table-filter-clear"
+                  aria-label={ui.clearFilter}
+                  title={ui.clearFilter}
+                  onClick={() => {
+                    setQuery("");
+                    filterInputRef.current?.focus();
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              ) : null}
+            </div>
+            <ResourceTableColumnsMenu
+              columns={columns}
+              orderedColumns={orderedColumns}
+              hiddenColumns={hiddenColumns}
+              label={ui.columns}
+              resetLabel={ui.resetColumns}
+              onToggle={toggleColumn}
+              onReset={resetColumns}
+            />
           </div>
-          <ResourceTableColumnsMenu
-            columns={columns}
-            orderedColumns={orderedColumns}
-            hiddenColumns={hiddenColumns}
-            label={ui.columns}
-            resetLabel={ui.resetColumns}
-            onToggle={toggleColumn}
-            onReset={resetColumns}
-          />
         </div>
       </div>
 

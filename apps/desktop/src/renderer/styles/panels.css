@@ -392,7 +392,7 @@
   padding: 18px;
 }
 
-.about-hero span {
+.about-hero .about-badge {
   display: inline-flex;
   color: var(--focus-ring);
   font-size: 12px;
@@ -413,9 +413,73 @@
 
 .about-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 8px;
   justify-content: flex-end;
+  width: auto;
+}
+
+.about-actions > button.about-action-button,
+.path-row > button {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 32px;
+  padding-inline: 12px;
+  border-radius: 8px;
+}
+
+.about-actions > button.about-action-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--button-border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.about-actions > button.about-refresh-button {
+  min-width: 132px;
+  background: var(--button-bg);
+  color: var(--text);
+}
+
+.about-actions > button.about-copy-button {
+  min-width: 164px;
+  border-color: var(--primary-border);
+  background: var(--primary);
+  color: var(--text-inverse);
+}
+
+.about-actions > button.about-refresh-button:hover:not(:disabled) {
+  border-color: var(--primary-border);
+  background: var(--button-hover);
+}
+
+.about-actions > button.about-copy-button:hover:not(:disabled) {
+  background: var(--primary-hover) !important;
+}
+
+.settings-local-activity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.settings-local-activity h3,
+.settings-local-activity p {
+  margin-top: 0;
 }
 
 .about-grid {
@@ -500,10 +564,17 @@
     grid-template-columns: 1fr;
   }
 
-  .about-hero,
-  .about-actions {
+  .about-hero {
     display: grid;
     justify-content: stretch;
+  }
+
+  .about-actions {
+    display: flex;
+    width: max-content;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .about-row,

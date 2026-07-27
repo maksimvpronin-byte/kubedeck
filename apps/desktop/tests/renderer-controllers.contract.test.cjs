@@ -329,6 +329,9 @@ test("every color theme exposes the shared token contract", () => {
     "button-disabled-text",
     "primary",
     "primary-soft",
+    "metric-cpu",
+    "metric-memory",
+    "metric-storage",
     "code-bg",
     "terminal-bg",
     "terminal-text",
@@ -958,6 +961,48 @@ test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contra
   assert.match(yamlTab, /Collapse top-level YAML groups/);
   assert.match(drawerStyles, /\.resource-workspace-tab\.active::after/);
   assert.match(terminalStyles, /\.bottom-terminal-tab\.active::after/);
+});
+
+test("2.9.0 overview and navigation polish stay contracted", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const navigation = fs.readFileSync(path.join(rendererRoot, "navigation.ts"), "utf8");
+  const overview = fs.readFileSync(path.join(rendererRoot, "components/OverviewPanel.tsx"), "utf8");
+  const settings = fs.readFileSync(path.join(rendererRoot, "components/SettingsPanel.tsx"), "utf8");
+  const about = fs.readFileSync(path.join(rendererRoot, "components/AboutPanel.tsx"), "utf8");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const tableStyles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
+  const overviewStyles = fs.readFileSync(path.join(rendererRoot, "styles/overview.css"), "utf8");
+  const layoutStyles = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
+  const panelStyles = fs.readFileSync(path.join(rendererRoot, "styles/panels.css"), "utf8");
+  assert.match(navigation, /id: "overview", icon: LayoutDashboard/);
+  assert.doesNotMatch(navigation, /events:\s*\["events"\]/);
+  assert.doesNotMatch(navigation, /id: "audit"/);
+  assert.match(app, /<OverviewPanel/);
+  assert.match(app, /closeTransientDrawerFromBackground/);
+  assert.match(overview, /api\.overview\(/);
+  assert.match(overview, /clusterProfile/);
+  assert.match(overview, /data\.capacity\.views/);
+  assert.match(overview, /formatCpuCapacity/);
+  assert.match(overview, /function CapacityRings/);
+  assert.match(overview, /amount\.used \/ amount\.allocatable \* 100/);
+  assert.match(overview, /\{ id: "storage", label: "Storage"/);
+  assert.match(overviewStyles, /\.overview-capacity-rings \.is-storage/);
+  assert.match(overview, /capacityControlPlane/);
+  assert.match(overview, /if \(requestRef\.current === controller\) \{\s*requestRef\.current = null;\s*if \(!silent\) setLoading\(false\);/);
+  assert.doesNotMatch(overview, /cpuPercent|memoryPercent/);
+  assert.doesNotMatch(overview, /priorityProblems|namespaceHotspots|recentEvents/);
+  assert.match(settings, /settings\.localActivity/);
+  assert.match(settings, /showLocalActivity \? <AuditPanel/);
+  assert.doesNotMatch(about, /about\.python|package:win|1\.1\.0/);
+  assert.match(about, /className="about-badge"/);
+  assert.match(about, /about-action-button about-refresh-button/);
+  assert.match(about, /about-action-button about-copy-button/);
+  assert.doesNotMatch(panelStyles, /\.about-hero span\s*\{/);
+  assert.match(layoutStyles, /\.icon-text,\s*\.secondary-btn,/);
+  assert.match(panelStyles, /\.about-actions > button\.about-action-button\s*\{[^}]*height:\s*36px;[^}]*font-size:\s*13px;/s);
+  assert.match(panelStyles, /@media \(max-width:\s*1100px\)[\s\S]*\.about-actions\s*\{[^}]*width:\s*max-content;[^}]*justify-content:\s*flex-start;/);
+  assert.match(table, /className="table-view-controls"[\s\S]*className="table-filter"[\s\S]*<ResourceTableColumnsMenu/);
+  assert.match(tableStyles, /\.table-view-controls\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;/s);
 });
 
 test("YAML folding preserves full source and hides only collection descendants", () => {

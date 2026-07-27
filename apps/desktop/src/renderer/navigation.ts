@@ -1,11 +1,11 @@
 import {
   Boxes,
-  ClipboardList,
   Database,
   FolderCog,
   HardDrive,
   HelpCircle,
   Info,
+  LayoutDashboard,
   Layers,
   Library,
   Network,
@@ -18,6 +18,7 @@ import {
 import type { Section } from "./types";
 
 export const sections: Array<{ id: Section; icon: LucideIcon; label: string }> = [
+  { id: "overview", icon: LayoutDashboard, label: "nav.overview" },
   { id: "nodes", icon: Server, label: "nav.nodes" },
   { id: "problems", icon: ShieldAlert, label: "nav.problems" },
   { id: "workloads", icon: Boxes, label: "nav.workloads" },
@@ -28,7 +29,6 @@ export const sections: Array<{ id: Section; icon: LucideIcon; label: string }> =
   { id: "storage", icon: HardDrive, label: "nav.storage" },
   { id: "crd", icon: Layers, label: "nav.crd" },
   { id: "events", icon: SplitSquareHorizontal, label: "nav.events" },
-  { id: "audit", icon: ClipboardList, label: "nav.audit" },
   { id: "help", icon: HelpCircle, label: "nav.help" },
   { id: "about", icon: Info, label: "nav.about" },
   { id: "settings", icon: SettingsIcon, label: "nav.settings" },
@@ -53,7 +53,6 @@ export const resourceTree: Record<string, string[]> = {
     "validatingwebhookconfigurations",
   ],
   crd: ["customresourcedefinitions"],
-  events: ["events"],
 };
 
 export function visibleTabs(section: Section, current: string): string[] {
@@ -76,8 +75,10 @@ export function sectionForResource(resource: string): Section | null {
 }
 
 export function normalizeStoredSection(value: unknown): Section {
-  if (value === "overview" || value === "nodes" || !value) return "nodes";
-  const known: Section[] = ["problems", "namespaces", "rbac", "workloads", "network", "storage", "config", "crd", "events", "audit", "about", "port-forwards", "help", "settings"];
+  if (value === "overview" || !value) return "overview";
+  if (value === "nodes") return "nodes";
+  if (value === "audit") return "settings";
+  const known: Section[] = ["problems", "namespaces", "rbac", "workloads", "network", "storage", "config", "crd", "events", "about", "port-forwards", "help", "settings"];
   return known.includes(value as Section) ? value as Section : "nodes";
 }
 
@@ -129,6 +130,7 @@ export function isPlaceholderSection(section: Section) {
 }
 
 export function sectionTitle(section: Section, resourceTab: string, t: (key: string) => string) {
+  if (section === "overview") return t("nav.overview");
   if (section === "network") return t("nav.network");
   if (section === "namespaces") return t("nav.namespaces");
   if (section === "rbac") return t("nav.rbac");

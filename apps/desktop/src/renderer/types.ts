@@ -136,6 +136,80 @@ export interface ProblemsResponse {
   errors: Array<ErrorInfo & { resource?: string; namespace?: string }>;
 }
 
+export interface ClusterOverviewResponse {
+  generatedAt: string;
+  scope: { clusterId: string; namespaces: string[] };
+  verdict: {
+    tone: "success" | "pending" | "danger" | "neutral";
+    reasonCodes: string[];
+  };
+  summary: {
+    nodesReady: number;
+    nodesTotal: number;
+    workloadsHealthy: number;
+    workloadsTotal: number;
+    podsReady: number;
+    podsTotal: number;
+    critical: number;
+    warning: number;
+  };
+  capacity: {
+    workerNodes: number;
+    totalNodes: number;
+    excluded: {
+      controlPlane: number;
+      etcd: number;
+      ingress: number;
+    };
+    views: Array<{
+      key: string;
+      label: string;
+      groups: Array<{
+        id: string;
+        name: string;
+        nodes: number;
+        readyNodes: number;
+        pressuredNodes: number;
+        cpu: {
+          used?: number;
+          available?: number;
+          allocatable?: number;
+          measuredNodes: number;
+        };
+        memory: {
+          used?: number;
+          available?: number;
+          allocatable?: number;
+          measuredNodes: number;
+        };
+        storage: {
+          used?: number;
+          available?: number;
+          allocatable?: number;
+          measuredNodes: number;
+        };
+      }>;
+    }>;
+  };
+  clusterProfile: {
+    namespaces: number;
+    schedulingDisabled: number;
+    kubernetesVersions: string[];
+    operatingSystems: string[];
+    architectures: string[];
+    containerRuntimes: string[];
+  };
+  workloads: Array<{
+    resource: string;
+    healthy: number;
+    pending: number;
+    danger: number;
+    total: number;
+  }>;
+  sources: Record<string, number>;
+  errors: Array<ErrorInfo & { resource?: string; namespace?: string }>;
+}
+
 export interface AuditEvent {
   timestamp: string;
   action: string;
@@ -259,6 +333,7 @@ export interface CommandResult {
 }
 
 export type Section =
+  | "overview"
   | "nodes"
   | "problems"
   | "namespaces"

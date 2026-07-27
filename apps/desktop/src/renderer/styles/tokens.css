@@ -36,6 +36,9 @@
   --primary-border: #4d94b7;
   --primary-soft: rgb(77 148 183 / 0.18);
   --primary-resize: rgb(77 148 183 / 0.72);
+  --metric-cpu: #69c5d2;
+  --metric-memory: #b099d8;
+  --metric-storage: #d6a565;
   --danger-bg: #301b1f;
   --danger-border: #8b4b51;
   --danger-text: #ffd0d0;
@@ -286,6 +289,9 @@
   --primary-border: #2d84a8;
   --primary-soft: rgb(31 111 143 / 0.14);
   --primary-resize: rgb(31 111 143 / 0.45);
+  --metric-cpu: #218aa0;
+  --metric-memory: #7659a8;
+  --metric-storage: #a96519;
   --danger-bg: #fff1f2;
   --danger-border: #d97987;
   --danger-text: #9f1239;

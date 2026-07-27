@@ -26,6 +26,15 @@
   min-height: 34px;
 }
 
+.table-view-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 262px;
+  min-width: 222px;
+  max-width: 362px;
+}
+
 .table-columns-menu {
   position: relative;
   display: inline-flex;
@@ -637,10 +646,10 @@
   min-width: 0;
 }
 
-.resource-table-actions .table-filter {
+.table-view-controls .table-filter {
   flex: 1 1 220px;
   min-width: 180px;
-  max-width: 320px;
+  max-width: none;
 }
 
 .table-scroll {
@@ -739,7 +748,12 @@
     justify-content: flex-start;
   }
 
-  .resource-table-actions .table-filter {
+  .table-view-controls {
+    width: 100%;
+    max-width: none;
+  }
+
+  .table-view-controls .table-filter {
     max-width: none;
   }
 

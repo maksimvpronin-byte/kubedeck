@@ -1,4 +1,4 @@
-import type { AppConfig, AuditResponse, BackendInfo, Cluster, CommandResult, ErrorInfo, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent, LlmAnalyzeResourceRequest, LlmAnalyzeResourceResponse, LlmPromptPreviewResponse, LlmStatus, LlmTestResponse } from "./types";
+import type { AppConfig, AuditResponse, BackendInfo, Cluster, ClusterOverviewResponse, CommandResult, ErrorInfo, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent, LlmAnalyzeResourceRequest, LlmAnalyzeResourceResponse, LlmPromptPreviewResponse, LlmStatus, LlmTestResponse } from "./types";
 
 export class ApiError extends Error {
   info: ErrorInfo;
@@ -181,6 +181,11 @@ export class ApiClient {
 
   problems(clusterId: string, signal?: AbortSignal) {
     return this.request<ProblemsResponse>(`/clusters/${clusterId}/problems`, { signal });
+  }
+
+  overview(clusterId: string, namespaces: string[], signal?: AbortSignal) {
+    const namespace = namespaces.length ? namespaces.join(",") : "all";
+    return this.request<ClusterOverviewResponse>(`/clusters/${clusterId}/overview?namespace=${encodeURIComponent(namespace)}`, { signal });
   }
 
 

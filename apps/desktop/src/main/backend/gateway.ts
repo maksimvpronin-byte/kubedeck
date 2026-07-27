@@ -50,6 +50,7 @@ import { handleResourceListRequest } from "./routes/resourceLists";
 import { handleWatchRequest } from "./routes/watch";
 import { handlePortForwardRequest } from "./routes/portForward";
 import { handleProblemsRequest } from "./routes/problems";
+import { handleOverviewRequest } from "./routes/overview";
 import { handleSearchRequest } from "./routes/search";
 import { handleRelatedResourcesRequest } from "./routes/relatedResources";
 import { handleLlmRequest } from "./routes/llm";
@@ -345,6 +346,18 @@ function handleRequest(
     return;
   }
 
+  if (
+    handleOverviewRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.kubectlRunner,
+      options.log,
+    )
+  ) {
+    return;
+  }
   if (
     handleProblemsRequest(
       request,

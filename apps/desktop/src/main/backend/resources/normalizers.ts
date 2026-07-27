@@ -755,6 +755,7 @@ export function nodeSummary(item: JsonObject): ResourceRow {
     cpuAllocatableRaw: String(allocatable.cpu ?? ""),
     memoryAllocatableRaw: String(allocatable.memory ?? ""),
     diskAllocatableRaw: String(allocatable["ephemeral-storage"] ?? ""),
+    taints: records(spec.taints),
     pressure: pressure.join("; "),
     nodeLabelItems: displayLabels,
     nodeLabelsSearch: displayLabels.map((label) => `${label.full} ${label.label} ${label.value}`.trim()).join(" "),

@@ -551,9 +551,11 @@ h2 {
 
 .icon-button,
 .icon-text,
+.secondary-btn,
 .danger,
 .row-actions button,
 .settings-actions button {
+  appearance: none;
   border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--text);
@@ -571,6 +573,7 @@ h2 {
 
 .icon-button:active:not(:disabled),
 .icon-text:active:not(:disabled),
+.secondary-btn:active:not(:disabled),
 .row-actions button:active:not(:disabled),
 .settings-actions button:active:not(:disabled) {
   background: var(--button-active);
@@ -578,6 +581,7 @@ h2 {
 
 .icon-button:disabled,
 .icon-text:disabled,
+.secondary-btn:disabled,
 .row-actions button:disabled,
 .settings-actions button:disabled {
   border-color: var(--border);
@@ -587,6 +591,7 @@ h2 {
 
 .icon-button:hover:not(:disabled),
 .icon-text:hover:not(:disabled),
+.secondary-btn:hover:not(:disabled),
 .row-actions button:hover:not(:disabled),
 .settings-actions button:hover:not(:disabled) {
   border-color: var(--primary-border);
@@ -786,6 +791,14 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.secondary-btn {
+  display: inline-flex;
+  width: auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 
 .primary {

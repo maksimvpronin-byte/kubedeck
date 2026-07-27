@@ -127,9 +127,11 @@ export async function applyNodeMetrics(configStore: ConfigStore, runner: Kubectl
       const memoryUsed = parseMemoryBytes(metric.memory);
       const memoryFree = remaining(parseMemoryBytes(row.memoryAllocatableRaw), memoryUsed);
       row.cpuUsage = metric.cpu;
+      row.cpuUsageRaw = metric.cpu;
       row.cpuUsagePercent = metric.cpuPercent;
       row.cpuAvailable = formatCpu(cpuFree);
       row.memoryUsage = formatNodeBytes(memoryUsed);
+      row.memoryUsageRaw = metric.memory;
       row.memoryUsagePercent = metric.memoryPercent;
       row.memoryAvailable = formatNodeBytes(memoryFree);
       row.nodeResources = `CPU ${metric.cpu} used · ${formatCpu(cpuFree)} free\nRAM ${formatNodeBytes(memoryUsed)} used · ${formatNodeBytes(memoryFree)} free`;
@@ -149,10 +151,29 @@ export async function loadNodeDiskMetrics(configStore: ConfigStore, runner: Kube
     uid: "",
     name: nodeName,
     diskUsage: formatNodeBytes(used),
+    diskUsageRaw: used ?? undefined,
     diskAvailable: formatNodeBytes(available),
+    diskAvailableRaw: available ?? undefined,
     diskObservedCapacity: formatNodeBytes(capacity),
+    diskObservedCapacityRaw: capacity ?? undefined,
     diskUsagePercent: percentage(used, capacity ?? (used !== null && available !== null ? used + available : null)),
   };
+}
+
+export async function applyNodeDiskMetrics(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, rows: ResourceRow[]): Promise<void> {
+  let next = 0;
+  async function worker() {
+    while (next < rows.length) {
+      const row = rows[next++];
+      const identity = { uid: row.uid, name: row.name };
+      try {
+        Object.assign(row, await loadNodeDiskMetrics(configStore, runner, clusterId, String(row.name)), identity);
+      } catch (error) {
+        if (!(error instanceof KubectlError)) throw error;
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(6, rows.length) }, worker));
 }
 
 function percentage(used: number | null, total: number | null): number | null {

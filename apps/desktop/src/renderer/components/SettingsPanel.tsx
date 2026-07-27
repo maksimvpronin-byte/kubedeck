@@ -8,6 +8,7 @@ import { toErrorInfo } from "../utils/errors";
 import { ClusterPanel } from "./ClusterPanel";
 import { ResourceCacheDiagnostics } from "./ResourceCacheDiagnostics";
 import { WatchDiagnostics } from "./WatchDiagnostics";
+import { AuditPanel } from "./AuditPanel";
 
 export function SettingsPanel({
   api,
@@ -52,6 +53,7 @@ export function SettingsPanel({
   const [saveError, setSaveError] = useState("");
   const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [llmTestMessage, setLlmTestMessage] = useState("");
+  const [showLocalActivity, setShowLocalActivity] = useState(false);
 
   useEffect(() => {
     applyThemePreference(draft.theme, undefined, { persist: false });
@@ -278,6 +280,16 @@ export function SettingsPanel({
       </div>
       <ResourceCacheDiagnostics api={api} activeCluster={activeCluster} t={t} onError={onError} />
       <WatchDiagnostics api={api} activeCluster={activeCluster} selectedNamespaces={selectedNamespaces} resourceTab={resourceTab} t={t} onError={onError} />
+      <div className="settings-card settings-local-activity">
+        <div>
+          <h3>{t("settings.localActivity")}</h3>
+          <p className="settings-hint">{t("settings.localActivityDescription")}</p>
+        </div>
+        <button className="secondary-btn" type="button" onClick={() => setShowLocalActivity((current) => !current)}>
+          {showLocalActivity ? t("common.close") : t("settings.openLocalActivity")}
+        </button>
+      </div>
+      {showLocalActivity ? <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={(error) => onError(error)} /> : null}
       <ClusterPanel
         clusters={clusters}
         activeCluster={activeCluster}

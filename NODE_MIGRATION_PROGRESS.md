@@ -2,7 +2,7 @@
 
 Дата обновления: 2026-07-21
 Ветка: `main`
-Текущая проверяемая версия: `2.8.1`
+Текущая проверяемая версия: `2.9.0`
 
 ## Итог
 
@@ -43,18 +43,18 @@
 - process-heavy Watch и Port Forward тесты проходят без cancelled;
 - Windows portable собирается;
 - приложение запускается без `python.exe`/`pythonw.exe`;
-- `/migration/status`: Node 51, Python 0, mode `node-only`;
+- `/migration/status`: Node 52, Python 0, mode `node-only`;
 - portable не содержит Python backend payload и встроенный `kubectl.exe`.
 
 ## 2.0.6 — stable release baseline
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.8.1.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.9.0.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.8.1` сохраняет Node-only baseline и добавляет семантические цвета Kubernetes-статусов, компактные списки ресурсов и новый значок KubeDeck без изменения Gateway ownership.
+`2.9.0` добавляет cluster Overview snapshot, упрощает навигацию и расширяет Node-only Gateway до 52 маршрутов.
 
 После принятия 2.0.6:
 

@@ -40,8 +40,8 @@ const initialResourceTab = initialUiState.section === "overview" || initialSecti
 const initialSelectedNamespaces = initialSection === "nodes" ? ["_cluster"] : ["all"];
 
 const AboutPanel = lazy(() => import("./components/AboutPanel").then((module) => ({ default: module.AboutPanel })));
+const OverviewPanel = lazy(() => import("./components/OverviewPanel").then((module) => ({ default: module.OverviewPanel })));
 const BottomTerminalPanel = lazy(() => import("./components/BottomTerminalPanel").then((module) => ({ default: module.BottomTerminalPanel })));
-const AuditPanel = lazy(() => import("./components/AuditPanel").then((module) => ({ default: module.AuditPanel })));
 const HelpPanel = lazy(() => import("./components/HelpPanel").then((module) => ({ default: module.HelpPanel })));
 const PortForwardsPanel = lazy(() => import("./components/PortForwardsPanel").then((module) => ({ default: module.PortForwardsPanel })));
 const ProblemsPanel = lazy(() => import("./components/ProblemsPanel").then((module) => ({ default: module.ProblemsPanel })));
@@ -318,7 +318,7 @@ export function App() {
   // temporary cluster unavailability.
   useEffect(() => {
     if (!loading) return undefined;
-    if (isPlaceholderSection(section) || section === "settings" || section === "help" || section === "port-forwards" || section === "problems") return undefined;
+    if (isPlaceholderSection(section) || section === "overview" || section === "settings" || section === "help" || section === "port-forwards" || section === "problems") return undefined;
     const currentRows = rows[resourceTab] ?? [];
     if (currentRows.length === 0) return undefined;
     const timer = window.setTimeout(() => {
@@ -337,7 +337,7 @@ export function App() {
   );
   const selectedDefinition = findResourceDefinition(resourceDefinitions, resourceTab);
   const isClusterScoped = selectedDefinition?.namespaced === false || namespace === "_cluster";
-  const isResourceTableView = !["help", "about", "settings", "problems", "audit", "port-forwards"].includes(section) && !isPlaceholderSection(section);
+  const isResourceTableView = !["overview", "help", "about", "settings", "problems", "audit", "port-forwards"].includes(section) && !isPlaceholderSection(section);
   const watchHealthy = useResourceWatch({
     api,
     clusterId: activeCluster?.id,
@@ -389,7 +389,7 @@ export function App() {
   }, [api, activeCluster?.id]);
 
   useEffect(() => {
-    if (!activeCluster || !api || isPlaceholderSection(section) || section === "settings" || section === "help" || section === "port-forwards" || section === "problems") return;
+    if (!activeCluster || !api || isPlaceholderSection(section) || section === "overview" || section === "settings" || section === "help" || section === "port-forwards" || section === "problems") return;
     const intervalSeconds = getAutoRefreshIntervalSeconds(settings);
     if (!shouldPollResources(intervalSeconds, watchHealthy)) return;
     const timer = window.setInterval(() => {
@@ -424,6 +424,11 @@ export function App() {
     if (next === "nodes") {
       setResourceTab("nodes");
       setNamespaceSelection("_cluster");
+      return;
+    }
+
+    if (next === "overview") {
+      if (selectedNamespaces.includes("_cluster")) restoreNamespacedSelection();
       return;
     }
 
@@ -805,6 +810,14 @@ export function App() {
     setSelectedTarget(null);
   }
 
+  function closeTransientDrawerFromBackground(event: ReactMouseEvent<HTMLDivElement>) {
+    if (!selectedPod || activeResourceTabId) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest("button, a, input, select, textarea, table, [role], [data-tooltip], .drawer, .modal-overlay, .table-footer, .resource-table-header")) return;
+    closeDisplayedResource();
+  }
+
   async function removeClusterWorkspace(cluster: (typeof clusters)[number]) {
     const resourceCount = resourceWorkspaceTabs.filter((tab) => tab.clusterId === cluster.id).length;
     const terminalCount = bottomTerminals.filter((target) => target.clusterId === cluster.id).length;
@@ -962,7 +975,7 @@ export function App() {
         ) : null}
         <section className={`content ${bottomTerminals.length ? "with-bottom-terminal" : ""}`}>
           <div className="content-upper">
-            <div className={isResourceTableView ? "main-panel main-panel-resource" : "main-panel"}>
+            <div className={isResourceTableView ? "main-panel main-panel-resource" : "main-panel"} onMouseDown={closeTransientDrawerFromBackground}>
               {runtimeError ? (
                 <section className="error-panel">
                   <div className="error-header">
@@ -974,7 +987,29 @@ export function App() {
                 </section>
               ) : null}
               <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
-              {section === "help" ? (
+              {section === "overview" ? (
+                <LazySurface resetKey={`overview:${activeCluster?.id ?? "none"}:${selectedNamespaces.join(",")}`}>
+                  <OverviewPanel
+                    api={api}
+                    cluster={activeCluster}
+                    namespaces={selectedNamespaces.includes("_cluster") ? ["all"] : selectedNamespaces}
+                    settings={settings}
+                    recentTabs={resourceWorkspaceTabs.filter((tab) => tab.clusterId === activeCluster?.id)}
+                    terminalCount={bottomTerminals.filter((target) => target.clusterId === activeCluster?.id).length}
+                    onError={setError}
+                    onNavigate={(resource) => {
+                      if (resource === "problems") selectSection("problems");
+                      else if (resource === "events") selectSection("events");
+                      else {
+                        const targetSection = resource === "nodes" ? "nodes" : resource === "persistentvolumeclaims" ? "storage" : "workloads";
+                        selectTreeResource(targetSection, resource);
+                      }
+                    }}
+                    onOpenTab={(tab) => void activateResourceTab(tab)}
+                    t={t}
+                  />
+                </LazySurface>
+              ) : section === "help" ? (
                 <LazySurface resetKey="help">
                   <HelpPanel t={t} />
                 </LazySurface>
@@ -1017,10 +1052,6 @@ export function App() {
                       void openResourceLocator(row);
                     }}
                   />
-                </LazySurface>
-              ) : section === "audit" ? (
-                <LazySurface resetKey="audit">
-                  <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={setError} />
                 </LazySurface>
               ) : section === "port-forwards" ? (
                 <LazySurface resetKey="port-forwards">

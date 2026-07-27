@@ -196,8 +196,11 @@ test("resource details HTTP handler", async (t) => {
     uid: "",
     name: "node-a",
     diskUsage: "1 GiB",
+    diskUsageRaw: 1073741824,
     diskAvailable: "3 GiB",
+    diskAvailableRaw: 3221225472,
     diskObservedCapacity: "4 GiB",
+    diskObservedCapacityRaw: 4294967296,
     diskUsagePercent: 25,
   });
   assert.deepEqual(commands.at(-1).args, ["get", "--raw=/api/v1/nodes/node-a/proxy/stats/summary"]);
