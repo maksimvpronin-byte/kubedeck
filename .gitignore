@@ -59,8 +59,11 @@ KubeDeck_*_Prompt.md
 _backup_patch_*/
 _backup_manual_*/
 
-# Local Graphify analysis artifacts
+# Local Graphify analysis and project integration artifacts
 graphify-out/
+.codex/hooks.json
+.codex/skills/graphify/
+/AGENTS.md
 
 # Python packaging / cache
 *.spec
