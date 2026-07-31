@@ -1027,6 +1027,7 @@ test("2.9.0 overview and navigation polish stay contracted", () => {
   const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
   const tableStyles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
   const overviewStyles = fs.readFileSync(path.join(rendererRoot, "styles/overview.css"), "utf8");
+  const terminalStyles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
   const layoutStyles = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
   const panelStyles = fs.readFileSync(path.join(rendererRoot, "styles/panels.css"), "utf8");
   assert.match(navigation, /id: "overview", icon: LayoutDashboard/);
@@ -1042,6 +1043,12 @@ test("2.9.0 overview and navigation polish stay contracted", () => {
   assert.match(overview, /amount\.used \/ amount\.allocatable \* 100/);
   assert.match(overview, /\{ id: "storage", label: "Storage"/);
   assert.match(overviewStyles, /\.overview-capacity-rings \.is-storage/);
+  assert.match(overview, /view\.key\.slice\(6\) !== view\.label \? view\.key\.slice\(6\) : undefined/);
+  assert.match(terminalStyles, /\.themed-select-trigger\s*\{[^}]*display:\s*flex;[^}]*width:\s*100%;/s);
+  assert.match(terminalStyles, /\.themed-select-option\s*\{[^}]*display:\s*flex;[^}]*text-align:\s*left;/s);
+  assert.match(overviewStyles, /\.overview-capacity-groups\s*\{[^}]*minmax\(min\(400px, 100%\), 1fr\)/s);
+  assert.match(overviewStyles, /\.overview-capacity-group\s*\{[^}]*container-type:\s*inline-size;/s);
+  assert.match(overviewStyles, /@container \(max-width:\s*360px\)[^}]*\.overview-capacity-visual\s*\{[^}]*grid-template-columns:\s*1fr;/s);
   assert.match(overview, /capacityControlPlane/);
   assert.match(overview, /if \(requestRef\.current === controller\) \{\s*requestRef\.current = null;\s*if \(!silent\) setLoading\(false\);/);
   assert.doesNotMatch(overview, /cpuPercent|memoryPercent/);

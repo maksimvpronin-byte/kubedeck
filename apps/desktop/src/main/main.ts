@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { startGateway } from "./backend/gateway";
 import type { GatewayHandle } from "./backend/types";
 
@@ -155,7 +156,7 @@ function resolveDevServerUrl() {
 function isAllowedRendererNavigation(url: string, devUrl: string) {
   try {
     const target = new URL(url);
-    if (target.protocol === "file:") return !devUrl && app.isPackaged;
+    if (target.protocol === "file:") return !devUrl && fileURLToPath(target) === path.join(__dirname, "../renderer/index.html");
     if (!devUrl) return false;
     const developmentOrigin = new URL(devUrl).origin;
     return target.origin === developmentOrigin;

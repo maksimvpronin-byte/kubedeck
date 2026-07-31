@@ -139,7 +139,7 @@ export function OverviewPanel({
                 options={data.capacity.views.map((view) => ({
                   value: view.key,
                   label: view.key === "role" ? t("overview.capacityNodeRole") : view.label,
-                  description: view.key.startsWith("label:") ? view.key.slice(6) : undefined,
+                  description: view.key.startsWith("label:") && view.key.slice(6) !== view.label ? view.key.slice(6) : undefined,
                 }))}
                 ariaLabel={t("overview.capacityGroupBy")}
                 onChange={(key) => {

@@ -76,6 +76,8 @@ test("KubeDeck release keeps the runtime and build pipeline Node-only", () => {
   assert.match(mainSource, /nodeIntegration:\s*false/);
   assert.match(mainSource, /sandbox:\s*true/);
   assert.match(mainSource, /will-navigate/);
+  assert.match(mainSource, /fileURLToPath\(target\) === path\.join\(__dirname, "\.\.\/renderer\/index\.html"\)/);
+  assert.doesNotMatch(mainSource, /target\.protocol === "file:"\) return !devUrl && app\.isPackaged/);
   assert.match(mainSource, /app\.on\("before-quit", \(event\) =>/);
   assert.match(mainSource, /event\.preventDefault\(\)/);
   assert.match(mainSource, /stopNodeGateway\("before-quit"\)\.finally/);
