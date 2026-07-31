@@ -1,3 +1,12 @@
+## 2.9.1 - Unified Terminal Workspace
+
+- Moved Node SSH from the resource drawer into the same persistent bottom workspace as Pod Terminal.
+- Kept up to five Pod or SSH sessions mounted across resource navigation and tab switching.
+- Added pointer and keyboard vertical resizing with a safe viewport clamp and locally persisted panel height.
+- Made the Pod xterm viewport consume the resized workspace height instead of leaving an empty grid row.
+- Kept SSH passwords and passphrases in live renderer state only and preserved the existing authenticated Gateway protocols.
+- Made Help read the packaged application version dynamically and synchronized English, Russian, architecture, security, and release documentation.
+
 ## 2.6.0 - Pinned Pod Terminal
 
 - Moved the active Pod Terminal outside resource drawer identity so navigation no longer closes its WebSocket session.

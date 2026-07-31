@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { ApiClient } from "../api";
 import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, ResourceRow, Settings } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
-import { NodeSshTab } from "./NodeSshTab";
 import { LogsTab } from "./LogsTab";
 import { YamlTab } from "./YamlTab";
 import { DescribeTab } from "./DescribeTab";
@@ -35,6 +34,7 @@ interface Props {
   currentWorkspaceTabId: string;
   onPortForwardStarted?: (session: PortForwardSession) => void;
   onOpenTerminal: (pod: ResourceRow, containers: string[], container: string) => void;
+  onOpenNodeSsh: (node: ResourceRow) => void;
   onNodeAction?: (action: NodeActionKind, rows: ResourceRow[]) => void;
   onClose: () => void;
   copyLabel: string;
@@ -66,6 +66,7 @@ export function PodDrawer({
   currentWorkspaceTabId,
   onPortForwardStarted,
   onOpenTerminal,
+  onOpenNodeSsh,
   onNodeAction,
   onClose,
   copyLabel,
@@ -148,8 +149,8 @@ export function PodDrawer({
   }, [yamlChanged]);
 
   useEffect(() => {
-    if (!canLogs && !(resource === "nodes" || resource === "node") && (tab === "logs" || tab === "terminal")) setTab("summary");
-  }, [canLogs, tab, resource]);
+    if (!canLogs && tab === "logs") setTab("summary");
+  }, [canLogs, tab]);
 
   useEffect(() => {
     if (tab === "events" || (resource === "events" && tab === "related")) setTab("summary");
@@ -526,7 +527,7 @@ export function PodDrawer({
             applyResult={applyResult}
             involvedTarget={involvedTarget}
             onAction={setPendingAction}
-            onTerminal={() => (isNodeResource ? setTab("terminal") : openTerminal())}
+            onTerminal={() => (isNodeResource ? onOpenNodeSsh(pod) : openTerminal())}
             onNodeAction={onNodeAction}
             canPortForward={supportsPortForward(resource, pod)}
             onPortForward={() => {
@@ -538,8 +539,8 @@ export function PodDrawer({
           />
         }
       />
-      <PodDrawerTabs tabs={drawerTabs} active={tab} nodeResource={isNodeResource} labels={labels} llmLabel={t("llm.title")} onChange={setTab} />
-      <div className={tab === "logs" || tab === "terminal" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
+      <PodDrawerTabs tabs={drawerTabs} active={tab} labels={labels} llmLabel={t("llm.title")} onChange={setTab} />
+      <div className={tab === "logs" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
         {isCrdDefinitionResource ? (
           <section className="crd-notice">
             <strong>CRD definition is view-only</strong>
@@ -601,8 +602,6 @@ export function PodDrawer({
           />
         ) : tab === "secret" ? (
           <SecretTab api={api} clusterId={clusterId} row={pod} copyLabel={copyLabel} t={t} />
-        ) : tab === "terminal" && isNodeResource ? (
-          <NodeSshTab api={api} clusterId={clusterId} node={pod} settings={settings} />
         ) : (
           <>
             {loading ? <div className="muted">Loading...</div> : null}

@@ -77,6 +77,7 @@ export function App() {
   const [resourceWorkspaceTabs, setResourceWorkspaceTabs] = useState<ResourceWorkspaceTab[]>([]);
   const [bottomTerminals, setBottomTerminals] = useState<BottomTerminalTarget[]>([]);
   const [activeBottomTerminalId, setActiveBottomTerminalId] = useState<string | null>(null);
+  const [bottomTerminalOpenToken, setBottomTerminalOpenToken] = useState(0);
   const [activeResourceTabId, setActiveResourceTabId] = useState<string | null>(null);
   const drawerDirtyRef = useRef(false);
   const pinNextSelectionRef = useRef(false);
@@ -389,7 +390,8 @@ export function App() {
   }, [api, activeCluster?.id]);
 
   useEffect(() => {
-    if (!activeCluster || !api || isPlaceholderSection(section) || section === "overview" || section === "settings" || section === "help" || section === "port-forwards" || section === "problems") return;
+    if (!activeCluster || !api || isPlaceholderSection(section) || section === "overview" || section === "settings" || section === "help" || section === "port-forwards" || section === "problems")
+      return;
     const intervalSeconds = getAutoRefreshIntervalSeconds(settings);
     if (!shouldPollResources(intervalSeconds, watchHealthy)) return;
     const timer = window.setInterval(() => {
@@ -733,18 +735,38 @@ export function App() {
 
   function openBottomTerminal(pod: ResourceRow, containers: string[], container: string) {
     if (!activeCluster) return;
-    const id = `${activeCluster.id}\u0000${String(pod.namespace || "default")}\u0000${pod.name}\u0000${container}`;
+    const id = `pod\u0000${activeCluster.id}\u0000${String(pod.namespace || "default")}\u0000${String(pod.uid || pod.name)}\u0000${container}`;
     const existing = bottomTerminals.find((target) => target.id === id);
     if (existing) {
       setActiveBottomTerminalId(existing.id);
+      setBottomTerminalOpenToken((current) => current + 1);
       return;
     }
     if (bottomTerminals.length >= 5) {
-      setError({ code: "LIMIT_REACHED", message: "Close a terminal before opening another (5 maximum).", rawStderr: "", commandPreview: "" });
+      setError({ code: "LIMIT_REACHED", message: "Close a terminal or SSH session before opening another (5 maximum).", rawStderr: "", commandPreview: "" });
       return;
     }
-    setBottomTerminals((current) => [...current, { id, clusterId: activeCluster.id, clusterName: activeCluster.displayName, pod, containers, container }]);
+    setBottomTerminals((current) => [...current, { kind: "pod", id, clusterId: activeCluster.id, clusterName: activeCluster.displayName, pod, containers, container }]);
     setActiveBottomTerminalId(id);
+    setBottomTerminalOpenToken((current) => current + 1);
+  }
+
+  function openBottomNodeSsh(node: ResourceRow) {
+    if (!activeCluster) return;
+    const id = `ssh\u0000${activeCluster.id}\u0000${String(node.uid || node.name)}`;
+    const existing = bottomTerminals.find((target) => target.id === id);
+    if (existing) {
+      setActiveBottomTerminalId(existing.id);
+      setBottomTerminalOpenToken((current) => current + 1);
+      return;
+    }
+    if (bottomTerminals.length >= 5) {
+      setError({ code: "LIMIT_REACHED", message: "Close a terminal or SSH session before opening another (5 maximum).", rawStderr: "", commandPreview: "" });
+      return;
+    }
+    setBottomTerminals((current) => [...current, { kind: "node-ssh", id, clusterId: activeCluster.id, clusterName: activeCluster.displayName, node }]);
+    setActiveBottomTerminalId(id);
+    setBottomTerminalOpenToken((current) => current + 1);
   }
 
   function closeBottomTerminal(id: string) {
@@ -821,7 +843,7 @@ export function App() {
   async function removeClusterWorkspace(cluster: (typeof clusters)[number]) {
     const resourceCount = resourceWorkspaceTabs.filter((tab) => tab.clusterId === cluster.id).length;
     const terminalCount = bottomTerminals.filter((target) => target.clusterId === cluster.id).length;
-    if (!window.confirm(`Remove ${cluster.displayName}? This also closes ${resourceCount} resource tab(s) and ${terminalCount} terminal(s).`)) return;
+    if (!window.confirm(`Remove ${cluster.displayName}? This also closes ${resourceCount} resource tab(s) and ${terminalCount} terminal/SSH session(s).`)) return;
     const removed = await removeCluster(cluster, true);
     if (!removed) return;
     const remainingTabs = resourceWorkspaceTabs.filter((tab) => tab.clusterId !== cluster.id);
@@ -1140,6 +1162,7 @@ export function App() {
                         setResourceTab("port-forwards");
                       }}
                       onOpenTerminal={openBottomTerminal}
+                      onOpenNodeSsh={openBottomNodeSsh}
                       onNodeAction={(action, targetRows) => {
                         void bulkActions.requestNodeAction(action, targetRows);
                       }}
@@ -1166,7 +1189,15 @@ export function App() {
           </div>
           {api && bottomTerminals.length && activeBottomTerminalId ? (
             <LazySurface resetKey={`terminal:${activeBottomTerminalId}`}>
-              <BottomTerminalPanel api={api} targets={bottomTerminals} activeId={activeBottomTerminalId} onActivate={setActiveBottomTerminalId} onClose={closeBottomTerminal} />
+              <BottomTerminalPanel
+                api={api}
+                targets={bottomTerminals}
+                activeId={activeBottomTerminalId}
+                openToken={bottomTerminalOpenToken}
+                settings={settings}
+                onActivate={setActiveBottomTerminalId}
+                onClose={closeBottomTerminal}
+              />
             </LazySurface>
           ) : null}
         </section>

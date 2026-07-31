@@ -1,4 +1,4 @@
-# KubeDeck 2.9.0
+# KubeDeck 2.9.1
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -14,7 +14,8 @@ KubeDeck uses a **Node-only runtime inside Electron**. It does not start or pack
 - YAML view, edit, dry-run, and apply;
 - Describe, Events, Related Resources, and Problems views;
 - Pod and Deployment logs;
-- Pod Terminal, Node SSH, and Port Forward;
+- a persistent, vertically resizable bottom workspace for Pod Terminal and Node SSH sessions;
+- Port Forward;
 - delete, restart, redeploy, scale, cordon, uncordon, and drain actions;
 - protected Kubernetes Secret viewing;
 - metrics and resource snapshot caching;
@@ -142,7 +143,7 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.9.0-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.9.1-x64.exe
 ```
 
 ## macOS Apple Silicon build
@@ -154,8 +155,8 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.9.0-arm64.dmg
-apps/desktop/release/KubeDeck-2.9.0-arm64.zip
+apps/desktop/release/KubeDeck-2.9.1-arm64.dmg
+apps/desktop/release/KubeDeck-2.9.1-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
@@ -225,6 +226,6 @@ macOS:
 
 ## Documentation
 
-- [Release notes 2.9.0](./docs/releases/RELEASE_NOTES_2.9.0.md)
-- [Regression checklist 2.9.0](./docs/releases/REGRESSION_CHECKLIST_2.9.0.md)
+- [Release notes 2.9.1](./docs/releases/RELEASE_NOTES_2.9.1.md)
+- [Regression checklist 2.9.1](./docs/releases/REGRESSION_CHECKLIST_2.9.1.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)

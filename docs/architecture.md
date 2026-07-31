@@ -89,7 +89,9 @@ Renderer находится в `apps/desktop/src/renderer`:
 - `locales/` — русская и английская локализация;
 - `styles/` — темы и стили приложения.
 
-`PodDrawer` координирует вкладки ресурса, а специализированные компоненты владеют Summary, YAML, Describe, Events, Related, Logs, Terminal, Secret и SSH UI.
+`PodDrawer` координирует вкладки ресурса, а специализированные компоненты владеют Summary, YAML, Describe, Events, Related, Logs и Secret UI. Pod Terminal и Node SSH открываются из drawer в общей нижней `BottomTerminalPanel`.
+
+Нижняя terminal workspace хранит до пяти Pod/SSH targets, оставляет неактивные сессии смонтированными при переключении ресурсов и вкладок и закрывает их только по явному действию, удалению кластера или завершению приложения. Высота панели изменяется Pointer Events или клавиатурой, ограничивается доступным размером окна и сохраняется в локальном UI state. Пароли и passphrase для SSH остаются только в state живого renderer-компонента и не записываются в persisted UI state.
 
 ## Cache and live refresh
 
@@ -99,7 +101,7 @@ Resource list responses могут сохраняться в `ResourceSnapshotCa
 
 ## Contract ownership
 
-Существующие HTTP/WebSocket маршруты принадлежат Node runtime. `/migration/status` сохранён как release diagnostic и должен сообщать `node-only`, `51 Node / 0 Python` для текущего contract baseline.
+Существующие HTTP/WebSocket маршруты принадлежат Node runtime. `/migration/status` сохранён как release diagnostic и должен сообщать `node-only`, `52 Node / 0 Python` для текущего contract baseline.
 
 Изменение request/response shape требует синхронного обновления типов renderer/main и соответствующего contract test. План 2.1 предусматривает перенос общих публичных контрактов в `@kubedeck/shared-types`.
 

@@ -24,22 +24,13 @@ import type { NodeActionKind } from "../hooks/useBulkResourceActions";
 import { displayResource } from "./podDrawerHelpers";
 import { actionLabel, type ResourceAction } from "./PodDrawerModals";
 
-export type DrawerTab = "summary" | "llm" | "yaml" | "describe" | "logs" | "events" | "related" | "terminal" | "secret";
+export type DrawerTab = "summary" | "llm" | "yaml" | "describe" | "logs" | "events" | "related" | "secret";
 
 export function availableDrawerTabs(resource: string, canLogs: boolean): DrawerTab[] {
   const node = resource === "nodes" || resource === "node";
   const event = resource === "events";
   const secret = resource === "secrets" || resource === "secret";
-  return [
-    "summary",
-    "llm",
-    ...(event ? [] : ["related" as const]),
-    ...(secret ? ["secret" as const] : []),
-    "yaml",
-    "describe",
-    ...(canLogs && !node ? ["logs" as const] : []),
-    ...(node ? ["terminal" as const] : []),
-  ];
+  return ["summary", "llm", ...(event ? [] : ["related" as const]), ...(secret ? ["secret" as const] : []), "yaml", "describe", ...(canLogs && !node ? ["logs" as const] : [])];
 }
 
 interface HeaderProps {
@@ -78,17 +69,16 @@ export function PodDrawerHeader({ resource, namespace, name, onCopyName, onClose
 interface TabsProps {
   tabs: DrawerTab[];
   active: DrawerTab;
-  nodeResource: boolean;
   labels: Record<string, string | undefined>;
   llmLabel: string;
   onChange: (tab: DrawerTab) => void;
 }
 
-export function PodDrawerTabs({ tabs, active, nodeResource, labels, llmLabel, onChange }: TabsProps) {
+export function PodDrawerTabs({ tabs, active, labels, llmLabel, onChange }: TabsProps) {
   return (
     <nav className="drawer-tabs">
       {tabs.map((item) => {
-        const label = drawerTabLabel(item, nodeResource, labels, llmLabel);
+        const label = drawerTabLabel(item, labels, llmLabel);
         return (
           <button
             className={`icon-button drawer-tab-button ${active === item ? "active" : ""}`}
@@ -107,10 +97,9 @@ export function PodDrawerTabs({ tabs, active, nodeResource, labels, llmLabel, on
   );
 }
 
-function drawerTabLabel(item: DrawerTab, nodeResource: boolean, labels: Record<string, string | undefined>, llmLabel: string) {
+function drawerTabLabel(item: DrawerTab, labels: Record<string, string | undefined>, llmLabel: string) {
   if (item === "events") return "Events";
   if (item === "related") return "Related";
-  if (item === "terminal") return nodeResource ? "SSH" : "Terminal";
   if (item === "secret") return "Secret";
   if (item === "llm") return llmLabel;
   return labels[item] || item;
@@ -123,7 +112,6 @@ function drawerTabIcon(item: DrawerTab) {
   if (item === "yaml") return <FileCode2 size={18} />;
   if (item === "describe") return <FileText size={18} />;
   if (item === "logs") return <List size={18} />;
-  if (item === "terminal") return <SquareTerminal size={18} />;
   if (item === "secret") return <KeyRound size={18} />;
   return <Bell size={18} />;
 }
@@ -167,8 +155,15 @@ export function PodDrawerActions(props: ActionsProps) {
           </button>
         );
       })}
-      {props.resource === "pods" ? (
-        <button className="icon-button drawer-action-button" disabled={props.loading} onClick={props.onTerminal} title="Terminal" data-tooltip="Terminal" aria-label="Terminal">
+      {props.resource === "pods" || props.resource === "nodes" || props.resource === "node" ? (
+        <button
+          className="icon-button drawer-action-button"
+          disabled={props.loading}
+          onClick={props.onTerminal}
+          title={props.resource === "pods" ? "Terminal" : "SSH"}
+          data-tooltip={props.resource === "pods" ? "Terminal" : "SSH"}
+          aria-label={props.resource === "pods" ? "Terminal" : "SSH"}
+        >
           <SquareTerminal size={18} strokeWidth={2.25} />
         </button>
       ) : null}

@@ -220,22 +220,56 @@ test("2.7.4 resource surfaces stay compact and operational", () => {
   assert.doesNotMatch(terminal, /bash → sh → ash/);
 });
 
-test("bottom Pod Terminal tabs survive resource drawer navigation", () => {
+test("bottom Terminal Workspace owns Pod and Node SSH sessions outside the resource drawer", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const chrome = fs.readFileSync(path.join(rendererRoot, "components/PodDrawerChrome.tsx"), "utf8");
   const panel = fs.readFileSync(path.join(rendererRoot, "components/BottomTerminalPanel.tsx"), "utf8");
+  const ssh = fs.readFileSync(path.join(rendererRoot, "components/NodeSshTab.tsx"), "utf8");
+  const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
+  const uiState = fs.readFileSync(path.join(rendererRoot, "uiState.ts"), "utf8");
+  const model = loadTypeScript("components/BottomTerminalPanel.tsx", {
+    "lucide-react": { ChevronDown: () => null, ChevronUp: () => null, X: () => null },
+    "../uiState": { loadUiState: () => ({}), saveUiState: () => undefined },
+    "./NodeSshTab": { NodeSshTab: () => null },
+    "./TerminalTab": { TerminalTab: () => null },
+  });
   assert.match(app, /const \[bottomTerminals, setBottomTerminals\] = useState/);
   assert.match(app, /<BottomTerminalPanel/);
+  assert.match(app, /function openBottomNodeSsh/);
+  assert.match(app, /kind: "pod"/);
+  assert.match(app, /kind: "node-ssh"/);
   assert.match(app, /bottomTerminals\.length >= 5/);
   assert.match(drawer, /onOpenTerminal\(pod, containers/);
+  assert.match(drawer, /onOpenNodeSsh\(pod\)/);
+  assert.doesNotMatch(drawer, /import \{ NodeSshTab \}/);
+  assert.doesNotMatch(drawer, /<NodeSshTab/);
+  assert.match(chrome, /aria-label=\{props\.resource === "pods" \? "Terminal" : "SSH"\}/);
+  assert.doesNotMatch(chrome, /\| "terminal"/);
   assert.match(panel, /targets\.map/);
+  assert.match(panel, /target\.kind === "pod"/);
+  assert.match(panel, /<NodeSshTab/);
   assert.match(panel, /bottom-terminal-session/);
   assert.match(panel, /Collapse terminals/);
+  assert.match(panel, /role="separator"/);
+  assert.match(panel, /aria-orientation="horizontal"/);
+  assert.match(panel, /onPointerCancel=\{stopResize\}/);
+  assert.match(panel, /onLostPointerCapture=\{stopResize\}/);
   assert.match(app, /content-upper/);
-  assert.match(styles, /\.content\.with-bottom-terminal[\s\S]*grid-template-rows:/);
+  assert.match(styles, /\.content\.with-bottom-terminal\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s*auto;/s);
+  assert.match(styles, /\.bottom-terminal-resize-handle\s*\{[^}]*cursor:\s*ns-resize;/s);
+  assert.match(drawerStyles, /\.pod-terminal\s*\{[^}]*grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\);/s);
+  assert.doesNotMatch(styles, /minmax\(280px,\s*42vh\)/);
   assert.match(styles, /\.bottom-terminal-session\s*\{[^}]*visibility:\s*hidden/s);
   assert.doesNotMatch(styles, /\.bottom-terminal-session\s*\{[^}]*display:\s*none/s);
+  assert.match(uiState, /bottomTerminalHeight\?: number/);
+  assert.match(ssh, /activeRef = useRef\(active\)/);
+  assert.match(ssh, /sendTerminalResizeIfChanged/);
+  assert.deepEqual(model.clampBottomTerminalHeight(400, 900), 400);
+  assert.deepEqual(model.clampBottomTerminalHeight(100, 900), 180);
+  assert.deepEqual(model.clampBottomTerminalHeight(900, 900), 740);
+  assert.deepEqual(model.clampBottomTerminalHeight(220, 300), 140);
   assert.doesNotMatch(app, /PinnedTerminalPanel/);
   assert.doesNotMatch(drawer, /<TerminalTab/);
 });
@@ -900,10 +934,15 @@ test("workspace callbacks do not create renderer update loops", () => {
 
 test("hidden terminals never fit or resize the PTY", () => {
   const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
+  const ssh = fs.readFileSync(path.join(rendererRoot, "components/NodeSshTab.tsx"), "utf8");
   const panel = fs.readFileSync(path.join(rendererRoot, "components/BottomTerminalPanel.tsx"), "utf8");
   assert.match(terminal, /const activeRef = useRef\(active\)/);
   assert.match(terminal, /if \(!activeRef\.current\) return/);
   assert.match(terminal, /bounds\.width <= 0 \|\| bounds\.height <= 0/);
+  assert.match(ssh, /const activeRef = useRef\(active\)/);
+  assert.match(ssh, /!activeRef\.current \|\| !bounds/);
+  assert.match(ssh, /bounds\.width <= 0 \|\| bounds\.height <= 0/);
+  assert.match(ssh, /lastSize\.cols === cols && lastSize\.rows === rows/);
   assert.match(panel, /active=\{!collapsed && target\.id === activeId\}/);
 });
 
@@ -961,6 +1000,22 @@ test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contra
   assert.match(yamlTab, /Collapse top-level YAML groups/);
   assert.match(drawerStyles, /\.resource-workspace-tab\.active::after/);
   assert.match(terminalStyles, /\.bottom-terminal-tab\.active::after/);
+});
+
+test("Help uses runtime version metadata and documents the shared Terminal Workspace", () => {
+  const help = fs.readFileSync(path.join(rendererRoot, "components/HelpPanel.tsx"), "utf8");
+  const english = JSON.parse(fs.readFileSync(path.join(rendererRoot, "locales/en.json"), "utf8"));
+  const russian = JSON.parse(fs.readFileSync(path.join(rendererRoot, "locales/ru.json"), "utf8"));
+  assert.match(help, /window\.kubedeck[\s\S]*\.getDesktopInfo\(\)/);
+  assert.match(help, /info\.appVersion/);
+  assert.doesNotMatch(help, /<dd>\d+\.\d+\.\d+<\/dd>/);
+  for (const locale of [english, russian]) {
+    assert.match(locale["help.terminal.1"], /Pod Terminal/);
+    assert.match(locale["help.terminal.1"], /Node SSH/);
+    assert.match(locale["help.terminal.2"], /session|сесси/i);
+    assert.match(locale["help.terminal.3"], /height|высот/i);
+    assert.match(locale["help.terminal.4"], /never saved|не сохраня/i);
+  }
 });
 
 test("2.9.0 overview and navigation polish stay contracted", () => {

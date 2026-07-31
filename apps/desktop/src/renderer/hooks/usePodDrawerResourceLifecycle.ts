@@ -92,7 +92,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   }, [currentObjectKey]);
 
   useEffect(() => {
-    if (!currentObjectKey || tab === "summary" || tab === "llm" || tab === "events" || tab === "related" || tab === "terminal" || tab === "logs" || tab === "secret") {
+    if (!currentObjectKey || tab === "summary" || tab === "llm" || tab === "events" || tab === "related" || tab === "logs" || tab === "secret") {
       if (tab !== "yaml") setError(null);
       return;
     }

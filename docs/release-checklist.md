@@ -4,7 +4,7 @@
 
 ## Перед сборкой
 
-1. Убедиться, что версии синхронизированы в `package.json`, `apps/desktop/package.json`, `package-lock.json`, README, Help/About, changelog и release metadata.
+1. Убедиться, что версии синхронизированы в `package.json`, `apps/desktop/package.json`, `packages/shared-types/package.json`, `package-lock.json`, README, changelog и release metadata, а Help/About получает версию динамически из Electron.
 2. Проверить чистоту release branch и отсутствие случайных local artifacts.
 3. Выполнить автоматические проверки:
 
@@ -43,7 +43,7 @@ npm run package:mac
 
 ## Smoke test
 
-1. Запустить packaged приложение и проверить `/health` и `/migration/status` (`node-only`, `51 Node / 0 Python`).
+1. Запустить packaged приложение и проверить `/health` и `/migration/status` (`node-only`, `52 Node / 0 Python`).
 2. Импортировать или открыть kubeconfig-backed cluster.
 3. Проверить namespace selector, resource list, refresh, cache и watch-driven update.
 4. Открыть resource drawer: Summary, YAML, Describe, Events, Related и Logs.
@@ -51,11 +51,12 @@ npm run package:mac
 6. Проверить YAML dry-run/apply и отказ для multi-document payload.
 7. Проверить delete/restart/redeploy/scale и RBAC-denied paths.
 8. Проверить Secret reveal/copy/auto-hide и отсутствие value в audit/logs.
-9. Проверить Pod Terminal: input, paste, navigation keys, resize и reconnect.
-10. Проверить Node SSH, включая password/key/jump-host paths, если доступны.
-11. Проверить Port Forward start/open/stop и cleanup при выходе.
-12. Проверить dark/light/system theme и ru/en/system language.
-13. Проверить About diagnostics: они не должны включать kubeconfig content или Secret values.
+9. Открыть Pod Terminal в нижней workspace: проверить input, paste, navigation keys, reconnect, переключение и явное закрытие.
+10. Открыть Node SSH в той же workspace: проверить persistence при навигации, password/key/jump-host paths и отсутствие credentials в persisted UI state.
+11. Изменить высоту workspace мышью и клавиатурой, свернуть/развернуть панель, перезапустить UI и проверить восстановление допустимой высоты.
+12. Проверить Port Forward start/open/stop и cleanup при выходе.
+13. Проверить dark/light/system theme и ru/en/system language.
+14. Проверить Help/About: версия совпадает с packaged app, описание terminal workspace актуально, diagnostics не включают kubeconfig content или Secret values.
 
 ## После проверки
 

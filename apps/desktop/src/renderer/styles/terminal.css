@@ -213,7 +213,7 @@
 
 .content.with-bottom-terminal {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(280px, 42vh);
+  grid-template-rows: minmax(0, 1fr) auto;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -230,6 +230,7 @@
 }
 
 .bottom-terminal-panel {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
@@ -237,6 +238,39 @@
   overflow: hidden;
   border-top: 1px solid var(--border-strong);
   background: var(--panel);
+}
+
+.bottom-terminal-resize-handle {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  left: 0;
+  z-index: 5;
+  height: 10px;
+  cursor: ns-resize;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.bottom-terminal-resize-handle::after {
+  position: absolute;
+  top: 3px;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: transparent;
+  content: "";
+}
+
+.bottom-terminal-resize-handle:hover::after,
+.bottom-terminal-resize-handle:active::after,
+.bottom-terminal-resize-handle:focus-visible::after {
+  background: var(--primary-resize);
+}
+
+.bottom-terminal-resize-handle:focus-visible::after {
+  box-shadow: 0 0 0 1px var(--focus-ring);
 }
 
 .bottom-terminal-panel.collapsed {
@@ -356,7 +390,8 @@
 
 .bottom-terminal-body,
 .bottom-terminal-session,
-.bottom-terminal-session > .pod-terminal {
+.bottom-terminal-session > .pod-terminal,
+.bottom-terminal-session > .node-ssh-tab {
   min-height: 0;
   height: 100%;
 }
@@ -378,6 +413,10 @@
 .bottom-terminal-session.active {
   visibility: visible;
   pointer-events: auto;
+}
+
+.bottom-terminal-session .xterm-host {
+  min-height: 0;
 }
 
 .xterm-host .xterm {

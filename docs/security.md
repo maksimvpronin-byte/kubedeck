@@ -63,6 +63,8 @@ Command preview не должен раскрывать kubeconfig path или cr
 Watch, Pod Terminal, Node SSH и Port Forward имеют явного владельца lifecycle:
 
 - session привязана к cluster и локальному gateway;
+- нижняя terminal workspace сохраняет только identity и высоту панели; SSH password и passphrase существуют только в памяти смонтированной renderer-сессии;
+- переключение terminal workspace не закрывает WebSocket, а явное закрытие вкладки завершает соответствующую session;
 - процессы останавливаются при закрытии приложения или удалении cluster;
 - unmanaged external port-forward не останавливаются KubeDeck;
 - managed process проверяется до принудительной остановки;

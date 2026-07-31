@@ -10,6 +10,7 @@ import { terminalThemeFromCss } from "../utils/terminalTheme";
 type AuthMethod = "agent" | "password" | "privateKey";
 
 type TerminalMessage = { type: string; data?: string };
+type TerminalSize = { cols: number; rows: number };
 
 function normalizeAuthMethod(value: unknown): AuthMethod {
   return value === "password" || value === "privateKey" ? value : "agent";
@@ -26,9 +27,10 @@ interface NodeSshTabProps {
   clusterId: string;
   node: ResourceRow;
   settings?: Settings;
+  active?: boolean;
 }
 
-export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) {
+export function NodeSshTab({ api, clusterId, node, settings, active = true }: NodeSshTabProps) {
   const defaultHost = String(node.internalIp || node.internalIP || node.hostIP || node.hostname || node.name || "");
   const sshSettings = useMemo(() => resolveSshDefaults(settings), [settings]);
   const [host, setHost] = useState(defaultHost);
@@ -55,8 +57,29 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
   const hostRef = useRef<HTMLDivElement | null>(null);
   const copyTimerRef = useRef<number | null>(null);
   const lastCopiedSelectionRef = useRef("");
+  const lastResizeRef = useRef<TerminalSize | null>(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   useEffect(() => {
+    if (!active) return;
+    const timer = window.setTimeout(() => {
+      const terminal = terminalRef.current;
+      const fit = fitRef.current;
+      const bounds = hostRef.current?.getBoundingClientRect();
+      if (!terminal || !fit || !bounds || bounds.width <= 0 || bounds.height <= 0) return;
+      try {
+        fit.fit();
+        sendTerminalResizeIfChanged(socketRef.current, terminal, lastResizeRef);
+      } catch {
+        // xterm can briefly be detached while a terminal tab is activating.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [active]);
+
+  useEffect(() => {
+    if (socketRef.current) return;
     setHost(defaultHost);
     setPort(normalizePort(sshSettings.defaultPort));
     setUsername(sshSettings.defaultUsername);
@@ -102,14 +125,16 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
     fitRef.current = fit;
 
     const fitAndResize = () => {
+      const bounds = hostRef.current?.getBoundingClientRect();
+      if (!activeRef.current || !bounds || bounds.width <= 0 || bounds.height <= 0) return;
       try {
         fit.fit();
-        sendTerminalResize(socketRef.current, terminal);
+        sendTerminalResizeIfChanged(socketRef.current, terminal, lastResizeRef);
       } catch {
-        // xterm can briefly be detached while drawer is resizing/closing.
+        // xterm can briefly be detached while its panel is resizing/closing.
       }
     };
-    const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current ? new ResizeObserver(() => window.requestAnimationFrame(fitAndResize)) : null;
+    const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current ? new ResizeObserver(() => window.requestAnimationFrame(() => window.requestAnimationFrame(fitAndResize))) : null;
     if (hostRef.current) resizeObserver?.observe(hostRef.current);
     window.addEventListener("resize", fitAndResize);
     const onThemeChange = () => {
@@ -142,6 +167,7 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
     fit.fit();
     const socket = new WebSocket(api.nodeSshUrl(clusterId, node.name));
     socketRef.current = socket;
+    lastResizeRef.current = null;
     terminal.clear();
     terminal.writeln(`Connecting to ${username}@${host}:${port || "22"}...`);
     setConnecting(true);
@@ -181,7 +207,7 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
           setConnected(true);
           setConnecting(false);
           terminal.focus();
-          sendTerminalResize(socket, terminal);
+          sendTerminalResizeIfChanged(socket, terminal, lastResizeRef);
         }
       }
       if (message.type === "error") {
@@ -207,81 +233,92 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
 
   const terminalBusy = connected || connecting;
   return (
-    <div className="node-ssh-tab">
-      <div className="node-ssh-grid">
-        <label>
-          Host <input value={host} onChange={(event) => setHost(event.target.value)} disabled={terminalBusy} />
-        </label>
-        <label>
-          Port <input value={port} onChange={(event) => setPort(event.target.value)} disabled={terminalBusy} />
-        </label>
-        <label>
-          Username <input value={username} onChange={(event) => setUsername(event.target.value)} disabled={terminalBusy} />
-        </label>
-        <label>
-          Auth
-          <select value={authMethod} onChange={(event) => setAuthMethod(event.target.value as AuthMethod)} disabled={terminalBusy}>
-            <option value="agent">Agent/default keys</option>
-            <option value="password">Password</option>
-            <option value="privateKey">Private key path</option>
-          </select>
-        </label>
-        {authMethod === "password" ? (
-          <label>
-            Password <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={terminalBusy} />
-          </label>
-        ) : null}
-        {authMethod === "privateKey" ? (
-          <>
-            <label className="wide">
-              Private key path <input value={keyPath} onChange={(event) => setKeyPath(event.target.value)} disabled={terminalBusy} placeholder="C:\\Users\\Fidel\\.ssh\\id_rsa" />
+    <div className={`node-ssh-tab ${terminalBusy ? "is-session-active" : "is-configuring"}`}>
+      {!terminalBusy ? (
+        <div className="node-ssh-config">
+          <div className="node-ssh-grid">
+            <label>
+              Host <input value={host} onChange={(event) => setHost(event.target.value)} />
             </label>
             <label>
-              Passphrase <input type="password" value={keyPassphrase} onChange={(event) => setKeyPassphrase(event.target.value)} disabled={terminalBusy} />
+              Port <input value={port} onChange={(event) => setPort(event.target.value)} />
             </label>
-          </>
-        ) : null}
-      </div>
+            <label>
+              Username <input value={username} onChange={(event) => setUsername(event.target.value)} />
+            </label>
+            <label>
+              Auth
+              <select value={authMethod} onChange={(event) => setAuthMethod(event.target.value as AuthMethod)}>
+                <option value="agent">Agent/default keys</option>
+                <option value="password">Password</option>
+                <option value="privateKey">Private key path</option>
+              </select>
+            </label>
+            {authMethod === "password" ? (
+              <label>
+                Password <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+              </label>
+            ) : null}
+            {authMethod === "privateKey" ? (
+              <>
+                <label className="wide">
+                  Private key path <input value={keyPath} onChange={(event) => setKeyPath(event.target.value)} placeholder="C:\\Users\\Fidel\\.ssh\\id_rsa" />
+                </label>
+                <label>
+                  Passphrase <input type="password" value={keyPassphrase} onChange={(event) => setKeyPassphrase(event.target.value)} />
+                </label>
+              </>
+            ) : null}
+          </div>
 
-      <label className="node-ssh-jump-toggle">
-        <input type="checkbox" checked={useJumpHost} onChange={(event) => setUseJumpHost(event.target.checked)} disabled={terminalBusy} /> Use jump host
-      </label>
-      {useJumpHost ? (
-        <div className="node-ssh-grid node-ssh-jump-grid">
-          <label>
-            Jump host <input value={jumpHost} onChange={(event) => setJumpHost(event.target.value)} disabled={terminalBusy} />
+          <label className="node-ssh-jump-toggle">
+            <input type="checkbox" checked={useJumpHost} onChange={(event) => setUseJumpHost(event.target.checked)} /> Use jump host
           </label>
-          <label>
-            Jump port <input value={jumpPort} onChange={(event) => setJumpPort(event.target.value)} disabled={terminalBusy} />
-          </label>
-          <label>
-            Jump user <input value={jumpUsername} onChange={(event) => setJumpUsername(event.target.value)} disabled={terminalBusy} placeholder={username || "same as target"} />
-          </label>
-          <label>
-            Jump auth
-            <select value={jumpAuthMethod} onChange={(event) => setJumpAuthMethod(event.target.value as AuthMethod)} disabled={terminalBusy}>
-              <option value="agent">Agent/default keys</option>
-              <option value="password">Password</option>
-              <option value="privateKey">Private key path</option>
-            </select>
-          </label>
-          {jumpAuthMethod === "password" ? (
-            <label>
-              Jump password <input type="password" value={jumpPassword} onChange={(event) => setJumpPassword(event.target.value)} disabled={terminalBusy} />
-            </label>
-          ) : null}
-          {jumpAuthMethod === "privateKey" ? (
-            <>
-              <label className="wide">
-                Jump key path <input value={jumpKeyPath} onChange={(event) => setJumpKeyPath(event.target.value)} disabled={terminalBusy} />
+          {useJumpHost ? (
+            <div className="node-ssh-grid node-ssh-jump-grid">
+              <label>
+                Jump host <input value={jumpHost} onChange={(event) => setJumpHost(event.target.value)} />
               </label>
               <label>
-                Jump passphrase <input type="password" value={jumpKeyPassphrase} onChange={(event) => setJumpKeyPassphrase(event.target.value)} disabled={terminalBusy} />
+                Jump port <input value={jumpPort} onChange={(event) => setJumpPort(event.target.value)} />
               </label>
-            </>
+              <label>
+                Jump user <input value={jumpUsername} onChange={(event) => setJumpUsername(event.target.value)} placeholder={username || "same as target"} />
+              </label>
+              <label>
+                Jump auth
+                <select value={jumpAuthMethod} onChange={(event) => setJumpAuthMethod(event.target.value as AuthMethod)}>
+                  <option value="agent">Agent/default keys</option>
+                  <option value="password">Password</option>
+                  <option value="privateKey">Private key path</option>
+                </select>
+              </label>
+              {jumpAuthMethod === "password" ? (
+                <label>
+                  Jump password <input type="password" value={jumpPassword} onChange={(event) => setJumpPassword(event.target.value)} />
+                </label>
+              ) : null}
+              {jumpAuthMethod === "privateKey" ? (
+                <>
+                  <label className="wide">
+                    Jump key path <input value={jumpKeyPath} onChange={(event) => setJumpKeyPath(event.target.value)} />
+                  </label>
+                  <label>
+                    Jump passphrase <input type="password" value={jumpKeyPassphrase} onChange={(event) => setJumpKeyPassphrase(event.target.value)} />
+                  </label>
+                </>
+              ) : null}
+            </div>
           ) : null}
+          <div className="terminal-command-preview">{sshPreview(username, host, port, authMethod, keyPath, useJumpHost, jumpUsername || username, jumpHost, jumpPort)}</div>
+          <p className="node-ssh-note">Secrets are not saved. Target host defaults to node InternalIP. Username, port and jump host defaults are loaded from Settings.</p>
         </div>
-      ) : null}
+      ) : (
+        <div className="node-ssh-session-target">
+          SSH · {username}@{host}:{port || "22"}
+          {useJumpHost && jumpHost ? ` · via ${jumpHost}` : ""}
+        </div>
+      )}
 
       <div className="terminal-toolbar">
         <button className="primary" disabled={!host.trim() || !username.trim() || terminalBusy} onClick={connect}>
@@ -293,8 +330,6 @@ export function NodeSshTab({ api, clusterId, node, settings }: NodeSshTabProps) 
         <button onClick={() => terminalRef.current?.clear()}>Clear</button>
         <span className={terminalStatusClass(status, connected, connecting)}>{status}</span>
       </div>
-      <div className="terminal-command-preview">{sshPreview(username, host, port, authMethod, keyPath, useJumpHost, jumpUsername || username, jumpHost, jumpPort)}</div>
-      <p className="node-ssh-note">Secrets are not saved. Target host defaults to node InternalIP. Username, port and jump host defaults are loaded from Settings.</p>
       <div className="terminal-screen xterm-host" ref={hostRef} />
     </div>
   );
@@ -324,9 +359,15 @@ function parseTerminalMessage(value: unknown): TerminalMessage {
   }
 }
 
-function sendTerminalResize(socket: WebSocket | null, terminal: XTerm) {
+function sendTerminalResizeIfChanged(socket: WebSocket | null, terminal: XTerm, lastSizeRef: { current: TerminalSize | null }) {
   if (socket?.readyState !== WebSocket.OPEN) return;
-  socket.send(JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
+  const cols = terminal.cols;
+  const rows = terminal.rows;
+  if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols <= 0 || rows <= 0) return;
+  const lastSize = lastSizeRef.current;
+  if (lastSize && lastSize.cols === cols && lastSize.rows === rows) return;
+  lastSizeRef.current = { cols, rows };
+  socket.send(JSON.stringify({ type: "resize", cols, rows }));
 }
 
 function copyTerminalSelection(terminal: XTerm | null, lastCopiedRef?: { current: string }) {

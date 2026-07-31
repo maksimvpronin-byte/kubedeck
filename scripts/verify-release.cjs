@@ -131,6 +131,14 @@ function verifyDocuments(contract, version) {
     const content = read(relativePath);
     assert(content.includes(version), `${relativePath} does not mention ${version}`);
   }
+  for (const relativePath of ["README.md", "README.ru.md"]) {
+    const content = read(relativePath);
+    assert(content.includes(`docs/releases/RELEASE_NOTES_${version}.md`), `${relativePath} has a stale release-notes link`);
+    assert(content.includes(`docs/releases/REGRESSION_CHECKLIST_${version}.md`), `${relativePath} has a stale regression-checklist link`);
+  }
+  const helpPanel = read("apps/desktop/src/renderer/components/HelpPanel.tsx");
+  assert(/getDesktopInfo\(\)/.test(helpPanel) && /appVersion/.test(helpPanel), "Help must read the packaged application version");
+  assert(!/<dd>\d+\.\d+\.\d+<\/dd>/.test(helpPanel), "Help must not contain a hardcoded application version");
   ok("Release documents are present and versioned");
 }
 

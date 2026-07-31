@@ -1,10 +1,26 @@
+import { useEffect, useState } from "react";
+
 export function HelpPanel({ t }: { t: (key: string) => string }) {
+  const [appVersion, setAppVersion] = useState("—");
   const quickStart = ["help.quickStart.1", "help.quickStart.2", "help.quickStart.3", "help.quickStart.4"];
   const drawer = ["help.drawer.1", "help.drawer.2", "help.drawer.3", "help.drawer.4"];
   const sections = ["help.sections.1", "help.sections.2", "help.sections.3", "help.sections.4", "help.sections.5"];
   const actions = ["help.actions.1", "help.actions.2", "help.actions.3", "help.actions.4"];
   const terminal = ["help.terminal.1", "help.terminal.2", "help.terminal.3", "help.terminal.4"];
   const portable = ["help.portable.1", "help.portable.2", "help.portable.3", "help.portable.4"];
+
+  useEffect(() => {
+    let active = true;
+    window.kubedeck
+      .getDesktopInfo()
+      .then((info) => {
+        if (active) setAppVersion(info.appVersion || "—");
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <section className="help-panel">
@@ -20,7 +36,7 @@ export function HelpPanel({ t }: { t: (key: string) => string }) {
             <dt>{t("help.name")}</dt>
             <dd>KubeDeck</dd>
             <dt>{t("help.version")}</dt>
-            <dd>2.1.0</dd>
+            <dd>{appVersion}</dd>
             <dt>{t("help.author")}</dt>
             <dd>Пронин Максим</dd>
             <dt>{t("help.project")}</dt>
@@ -56,9 +72,10 @@ function HelpList({ title, items }: { title: string; items: string[] }) {
     <article className="help-card">
       <h3>{title}</h3>
       <ul>
-        {items.map((item) => <li key={item}>{item}</li>)}
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
       </ul>
     </article>
   );
 }
-

@@ -19,16 +19,22 @@ test("KubeDeck release metadata stays synchronized", () => {
   const expectedVersion = rootPackage.version;
   const contract = readJson("release-contract.json");
   const desktopPackage = readJson("apps/desktop/package.json");
+  const sharedPackage = readJson("packages/shared-types/package.json");
   const lock = readJson("package-lock.json");
   const readme = read("README.md");
+  const readmeRu = read("README.ru.md");
+  const changelog = read("CHANGELOG.md");
   const progress = read("NODE_MIGRATION_PROGRESS.md");
   const notes = read(`docs/releases/RELEASE_NOTES_${expectedVersion}.md`);
   const checklist = read(`docs/releases/REGRESSION_CHECKLIST_${expectedVersion}.md`);
+  const helpPanel = read("apps/desktop/src/renderer/components/HelpPanel.tsx");
   const windowsVersionScript = read("scripts/set-version.ps1");
   const attributes = read(".gitattributes");
 
   assert.equal(rootPackage.version, expectedVersion);
   assert.equal(desktopPackage.version, expectedVersion);
+  assert.equal(sharedPackage.version, expectedVersion);
+  assert.equal(desktopPackage.dependencies["@kubedeck/shared-types"], expectedVersion);
   assert.equal(lock.version, expectedVersion);
   assert.equal(lock.packages[""].version, expectedVersion);
   assert.equal(lock.packages["apps/desktop"].version, expectedVersion);
@@ -36,10 +42,17 @@ test("KubeDeck release metadata stays synchronized", () => {
   assert.match(desktopPackage.scripts["test:gateway"], /--test-concurrency=1/);
   assert.match(desktopPackage.scripts["test:gateway"], /release\.contract\.test\.cjs/);
 
-  for (const document of [readme, progress, notes, checklist]) {
+  for (const document of [readme, readmeRu, changelog, progress, notes, checklist]) {
     assert.ok(document.includes(expectedVersion));
   }
 
+  for (const document of [readme, readmeRu]) {
+    assert.ok(document.includes(`docs/releases/RELEASE_NOTES_${expectedVersion}.md`));
+    assert.ok(document.includes(`docs/releases/REGRESSION_CHECKLIST_${expectedVersion}.md`));
+  }
+  assert.match(helpPanel, /getDesktopInfo\(\)/);
+  assert.match(helpPanel, /appVersion/);
+  assert.doesNotMatch(helpPanel, /<dd>\d+\.\d+\.\d+<\/dd>/);
   assert.match(notes, /Node-only/);
   assert.match(notes, /52/);
   assert.match(checklist, /Node 52 \/ Python 0/);

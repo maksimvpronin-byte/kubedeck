@@ -1,14 +1,14 @@
 # KubeDeck 2.0 — миграция backend на Node завершена
 
-Дата обновления: 2026-07-21
+Дата обновления: 2026-07-30
 Ветка: `main`
-Текущая проверяемая версия: `2.9.0`
+Текущая проверяемая версия: `2.9.1`
 
 ## Итог
 
 Все существующие backend-контракты перенесены из Python/FastAPI в Node.js внутри Electron main process.
 
-- Node routes: **51**.
+- Node routes: **52**.
 - Python routes: **0**.
 - Runtime mode: **node-only**.
 - Legacy HTTP/WebSocket proxy: удалён.
@@ -50,11 +50,11 @@
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.9.0.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.9.1.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.9.0` добавляет cluster Overview snapshot, упрощает навигацию и расширяет Node-only Gateway до 52 маршрутов.
+`2.9.1` объединяет Pod Terminal и Node SSH в сохраняемой нижней рабочей области с изменяемой высотой. Node-only Gateway содержит 52 маршрута.
 
 После принятия 2.0.6:
 
