@@ -6,12 +6,23 @@ const path = require("node:path");
 const repoRoot = path.resolve(__dirname, "../../..");
 const read = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 const readJson = (relativePath) => JSON.parse(read(relativePath).replace(/^\uFEFF/, ""));
+const readBuffer = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath));
 const { normalizeSettings } = require("../dist/main/backend/config/configStore.js");
 
 test("stored theme values remain backward compatible", () => {
   assert.equal(normalizeSettings({ theme: "dark" }).theme, "midnight");
   assert.equal(normalizeSettings({ theme: "not-a-theme" }).theme, "midnight");
   assert.equal(normalizeSettings({ theme: "light" }).theme, "light");
+});
+
+test("Windows packaging uses a committed multi-size ICO", () => {
+  const builderConfig = read("apps/desktop/electron-builder.yml");
+  const windowsIcon = readBuffer("apps/desktop/assets/icon.ico");
+
+  assert.match(builderConfig, /win:\n\s+icon: assets\/icon\.ico/);
+  assert.equal(windowsIcon.readUInt16LE(0), 0);
+  assert.equal(windowsIcon.readUInt16LE(2), 1);
+  assert.ok(windowsIcon.readUInt16LE(4) >= 6);
 });
 
 test("KubeDeck release metadata stays synchronized", () => {

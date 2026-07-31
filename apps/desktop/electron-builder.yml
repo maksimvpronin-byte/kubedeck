@@ -17,7 +17,7 @@ asarUnpack:
   - node_modules/node-pty/**/*
 
 win:
-  icon: assets/icon.png
+  icon: assets/icon.ico
   signAndEditExecutable: false
   target:
     - target: portable
