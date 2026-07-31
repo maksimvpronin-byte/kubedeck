@@ -1,6 +1,7 @@
 # KubeDeck 2.9.2 — план исправления визуальных багов
 
-Статус: сбор дефектов и реализация подтверждённых исправлений.
+Статус: подтверждённые исправления реализованы и включены в 2.9.3; отдельный
+артефакт 2.9.2 не выпускается.
 
 ## Цель
 
@@ -144,12 +145,12 @@ ICO через WebAssembly и мог завершиться с ошибкой в
 - [x] `npm run verify:release`
 - [x] `git diff --check`
 
-## Release sync после фиксации состава
+## Release sync
 
-- [ ] Поднять root, desktop, shared-types и lock metadata до `2.9.2`.
-- [ ] Обновить Help/README, changelog, architecture/security при необходимости.
-- [ ] Создать release notes и regression checklist 2.9.2.
-- [ ] Собрать свежие Windows и macOS artifacts после всех visual fixes.
+- [x] Включить V-001–V-004 в release notes и regression checklist 2.9.3.
+- [x] Синхронизировать Help/README, changelog и migration status с 2.9.3.
+- [x] Поднять root, desktop, shared-types и lock metadata сразу до `2.9.3`.
+- [ ] Собрать свежие Windows и macOS artifacts 2.9.3 после всех исправлений.
 
 ## Не входит в 2.9.2
 
@@ -163,4 +164,4 @@ ICO через WebAssembly и мог завершиться с ошибкой в
 
 Все занесённые в реестр дефекты исправлены и проверены, автоматический gate
 проходит, ручной smoke закрыт на свежей сборке, а release metadata и artifacts
-соответствуют версии 2.9.2.
+соответствуют версии 2.9.3.

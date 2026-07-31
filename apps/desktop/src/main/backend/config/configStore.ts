@@ -5,7 +5,7 @@ import { ensureAppPaths, type AppPaths } from "./paths";
 import type { AppConfig, Cluster, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "./types";
 
 const LANGUAGES = new Set<Language>(["system", "ru", "en"]);
-const THEMES = new Set<Theme>(["system", "light", "midnight", "nord", "forest", "plum", "mocha"]);
+const THEMES = new Set<Theme>(["system", "light", "midnight", "nord", "forest", "plum", "mocha", "graphite"]);
 const SSH_AUTH_METHODS = new Set<SshAuthMethod>(["agent", "password", "privateKey"]);
 
 function utcNow(): string {

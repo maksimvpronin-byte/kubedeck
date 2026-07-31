@@ -1,3 +1,12 @@
+## 2.9.3 - Steel Graphite and packaged UI fixes
+
+- Added the Steel Graphite theme with neutral charcoal surfaces, cool blue interaction states, accessible status colors and a matching terminal ANSI palette.
+- Repaired the Capacity group selector and responsive cards so labels and CPU, memory and storage values remain readable.
+- Restricted packaged renderer navigation to its HTML entrypoint so lazy JavaScript chunks cannot replace the application window.
+- Added a committed multi-size Windows icon so portable packaging no longer converts the large source PNG through the failing WebAssembly icon tool.
+- Kept Pod Terminal and Node SSH theme updates inside the shared persistent Terminal Workspace without changing Gateway protocols.
+- Synchronized English, Russian, release metadata and cross-platform artifact names for 2.9.3; the planned 2.9.2 fixes are included in this release.
+
 ## 2.9.1 - Unified Terminal Workspace
 
 - Moved Node SSH from the resource drawer into the same persistent bottom workspace as Pod Terminal.

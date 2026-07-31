@@ -1,5 +1,5 @@
 (() => {
-  const themes = new Set(["system", "light", "midnight", "nord", "forest", "plum", "mocha"]);
+  const themes = new Set(["system", "light", "midnight", "nord", "forest", "plum", "mocha", "graphite"]);
   let preference = "system";
   try {
     const stored = localStorage.getItem("kubedeck.theme");

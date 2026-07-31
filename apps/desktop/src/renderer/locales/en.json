@@ -109,6 +109,8 @@
     "settings.theme.plum.description":  "Soft plum graphite",
     "settings.theme.mocha":  "Warm Mocha",
     "settings.theme.mocha.description":  "Warm sand and graphite",
+    "settings.theme.graphite":  "Steel Graphite",
+    "settings.theme.graphite.description":  "Neutral graphite with cool blue accents",
     "settings.language":  "Language",
     "settings.language.system":  "system",
     "settings.language.ru":  "Русский",

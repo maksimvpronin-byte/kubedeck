@@ -13,6 +13,7 @@ test("stored theme values remain backward compatible", () => {
   assert.equal(normalizeSettings({ theme: "dark" }).theme, "midnight");
   assert.equal(normalizeSettings({ theme: "not-a-theme" }).theme, "midnight");
   assert.equal(normalizeSettings({ theme: "light" }).theme, "light");
+  assert.equal(normalizeSettings({ theme: "graphite" }).theme, "graphite");
 });
 
 test("Windows packaging uses a committed multi-size ICO", () => {

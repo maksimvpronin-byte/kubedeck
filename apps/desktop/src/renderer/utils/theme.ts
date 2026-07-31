@@ -17,6 +17,7 @@ export const THEME_OPTIONS: readonly ThemeOption[] = [
   { id: "forest", labelKey: "settings.theme.forest", descriptionKey: "settings.theme.forest.description", preview: ["#172623", "#20332f", "#5fb3a2"] },
   { id: "plum", labelKey: "settings.theme.plum", descriptionKey: "settings.theme.plum.description", preview: ["#25212b", "#332d3b", "#b194c7"] },
   { id: "mocha", labelKey: "settings.theme.mocha", descriptionKey: "settings.theme.mocha.description", preview: ["#29231f", "#39302a", "#d0a66e"] },
+  { id: "graphite", labelKey: "settings.theme.graphite", descriptionKey: "settings.theme.graphite.description", preview: ["#20252b", "#30363d", "#49a5cc"] },
 ] as const;
 
 const SYSTEM_DARK_QUERY = "(prefers-color-scheme: dark)";

@@ -109,6 +109,8 @@
     "settings.theme.plum.description":  "Мягкий сливово-графитовый вариант",
     "settings.theme.mocha":  "Тёплый мокко",
     "settings.theme.mocha.description":  "Тёплый песочно-графитовый вариант",
+    "settings.theme.graphite":  "Стальной графит",
+    "settings.theme.graphite.description":  "Нейтральный графит с холодными голубыми акцентами",
     "settings.language":  "Язык",
     "settings.language.system":  "system",
     "settings.language.ru":  "Русский",

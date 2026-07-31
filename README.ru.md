@@ -1,4 +1,4 @@
-# KubeDeck 2.9.1
+# KubeDeck 2.9.3
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -21,7 +21,7 @@ KubeDeck использует **Node-only runtime внутри Electron**. Пр�
 - метрики и кэш снимков ресурсов;
 - необязательный анализ через OpenAI-совместимую локальную LLM, в которую никогда не передаются Kubernetes-логи;
 - русский и английский интерфейс;
-- темы Midnight Blue, Nord Frost, Forest Teal, Plum Graphite, Warm Mocha, Light и System.
+- темы Midnight Blue, Nord Frost, Forest Teal, Plum Graphite, Warm Mocha, Steel Graphite, Light и System.
 
 ## Поддерживаемые платформы
 
@@ -143,7 +143,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.9.1-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.9.3-x64.exe
 ```
 
 ## Сборка для macOS Apple Silicon
@@ -155,8 +155,8 @@ npm run package:mac
 Результаты:
 
 ```text
-apps/desktop/release/KubeDeck-2.9.1-arm64.dmg
-apps/desktop/release/KubeDeck-2.9.1-arm64.zip
+apps/desktop/release/KubeDeck-2.9.3-arm64.dmg
+apps/desktop/release/KubeDeck-2.9.3-arm64.zip
 ```
 
 macOS-сборка не подписана Apple Developer ID и не notarized. При первом запуске используйте Finder → Applications → Control-click по KubeDeck → Open.
@@ -226,6 +226,6 @@ macOS:
 
 ## Документация
 
-- [Release notes 2.9.1](./docs/releases/RELEASE_NOTES_2.9.1.md)
-- [Regression checklist 2.9.1](./docs/releases/REGRESSION_CHECKLIST_2.9.1.md)
+- [Release notes 2.9.3](./docs/releases/RELEASE_NOTES_2.9.3.md)
+- [Regression checklist 2.9.3](./docs/releases/REGRESSION_CHECKLIST_2.9.3.md)
 - [Статус миграции на Node](./NODE_MIGRATION_PROGRESS.md)

@@ -1,8 +1,8 @@
 # KubeDeck 2.0 — миграция backend на Node завершена
 
-Дата обновления: 2026-07-30
+Дата обновления: 2026-07-31
 Ветка: `main`
-Текущая проверяемая версия: `2.9.1`
+Текущая проверяемая версия: `2.9.3`
 
 ## Итог
 
@@ -50,11 +50,11 @@
 
 `2.0.6` фиксирует проверенный Node-only baseline и включает пользовательские UX-исправления, накопленные после первичной стабилизации.
 
-Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.9.1.md` и `docs/release-checklist.md`.
+Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.9.3.md` и `docs/release-checklist.md`.
 
 ## Следующий этап
 
-`2.9.1` объединяет Pod Terminal и Node SSH в сохраняемой нижней рабочей области с изменяемой высотой. Node-only Gateway содержит 52 маршрута.
+`2.9.3` сохраняет единый Terminal Workspace, исправляет packaged UI и Windows packaging, а также добавляет тему Steel Graphite. Node-only Gateway содержит 52 маршрута.
 
 После принятия 2.0.6:
 

@@ -1,4 +1,4 @@
-# KubeDeck 2.9.1
+# KubeDeck 2.9.3
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -21,7 +21,7 @@ KubeDeck uses a **Node-only runtime inside Electron**. It does not start or pack
 - metrics and resource snapshot caching;
 - optional OpenAI-compatible local LLM analysis that never receives Kubernetes logs;
 - English and Russian UI;
-- Midnight Blue, Nord Frost, Forest Teal, Plum Graphite, Warm Mocha, Light, and System themes.
+- Midnight Blue, Nord Frost, Forest Teal, Plum Graphite, Warm Mocha, Steel Graphite, Light, and System themes.
 
 ## Supported platforms
 
@@ -143,7 +143,7 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.9.1-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.9.3-x64.exe
 ```
 
 ## macOS Apple Silicon build
@@ -155,8 +155,8 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.9.1-arm64.dmg
-apps/desktop/release/KubeDeck-2.9.1-arm64.zip
+apps/desktop/release/KubeDeck-2.9.3-arm64.dmg
+apps/desktop/release/KubeDeck-2.9.3-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
@@ -226,6 +226,6 @@ macOS:
 
 ## Documentation
 
-- [Release notes 2.9.1](./docs/releases/RELEASE_NOTES_2.9.1.md)
-- [Regression checklist 2.9.1](./docs/releases/REGRESSION_CHECKLIST_2.9.1.md)
+- [Release notes 2.9.3](./docs/releases/RELEASE_NOTES_2.9.3.md)
+- [Regression checklist 2.9.3](./docs/releases/REGRESSION_CHECKLIST_2.9.3.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)

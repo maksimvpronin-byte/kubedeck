@@ -283,10 +283,18 @@ test("theme preferences normalize legacy values and resolve System safely", () =
   assert.equal(model.resolveTheme("system", darkMedia), "midnight");
   assert.equal(model.resolveTheme("system", lightMedia), "light");
   assert.equal(model.resolveTheme("nord", lightMedia), "nord");
+  assert.equal(model.resolveTheme("graphite", lightMedia), "graphite");
   assert.deepEqual(
     model.THEME_OPTIONS.map(({ id }) => id),
-    ["system", "light", "midnight", "nord", "forest", "plum", "mocha"],
+    ["system", "light", "midnight", "nord", "forest", "plum", "mocha", "graphite"],
   );
+  const bootstrap = fs.readFileSync(path.join(rendererRoot, "public/theme-bootstrap.js"), "utf8");
+  assert.match(bootstrap, /themes = new Set\(\[[^\]]*"graphite"/);
+  for (const locale of ["en", "ru"]) {
+    const messages = JSON.parse(fs.readFileSync(path.join(rendererRoot, `locales/${locale}.json`), "utf8"));
+    assert.ok(messages["settings.theme.graphite"]);
+    assert.ok(messages["settings.theme.graphite.description"]);
+  }
 });
 
 test("theme application updates data attributes and persists the preference", () => {
@@ -384,13 +392,13 @@ test("every color theme exposes the shared token contract", () => {
     "primary-resize",
   ];
   for (const token of required) assert.match(tokens, new RegExp(`--${token}:`), `missing --${token}`);
-  for (const theme of ["midnight", "nord", "forest", "plum", "mocha", "light"]) {
+  for (const theme of ["midnight", "nord", "forest", "plum", "mocha", "graphite", "light"]) {
     assert.match(tokens, new RegExp(`data-theme=["']${theme}["']`), `missing ${theme} selector`);
   }
 
   const blocks = [...tokens.matchAll(/([^{}]+)\{([^{}]+)\}/g)];
   const base = cssHexTokens(blocks.filter(([, selector]) => selector.includes(":root,") || selector.includes('data-theme="midnight"')));
-  for (const theme of ["midnight", "nord", "forest", "plum", "mocha", "light"]) {
+  for (const theme of ["midnight", "nord", "forest", "plum", "mocha", "graphite", "light"]) {
     const palette = {
       ...base,
       ...cssHexTokens(blocks.filter(([, selector]) => selector.includes(`data-theme="${theme}"`))),
@@ -401,6 +409,10 @@ test("every color theme exposes the shared token contract", () => {
       ["muted", "panel"],
     ]) {
       assert.ok(contrastRatio(palette[foreground], palette[background]) >= 4.5, `${theme} ${foreground}/${background} must meet WCAG AA`);
+    }
+    if (theme === "graphite") {
+      assert.ok(contrastRatio(palette["text-inverse"], palette.primary) >= 4.5, "graphite primary button must meet WCAG AA");
+      assert.ok(contrastRatio(palette["text-inverse"], palette["primary-hover"]) >= 4.5, "graphite primary hover must meet WCAG AA");
     }
   }
 });
