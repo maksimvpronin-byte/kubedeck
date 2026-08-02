@@ -142,10 +142,38 @@ function verifyDocuments(contract, version) {
   ok("Release documents are present and versioned");
 }
 
+function verifyLicensing() {
+  const license = read("LICENSE");
+  assert(/^\s*Apache License\s*$/m.test(license), "LICENSE must contain the Apache License text");
+  assert(/Version 2\.0, January 2004/.test(license), "LICENSE must be Apache License 2.0");
+  assert(/END OF TERMS AND CONDITIONS/.test(license), "LICENSE must contain the full Apache License text");
+
+  const notice = read("NOTICE");
+  assert(/Copyright \d{4}/.test(notice), "NOTICE must declare a copyright year and holder");
+  assert(/Trademarks/.test(notice), "NOTICE must reserve the KubeDeck name and icons");
+
+  for (const relativePath of ["package.json", "apps/desktop/package.json", "packages/shared-types/package.json"]) {
+    assert(readJson(relativePath).license === "Apache-2.0", `${relativePath} must declare the Apache-2.0 license`);
+  }
+
+  const notices = read("docs/third-party-notices.md");
+  const desktopPackage = readJson("apps/desktop/package.json");
+  for (const name of Object.keys(desktopPackage.dependencies ?? {})) {
+    if (name.startsWith("@kubedeck/")) continue;
+    assert(notices.includes(`\`${name}\``), `docs/third-party-notices.md is missing production dependency ${name}`);
+  }
+
+  for (const relativePath of ["README.md", "README.ru.md"]) {
+    assert(read(relativePath).includes("(./LICENSE)"), `${relativePath} must link to LICENSE`);
+  }
+  ok("Licensing: Apache-2.0, NOTICE and third-party notices");
+}
+
 function verifyArtifactVersioning(version) {
   const builder = read("apps/desktop/electron-builder.yml");
   assert(builder.includes("artifactName: ${productName}-${version}-${arch}.${ext}"), "macOS artifact name must use the package version");
   assert(builder.includes("artifactName: ${productName}-Portable-${version}-${arch}.${ext}"), "Windows portable artifact name must use the package version");
+  assert(/^appImage:\s*$/m.test(builder) && /^linux:\s*$/m.test(builder), "electron-builder must define a Linux AppImage target");
   ok(`Cross-platform artifact versioning: ${version}`);
 }
 
@@ -180,6 +208,18 @@ function verifyReleasePayload(releaseDir, artifact, version) {
     const helper = path.join(resolved, "mac-arm64/KubeDeck.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper");
     assert(fs.existsSync(helper) && (fs.statSync(helper).mode & 0o111) !== 0, "Packaged macOS spawn-helper is missing or not executable");
   }
+  if (artifact === "linux") {
+    // electron-builder names AppImage artifacts with the Linux arch spelling
+    // (x86_64), not the electron-builder arch flag (x64).
+    const image = walk(resolved).find((target) => {
+      const name = path.basename(target);
+      return name.startsWith(`KubeDeck-${version}-`) && name.endsWith(".AppImage");
+    });
+    assert(image, "Linux AppImage artifact is missing");
+    assert((fs.statSync(image).mode & 0o111) !== 0, "Linux AppImage must be executable");
+    const unpacked = path.join(resolved, "linux-unpacked/resources/app.asar.unpacked/node_modules/node-pty");
+    assert(fs.existsSync(unpacked), "Packaged Linux build is missing the unpacked node-pty module");
+  }
   ok(`Release payload validated${artifact ? ` for ${artifact}` : ""}`);
 }
 
@@ -188,6 +228,7 @@ try {
   const { version, desktopPackage } = verifyVersions();
   verifyNodeOnly(contract, desktopPackage);
   verifyDocuments(contract, version);
+  verifyLicensing();
   verifyArtifactVersioning(version);
   verifyLineEndingPolicy();
   verifyReleasePayload(argument("--release-dir"), argument("--artifact"), version);

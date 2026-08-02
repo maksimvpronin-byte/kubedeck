@@ -1195,6 +1195,7 @@ export function App() {
                 activeId={activeBottomTerminalId}
                 openToken={bottomTerminalOpenToken}
                 settings={settings}
+                t={t}
                 onActivate={setActiveBottomTerminalId}
                 onClose={closeBottomTerminal}
               />

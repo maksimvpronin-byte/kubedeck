@@ -1,5 +1,13 @@
 {
-  "nodeRoutes": 52,
+  "nodeRoutes": 54,
   "pythonRoutes": 0,
-  "requiredDocuments": ["README.md", "README.ru.md", "CHANGELOG.md", "NODE_MIGRATION_PROGRESS.md", "docs/releases/RELEASE_NOTES_{version}.md", "docs/releases/REGRESSION_CHECKLIST_{version}.md"]
+  "requiredDocuments": [
+    "README.md",
+    "README.ru.md",
+    "CHANGELOG.md",
+    "NODE_MIGRATION_PROGRESS.md",
+    "docs/releases/RELEASE_NOTES_{version}.md",
+    "docs/releases/REGRESSION_CHECKLIST_{version}.md",
+    "docs/third-party-notices.md"
+  ]
 }

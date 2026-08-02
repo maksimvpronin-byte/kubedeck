@@ -351,8 +351,8 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
     headers: authHeaders,
   });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.totalExisting, 52);
-  assert.equal(migration.routes.nodeOwned, 52);
+  assert.equal(migration.routes.totalExisting, 54);
+  assert.equal(migration.routes.nodeOwned, 54);
   assert.equal(migration.routes.pythonOwned, 0);
 
   const kubectlStatus = await fetch(`${gateway.baseUrl}/kubectl/status`, {

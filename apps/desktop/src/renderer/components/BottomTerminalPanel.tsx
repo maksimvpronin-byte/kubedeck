@@ -31,6 +31,7 @@ interface Props {
   activeId: string;
   openToken: number;
   settings?: Settings;
+  t?: (key: string) => string;
   onActivate: (id: string) => void;
   onClose: (id: string) => void;
 }
@@ -39,7 +40,7 @@ export const MIN_BOTTOM_TERMINAL_HEIGHT = 180;
 export const MIN_UPPER_CONTENT_HEIGHT = 160;
 const DEFAULT_BOTTOM_TERMINAL_RATIO = 0.42;
 
-export function BottomTerminalPanel({ api, targets, activeId, openToken, settings, onActivate, onClose }: Props) {
+export function BottomTerminalPanel({ api, targets, activeId, openToken, settings, t, onActivate, onClose }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [availableHeight, setAvailableHeight] = useState(() => (typeof window === "undefined" ? 720 : window.innerHeight));
   const [height, setHeight] = useState(() => loadUiState().bottomTerminalHeight ?? Math.round((typeof window === "undefined" ? 720 : window.innerHeight) * DEFAULT_BOTTOM_TERMINAL_RATIO));
@@ -167,20 +168,20 @@ export function BottomTerminalPanel({ api, targets, activeId, openToken, setting
       </div>
       <div className="bottom-terminal-body">
         {targets.map((target) => (
-          <BottomTerminalSession key={target.id} api={api} target={target} settings={settings} active={!collapsed && target.id === activeId} />
+          <BottomTerminalSession key={target.id} api={api} target={target} settings={settings} t={t} active={!collapsed && target.id === activeId} />
         ))}
       </div>
     </section>
   );
 }
 
-function BottomTerminalSession({ api, target, settings, active }: { api: ApiClient; target: BottomTerminalTarget; settings?: Settings; active: boolean }) {
+function BottomTerminalSession({ api, target, settings, t, active }: { api: ApiClient; target: BottomTerminalTarget; settings?: Settings; t?: (key: string) => string; active: boolean }) {
   return (
     <div className={`bottom-terminal-session ${active ? "active" : ""}`}>
       {target.kind === "pod" ? (
         <BottomPodTerminalSession api={api} target={target} active={active} />
       ) : (
-        <NodeSshTab api={api} clusterId={target.clusterId} node={target.node} settings={settings} active={active} />
+        <NodeSshTab api={api} clusterId={target.clusterId} node={target.node} settings={settings} active={active} t={t} />
       )}
     </div>
   );

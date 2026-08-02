@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ApiClient } from "../api";
-import type { Cluster, ErrorInfo, Settings, SshAuthMethod } from "../types";
+import type { Cluster, ErrorInfo, KnownSshHost, Settings, SshAuthMethod } from "../types";
 import { normalizeRefreshIntervalSeconds, REFRESH_INTERVAL_OPTIONS_SECONDS } from "../utils/refresh";
 import { normalizeSettingsSsh, normalizeSshPort, normalizeSshSettings, saveStoredSshDefaults } from "../utils/sshDefaults";
 import { applyThemePreference, THEME_OPTIONS } from "../utils/theme";
@@ -219,6 +219,7 @@ export function SettingsPanel({
         ) : null}
         <p className="settings-warning">{t("settings.ssh.noSecrets")}</p>
       </div>
+      <KnownSshHostsCard api={api} t={t} onError={onError} />
       <div className="settings-card settings-llm-card">
         <h3>{t("llm.settingsTitle")}</h3>
         <p className="settings-hint">{t("llm.settingsDescription")}</p>
@@ -303,6 +304,82 @@ export function SettingsPanel({
         t={t}
       />
     </section>
+  );
+}
+
+function KnownSshHostsCard({ api, t, onError }: { api: ApiClient | null; t: (key: string) => string; onError: (error: ErrorInfo | null) => void }) {
+  const [hosts, setHosts] = useState<KnownSshHost[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    if (!api) return undefined;
+    const controller = new AbortController();
+    setLoading(true);
+    api
+      .knownSshHosts(controller.signal)
+      .then((response) => setHosts(response.items ?? []))
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) onError(toErrorInfo(error));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [api, reloadToken, onError]);
+
+  async function forget(host: KnownSshHost) {
+    if (!api) return;
+    try {
+      await api.forgetKnownSshHost(host.host, host.port);
+      setReloadToken((value) => value + 1);
+    } catch (error) {
+      onError(toErrorInfo(error));
+    }
+  }
+
+  return (
+    <div className="settings-card settings-known-hosts-card">
+      <h3>{t("settings.ssh.knownHosts.title")}</h3>
+      <p className="settings-hint">{t("settings.ssh.knownHosts.description")}</p>
+      {hosts.length === 0 ? (
+        <p className="settings-hint">{loading ? "…" : t("settings.ssh.knownHosts.empty")}</p>
+      ) : (
+        <table className="settings-known-hosts">
+          <thead>
+            <tr>
+              <th>{t("settings.ssh.knownHosts.host")}</th>
+              <th>{t("settings.ssh.knownHosts.algorithm")}</th>
+              <th>{t("settings.ssh.knownHosts.fingerprint")}</th>
+              <th>{t("settings.ssh.knownHosts.rememberedAt")}</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {hosts.map((host) => (
+              <tr key={`${host.host}:${host.port}`}>
+                <td>
+                  {host.host}:{host.port}
+                </td>
+                <td>{host.algorithm}</td>
+                <td className="settings-known-hosts-fingerprint">{host.fingerprint}</td>
+                <td>{host.rememberedAt.slice(0, 19).replace("T", " ")}</td>
+                <td className="row-actions">
+                  <button className="secondary-btn" type="button" onClick={() => void forget(host)}>
+                    {t("settings.ssh.knownHosts.forget")}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="settings-actions">
+        <button type="button" disabled={!api || loading} onClick={() => setReloadToken((value) => value + 1)}>
+          {t("settings.ssh.knownHosts.reload")}
+        </button>
+      </div>
+    </div>
   );
 }
 

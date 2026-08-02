@@ -223,6 +223,14 @@ export interface AuditEvent {
   extra?: Record<string, unknown>;
 }
 
+export interface KnownSshHost {
+  host: string;
+  port: number;
+  algorithm: string;
+  fingerprint: string;
+  rememberedAt: string;
+}
+
 export interface AuditResponse {
   items: AuditEvent[];
   limit: number;

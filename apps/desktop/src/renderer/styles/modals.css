@@ -265,6 +265,84 @@
   min-height: 0;
 }
 
+/* KubeDeck 2.10.0: SSH host key confirmation */
+.ssh-host-key-prompt {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--warning-border, #9a742f);
+  border-radius: 8px;
+  background: var(--warning-bg, #342b1d);
+  color: var(--text);
+}
+
+.ssh-host-key-prompt strong {
+  color: var(--warning-text, #f4cf78);
+  font-size: 13px;
+}
+
+.ssh-host-key-prompt p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.ssh-host-key-prompt dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.ssh-host-key-prompt dt {
+  color: var(--muted);
+}
+
+.ssh-host-key-prompt dd {
+  margin: 0;
+}
+
+.ssh-host-key-fingerprint {
+  overflow-wrap: anywhere;
+  font-family: Consolas, "Cascadia Mono", "Liberation Mono", monospace;
+}
+
+.ssh-host-key-hint {
+  color: var(--muted);
+}
+
+.ssh-host-key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.settings-known-hosts {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.settings-known-hosts th,
+.settings-known-hosts td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border, #233142);
+  text-align: left;
+}
+
+.settings-known-hosts th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.settings-known-hosts-fingerprint {
+  overflow-wrap: anywhere;
+  font-family: Consolas, "Cascadia Mono", "Liberation Mono", monospace;
+}
+
 /* KubeDeck 1.0.4 Patch 5: SSH defaults settings */
 .settings-card {
   border: 1px solid var(--border, #233142);

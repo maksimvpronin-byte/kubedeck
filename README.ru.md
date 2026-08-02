@@ -1,8 +1,8 @@
-# KubeDeck 2.9.3
+# KubeDeck 2.10.0
 
 [English](./README.md) | [Русский](./README.ru.md)
 
-KubeDeck — настольная Kubernetes IDE для Windows и macOS. Она объединяет просмотр ресурсов, диагностику, работу с YAML, логи, терминалы, SSH, проброс портов и необязательный анализ через локальную LLM в одном Electron-приложении.
+KubeDeck — настольная Kubernetes IDE для Windows, macOS и Linux. Она объединяет просмотр ресурсов, диагностику, работу с YAML, логи, терминалы, SSH, проброс портов и необязательный анализ через локальную LLM в одном Electron-приложении.
 
 KubeDeck использует **Node-only runtime внутри Electron**. Приложение не запускает и не включает в сборку Python/FastAPI backend, а также не поставляет встроенный `kubectl`.
 
@@ -29,8 +29,9 @@ KubeDeck использует **Node-only runtime внутри Electron**. Пр�
 |---|---:|---|---|
 | Windows 10/11 | x64 | Portable EXE | Поддерживается |
 | macOS | Apple Silicon (`arm64`) | DMG и ZIP | Поддерживается, сборка не подписана |
+| Linux | x64 | AppImage | Поддерживается, сборка не подписана |
 | macOS Intel | x64 | — | Пока не поддерживается |
-| Linux | — | — | Пока не поддерживается |
+| Linux | arm64 | — | Пока не поддерживается |
 
 ## Архитектура
 
@@ -77,6 +78,15 @@ kubectl version --client
 xcode-select --install
 brew install node@22 kubectl p7zip
 ```
+
+### Linux
+
+- дистрибутив x64 с glibc 2.31 или новее (Ubuntu 20.04 и новее);
+- `kubectl`;
+- FUSE 2 (`libfuse2`) для прямого запуска AppImage. Если в дистрибутиве есть
+  только FUSE 3, установите `libfuse2` либо распакуйте образ командой
+  `./KubeDeck-<версия>-x86_64.AppImage --appimage-extract` и запустите
+  полученный `AppRun`.
 
 ## Быстрый старт
 
@@ -143,7 +153,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.9.3-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.10.0-x64.exe
 ```
 
 ## Сборка для macOS Apple Silicon
@@ -155,11 +165,25 @@ npm run package:mac
 Результаты:
 
 ```text
-apps/desktop/release/KubeDeck-2.9.3-arm64.dmg
-apps/desktop/release/KubeDeck-2.9.3-arm64.zip
+apps/desktop/release/KubeDeck-2.10.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.10.0-arm64.zip
 ```
 
 macOS-сборка не подписана Apple Developer ID и не notarized. При первом запуске используйте Finder → Applications → Control-click по KubeDeck → Open.
+
+## Сборка для Linux x64
+
+```bash
+npm run package:linux
+```
+
+Результат:
+
+```text
+apps/desktop/release/KubeDeck-2.10.0-x86_64.AppImage
+```
+
+Сборщик запускает полный source gate, пересобирает `node-pty` под Electron, создаёт AppImage и проверяет release payload. AppImage не подписан.
 
 ## Решение сетевых проблем
 
@@ -208,16 +232,32 @@ macOS:
 ```text
 ~/Library/Application Support/KubeDeck/
 ├── config.json
+├── hostkeys.json
 ├── kubeconfigs/
 └── logs/
     ├── desktop.log
     └── kubectl.log
 ```
 
+Linux:
+
+```text
+~/.config/KubeDeck/
+├── config.json
+├── hostkeys.json
+├── kubeconfigs/
+└── logs/
+    ├── desktop.log
+    └── kubectl.log
+```
+
+`hostkeys.json` хранит подтверждённые SSH host keys и создаётся с правами `0600`.
+
 ## Безопасность
 
 - Gateway доступен только на `127.0.0.1`;
 - каждый HTTP- и WebSocket-запрос требует session token;
+- SSH host keys проверяются: неизвестный хост требует явного подтверждения, изменившийся ключ отклоняется;
 - Kubernetes Secrets и LLM API key не записываются в логи;
 - опасные операции требуют подтверждения;
 - команды запускаются через массивы аргументов без shell-интерполяции;
@@ -226,6 +266,18 @@ macOS:
 
 ## Документация
 
-- [Release notes 2.9.3](./docs/releases/RELEASE_NOTES_2.9.3.md)
-- [Regression checklist 2.9.3](./docs/releases/REGRESSION_CHECKLIST_2.9.3.md)
+- [Release notes 2.10.0](./docs/releases/RELEASE_NOTES_2.10.0.md)
+- [Regression checklist 2.10.0](./docs/releases/REGRESSION_CHECKLIST_2.10.0.md)
 - [Статус миграции на Node](./NODE_MIGRATION_PROGRESS.md)
+- [Лицензии сторонних компонентов](./docs/third-party-notices.md)
+
+## Лицензия
+
+KubeDeck распространяется по [Apache License, Version 2.0](./LICENSE).
+
+Название «KubeDeck», логотип и иконки приложения лицензией не покрываются и
+остаются собственностью правообладателя. Форки и производные работы должны
+распространяться под другим именем. См. [NOTICE](./NOTICE).
+
+Лицензии сторонних компонентов перечислены в
+[docs/third-party-notices.md](./docs/third-party-notices.md).

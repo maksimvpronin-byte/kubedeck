@@ -6,6 +6,7 @@ export interface AppPaths {
   root: string;
   config: string;
   kubeconfigs: string;
+  knownHosts: string;
   logs: string;
 }
 
@@ -27,6 +28,7 @@ export function ensureAppPaths(rootOverride?: string): AppPaths {
     root,
     config: path.join(root, "config.json"),
     kubeconfigs,
+    knownHosts: path.join(root, "hostkeys.json"),
     logs,
   };
 }

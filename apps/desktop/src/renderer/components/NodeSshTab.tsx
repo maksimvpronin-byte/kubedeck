@@ -9,8 +9,50 @@ import { terminalThemeFromCss } from "../utils/terminalTheme";
 
 type AuthMethod = "agent" | "password" | "privateKey";
 
-type TerminalMessage = { type: string; data?: string };
+type TerminalMessage = { type: string; data?: unknown; code?: string };
 type TerminalSize = { cols: number; rows: number };
+
+interface HostKeyPrompt {
+  role: "target" | "jump";
+  host: string;
+  port: number;
+  algorithm: string;
+  fingerprint: string;
+}
+
+function englishFallback(key: string): string {
+  const strings: Record<string, string> = {
+    "ssh.hostKey.title": "Unknown SSH host key",
+    "ssh.hostKey.intro": "This host has not been used before. Confirm the fingerprint before continuing.",
+    "ssh.hostKey.role.target": "Target host",
+    "ssh.hostKey.role.jump": "Jump host",
+    "ssh.hostKey.host": "Host",
+    "ssh.hostKey.algorithm": "Key type",
+    "ssh.hostKey.fingerprint": "SHA256 fingerprint",
+    "ssh.hostKey.hint": "Compare it with `ssh-keyscan -t <type> <host>` run from a trusted machine. KubeDeck sends no password until you accept.",
+    "ssh.hostKey.trust": "Connect and remember",
+    "ssh.hostKey.cancel": "Cancel",
+    "ssh.hostKey.waiting": "Waiting for host key confirmation",
+    "ssh.hostKey.rejected": "Host key rejected",
+    "ssh.hostKey.mismatch": "Host key mismatch",
+  };
+  return strings[key] ?? key;
+}
+
+function hostKeyPromptFrom(value: unknown): HostKeyPrompt | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const host = String(record.host ?? "");
+  const fingerprint = String(record.fingerprint ?? "");
+  if (!host || !fingerprint) return null;
+  return {
+    role: record.role === "jump" ? "jump" : "target",
+    host,
+    port: Number(record.port) || 22,
+    algorithm: String(record.algorithm ?? "unknown"),
+    fingerprint,
+  };
+}
 
 function normalizeAuthMethod(value: unknown): AuthMethod {
   return value === "password" || value === "privateKey" ? value : "agent";
@@ -28,9 +70,14 @@ interface NodeSshTabProps {
   node: ResourceRow;
   settings?: Settings;
   active?: boolean;
+  t?: (key: string) => string;
 }
 
-export function NodeSshTab({ api, clusterId, node, settings, active = true }: NodeSshTabProps) {
+export function NodeSshTab({ api, clusterId, node, settings, active = true, t }: NodeSshTabProps) {
+  const label = (key: string) => {
+    const translated = t?.(key);
+    return !translated || translated === key ? englishFallback(key) : translated;
+  };
   const defaultHost = String(node.internalIp || node.internalIP || node.hostIP || node.hostname || node.name || "");
   const sshSettings = useMemo(() => resolveSshDefaults(settings), [settings]);
   const [host, setHost] = useState(defaultHost);
@@ -51,6 +98,7 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true }: No
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [status, setStatus] = useState("Disconnected");
+  const [hostKeyPrompt, setHostKeyPrompt] = useState<HostKeyPrompt | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -200,10 +248,19 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true }: No
     socket.onmessage = (event) => {
       if (socketRef.current !== socket) return;
       const message = parseTerminalMessage(event.data);
-      if (message.type === "output") terminal.write(message.data || "");
+      const text = typeof message.data === "string" ? message.data : "";
+      if (message.type === "output") terminal.write(text);
+      if (message.type === "host-key-request") {
+        const prompt = hostKeyPromptFrom(message.data);
+        if (!prompt) return;
+        setHostKeyPrompt(prompt);
+        setStatus(label("ssh.hostKey.waiting"));
+        terminal.writeln(`\r\n${label("ssh.hostKey.title")}: ${prompt.host}:${prompt.port} ${prompt.algorithm} ${prompt.fingerprint}`);
+        return;
+      }
       if (message.type === "status") {
-        setStatus(message.data || "Connected");
-        if ((message.data || "").toLowerCase() === "connected") {
+        setStatus(text || "Connected");
+        if (text.toLowerCase() === "connected") {
           setConnected(true);
           setConnecting(false);
           terminal.focus();
@@ -211,9 +268,10 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true }: No
         }
       }
       if (message.type === "error") {
-        setStatus("Error");
+        setHostKeyPrompt(null);
+        setStatus(message.code === "SSH_HOST_KEY_MISMATCH" ? label("ssh.hostKey.mismatch") : "Error");
         setConnecting(false);
-        terminal.writeln(`\r\n${message.data || "SSH error"}`);
+        terminal.writeln(`\r\n${text || "SSH error"}`);
       }
     };
     socket.onclose = () => {
@@ -221,6 +279,7 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true }: No
       socketRef.current = null;
       setConnected(false);
       setConnecting(false);
+      setHostKeyPrompt(null);
       setStatus("Disconnected");
       terminal.writeln("\r\n[session closed]");
     };
@@ -231,9 +290,46 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true }: No
     };
   }
 
+  function respondToHostKey(decision: "trust" | "reject") {
+    const socket = socketRef.current;
+    setHostKeyPrompt(null);
+    // Resizes sent while the prompt was open were ignored by the Gateway, so the
+    // remembered size is stale and the real one must be reported once connected.
+    lastResizeRef.current = null;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "host-key-decision", decision }));
+    }
+    if (decision === "reject") setStatus(label("ssh.hostKey.rejected"));
+  }
+
   const terminalBusy = connected || connecting;
   return (
     <div className={`node-ssh-tab ${terminalBusy ? "is-session-active" : "is-configuring"}`}>
+      {hostKeyPrompt ? (
+        <div className="ssh-host-key-prompt" role="alertdialog" aria-label={label("ssh.hostKey.title")}>
+          <strong>{label("ssh.hostKey.title")}</strong>
+          <p>{label("ssh.hostKey.intro")}</p>
+          <dl>
+            <dt>{label(hostKeyPrompt.role === "jump" ? "ssh.hostKey.role.jump" : "ssh.hostKey.role.target")}</dt>
+            <dd>
+              {hostKeyPrompt.host}:{hostKeyPrompt.port}
+            </dd>
+            <dt>{label("ssh.hostKey.algorithm")}</dt>
+            <dd>{hostKeyPrompt.algorithm}</dd>
+            <dt>{label("ssh.hostKey.fingerprint")}</dt>
+            <dd className="ssh-host-key-fingerprint">{hostKeyPrompt.fingerprint}</dd>
+          </dl>
+          <p className="ssh-host-key-hint">{label("ssh.hostKey.hint")}</p>
+          <div className="ssh-host-key-actions">
+            <button className="primary" type="button" onClick={() => respondToHostKey("trust")}>
+              {label("ssh.hostKey.trust")}
+            </button>
+            <button type="button" onClick={() => respondToHostKey("reject")}>
+              {label("ssh.hostKey.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {!terminalBusy ? (
         <div className="node-ssh-config">
           <div className="node-ssh-grid">
@@ -353,7 +449,7 @@ function parseTerminalMessage(value: unknown): TerminalMessage {
   if (typeof value !== "string") return { type: "output", data: "" };
   try {
     const parsed = JSON.parse(value) as TerminalMessage;
-    return { type: parsed.type || "output", data: parsed.data || "" };
+    return { type: parsed.type || "output", data: parsed.data ?? "", code: typeof parsed.code === "string" ? parsed.code : undefined };
   } catch {
     return { type: "output", data: value };
   }

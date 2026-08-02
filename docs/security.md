@@ -2,6 +2,14 @@
 
 Документ описывает актуальную модель безопасности Node-only runtime KubeDeck 2.x.
 
+## Известные ограничения
+
+- LLM API key хранится в `config.json` открытым текстом и без ограничения прав
+  файла. Перевод его на Electron `safeStorage` запланирован отдельной задачей и
+  в 2.10.0 не входит.
+- Release-сборки Windows, macOS и Linux не подписаны; macOS дополнительно не
+  notarized.
+
 ## Trust boundaries
 
 - Electron main process и встроенный Node Gateway считаются privileged runtime.
@@ -34,6 +42,7 @@ IPC handlers обязаны валидировать enum-like arguments, Kubern
 ## Local data
 
 - Импортированные kubeconfig копируются в app-data `kubeconfigs/`.
+- Подтверждённые SSH host key fingerprints хранятся в `hostkeys.json` с правами `0600`.
 - Config хранит пути и настройки, но не должен попадать в diagnostic clipboard целиком.
 - Resource cache, decoded Secrets и session state не сохраняются на диск.
 - Secret audit содержит только metadata и никогда не содержит decoded value.
@@ -57,6 +66,40 @@ Redaction является дополнительной защитой, а не 
 - Cache инвалидируется после успешных mutations.
 
 Command preview не должен раскрывать kubeconfig path или credentials.
+
+## SSH host keys
+
+Node SSH проверяет host key целевого хоста и jump host. Проверка выполняется в
+`hostVerifier` во время key exchange, то есть **до** user authentication:
+пароль, passphrase и подпись агента не покидают процесс, пока ключ не принят.
+
+Модель доверия — TOFU с явным подтверждением:
+
+- известный и совпавший fingerprint — подключение без вопросов;
+- неизвестный хост — сессия останавливается, renderer получает
+  `host-key-request` с host, port, алгоритмом и SHA256-fingerprint и ждёт
+  `host-key-decision`; отказ, закрытие сокета и таймаут 120 секунд завершают
+  попытку;
+- изменившийся ключ отклоняется безусловно, диалог подтверждения в этом случае
+  не показывается; снять доверие можно только явным удалением записи в Settings.
+
+Jump host и target проверяются независимо: доверие к одному не распространяется
+на другой.
+
+Подтверждённые fingerprint хранятся в `hostkeys.json` внутри app-data. Файл
+пишется атомарно (временный файл и `rename`) с правами `0600` в каталоге `0700`.
+Повреждённый или отсутствующий store считается пустым: все хосты снова требуют
+подтверждения и ни один не получает доверие молча.
+
+Fingerprint публичного ключа не является секретом — это именно то значение,
+которое пользователь сверяет с `ssh-keyscan`, — поэтому он попадает в audit
+вместе с host, port и алгоритмом. Пароли, passphrase и содержимое приватных
+ключей в audit и логи по-прежнему не записываются.
+
+HTTP-контракт управления доверием намеренно неполный: `GET /ssh/known-hosts`
+перечисляет записи, `DELETE /ssh/known-hosts` удаляет одну. Маршрута, который
+добавляет host key, не существует — доверие выдаётся только через подтверждение
+в интерактивной сессии.
 
 ## Long-running sessions
 

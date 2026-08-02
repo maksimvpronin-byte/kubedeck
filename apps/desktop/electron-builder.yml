@@ -43,3 +43,18 @@ mac:
 
 dmg:
   artifactName: ${productName}-${version}-${arch}.${ext}
+
+linux:
+  icon: assets/icon-512.png
+  category: Development
+  synopsis: Desktop Kubernetes IDE
+  desktop:
+    entry:
+      Keywords: kubernetes;kubectl;cluster;devops;
+  target:
+    - target: AppImage
+      arch:
+        - x64
+
+appImage:
+  artifactName: ${productName}-${version}-${arch}.${ext}

@@ -2,6 +2,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 exports.default = async function afterPack(context) {
+  // Only macOS keeps the unpacked helper inside a .app bundle. Windows and Linux
+  // builds have nothing to repair here, so they must not build a bogus path.
+  if (context.electronPlatformName !== "darwin") return;
+
   const resourcesDir = context.appOutDir
     ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, "Contents", "Resources")
     : "";

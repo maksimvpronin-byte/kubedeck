@@ -146,7 +146,21 @@
   color: var(--primary);
 }
 
-.terminal-toolbar button {
+/* The host key confirmation lives inside the Terminal Workspace and reuses the
+   same action tokens, so its buttons stay identical to the toolbar ones. */
+.ssh-host-key-actions {
+  --kd-action-bg: var(--button-bg);
+  --kd-action-bg-hover: var(--surface-hover);
+  --kd-action-border: var(--border-strong);
+  --kd-action-border-hover: var(--primary-border);
+  --kd-action-text: var(--text);
+  --kd-action-primary-bg: var(--primary);
+  --kd-action-primary-border: var(--primary-border);
+  --kd-action-primary-hover: var(--primary-hover);
+}
+
+.terminal-toolbar button,
+.ssh-host-key-actions button {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -184,25 +198,29 @@
   to { transform: rotate(360deg); }
 }
 
-.terminal-toolbar button:hover:not(:disabled) {
+.terminal-toolbar button:hover:not(:disabled),
+.ssh-host-key-actions button:hover:not(:disabled) {
   border-color: var(--kd-action-border-hover) !important;
   background: var(--kd-action-bg-hover) !important;
   color: var(--text-strong) !important;
 }
 
-.terminal-toolbar button.primary {
+.terminal-toolbar button.primary,
+.ssh-host-key-actions button.primary {
   border-color: var(--kd-action-primary-border) !important;
   background: var(--kd-action-primary-bg) !important;
   color: var(--text-inverse) !important;
 }
 
-.terminal-toolbar button.primary:hover:not(:disabled) {
+.terminal-toolbar button.primary:hover:not(:disabled),
+.ssh-host-key-actions button.primary:hover:not(:disabled) {
   border-color: var(--kd-action-primary-border) !important;
   background: var(--kd-action-primary-hover) !important;
   color: var(--text-inverse) !important;
 }
 
-.terminal-toolbar button:disabled {
+.terminal-toolbar button:disabled,
+.ssh-host-key-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
 }

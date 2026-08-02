@@ -1,14 +1,14 @@
 # KubeDeck 2.0 — миграция backend на Node завершена
 
-Дата обновления: 2026-07-31
+Дата обновления: 2026-08-02
 Ветка: `main`
-Текущая проверяемая версия: `2.9.3`
+Текущая проверяемая версия: `2.10.0`
 
 ## Итог
 
 Все существующие backend-контракты перенесены из Python/FastAPI в Node.js внутри Electron main process.
 
-- Node routes: **52**.
+- Node routes: **54**.
 - Python routes: **0**.
 - Runtime mode: **node-only**.
 - Legacy HTTP/WebSocket proxy: удалён.

@@ -4,19 +4,21 @@ import type { IncomingMessage } from "node:http";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { Duplex } from "node:stream";
-import { Client, type ConnectConfig } from "ssh2";
+import { Client, type ConnectConfig, type HostVerifier } from "ssh2";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
 import type { AuditStore } from "../audit/auditStore";
 import { writePolicyViolation } from "../auth";
 import { RequestValidationError, validateIdentifier } from "../validation";
 import { clampInteger, rawDataByteLength, rawDataText, safeSend } from "../webSocketMessages";
+import { sshKeyAlgorithm, sshSha256Fingerprint, type SshHostKeyStore } from "./sshHostKeyStore";
 
 const MAX_CLIENT_MESSAGE_BYTES = 256 * 1024;
 const MAX_SECRET_BYTES = 128 * 1024;
 const MAX_PRIVATE_KEY_BYTES = 2 * 1024 * 1024;
 const FIRST_MESSAGE_TIMEOUT_MS = 90_000;
 const CONNECT_TIMEOUT_MS = 20_000;
+const HOST_KEY_DECISION_TIMEOUT_MS = 120_000;
 const DEFAULT_ROWS = 30;
 const DEFAULT_COLS = 100;
 const MIN_ROWS = 8;
@@ -25,6 +27,28 @@ const MIN_COLS = 20;
 const MAX_COLS = 500;
 
 type SshAuthMethod = "password" | "privateKey" | "agent";
+
+export type SshHostKeyRole = "target" | "jump";
+
+/**
+ * Raised when a connection is refused because of the host key. It is kept
+ * separate from generic SSH errors so the renderer can tell "the server is not
+ * who it claims to be" apart from "the password was wrong".
+ */
+export class SshHostKeyError extends Error {
+  constructor(
+    readonly code: "SSH_HOST_KEY_MISMATCH" | "SSH_HOST_KEY_REJECTED" | "SSH_HOST_KEY_TIMEOUT",
+    message: string,
+  ) {
+    super(message);
+    this.name = "SshHostKeyError";
+  }
+}
+
+interface HostKeyVerification {
+  verifier: HostVerifier;
+  failure: () => SshHostKeyError | null;
+}
 
 type SshWindow = {
   term: string;
@@ -100,6 +124,7 @@ interface NodeSshWebSocketOptions {
   clientFactory?: SshClientFactory;
   firstMessageTimeoutMs?: number;
   connectTimeoutMs?: number;
+  hostKeyDecisionTimeoutMs?: number;
 }
 
 function decodePart(value: string, field: string): string {
@@ -295,6 +320,10 @@ function connectConfig(connection: NormalizedConnection, connectTimeoutMs: numbe
   return config;
 }
 
+function withHostVerifier(config: ConnectConfig, verification: HostKeyVerification): ConnectConfig {
+  return { ...config, hostVerifier: verification.verifier };
+}
+
 function redactError(error: unknown, secrets: string[]): string {
   let text = error instanceof Error ? error.message : String(error);
   for (const secret of secrets) {
@@ -338,16 +367,19 @@ export class NodeSshWebSocketServer {
   private readonly clientFactory: SshClientFactory;
   private readonly firstMessageTimeoutMs: number;
   private readonly connectTimeoutMs: number;
+  private readonly hostKeyDecisionTimeoutMs: number;
   private closed = false;
 
   constructor(
     private readonly auditStore: AuditStore,
+    private readonly hostKeys: SshHostKeyStore,
     private readonly log: (message: string) => void,
     options: NodeSshWebSocketOptions = {},
   ) {
     this.clientFactory = options.clientFactory ?? (() => new Client() as unknown as SshClientLike);
     this.firstMessageTimeoutMs = options.firstMessageTimeoutMs ?? FIRST_MESSAGE_TIMEOUT_MS;
     this.connectTimeoutMs = options.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
+    this.hostKeyDecisionTimeoutMs = options.hostKeyDecisionTimeoutMs ?? HOST_KEY_DECISION_TIMEOUT_MS;
   }
 
   handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): boolean {
@@ -467,10 +499,16 @@ export class NodeSshWebSocketServer {
       let jumpClient: SshClientLike | null = null;
       let tunnel: Duplex | undefined;
       if (payload.jump) {
-        jumpClient = await this.connectClient(connectConfig(payload.jump, this.connectTimeoutMs), session);
+        const jumpVerification = this.hostKeyVerification(session, payload.jump, "jump");
+        jumpClient = await this.connectClient(withHostVerifier(connectConfig(payload.jump, this.connectTimeoutMs), jumpVerification), session, jumpVerification);
         tunnel = await this.forwardOut(jumpClient, payload.target.host, payload.target.port);
       }
-      const targetClient = await this.connectClient(connectConfig(payload.target, this.connectTimeoutMs, tunnel), session);
+      const targetVerification = this.hostKeyVerification(session, payload.target, "target");
+      const targetClient = await this.connectClient(
+        withHostVerifier(connectConfig(payload.target, this.connectTimeoutMs, tunnel), targetVerification),
+        session,
+        targetVerification,
+      );
       const channel = await this.openShell(targetClient, payload.cols, payload.rows);
       session.channel = channel;
       session.opened = true;
@@ -497,7 +535,7 @@ export class NodeSshWebSocketServer {
     } catch (error) {
       const secrets = payload ? [payload.target.password, payload.target.keyPassphrase, payload.jump?.password ?? "", payload.jump?.keyPassphrase ?? ""] : [];
       const message = redactError(error, secrets);
-      safeSend(socket, { type: "error", data: message });
+      safeSend(socket, { type: "error", data: message, ...(error instanceof SshHostKeyError ? { code: error.code } : {}) });
       this.auditStore.append({
         action: "node.ssh",
         status: "failed",
@@ -546,7 +584,123 @@ export class NodeSshWebSocketServer {
     });
   }
 
-  private connectClient(config: ConnectConfig, session: SshSession): Promise<SshClientLike> {
+  /**
+   * Builds the `hostVerifier` passed to ssh2. It runs during the key exchange,
+   * before any authentication, so a rejected host key means the password,
+   * passphrase or agent signature is never offered to the server.
+   */
+  private hostKeyVerification(session: SshSession, connection: NormalizedConnection, role: SshHostKeyRole): HostKeyVerification {
+    let failure: SshHostKeyError | null = null;
+    return {
+      failure: () => failure,
+      verifier: (key, verify) => {
+        void this.decideHostKey(session, connection, role, key).then(
+          () => verify(true),
+          (error: unknown) => {
+            failure = error instanceof SshHostKeyError ? error : new SshHostKeyError("SSH_HOST_KEY_REJECTED", redactError(error, []));
+            verify(false);
+          },
+        );
+      },
+    };
+  }
+
+  private async decideHostKey(session: SshSession, connection: NormalizedConnection, role: SshHostKeyRole, key: Buffer): Promise<void> {
+    const fingerprint = sshSha256Fingerprint(key);
+    const algorithm = sshKeyAlgorithm(key);
+    const known = this.hostKeys.lookup(connection.host, connection.port);
+
+    if (known && known.fingerprint === fingerprint) return;
+
+    if (known) {
+      this.auditHostKey(session, "host-key-mismatch", connection, role, algorithm, fingerprint);
+      this.log(`node ssh host key mismatch host=${connection.host}:${connection.port} role=${role}`);
+      throw new SshHostKeyError(
+        "SSH_HOST_KEY_MISMATCH",
+        `Host key for ${connection.host}:${connection.port} has changed. Remembered ${known.fingerprint}, received ${fingerprint}. Remove the remembered key in Settings if this change is expected.`,
+      );
+    }
+
+    safeSend(session.socket, { type: "host-key-request", data: { role, host: connection.host, port: connection.port, algorithm, fingerprint } });
+
+    if ((await this.waitForHostKeyDecision(session.socket)) !== "trust") {
+      throw new SshHostKeyError("SSH_HOST_KEY_REJECTED", `Host key for ${connection.host}:${connection.port} was not accepted`);
+    }
+
+    this.hostKeys.remember(connection.host, connection.port, fingerprint, algorithm);
+    this.auditHostKey(session, "host-key-trusted", connection, role, algorithm, fingerprint);
+    this.log(`node ssh host key trusted host=${connection.host}:${connection.port} role=${role}`);
+  }
+
+  private auditHostKey(session: SshSession, status: string, connection: NormalizedConnection, role: SshHostKeyRole, algorithm: string, fingerprint: string): void {
+    this.auditStore.append({
+      action: "node.ssh",
+      status,
+      clusterId: session.target.clusterId,
+      namespace: "_cluster",
+      resource: "nodes",
+      name: session.target.name,
+      commandPreview: session.commandPreview,
+      // A public key fingerprint is not a secret: it is what the user compares
+      // against `ssh-keyscan` output. Passwords and passphrases never appear here.
+      extra: { role, host: connection.host, port: connection.port, algorithm, fingerprint },
+    });
+  }
+
+  private waitForHostKeyDecision(socket: WebSocket): Promise<"trust" | "reject"> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new SshHostKeyError("SSH_HOST_KEY_TIMEOUT", "Timed out waiting for the SSH host key decision"));
+      }, this.hostKeyDecisionTimeoutMs);
+      const onMessage = (data: RawData) => {
+        if (rawDataByteLength(data) > MAX_CLIENT_MESSAGE_BYTES) {
+          cleanup();
+          reject(new SshHostKeyError("SSH_HOST_KEY_REJECTED", "SSH host key decision message is too large"));
+          return;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(rawDataText(data));
+        } catch {
+          parsed = null;
+        }
+        const message = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+        if (message?.type === "close") {
+          cleanup();
+          reject(new SshHostKeyError("SSH_HOST_KEY_REJECTED", "SSH session was closed before the host key decision"));
+          return;
+        }
+        if (message?.type !== "host-key-decision") {
+          // The renderer keeps sending terminal traffic while the dialog is open:
+          // xterm reports a resize as soon as the prompt changes the layout. Such
+          // messages are ignored, never applied, and the timeout stays the bound.
+          return;
+        }
+        cleanup();
+        resolve(message.decision === "trust" ? "trust" : "reject");
+      };
+      const onClose = () => {
+        cleanup();
+        reject(new SshHostKeyError("SSH_HOST_KEY_REJECTED", "SSH websocket closed before the host key decision"));
+      };
+      const onError = () => {
+        cleanup();
+        reject(new SshHostKeyError("SSH_HOST_KEY_REJECTED", "SSH websocket failed before the host key decision"));
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        socket.off("message", onMessage);
+        socket.off("close", onClose);
+        socket.off("error", onError);
+      };
+      socket.on("message", onMessage);
+      socket.once("close", onClose);
+      socket.once("error", onError);
+    });
+  }
+
+  private connectClient(config: ConnectConfig, session: SshSession, verification?: HostKeyVerification): Promise<SshClientLike> {
     return new Promise((resolve, reject) => {
       const client = this.clientFactory();
       session.clients.add(client);
@@ -578,7 +732,10 @@ export class NodeSshWebSocketServer {
         if (settled) return;
         settled = true;
         cleanup();
-        reject(error instanceof Error ? error : new Error(String(error)));
+        // A host key rejection surfaces from ssh2 as a generic handshake error,
+        // so the specific reason recorded by the verifier wins.
+        const hostKeyFailure = verification?.failure() ?? null;
+        reject(hostKeyFailure ?? (error instanceof Error ? error : new Error(String(error))));
       };
       const closed = () => fail(new Error("SSH connection closed before ready"));
       client.once("ready", ready);

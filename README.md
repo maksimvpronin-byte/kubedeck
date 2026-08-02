@@ -1,8 +1,8 @@
-# KubeDeck 2.9.3
+# KubeDeck 2.10.0
 
 [English](./README.md) | [Русский](./README.ru.md)
 
-KubeDeck is a desktop Kubernetes IDE for Windows and macOS. It combines resource browsing, diagnostics, YAML workflows, logs, terminals, SSH, port forwarding, and optional local LLM analysis in one Electron application.
+KubeDeck is a desktop Kubernetes IDE for Windows, macOS and Linux. It combines resource browsing, diagnostics, YAML workflows, logs, terminals, SSH, port forwarding, and optional local LLM analysis in one Electron application.
 
 KubeDeck uses a **Node-only runtime inside Electron**. It does not start or package a Python/FastAPI backend, and it does not bundle `kubectl`.
 
@@ -29,8 +29,9 @@ KubeDeck uses a **Node-only runtime inside Electron**. It does not start or pack
 |---|---:|---|---|
 | Windows 10/11 | x64 | Portable EXE | Supported |
 | macOS | Apple Silicon (`arm64`) | DMG and ZIP | Supported, unsigned |
+| Linux | x64 | AppImage | Supported, unsigned |
 | macOS Intel | x64 | — | Not supported yet |
-| Linux | — | — | Not supported yet |
+| Linux | arm64 | — | Not supported yet |
 
 ## Architecture
 
@@ -77,6 +78,15 @@ kubectl version --client
 xcode-select --install
 brew install node@22 kubectl p7zip
 ```
+
+### Linux
+
+- x64 distribution with glibc 2.31 or newer (Ubuntu 20.04 and later);
+- `kubectl`;
+- FUSE 2 (`libfuse2`) to run the AppImage directly. Distributions that ship only
+  FUSE 3 can either install `libfuse2` or run
+  `./KubeDeck-<version>-x86_64.AppImage --appimage-extract` and start the
+  extracted `AppRun`.
 
 ## Getting started
 
@@ -143,7 +153,7 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.9.3-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.10.0-x64.exe
 ```
 
 ## macOS Apple Silicon build
@@ -155,11 +165,25 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.9.3-arm64.dmg
-apps/desktop/release/KubeDeck-2.9.3-arm64.zip
+apps/desktop/release/KubeDeck-2.10.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.10.0-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
+
+## Linux x64 build
+
+```bash
+npm run package:linux
+```
+
+Output:
+
+```text
+apps/desktop/release/KubeDeck-2.10.0-x86_64.AppImage
+```
+
+The builder runs the full source gate, rebuilds `node-pty` for Electron, produces the AppImage, and validates the release payload. The AppImage is not signed.
 
 ## Network troubleshooting
 
@@ -208,16 +232,32 @@ macOS:
 ```text
 ~/Library/Application Support/KubeDeck/
 ├── config.json
+├── hostkeys.json
 ├── kubeconfigs/
 └── logs/
     ├── desktop.log
     └── kubectl.log
 ```
 
+Linux:
+
+```text
+~/.config/KubeDeck/
+├── config.json
+├── hostkeys.json
+├── kubeconfigs/
+└── logs/
+    ├── desktop.log
+    └── kubectl.log
+```
+
+`hostkeys.json` holds the SSH host keys you confirmed. It is created with `0600` permissions.
+
 ## Security
 
 - the Gateway is bound only to `127.0.0.1`;
 - every HTTP and WebSocket request requires a session token;
+- SSH host keys are verified: an unknown host requires explicit confirmation, and a changed key is refused;
 - Kubernetes Secrets and the LLM API key are not logged;
 - destructive operations require confirmation;
 - commands are spawned with argument arrays instead of shell interpolation;
@@ -226,6 +266,18 @@ macOS:
 
 ## Documentation
 
-- [Release notes 2.9.3](./docs/releases/RELEASE_NOTES_2.9.3.md)
-- [Regression checklist 2.9.3](./docs/releases/REGRESSION_CHECKLIST_2.9.3.md)
+- [Release notes 2.10.0](./docs/releases/RELEASE_NOTES_2.10.0.md)
+- [Regression checklist 2.10.0](./docs/releases/REGRESSION_CHECKLIST_2.10.0.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)
+- [Third-party notices](./docs/third-party-notices.md)
+
+## License
+
+KubeDeck is licensed under the [Apache License, Version 2.0](./LICENSE).
+
+The name "KubeDeck", the logo and the application icons are not covered by the
+license and remain the property of the copyright holder. Forks and derivative
+works must be distributed under a different name. See [NOTICE](./NOTICE).
+
+Licenses of bundled third-party components are listed in
+[docs/third-party-notices.md](./docs/third-party-notices.md).

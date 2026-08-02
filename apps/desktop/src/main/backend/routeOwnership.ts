@@ -17,6 +17,8 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "POST", path: "/clusters/{cluster_id}/open", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3", sourceModule: "routes_clusters.py" },
   { method: "GET", path: "/clusters/{cluster_id}/namespaces", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.3", migratedIn: "2.0.0-alpha.3", sourceModule: "routes_clusters.py" },
   { method: "GET", path: "/audit", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.2", migratedIn: "2.0.0-alpha.2", sourceModule: "routes_audit.py" },
+  { method: "GET", path: "/ssh/known-hosts", transport: "http", owner: "node", targetRelease: "2.10.0", migratedIn: "2.10.0", sourceModule: "routes/sshHostKeys.ts" },
+  { method: "DELETE", path: "/ssh/known-hosts", transport: "http", owner: "node", targetRelease: "2.10.0", migratedIn: "2.10.0", sourceModule: "routes/sshHostKeys.ts" },
   { method: "GET", path: "/llm/status", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },
   { method: "POST", path: "/llm/test", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },
   { method: "POST", path: "/llm/preview-resource-prompt", transport: "http", owner: "node", targetRelease: "2.0.6", migratedIn: "2.0.0-alpha.13", sourceModule: "routes_llm.py" },

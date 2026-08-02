@@ -62,6 +62,7 @@ export interface GatewayOptions {
   spawnKubectl?: SpawnProcess;
   terminalPtyFactory?: TerminalPtyFactory | null;
   sshClientFactory?: SshClientFactory;
+  sshHostKeyDecisionTimeoutMs?: number;
 }
 
 export interface GatewayHandle {

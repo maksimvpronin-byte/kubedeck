@@ -1,4 +1,4 @@
-import type { AppConfig, AuditResponse, BackendInfo, Cluster, ClusterOverviewResponse, CommandResult, ErrorInfo, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent, LlmAnalyzeResourceRequest, LlmAnalyzeResourceResponse, LlmPromptPreviewResponse, LlmStatus, LlmTestResponse } from "./types";
+import type { AppConfig, AuditResponse, BackendInfo, Cluster, ClusterOverviewResponse, CommandResult, ErrorInfo, KnownSshHost, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent, LlmAnalyzeResourceRequest, LlmAnalyzeResourceResponse, LlmPromptPreviewResponse, LlmStatus, LlmTestResponse } from "./types";
 
 export class ApiError extends Error {
   info: ErrorInfo;
@@ -191,6 +191,14 @@ export class ApiClient {
 
   audit(limit = 200, signal?: AbortSignal) {
     return this.request<AuditResponse>(`/audit?limit=${encodeURIComponent(String(limit))}`, { signal });
+  }
+
+  knownSshHosts(signal?: AbortSignal) {
+    return this.request<{ items: KnownSshHost[] }>("/ssh/known-hosts", { signal });
+  }
+
+  forgetKnownSshHost(host: string, port: number) {
+    return this.request<{ removed: boolean }>("/ssh/known-hosts", { method: "DELETE", body: JSON.stringify({ host, port }) });
   }
 
   search(clusterId: string, query: string, namespace = "all", limit = 120, includeCrdInstances = true, signal?: AbortSignal) {

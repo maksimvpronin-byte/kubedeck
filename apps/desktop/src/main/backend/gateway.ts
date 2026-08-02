@@ -17,6 +17,7 @@ import { WatchManager } from "./watch/watchManager";
 import { PortForwardManager } from "./portForward/portForwardManager";
 import { PodTerminalWebSocketServer } from "./terminal/podTerminalWebSocket";
 import { NodeSshWebSocketServer } from "./ssh/nodeSshWebSocket";
+import { SshHostKeyStore } from "./ssh/sshHostKeyStore";
 import { ConfigStore } from "./config/configStore";
 import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
@@ -54,6 +55,7 @@ import { handleOverviewRequest } from "./routes/overview";
 import { handleSearchRequest } from "./routes/search";
 import { handleRelatedResourcesRequest } from "./routes/relatedResources";
 import { handleLlmRequest } from "./routes/llm";
+import { handleSshHostKeyRequest } from "./routes/sshHostKeys";
 import type { GatewayHandle, GatewayOptions } from "./types";
 
 const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
@@ -68,6 +70,7 @@ configStore: ConfigStore;
   portForwardManager: PortForwardManager;
   terminalWebSocket: PodTerminalWebSocketServer;
   sshWebSocket: NodeSshWebSocketServer;
+  sshHostKeys: SshHostKeyStore;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -181,6 +184,10 @@ function handleRequest(
 
   if (request.method === "GET" && pathname === "/audit") {
     writeAudit(request.url, response, services.auditStore);
+    return;
+  }
+
+  if (handleSshHostKeyRequest(request, response, pathname, services.sshHostKeys, services.auditStore, options.log)) {
     return;
   }
 
@@ -578,8 +585,10 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
       ptyFactory: options.terminalPtyFactory,
     },
   );
-  const sshWebSocket = new NodeSshWebSocketServer(auditStore, options.log, {
+  const sshHostKeys = new SshHostKeyStore(configStore.paths.knownHosts);
+  const sshWebSocket = new NodeSshWebSocketServer(auditStore, sshHostKeys, options.log, {
     clientFactory: options.sshClientFactory,
+    hostKeyDecisionTimeoutMs: options.sshHostKeyDecisionTimeoutMs,
   });
   const services: GatewayServices = {
     configStore,
@@ -590,6 +599,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     portForwardManager,
     terminalWebSocket,
     sshWebSocket,
+    sshHostKeys,
   };
 
   const sockets = new Set<Socket>();

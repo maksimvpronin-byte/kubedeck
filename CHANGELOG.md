@@ -1,3 +1,15 @@
+## 2.10.0 - Apache-2.0 license, SSH host key verification and Linux builds
+
+- Published KubeDeck under the Apache License 2.0 with a NOTICE that reserves the KubeDeck name and icons, and added a third-party notices document covering every redistributed component.
+- Verified SSH host keys for Node SSH: an unknown host now shows its algorithm and SHA256 fingerprint and requires explicit confirmation before any password, passphrase or agent signature is offered to the server.
+- Refused connections to a host whose remembered key changed, without offering to trust the new one; the remembered key can only be removed explicitly in Settings.
+- Verified the jump host independently of the target host, so trusting one grants nothing to the other.
+- Added a Settings section listing remembered SSH host keys with their algorithm, fingerprint and confirmation date, plus per-entry removal.
+- Stored confirmed fingerprints in `hostkeys.json` inside the application data directory, written atomically with `0600` permissions.
+- Added Linux x64 AppImage packaging with `npm run package:linux`, a Linux release payload gate and Linux application data paths.
+- Restricted the packaging `afterPack` hook to macOS so Windows and Linux builds no longer run a macOS-only path repair.
+- Added Gateway routes `GET` and `DELETE /ssh/known-hosts`; Node route ownership moved from 52 to 54.
+
 ## 2.9.3 - Steel Graphite and packaged UI fixes
 
 - Added the Steel Graphite theme with neutral charcoal surfaces, cool blue interaction states, accessible status colors and a matching terminal ANSI palette.
