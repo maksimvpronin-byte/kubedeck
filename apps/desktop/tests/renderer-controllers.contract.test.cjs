@@ -900,6 +900,16 @@ test("resource table offers a 2000 row page without changing its default", () =>
   assert.match(state, /visibleRows\.slice\(pageStart, pageStart \+ pageSize\)/);
 });
 
+test("resource table selection pruning and derived row lists avoid O(n^2) and re-render churn", () => {
+  const state = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
+  assert.doesNotMatch(state, /\.filter\(\(key\) => new Set\(rows\.map\(rowKey\)\)\.has\(key\)\)/, "rows.map(rowKey) must not be rebuilt inside the per-key filter callback");
+  assert.match(state, /const rowKeys = new Set\(rows\.map\(rowKey\)\);/);
+  assert.match(state, /setSelected\(\(current\) => new Set\(Array\.from\(current\)\.filter\(\(key\) => rowKeys\.has\(key\)\)\)\);/);
+  assert.match(state, /const renderedRows = useMemo\(\(\) => visibleRows\.slice\(pageStart, pageStart \+ pageSize\), \[visibleRows, pageStart, pageSize\]\);/);
+  assert.match(state, /const selectedRows = useMemo\(\(\) => visibleRows\.filter\(\(row\) => selected\.has\(rowKey\(row\)\)\), \[visibleRows, selected\]\);/);
+  assert.match(state, /const selectedPageRows = useMemo\(\(\) => renderedRows\.filter\(\(row\) => selected\.has\(rowKey\(row\)\)\), \[renderedRows, selected\]\);/);
+});
+
 test("workspace resource tabs add, deduplicate, limit, and close deterministically", () => {
   const model = loadTypeScript("utils/workspaceTabs.ts");
   const make = (name) => ({ id: name, clusterId: "c", clusterName: "C", section: "workloads", resource: "pods", namespace: "default", row: { uid: name, name }, drawerTab: "summary" });

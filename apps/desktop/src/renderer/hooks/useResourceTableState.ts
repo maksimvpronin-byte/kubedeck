@@ -161,7 +161,10 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     }, 250);
     return () => window.clearTimeout(timer);
   }, [columnWidths, columnOrder, hiddenColumns, columns, stateKey]);
-  useEffect(() => setSelected((current) => new Set(Array.from(current).filter((key) => new Set(rows.map(rowKey)).has(key)))), [rows]);
+  useEffect(() => {
+    const rowKeys = new Set(rows.map(rowKey));
+    setSelected((current) => new Set(Array.from(current).filter((key) => rowKeys.has(key))));
+  }, [rows]);
 
   const visibleRows = useMemo(() => {
     const lower = query.trim().toLowerCase();
@@ -190,9 +193,9 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
   const totalPages = Math.max(1, Math.ceil(visibleRows.length / pageSize));
   const safePageIndex = Math.min(pageIndex, totalPages - 1);
   const pageStart = safePageIndex * pageSize;
-  const renderedRows = visibleRows.slice(pageStart, pageStart + pageSize);
-  const selectedRows = visibleRows.filter((row) => selected.has(rowKey(row)));
-  const selectedPageRows = renderedRows.filter((row) => selected.has(rowKey(row)));
+  const renderedRows = useMemo(() => visibleRows.slice(pageStart, pageStart + pageSize), [visibleRows, pageStart, pageSize]);
+  const selectedRows = useMemo(() => visibleRows.filter((row) => selected.has(rowKey(row))), [visibleRows, selected]);
+  const selectedPageRows = useMemo(() => renderedRows.filter((row) => selected.has(rowKey(row))), [renderedRows, selected]);
 
   const widthFor = (column: ResourceTableColumn) => {
     const preferred = columnWidths[column.key] ?? defaultColumnWidth(column.key);

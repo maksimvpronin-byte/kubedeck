@@ -299,17 +299,37 @@ useEffect(() => setSelected((current) => new Set(Array.from(current).filter((key
 
 ### Задачи
 
-- [ ] `useResourceTableState.ts:164` — вынести `new Set(rows.map(rowKey))`
-  один раз перед `.filter()`.
-- [ ] Обернуть `selectedRows`/`selectedPageRows` (194-195) в `useMemo` с
+- [x] `useResourceTableState.ts:164` — вынести `new Set(rows.map(rowKey))`
+  один раз перед `.filter()`. Реализовано.
+- [x] Обернуть `selectedRows`/`selectedPageRows` (194-195) в `useMemo` с
   зависимостями `[visibleRows, renderedRows, selected]`, чтобы ежесекундный
   `useUiClock`-тик не пересчитывал их без реальных изменений данных/выбора.
+  Реализовано с более точными зависимостями, чем в плане:
+  `selectedRows` → `[visibleRows, selected]`, `selectedPageRows` →
+  `[renderedRows, selected]` (каждый мемо зависит только от того, что
+  реально использует — иначе `selectedRows` пересчитывался бы при смене
+  страницы, хотя `visibleRows`/`selected` не менялись). Дополнительно
+  обнаружено и исправлено: `renderedRows = visibleRows.slice(...)` сам не
+  был мемоизирован — каждый рендер создавал новый массив, что свело бы на
+  нет мемоизацию `selectedPageRows` (зависящую от identity `renderedRows`).
+  Обёрнут в `useMemo(() => visibleRows.slice(pageStart, pageStart +
+  pageSize), [visibleRows, pageStart, pageSize])`.
 
 ### Контракты
 
-- [ ] Поведение bulk-выбора (checkbox "select all on page", снятие выбора
+- [x] Поведение bulk-выбора (checkbox "select all on page", снятие выбора
   при исчезновении строки из `rows`) не меняется — только не пересчитывается
-  зря.
+  зря. Хук использует stubbed `useEffect`/`useState` в тестовом харнессе
+  `loadTypeScript` (`renderer-controllers.contract.test.cjs`) — они не
+  выполняются, так что полноценный behavioral-тест через этот харнесс
+  невозможен для этого файла (существующий паттерн для таких хуков в этом
+  файле — структурные regex-проверки на исходный код). Добавлен тест
+  "resource table selection pruning and derived row lists avoid O(n^2) and
+  re-render churn", подтверждающий: анти-паттерн `new Set(rows.map(rowKey))`
+  внутри `.filter()` отсутствует, `rowKeys` вычисляется один раз, и все три
+  производных списка (`renderedRows`/`selectedRows`/`selectedPageRows`)
+  обёрнуты в `useMemo` с ожидаемыми зависимостями. Полный `test:renderer`
+  (52 теста) и `test:gateway` (103 теста, не затронуты) проходят.
 
 ### Документация
 
