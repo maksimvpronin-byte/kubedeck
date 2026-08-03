@@ -229,18 +229,19 @@ test("bottom Terminal Workspace owns Pod and Node SSH sessions outside the resou
   const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
   const uiState = fs.readFileSync(path.join(rendererRoot, "uiState.ts"), "utf8");
+  const terminalsHook = fs.readFileSync(path.join(rendererRoot, "hooks/useBottomTerminals.ts"), "utf8");
   const model = loadTypeScript("components/BottomTerminalPanel.tsx", {
     "lucide-react": { ChevronDown: () => null, ChevronUp: () => null, X: () => null },
     "../uiState": { loadUiState: () => ({}), saveUiState: () => undefined },
     "./NodeSshTab": { NodeSshTab: () => null },
     "./TerminalTab": { TerminalTab: () => null },
   });
-  assert.match(app, /const \[bottomTerminals, setBottomTerminals\] = useState/);
+  assert.match(terminalsHook, /const \[bottomTerminals, setBottomTerminals\] = useState/);
   assert.match(app, /<BottomTerminalPanel/);
-  assert.match(app, /function openBottomNodeSsh/);
-  assert.match(app, /kind: "pod"/);
-  assert.match(app, /kind: "node-ssh"/);
-  assert.match(app, /bottomTerminals\.length >= 5/);
+  assert.match(terminalsHook, /function openBottomNodeSsh/);
+  assert.match(terminalsHook, /kind: "pod"/);
+  assert.match(terminalsHook, /kind: "node-ssh"/);
+  assert.match(terminalsHook, /bottomTerminals\.length >= 5/);
   assert.match(drawer, /onOpenTerminal\(pod, containers/);
   assert.match(drawer, /onOpenNodeSsh\(pod\)/);
   assert.doesNotMatch(drawer, /import \{ NodeSshTab \}/);
@@ -921,17 +922,19 @@ test("workspace resource tabs add, deduplicate, limit, and close deterministical
 
 test("closing a background resource tab preserves the transient drawer", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
-  assert.match(app, /if \(!closingActiveTab\) return;/);
-  assert.match(app, /function closeDisplayedResource\(\)/);
+  const workspaceTabsHook = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWorkspaceTabs.ts"), "utf8");
+  assert.match(workspaceTabsHook, /if \(!closingActiveTab\) return;/);
+  assert.match(workspaceTabsHook, /function closeDisplayedResource\(\)/);
   assert.match(app, /onClose=\{closeDisplayedResource\}/);
 });
 
 test("resource rows pin workspace tabs only on double click", () => {
   const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const workspaceTabsHook = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWorkspaceTabs.ts"), "utf8");
   assert.match(table, /onDoubleClick=\{\(\) => onPin\?\.\(row\)\}/);
   assert.match(app, /pinNextSelectionRef\.current = true/);
-  assert.match(app, /if \(!pinNextSelectionRef\.current\) return/);
+  assert.match(workspaceTabsHook, /if \(!pinNextSelectionRef\.current\) return/);
 });
 
 test("workspace callbacks do not create renderer update loops", () => {
@@ -959,8 +962,8 @@ test("hidden terminals never fit or resize the PTY", () => {
 });
 
 test("activating a saved resource tab preserves the namespace selector", () => {
-  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
-  const activation = app.slice(app.indexOf("const activateResourceTab"), app.indexOf("function closeResourceTab"));
+  const workspaceTabsHook = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWorkspaceTabs.ts"), "utf8");
+  const activation = workspaceTabsHook.slice(workspaceTabsHook.indexOf("const activateResourceTab"), workspaceTabsHook.indexOf("function closeResourceTab"));
   assert.match(activation, /api\.resources\(tab\.clusterId, tab\.resource, tab\.namespace\)/);
   assert.doesNotMatch(activation, /setNamespaceSelection\(tab\.namespace\)/);
   assert.doesNotMatch(activation, /setRows\(/);
@@ -999,9 +1002,11 @@ test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contra
   const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
   const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
   const terminalStyles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
-  assert.match(app, /key: "podResources", label: "Usage"/);
+  const tableColumns = fs.readFileSync(path.join(rendererRoot, "utils/resourceTableColumns.ts"), "utf8");
+  const nodeDiskUsage = fs.readFileSync(path.join(rendererRoot, "hooks/useNodeDiskUsage.ts"), "utf8");
+  assert.match(tableColumns, /key: "podResources", label: "Usage"/);
   assert.match(app, /onVisibleNodeRows=\{loadVisibleNodeDisk\}/);
-  assert.match(app, /Promise\.all\(\[worker\(\), worker\(\)\]\)/);
+  assert.match(nodeDiskUsage, /Promise\.all\(\[worker\(\), worker\(\)\]\)/);
   assert.match(table, /label="Storage"/);
   assert.match(table, /label="Disk"/);
   assert.match(table, /function PodResourceUsage/);

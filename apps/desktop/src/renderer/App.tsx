@@ -1,7 +1,6 @@
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, Dispatch, MouseEvent as ReactMouseEvent, ReactNode, SetStateAction } from "react";
-import type { CommandPaletteItem } from "./components/CommandPalette";
 import { AppCommandPalette } from "./components/AppCommandPalette";
 import { ClusterSelector } from "./components/ClusterSelector";
 import { UnavailableClusterPanel } from "./components/UnavailableClusterPanel";
@@ -10,7 +9,6 @@ import { ErrorPanel } from "./components/ErrorPanel";
 import { NamespaceSelector } from "./components/NamespaceSelector";
 import { LazyPanelBoundary } from "./components/LazyPanelBoundary";
 import { AppResourceTable } from "./components/AppResourceTable";
-import type { BottomTerminalTarget } from "./components/BottomTerminalPanel";
 import { ResourceWorkspaceTabs } from "./components/ResourceWorkspaceTabs";
 import type { DrawerTab } from "./components/PodDrawerChrome";
 import { PlaceholderSection } from "./components/PlaceholderSection";
@@ -24,15 +22,19 @@ import { useResourceLoader } from "./hooks/useResourceLoader";
 import { currentSelectedResourceTarget, useResourceNavigation } from "./hooks/useResourceNavigation";
 import type { SelectedResourceTarget } from "./hooks/useResourceNavigation";
 import { useResourceWatch } from "./hooks/useResourceWatch";
+import { useBottomTerminals } from "./hooks/useBottomTerminals";
+import { useCommandPaletteItems } from "./hooks/useCommandPaletteItems";
+import { useNodeDiskUsage } from "./hooks/useNodeDiskUsage";
+import { useResourceWorkspaceTabs } from "./hooks/useResourceWorkspaceTabs";
+import { buildResourceTableColumns } from "./utils/resourceTableColumns";
 import { createTranslator } from "./i18n";
 import { brandIcon as Database, isPlaceholderSection, normalizeStoredSection, resourceLabel, resourceTree, sectionTitle, sections, visibleTabs } from "./navigation";
 import { canDeleteResource, findResourceDefinition, groupCrds } from "./utils/kubeResources";
-import type { ApiKeyUpdate, ErrorInfo, GlobalSearchItem, ResourceRow, Section, Settings } from "./types";
+import type { ApiKeyUpdate, ErrorInfo, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
-import { closeResourceWorkspaceTab, resourceWorkspaceTabId, upsertResourceWorkspaceTab, type ResourceWorkspaceTab } from "./utils/workspaceTabs";
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -74,22 +76,13 @@ export function App() {
   const [drawerWidth, setDrawerWidth] = useState(initialUiState.drawerWidth ?? 520);
   const [sidebarWidth, setSidebarWidth] = useState(initialUiState.sidebarWidth ?? 236);
   const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
-  const [resourceWorkspaceTabs, setResourceWorkspaceTabs] = useState<ResourceWorkspaceTab[]>([]);
-  const [bottomTerminals, setBottomTerminals] = useState<BottomTerminalTarget[]>([]);
-  const [activeBottomTerminalId, setActiveBottomTerminalId] = useState<string | null>(null);
-  const [bottomTerminalOpenToken, setBottomTerminalOpenToken] = useState(0);
-  const [activeResourceTabId, setActiveResourceTabId] = useState<string | null>(null);
   const drawerDirtyRef = useRef(false);
   const pinNextSelectionRef = useRef(false);
-  const resourceActivationRef = useRef(0);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
   const loadResourcesRef = useRef<number | null>(null);
   const actionReloadRef = useRef<(clusterId: string, resource: string, namespaces: string[]) => Promise<void>>(async () => undefined);
   const crdLoadedClusterRef = useRef<string | null>(null);
-  const nodeDiskCacheRef = useRef(new Map<string, { at: number; data: ResourceRow }>());
-  const nodeDiskPendingRef = useRef(new Set<string>());
-  const activeClusterIdRef = useRef<string | null>(null);
   const setSelectedPod = useCallback<Dispatch<SetStateAction<ResourceRow | null>>>(
     (next) => {
       setSelectedTarget((current) => {
@@ -143,86 +136,15 @@ export function App() {
     setLoading,
     setError,
   });
-  activeClusterIdRef.current = activeCluster?.id ?? null;
-
-  const loadVisibleNodeDisk = useCallback(
-    (visibleRows: ResourceRow[]) => {
-      if (!api || !activeCluster || resourceTab !== "nodes") return;
-      const clusterId = activeCluster.id;
-      const now = Date.now();
-      const queue = visibleRows.filter((row) => {
-        const key = `${clusterId}:${String(row.uid || row.name)}`;
-        const cached = nodeDiskCacheRef.current.get(key);
-        if (cached && now - cached.at < 60_000) {
-          if (row.diskUsage !== cached.data.diskUsage) {
-            setRows((current) => ({
-              ...current,
-              nodes: (current.nodes ?? []).map((item) => (item.uid === row.uid ? { ...item, ...cached.data, uid: item.uid, name: item.name } : item)),
-            }));
-          }
-          return false;
-        }
-        if (nodeDiskPendingRef.current.has(key)) return false;
-        nodeDiskPendingRef.current.add(key);
-        return true;
-      });
-      if (!queue.length) return;
-
-      const queuedKeys = new Set(queue.map((row) => String(row.uid || row.name)));
-      setRows((current) => ({
-        ...current,
-        nodes: (current.nodes ?? []).map((row) => (queuedKeys.has(String(row.uid || row.name)) ? { ...row, diskLoading: true } : row)),
-      }));
-
-      let index = 0;
-      const worker = async () => {
-        while (index < queue.length) {
-          const row = queue[index++];
-          const identity = String(row.uid || row.name);
-          const cacheKey = `${clusterId}:${identity}`;
-          try {
-            const data = await api.resourceMetrics(clusterId, "nodes", "_cluster", String(row.name));
-            nodeDiskCacheRef.current.set(cacheKey, { at: Date.now(), data });
-            if (activeClusterIdRef.current !== clusterId) continue;
-            setRows((current) => ({
-              ...current,
-              nodes: (current.nodes ?? []).map((item) => (String(item.uid || item.name) === identity ? { ...item, ...data, uid: item.uid, name: item.name, diskLoading: false } : item)),
-            }));
-          } catch {
-            nodeDiskCacheRef.current.set(cacheKey, { at: Date.now(), data: { uid: "", name: String(row.name), diskMetricsUnavailable: true } });
-            if (activeClusterIdRef.current !== clusterId) continue;
-            setRows((current) => ({
-              ...current,
-              nodes: (current.nodes ?? []).map((item) => (String(item.uid || item.name) === identity ? { ...item, diskLoading: false, diskMetricsUnavailable: true } : item)),
-            }));
-          } finally {
-            nodeDiskPendingRef.current.delete(cacheKey);
-          }
-        }
-      };
-      void Promise.all([worker(), worker()]);
-    },
-    [activeCluster, api, resourceTab],
-  );
+  const { loadVisibleNodeDisk } = useNodeDiskUsage({ api, activeCluster, resourceTab, setRows });
+  const { bottomTerminals, activeBottomTerminalId, setActiveBottomTerminalId, bottomTerminalOpenToken, openBottomTerminal, openBottomNodeSsh, closeBottomTerminal, removeClusterTerminals } =
+    useBottomTerminals({
+      activeCluster,
+      setError,
+    });
   const currentSelectedTarget = currentSelectedResourceTarget(selectedTarget, activeCluster?.id, resourceTab);
   const selectedPod = currentSelectedTarget?.row ?? null;
   const selectedResource = currentSelectedTarget?.resource ?? resourceTab;
-  const activeResourceWorkspaceTab = resourceWorkspaceTabs.find((tab) => tab.id === activeResourceTabId) ?? null;
-  const displayedResourceWorkspaceTab: ResourceWorkspaceTab | null =
-    activeResourceWorkspaceTab ??
-    (activeCluster && currentSelectedTarget
-      ? {
-          id: resourceWorkspaceTabId(activeCluster.id, currentSelectedTarget.resource, currentSelectedTarget.row),
-          clusterId: activeCluster.id,
-          clusterName: activeCluster.displayName,
-          section,
-          resource: currentSelectedTarget.resource,
-          namespace: String(currentSelectedTarget.row.namespace || "_cluster"),
-          row: currentSelectedTarget.row,
-          drawerTab: "summary",
-          status: "ready",
-        }
-      : null);
   const activeLanguage = languagePreview ?? settings?.language ?? "system";
   const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
   const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
@@ -243,31 +165,6 @@ export function App() {
   const namespace = selectedNamespaces.length === 1 ? selectedNamespaces[0] : selectedNamespaces.join(",");
 
   const confirmDrawerNavigation = useCallback(() => !drawerDirtyRef.current || window.confirm("Discard unsaved YAML changes?"), []);
-
-  useEffect(() => {
-    if (!activeCluster || !selectedTarget || selectedTarget.clusterId !== activeCluster.id) return;
-    if (!pinNextSelectionRef.current) return;
-    pinNextSelectionRef.current = false;
-    const id = resourceWorkspaceTabId(activeCluster.id, selectedTarget.resource, selectedTarget.row);
-    const candidate: ResourceWorkspaceTab = {
-      id,
-      clusterId: activeCluster.id,
-      clusterName: activeCluster.displayName,
-      section,
-      resource: selectedTarget.resource,
-      namespace: String(selectedTarget.row.namespace || "_cluster"),
-      row: selectedTarget.row,
-      drawerTab: "summary",
-      status: "ready",
-    };
-    setResourceWorkspaceTabs((current) => {
-      const result = upsertResourceWorkspaceTab(current, candidate);
-      if (result.limited) {
-        setError({ code: "LIMIT_REACHED", message: "Close a resource tab before opening another (10 maximum).", rawStderr: "", commandPreview: "" });
-      } else setActiveResourceTabId(result.activeId);
-      return result.tabs;
-    });
-  }, [activeCluster?.id, activeCluster?.displayName, selectedTarget, section]);
 
   const {
     query: globalSearch,
@@ -523,10 +420,6 @@ export function App() {
     }
   }
 
-  function openGlobalSearchResult(result: GlobalSearchItem) {
-    void openResourceLocator(result);
-  }
-
   const clusters = config?.clusters ?? [];
   const activeRows = rows[resourceTab] ?? [];
   useEffect(() => {
@@ -540,165 +433,58 @@ export function App() {
   const isCrdDefinitionTab = resourceTab === "customresourcedefinitions" || resourceTab === "customresourcedefinitions.apiextensions.k8s.io";
   const isCrdInstanceTab = section === "crd" && !isCrdDefinitionTab;
   const crdGroups = useMemo(() => groupCrds(rows.customresourcedefinitions ?? []), [rows.customresourcedefinitions]);
-  const commandItems = useMemo<CommandPaletteItem[]>(() => {
-    const items: CommandPaletteItem[] = [];
-
-    for (const item of sections) {
-      items.push({
-        id: `section:${item.id}`,
-        title: t(item.label),
-        subtitle: t("command.openSection"),
-        category: t("command.category.navigation"),
-        keywords: `${item.id} ${t(item.label)}`,
-        run: () => selectSection(item.id),
-      });
-    }
-
-    for (const [sectionId, resources] of Object.entries(resourceTree)) {
-      for (const resource of resources) {
-        items.push({
-          id: `resource:${sectionId}:${resource}`,
-          title: resourceLabel(resource),
-          subtitle: `${t("command.open")} ${t(`nav.${sectionId}`)}`,
-          category: t("command.category.resource"),
-          keywords: `${sectionId} ${resource} ${resourceLabel(resource)}`,
-          run: () => selectTreeResource(sectionId as Section, resource),
-        });
-      }
-    }
-
-    for (const group of crdGroups) {
-      for (const crd of group.items) {
-        items.push({
-          id: `crd:${crd.resource}`,
-          title: crd.kind || crd.plural || crd.resource,
-          subtitle: `CRD Р’В· ${group.group}`,
-          category: t("nav.crd"),
-          keywords: `${crd.kind} ${crd.plural} ${crd.resource} ${group.group}`,
-          run: () => selectTreeResource("crd", crd.resource),
-        });
-      }
-    }
-
-    for (const cluster of clusters) {
-      items.push({
-        id: `cluster:${cluster.id}`,
-        title: cluster.displayName,
-        subtitle: cluster.id === activeCluster?.id ? t("command.currentCluster") : t("command.openCluster"),
-        category: t("command.category.cluster"),
-        keywords: `${cluster.displayName} ${cluster.kubeconfigPath}`,
-        run: () => {
-          if (!confirmDrawerNavigation()) return;
-          void openCluster(cluster);
-        },
-      });
-    }
-
-    for (const row of activeRows.slice(0, 500)) {
-      const rowName = String(row.name ?? "");
-      if (!rowName) continue;
-      const rowNamespace = String(row.namespace ?? "");
-      items.push({
-        id: `row:${resourceTab}:${rowNamespace}:${rowName}:${String(row.uid ?? rowName)}`,
-        title: rowName,
-        subtitle: `${resourceLabel(resourceTab)}${rowNamespace ? ` Р’В· ${rowNamespace}` : ""}`,
-        category: t("command.category.open"),
-        keywords: `${resourceTab} ${rowName} ${rowNamespace} ${String(row.kind ?? "")} ${String(row.status ?? "")} ${String(row.phase ?? "")}`,
-        run: () => {
-          if (!confirmDrawerNavigation()) return;
-          cancelResourceNavigation();
-          keepCurrentSelection();
-          if (activeCluster) setSelectedTarget({ clusterId: activeCluster.id, resource: resourceTab, row });
-          if (rowNamespace && rowNamespace !== "_cluster" && namespace !== "_cluster") setNamespaceSelection(rowNamespace);
-        },
-      });
-    }
-
-    for (const result of globalSearchResults) {
-      const resource = String(result.resource || "");
-      const resultNamespace = String(result.namespace || "");
-      const matchedFields = Array.isArray(result.matchedFields) && result.matchedFields.length ? ` Р’В· match: ${result.matchedFields.join(", ")}` : "";
-      items.push({
-        id: `global:${resource}:${resultNamespace}:${result.name}:${result.uid}`,
-        title: String(result.title || result.name || resource),
-        subtitle: `${resourceLabel(resource)}${resultNamespace && resultNamespace !== "_cluster" ? ` Р’В· ${resultNamespace}` : ""}${matchedFields}`,
-        category: t("command.category.clusterSearch"),
-        keywords: `${resource} ${result.name ?? ""} ${resultNamespace} ${result.kind ?? ""} ${result.status ?? ""} ${result.phase ?? ""} ${(result.matchedFields ?? []).join(" ")}`,
-        run: () => openGlobalSearchResult(result),
-      });
-    }
-
-    return items;
-  }, [activeRows, activeCluster?.id, clusters, crdGroups, globalSearchResults, namespace, resourceDefinitions, resourceTab, t]);
+  const {
+    resourceWorkspaceTabs,
+    setResourceWorkspaceTabs,
+    activeResourceTabId,
+    setActiveResourceTabId,
+    activeResourceWorkspaceTab,
+    displayedResourceWorkspaceTab,
+    activateResourceTab,
+    closeResourceTab,
+    closeDisplayedResource,
+    closeTransientDrawerFromBackground,
+    removeClusterResourceTabs,
+  } = useResourceWorkspaceTabs({
+    api,
+    activeCluster,
+    clusters,
+    section,
+    selectedPod,
+    selectedTarget,
+    currentSelectedTarget,
+    setSelectedTarget,
+    setSection,
+    setResourceTab,
+    setError,
+    confirmDrawerNavigation,
+    keepCurrentSelection,
+    openCluster,
+    drawerDirtyRef,
+    pinNextSelectionRef,
+  });
+  const commandItems = useCommandPaletteItems({
+    t,
+    clusters,
+    activeCluster,
+    crdGroups,
+    globalSearchResults,
+    activeRows,
+    resourceTab,
+    namespace,
+    resourceDefinitions,
+    confirmDrawerNavigation,
+    openCluster,
+    selectSection,
+    selectTreeResource,
+    keepCurrentSelection,
+    cancelResourceNavigation,
+    setSelectedTarget,
+    setNamespaceSelection,
+    openResourceLocator,
+  });
   const resourceTabs = visibleTabs(section, resourceTab);
-  const tableColumns: Record<string, Array<{ key: string; label: string }>> = {
-    nodes: [
-      { key: "name", label: t("col.name") },
-      { key: "status", label: t("col.status") },
-      { key: "nodeResources", label: "Usage" },
-      { key: "labelsText", label: "Labels" },
-      { key: "kubeletVersion", label: t("col.kubernetes") },
-      { key: "createdAt", label: t("col.age") },
-    ],
-    namespaces: [
-      { key: "name", label: t("col.name") },
-      { key: "status", label: t("col.status") },
-      { key: "namespaceResources", label: "Usage" },
-      { key: "createdAt", label: t("col.age") },
-    ],
-    pods: [
-      { key: "namespace", label: t("col.namespace") },
-      { key: "name", label: t("col.name") },
-      { key: "phase", label: t("col.phase") },
-      { key: "ready", label: t("col.ready") },
-      { key: "containers", label: t("col.containers") },
-      { key: "restarts", label: t("col.restarts") },
-      { key: "podResources", label: "Usage" },
-      { key: "node", label: t("col.node") },
-      { key: "createdAt", label: t("col.age") },
-    ],
-    deployments: [
-      { key: "namespace", label: t("col.namespace") },
-      { key: "name", label: t("col.name") },
-      { key: "status", label: t("col.status") },
-      { key: "ready", label: t("col.ready") },
-      { key: "updated", label: t("col.updated") },
-      { key: "available", label: t("col.available") },
-      { key: "createdAt", label: t("col.age") },
-    ],
-    replicasets: [
-      { key: "namespace", label: t("col.namespace") },
-      { key: "name", label: t("col.name") },
-      { key: "status", label: t("col.status") },
-      { key: "ready", label: t("col.ready") },
-      { key: "available", label: t("col.available") },
-      { key: "createdAt", label: t("col.age") },
-    ],
-    services: [
-      { key: "namespace", label: t("col.namespace") },
-      { key: "name", label: t("col.name") },
-      { key: "type", label: t("col.type") },
-      { key: "clusterIp", label: t("col.clusterIp") },
-      { key: "ports", label: t("col.ports") },
-      { key: "createdAt", label: t("col.age") },
-    ],
-    events: [
-      { key: "namespace", label: t("col.namespace") },
-      { key: "type", label: t("col.type") },
-      { key: "reason", label: t("col.reason") },
-      { key: "object", label: t("col.object") },
-      { key: "message", label: t("col.message") },
-      { key: "createdAt", label: t("col.age") },
-    ],
-    customresourcedefinitions: [
-      { key: "group", label: t("col.group") },
-      { key: "kind", label: t("col.kind") },
-      { key: "plural", label: t("col.plural") },
-      { key: "scope", label: t("col.scope") },
-      { key: "versions", label: t("col.versions") },
-      { key: "createdAt", label: t("col.age") },
-    ],
-  };
+  const tableColumns = buildResourceTableColumns(t);
   const columns =
     tableColumns[resourceTab] ??
     (isCrdInstanceTab
@@ -733,125 +519,14 @@ export function App() {
     window.addEventListener("mouseup", onUp, { once: true });
   }
 
-  function openBottomTerminal(pod: ResourceRow, containers: string[], container: string) {
-    if (!activeCluster) return;
-    const id = `pod\u0000${activeCluster.id}\u0000${String(pod.namespace || "default")}\u0000${String(pod.uid || pod.name)}\u0000${container}`;
-    const existing = bottomTerminals.find((target) => target.id === id);
-    if (existing) {
-      setActiveBottomTerminalId(existing.id);
-      setBottomTerminalOpenToken((current) => current + 1);
-      return;
-    }
-    if (bottomTerminals.length >= 5) {
-      setError({ code: "LIMIT_REACHED", message: "Close a terminal or SSH session before opening another (5 maximum).", rawStderr: "", commandPreview: "" });
-      return;
-    }
-    setBottomTerminals((current) => [...current, { kind: "pod", id, clusterId: activeCluster.id, clusterName: activeCluster.displayName, pod, containers, container }]);
-    setActiveBottomTerminalId(id);
-    setBottomTerminalOpenToken((current) => current + 1);
-  }
-
-  function openBottomNodeSsh(node: ResourceRow) {
-    if (!activeCluster) return;
-    const id = `ssh\u0000${activeCluster.id}\u0000${String(node.uid || node.name)}`;
-    const existing = bottomTerminals.find((target) => target.id === id);
-    if (existing) {
-      setActiveBottomTerminalId(existing.id);
-      setBottomTerminalOpenToken((current) => current + 1);
-      return;
-    }
-    if (bottomTerminals.length >= 5) {
-      setError({ code: "LIMIT_REACHED", message: "Close a terminal or SSH session before opening another (5 maximum).", rawStderr: "", commandPreview: "" });
-      return;
-    }
-    setBottomTerminals((current) => [...current, { kind: "node-ssh", id, clusterId: activeCluster.id, clusterName: activeCluster.displayName, node }]);
-    setActiveBottomTerminalId(id);
-    setBottomTerminalOpenToken((current) => current + 1);
-  }
-
-  function closeBottomTerminal(id: string) {
-    const index = bottomTerminals.findIndex((target) => target.id === id);
-    const next = bottomTerminals.filter((target) => target.id !== id);
-    setBottomTerminals(next);
-    if (id === activeBottomTerminalId) setActiveBottomTerminalId(next[Math.min(index, next.length - 1)]?.id ?? null);
-  }
-
-  const activateResourceTab = useCallback(
-    async (tab: ResourceWorkspaceTab) => {
-      if (!confirmDrawerNavigation()) return;
-      const cluster = clusters.find((item) => item.id === tab.clusterId);
-      if (!cluster || !api) {
-        setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "unavailable" } : item)));
-        return;
-      }
-      drawerDirtyRef.current = false;
-      const requestId = ++resourceActivationRef.current;
-      setActiveResourceTabId(tab.id);
-      setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "loading" } : item)));
-      if (activeCluster?.id !== cluster.id) await openCluster(cluster);
-      if (resourceActivationRef.current !== requestId) return;
-      keepCurrentSelection();
-      setSelectedTarget({ clusterId: tab.clusterId, resource: tab.resource, row: tab.row });
-      setSection(tab.section);
-      setResourceTab(tab.resource);
-      try {
-        const response = await api.resources(tab.clusterId, tab.resource, tab.namespace);
-        if (resourceActivationRef.current !== requestId) return;
-        const row = response.items.find((item) => item.uid === tab.row.uid || (item.name === tab.row.name && String(item.namespace || "_cluster") === tab.namespace));
-        setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, row: row ?? item.row, status: row ? "ready" : "not-found" } : item)));
-        setSelectedTarget(row ? { clusterId: tab.clusterId, resource: tab.resource, row } : null);
-      } catch (err) {
-        if (resourceActivationRef.current !== requestId) return;
-        setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "unavailable" } : item)));
-        setError(asErrorInfo(err));
-      }
-    },
-    [api, activeCluster?.id, clusters, confirmDrawerNavigation, keepCurrentSelection, openCluster],
-  );
-
-  function closeResourceTab(id: string) {
-    const closingActiveTab = id === activeResourceTabId;
-    if (closingActiveTab && !confirmDrawerNavigation()) return;
-    const result = closeResourceWorkspaceTab(resourceWorkspaceTabs, activeResourceTabId, id);
-    setResourceWorkspaceTabs(result.tabs);
-    if (!closingActiveTab) return;
-    drawerDirtyRef.current = false;
-    setActiveResourceTabId(result.activeId);
-    const next = result.tabs.find((tab) => tab.id === result.activeId);
-    if (next) void activateResourceTab(next);
-    else setSelectedTarget(null);
-  }
-
-  function closeDisplayedResource() {
-    if (activeResourceTabId) {
-      closeResourceTab(activeResourceTabId);
-      return;
-    }
-    if (!confirmDrawerNavigation()) return;
-    drawerDirtyRef.current = false;
-    setSelectedTarget(null);
-  }
-
-  function closeTransientDrawerFromBackground(event: ReactMouseEvent<HTMLDivElement>) {
-    if (!selectedPod || activeResourceTabId) return;
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.closest("button, a, input, select, textarea, table, [role], [data-tooltip], .drawer, .modal-overlay, .table-footer, .resource-table-header")) return;
-    closeDisplayedResource();
-  }
-
   async function removeClusterWorkspace(cluster: (typeof clusters)[number]) {
     const resourceCount = resourceWorkspaceTabs.filter((tab) => tab.clusterId === cluster.id).length;
     const terminalCount = bottomTerminals.filter((target) => target.clusterId === cluster.id).length;
     if (!window.confirm(`Remove ${cluster.displayName}? This also closes ${resourceCount} resource tab(s) and ${terminalCount} terminal/SSH session(s).`)) return;
     const removed = await removeCluster(cluster, true);
     if (!removed) return;
-    const remainingTabs = resourceWorkspaceTabs.filter((tab) => tab.clusterId !== cluster.id);
-    const remainingTerminals = bottomTerminals.filter((target) => target.clusterId !== cluster.id);
-    setResourceWorkspaceTabs(remainingTabs);
-    setActiveResourceTabId((current) => (remainingTabs.some((tab) => tab.id === current) ? current : (remainingTabs[0]?.id ?? null)));
-    setBottomTerminals(remainingTerminals);
-    setActiveBottomTerminalId((current) => (remainingTerminals.some((target) => target.id === current) ? current : (remainingTerminals[0]?.id ?? null)));
+    removeClusterResourceTabs(cluster.id);
+    removeClusterTerminals(cluster.id);
   }
 
   return (
