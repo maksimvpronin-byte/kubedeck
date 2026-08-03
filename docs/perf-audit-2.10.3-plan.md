@@ -427,33 +427,40 @@ CHANGELOG — упомянуть вместе с Секцией A как "perfor
 
 ## Release sync 2.10.3
 
-- [ ] Версия `2.10.3` в `package.json`, `apps/desktop/package.json` (и
+- [x] Версия `2.10.3` в `package.json`, `apps/desktop/package.json` (и
   `@kubedeck/shared-types`), `packages/shared-types/package.json`,
   пересобрать `package-lock.json`.
-- [ ] `CHANGELOG.md` — запись 2.10.3: Секция A (утечка watch-сессий) и
+- [x] `CHANGELOG.md` — запись 2.10.3: Секция A (утечка watch-сессий) и
   Секция F (лишние пересчёты в таблице) как user-visible fixes
   (стабильность/отзывчивость при долгой работе); остальное — internal
   performance cleanup.
-- [ ] `docs/releases/RELEASE_NOTES_2.10.3.md` и
+- [x] `docs/releases/RELEASE_NOTES_2.10.3.md` и
   `docs/releases/REGRESSION_CHECKLIST_2.10.3.md` по образцу 2.10.2.
-- [ ] README.md/README.ru.md — версия и ссылки на release notes/checklist.
-- [ ] `NODE_MIGRATION_PROGRESS.md` — короткая запись про 2.10.3.
-- [ ] `docs/third-party-notices.md` — версия в шапке.
+- [x] README.md/README.ru.md — версия и ссылки на release notes/checklist.
+- [x] `NODE_MIGRATION_PROGRESS.md` — короткая запись про 2.10.3.
+- [x] `docs/third-party-notices.md` — версия в шапке.
 
 ## Автоматический gate
 
-- [ ] `npm run lint`
-- [ ] `npm run format:check`
-- [ ] `npm run test:renderer`
-- [ ] `npm run typecheck`
-- [ ] `npm run build`
-- [ ] `npm --workspace apps/desktop run test:gateway`
-- [ ] `npm run verify:release`
+- [x] `npm run lint`
+- [x] `npm run format:check`
+- [x] `npm run test:renderer` (53 теста)
+- [x] `npm run typecheck`
+- [x] `npm run build`
+- [x] `npm --workspace apps/desktop run test:gateway` (103 теста)
+- [x] `npm run verify:release`
 - [ ] Ручная проверка: запустить приложение, несколько раз переключить
   resource-таб/namespace (создать несколько watch-сессий), остановить их,
   убедиться через `GET /watches/status`, что список не растёт бесконечно
   (Секция A — единственная секция, которую стоит проверить вручную, а не
   только автотестами, т.к. это утечка, проявляющаяся со временем).
+  **Не выполнено** — решено закрыть без ручной проверки: приложение
+  требует реального kubeconfig/кластера для запуска, недоступного в этой
+  среде; поведение покрыто только автотестами
+  (`watch.contract.test.cjs`, включая тест с инжектируемыми часами,
+  симулирующий TTL-sweep). Отражено честно в
+  `docs/releases/REGRESSION_CHECKLIST_2.10.3.md` как невыполненный пункт,
+  а не помечено выполненным.
 
 ## Критерий завершения
 
