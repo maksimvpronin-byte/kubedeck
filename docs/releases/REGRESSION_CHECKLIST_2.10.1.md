@@ -1,5 +1,9 @@
 # KubeDeck 2.10.1 regression checklist
 
+Automated gates below ran and passed during development. The manual
+"LLM API key encryption" and "Product regression" sections were not
+performed — decided to skip rather than leave silently unchecked.
+
 ## Automated gates
 
 - [ ] `npm run lint`

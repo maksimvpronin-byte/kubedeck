@@ -1,5 +1,9 @@
 # KubeDeck 2.10.0 regression checklist
 
+Manual verification below was not performed for this release — decided to
+skip rather than leave silently unchecked. Only automated gates in local dev
+were relied on before shipping.
+
 ## Automated gates
 
 - [ ] `npm run lint`

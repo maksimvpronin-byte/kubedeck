@@ -10,8 +10,12 @@
   с правами `0600`), а сохранение нового ключа отклоняется с
   `SECRET_STORAGE_UNAVAILABLE`. UI показывает предупреждение через
   `secretStorageAvailable` в `GET /llm/status`.
-- Release-сборки Windows, macOS и Linux не подписаны; macOS дополнительно не
-  notarized.
+- Release-сборки Windows и Linux не подписаны — решено не делать. macOS
+  собирается unsigned по умолчанию; opt-in подпись и notarization готовы
+  (см. `docs/macos-signing.md`), но не выполнялись — требуют Apple Developer
+  Program membership.
+- Linux собирается только как AppImage x64 (без `deb`/`rpm`/`arm64`), macOS —
+  только arm64 (без Intel). Решено не делать.
 
 ## Trust boundaries
 
