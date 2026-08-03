@@ -141,20 +141,43 @@ module-level `discoveryCache` (TTL 60s, строки 11, 37, 226-238) — `searc
 
 ### Задачи
 
-- [ ] Вынести `discoveryCache`-логику (`resourceDiscoveryEvents.ts:37,
+- [x] Вынести `discoveryCache`-логику (`resourceDiscoveryEvents.ts:37,
   226-238, 275, 277`) в общий модуль (например `resources/discoveryCache.ts`),
-  либо экспортировать читающую функцию оттуда.
-- [ ] `routes/search.ts`'s `discoverResourceDefinitions()` использует общий
-  кэш вместо прямого вызова `runner.run(...)`.
-- [ ] Убедиться, что инвалидация кэша (`discoveryCache.delete`/`.clear()`,
+  либо экспортировать читающую функцию оттуда. Реализовано как
+  `resources/apiResourcesCache.ts` (`getApiResourcesOutput`/
+  `clearApiResourcesCache`) — кэширует **сырой stdout** `kubectl
+  api-resources`, а не распарсенные `ResourceDefinition[]`: обнаружено, что
+  `resourceDiscoveryEvents.ts` и `search/searchEngine.ts` имеют два разных
+  `parseApiResources()` с разной логикой извлечения `apiGroup` (первый
+  оставляет `"apps/v1"` как есть, второй режет на `"apps"` по `/`) — эти два
+  парсера были уже раздельными до этого патча и намеренно не унифицированы
+  здесь, чтобы не менять поведение CRD-детекции в глобальном поиске.
+- [x] `routes/search.ts`'s `discoverResourceDefinitions()` использует общий
+  кэш вместо прямого вызова `runner.run(...)`. Реализовано — теперь вызывает
+  `getApiResourcesOutput(...)` и парсит результат своим `parseApiResources`
+  (без изменений в парсинге).
+- [x] Убедиться, что инвалидация кэша (`discoveryCache.delete`/`.clear()`,
   строки 275/277 — вероятно на смену/удаление кластера) по-прежнему
-  затрагивает оба потребителя.
+  затрагивает оба потребителя. `resourceDiscoveryEvents.ts`'s
+  `clearResourceDefinitionCache` (используется в `gateway.ts` при
+  удалении/обновлении кластера) теперь — тонкая обёртка над
+  `clearApiResourcesCache`, тем же примитивом, который читает `search.ts` —
+  один источник правды на оба потребителя.
 
 ### Контракты
 
-- [ ] Глобальный поиск и просмотр CRD/discovery продолжают видеть новые
+- [x] Глобальный поиск и просмотр CRD/discovery продолжают видеть новые
   CRD в течение 60 секунд после их появления (тот же TTL, что и раньше у
   `resourceDiscoveryEvents.ts`) — не длиннее и не короче для обоих путей.
+  TTL не менялся (`API_RESOURCES_CACHE_TTL_MS = 60_000` в новом модуле).
+  Добавлен тест "Global Search reuses the shared api-resources discovery
+  cache across calls" (`search.contract.test.cjs`), проверяющий: (1) второй
+  `buildSearchResponse()` для того же кластера не делает повторный
+  `runner.run()` (переиспользует кэш); (2) `clearApiResourcesCache(clusterId)`
+  — тот же примитив, к которому делегирует `clearResourceDefinitionCache` —
+  форсирует новый discovery-запрос. Все 10 тестов `search.contract.test.cjs`
+  и `resource-discovery-events.contract.test.cjs` проходят; полный
+  `test:gateway` (100 тестов) проходит.
 
 ### Документация
 

@@ -3,12 +3,11 @@ import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import type { KubectlRunner } from "../kubectl/runner";
+import { clearApiResourcesCache, getApiResourcesOutput } from "../resources/apiResourcesCache";
 import { decodePathPart, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
-const DISCOVERY_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const EVENTS_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
-const RESOURCE_DEFINITION_CACHE_TTL_MS = 60_000;
 const MAX_RETURNED_EVENTS = 200;
 
 type JsonObject = Record<string, unknown>;
@@ -28,13 +27,6 @@ export interface ResourceEventTarget {
   namespace: string;
   name: string;
 }
-
-interface DiscoveryCacheEntry {
-  expiresAt: number;
-  items: ResourceDefinition[];
-}
-
-const discoveryCache = new Map<string, DiscoveryCacheEntry>();
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
@@ -223,21 +215,10 @@ export function summarizeEvent(event: JsonObject): JsonObject {
 async function writeResourceDefinitions(response: ServerResponse, clusterId: string, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   validateClusterExists(configStore, clusterId);
 
-  const cached = discoveryCache.get(clusterId);
-  if (cached && cached.expiresAt > Date.now()) {
-    writeJson(response, { items: cached.items, cached: true });
-    return;
-  }
+  const output = await getApiResourcesOutput(configStore, runner, clusterId);
+  const items = parseApiResources(output.stdout);
 
-  const result = await runner.run(clusterCommand(configStore, clusterId, ["api-resources", "--verbs=list", "-o", "wide"], 30, DISCOVERY_MAX_OUTPUT_BYTES));
-  const items = parseApiResources(result.stdout);
-
-  discoveryCache.set(clusterId, {
-    expiresAt: Date.now() + RESOURCE_DEFINITION_CACHE_TTL_MS,
-    items,
-  });
-
-  writeJson(response, { items, cached: false });
+  writeJson(response, { items, cached: output.cached });
 }
 
 async function writeResourceEvents(response: ServerResponse, target: ResourceEventTarget, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
@@ -271,11 +252,7 @@ async function writeResourceEvents(response: ServerResponse, target: ResourceEve
 }
 
 export function clearResourceDefinitionCache(clusterId?: string): void {
-  if (clusterId) {
-    discoveryCache.delete(clusterId);
-  } else {
-    discoveryCache.clear();
-  }
+  clearApiResourcesCache(clusterId);
 }
 
 export function handleResourceDiscoveryEventsRequest(

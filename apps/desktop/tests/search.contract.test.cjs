@@ -5,6 +5,7 @@ const { buildSearchResourceSpecs, deduplicateSearchResults, parseApiResources, r
 const { buildSearchResponse, handleSearchRequest, matchSearchRoute } = require("../dist/main/backend/routes/search.js");
 const { ClusterNotFoundError } = require("../dist/main/backend/config/configStore.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
+const { clearApiResourcesCache } = require("../dist/main/backend/resources/apiResourcesCache.js");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -366,4 +367,43 @@ test("Global Search returns a partial response on total timeout", async () => {
   assert.ok(body.errors.some((error) => error.code === "SEARCH_TIMEOUT"));
   assert.equal(body.summary.errors, 1);
   assert.equal(aborted, true);
+});
+
+test("Global Search reuses the shared api-resources discovery cache across calls", async () => {
+  const clusterId = "cluster-cache-reuse";
+  clearApiResourcesCache(clusterId);
+  const configStore = {
+    load() {
+      return {
+        settings: { kubectlPath: "kubectl" },
+        clusters: [{ id: clusterId, kubeconfigPath: "C:\\temp\\cluster-cache.yaml" }],
+      };
+    },
+    getCluster(id, config = this.load()) {
+      const cluster = config.clusters.find((item) => item.id === id);
+      if (!cluster) throw new ClusterNotFoundError(id);
+      return cluster;
+    },
+  };
+  let discoveryCalls = 0;
+  const runner = {
+    async run() {
+      discoveryCalls += 1;
+      return { ok: true, stdout: apiResourcesOutput(), stderr: "", commandPreview: "kubectl api-resources", returnCode: 0 };
+    },
+    async runJson() {
+      return { items: [] };
+    },
+  };
+  const options = { query: "api", namespaces: ["all"], limit: 10, includeCrdInstances: false };
+
+  await buildSearchResponse(configStore, runner, clusterId, options);
+  assert.equal(discoveryCalls, 1);
+
+  await buildSearchResponse(configStore, runner, clusterId, options);
+  assert.equal(discoveryCalls, 1, "second search within the TTL must reuse the cached discovery output");
+
+  clearApiResourcesCache(clusterId);
+  await buildSearchResponse(configStore, runner, clusterId, options);
+  assert.equal(discoveryCalls, 2, "clearing the shared cache (as cluster removal/edit does) must force a fresh discovery call");
 });

@@ -4,6 +4,7 @@ import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
+import { getApiResourcesOutput } from "../resources/apiResourcesCache";
 import {
   buildSearchResourceSpecs,
   compareSearchResults,
@@ -23,7 +24,6 @@ const SEARCH_KUBECTL_TIMEOUT_SECONDS = 10;
 const SEARCH_CONCURRENCY = 3;
 const SEARCH_MAX_OUTPUT_BYTES = 12 * 1024 * 1024;
 const SEARCH_MAX_CRD_INSTANCE_RESOURCES = 12;
-const SEARCH_API_RESOURCES_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 
 interface SearchTarget {
   clusterId: string;
@@ -107,8 +107,8 @@ export function matchSearchRoute(method: string | undefined, pathname: string): 
 }
 
 async function discoverResourceDefinitions(configStore: ConfigStore, runner: KubectlRunner, clusterId: string): Promise<ApiResourceDefinition[]> {
-  const result = await runner.run(clusterCommand(configStore, clusterId, ["api-resources", "--verbs=list", "-o", "wide"], 30, SEARCH_API_RESOURCES_MAX_OUTPUT_BYTES));
-  return parseApiResources(result.stdout);
+  const output = await getApiResourcesOutput(configStore, runner, clusterId);
+  return parseApiResources(output.stdout);
 }
 
 function resourceArgs(spec: SearchResourceSpec, namespaceMode: string): string[] {
