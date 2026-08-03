@@ -1,8 +1,8 @@
 # KubeDeck 2.0 — миграция backend на Node завершена
 
-Дата обновления: 2026-08-02
+Дата обновления: 2026-08-03
 Ветка: `main`
-Текущая проверяемая версия: `2.10.0`
+Текущая проверяемая версия: `2.10.2`
 
 ## Итог
 
@@ -60,6 +60,18 @@
 ключей. Маршрутов не прибавилось — `PUT /settings` и `POST /llm/test`
 расширили контракт существующих routes. Node-only Gateway остаётся на 54
 маршрутах.
+
+## 2.10.2 — устранение дублирования backend/renderer
+
+`2.10.2` — внутренний cleanup-патч по итогам повторного код-ревью: один
+`decodePathPart`, один `writeRouteError`-диспетчер и один `RouteInfoError`
+вместо 14+12+4 копий в routes/WebSocket-модулях; CPU/memory quantity парсится
+один раз в `resources/quantity.ts` (раньше `normalizers.ts` не поддерживал
+`Pi`/`Ei` и не делал truncation, которые уже были в `metrics.ts` — теперь
+поведение одинаковое). На renderer — `PodDrawer.tsx` лишился logs- и
+YAML-кластеров (вынесены в hooks), `NodeSshTab.tsx`/`TerminalTab.tsx` делят
+общий `utils/xtermSession.ts`, удалён мёртвый `EventsTab.tsx`. Маршрутов не
+прибавилось, Node-only Gateway остаётся на 54 маршрутах.
 
 ## Следующий этап
 

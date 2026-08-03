@@ -1,6 +1,6 @@
 # KubeDeck 2.10.2 — устранение дублирования в backend и renderer
 
-Статус: план, не реализовано.
+Статус: реализовано, выпущено как 2.10.2.
 
 ## Цель
 
@@ -57,29 +57,29 @@ apps/desktop run test:gateway`), не смешивать секции в оди�
 
 ### Задачи
 
-- [ ] Вынести единый `decodePathPart(value, response)` в `errors.ts` (или
+- [x] Вынести единый `decodePathPart(value, response)` в `errors.ts` (или
   `validation.ts`, рядом с существующими валидаторами) и убрать 14 локальных
   копий, заменив на импорт. Учесть разницу сигнатур (HTTP route — пишет в
   `response`; WebSocket-модули — своя семантика ошибки, без `ServerResponse`) —
   не форсировать одну сигнатуру, если это ломает семантику.
-- [ ] Ввести единый параметризуемый `writeRouteError(response, error, log,
+- [x] Ввести единый параметризуемый `writeRouteError(response, error, log,
   { fallbackCode, fallbackMessage })` в `errors.ts`, убрать 12 локальных копий
   диспетчера, включая три файла, которые вручную собирают JSON.
-- [ ] Оставить `RequestValidationError` как канонический класс (уже широко
+- [x] Оставить `RequestValidationError` как канонический класс (уже широко
   используется), убрать `LlmRequestError` из `routes/llm.ts`, использовать
   импорт.
-- [ ] Добавить один общий класс для формы `(statusCode, info: ErrorInfo)` в
+- [x] Добавить один общий класс для формы `(statusCode, info: ErrorInfo)` в
   `errors.ts` (например `RouteInfoError`), убрать `ResourceActionError` и
   `PodExecError`, обновить оба файла на импорт.
-- [ ] Вынести `confirmationString` в `errors.ts` или `validation.ts`, убрать
+- [x] Вынести `confirmationString` в `errors.ts` или `validation.ts`, убрать
   3 копии.
 
 ### Контракты
 
-- [ ] Каждый затронутый route отвечает тем же JSON/статус-кодом на те же
+- [x] Каждый затронутый route отвечает тем же JSON/статус-кодом на те же
   некорректные входы, что и до рефакторинга — HTTP-контракт не меняется,
   меняется только источник кода.
-- [ ] `npm --workspace apps/desktop run test:gateway` проходит без изменений в
+- [x] `npm --workspace apps/desktop run test:gateway` проходит без изменений в
   ассертах (это поведенческие тесты через HTTP, не читают исходники как
   текст — в отличие от renderer-тестов, здесь не ожидается необходимости
   переписывать тесты, но проверить перед коммитом).
@@ -105,23 +105,23 @@ apps/desktop run test:gateway`), не смешивать секции в оди�
 
 ### Задачи
 
-- [ ] Вынести оба парсера в новый файл `resources/quantity.ts` без зависимостей
+- [x] Вынести оба парсера в новый файл `resources/quantity.ts` без зависимостей
   от `normalizers.ts`/`metrics.ts` (избегаем циклического импорта — `metrics.ts`
   уже импортирует `ResourceRow` из `normalizers.ts`).
-- [ ] `resources/quantity.ts` — единая реализация с поддержкой `Pi`/`Ei` и
+- [x] `resources/quantity.ts` — единая реализация с поддержкой `Pi`/`Ei` и
   консистентным округлением (взять более полную версию из `metrics.ts` как
   основу).
-- [ ] `normalizers.ts` и `metrics.ts` импортируют парсер из `quantity.ts`,
+- [x] `normalizers.ts` и `metrics.ts` импортируют парсер из `quantity.ts`,
   локальные версии удалить.
-- [ ] Прогнать `apps/desktop/tests` на предмет ассертов, которые полагались на
+- [x] Прогнать `apps/desktop/tests` на предмет ассертов, которые полагались на
   старое (неполное) поведение `normalizers.ts` — при расхождении обновить
   ожидаемые значения теста, а не возвращать старое поведение.
 
 ### Контракты
 
-- [ ] Одно и то же значение quantity даёт один и тот же результат независимо
+- [x] Одно и то же значение quantity даёт один и тот же результат независимо
   от того, идёт ли оно через resource-list normalizers или через metrics.
-- [ ] `Pi`/`Ei` суффиксы корректно парсятся везде, где раньше это делал только
+- [x] `Pi`/`Ei` суффиксы корректно парсятся везде, где раньше это делал только
   `metrics.ts`.
 
 ### Документация
@@ -146,7 +146,7 @@ CPU/memory — единственная секция патча с user-visible 
 
 ### Задачи
 
-- [ ] `watch/webSocket.ts`: убрать локальные `rawDataByteLength`/`rawDataText`,
+- [x] `watch/webSocket.ts`: убрать локальные `rawDataByteLength`/`rawDataText`,
   импортировать из `webSocketMessages.ts`.
 
 ### Документация
@@ -170,15 +170,15 @@ abort для summary/yaml/describe/events/related/metrics. Логи-таб ре�
 
 ### Задачи
 
-- [ ] Новый `hooks/usePodDrawerLogs.ts` — забирает весь logs-кластер: fetch,
+- [x] Новый `hooks/usePodDrawerLogs.ts` — забирает весь logs-кластер: fetch,
   follow/polling, pod-vs-deployment ветвление, download. Не пытаться
   впихнуть в `usePodDrawerResourceLifecycle` — у логов достаточно уникального
   поведения (follow, polling, download), чтобы быть отдельным hook, по
   аналогии с тем, как из `App.tsx` выносились независимые куски, а не всё в
   один hook.
-- [ ] `PodDrawer.tsx` использует `usePodDrawerLogs`, локальные `useState`/
+- [x] `PodDrawer.tsx` использует `usePodDrawerLogs`, локальные `useState`/
   эффекты удаляются.
-- [ ] Найти в `apps/desktop/tests/renderer-controllers.contract.test.cjs` все
+- [x] Найти в `apps/desktop/tests/renderer-controllers.contract.test.cjs` все
   `fs.readFileSync(..., "components/PodDrawer.tsx")` с ассертами на
   переносимый код (логи) и перенести эти конкретные assert на чтение нового
   hook-файла — по той же процедуре, что применялась при выносе `App.tsx`
@@ -207,16 +207,22 @@ abort для summary/yaml/describe/events/related/metrics. Логи-таб ре�
 
 ### Задачи
 
-- [ ] Новый `hooks/useXtermSession.ts` (или `utils/xtermSession.ts`, если без
-  React-состояния получится обойтись) — владеет: конструированием
-  `XTerm`+`FitAddon`, resize/fit-проводкой, copy-on-select, слушателем темы,
-  и пятью продублированными функциями (`disconnectTerminal`,
-  `terminalStatusClass`, `sendTerminalResizeIfChanged`,
-  `copyTerminalSelection`, `parseTerminalMessage`).
-- [ ] `NodeSshTab.tsx` и `TerminalTab.tsx` используют общий hook, поверх
+- [x] Новый `utils/xtermSession.ts` — **scope сужен при реализации** после
+  построчного чтения обоих файлов: реально идентичны и вынесены только
+  `disconnectTerminal`, `terminalStatusClass`, `sendTerminalResizeIfChanged`,
+  `fitAndResizeTerminal`, `copyTerminalSelection`. `parseTerminalMessage`
+  остался в каждом файле — у SSH и pod-exec разные протокольные типы
+  сообщений (`transport`/`commandPreview` vs `code`), не тривиальное
+  отличие. Конструирование `XTerm`+`FitAddon` тоже осталось раздельным —
+  `attachCustomKeyEventHandler` (Ctrl+C copy) и `reconnectTimerRef` есть
+  только в `TerminalTab.tsx`, `convertEol` только в `NodeSshTab.tsx`;
+  форсировать их в один hook означало бы либо потерять эти различия, либо
+  раздуть hook опциями до нечитаемости — риск не оправдан для nice-to-have
+  дедупликации.
+- [x] `NodeSshTab.tsx` и `TerminalTab.tsx` используют общий hook, поверх
   кладут только своё — SSH-сокет vs pod-exec-сокет протокол соединения.
   JSX/verstka не менять без необходимости.
-- [ ] В `renderer-controllers.contract.test.cjs` найти ассерты, читающие
+- [x] В `renderer-controllers.contract.test.cjs` найти ассерты, читающие
   `components/NodeSshTab.tsx`/`components/TerminalTab.tsx` на предмет
   переносимого кода (например тест "hidden terminals never fit or resize the
   PTY" уже явно проверяет `activeRef`/`bounds` паттерн в обоих файлах) и
@@ -239,10 +245,10 @@ grep по `apps/desktop/src` и `apps/desktop/tests`. `PodDrawer.tsx` явно
 
 ### Задачи
 
-- [ ] Перед удалением ещё раз проверить `grep -rn "EventsTab" apps/desktop/src
+- [x] Перед удалением ещё раз проверить `grep -rn "EventsTab" apps/desktop/src
   apps/desktop/tests` — ноль совпадений кроме самого файла.
-- [ ] Удалить `components/EventsTab.tsx`.
-- [ ] Проверить, нет ли забытого `import` в `PodDrawerChrome.tsx`/типах табов
+- [x] Удалить `components/EventsTab.tsx`.
+- [x] Проверить, нет ли забытого `import` в `PodDrawerChrome.tsx`/типах табов
   (`DrawerTab`), который перечисляет `"events"` как валидный, но недостижимый
   таб — если да, не трогать тип (события всё ещё есть как данные, просто не
   как отдельный drawer-таб), только убедиться, что нет мёртвой ссылки на
@@ -265,10 +271,10 @@ terminals, resource workspace tabs и т.д.).
 
 ### Задачи
 
-- [ ] Новый `hooks/usePodDrawerYamlActions.ts` — забирает YAML dry-run/apply/
+- [x] Новый `hooks/usePodDrawerYamlActions.ts` — забирает YAML dry-run/apply/
   reset/reload state и handlers.
-- [ ] `PodDrawer.tsx` использует новый hook.
-- [ ] Обновить ассерты в `renderer-controllers.contract.test.cjs`, если они
+- [x] `PodDrawer.tsx` использует новый hook.
+- [x] Обновить ассерты в `renderer-controllers.contract.test.cjs`, если они
   читают `PodDrawer.tsx` и матчатся на переносимый YAML-код (проверить тест
   "YAML dry-run and apply HTTP contract" и соседние — часть из них тестирует
   backend через HTTP и не тронется, но нужно явно перепроверить renderer-side
@@ -303,29 +309,29 @@ terminals, resource workspace tabs и т.д.).
 Даже без user-facing фич, проект синхронизирует версию на каждый патч
 (см. `docs/release-checklist.md`, `release-contract.json`):
 
-- [ ] Поднять версию до `2.10.2` в `package.json`, `apps/desktop/package.json`
+- [x] Поднять версию до `2.10.2` в `package.json`, `apps/desktop/package.json`
   (и его зависимость `@kubedeck/shared-types`), `packages/shared-types/package.json`,
   пересобрать `package-lock.json`.
-- [ ] `CHANGELOG.md` — запись 2.10.2, с явным упоминанием исправления
+- [x] `CHANGELOG.md` — запись 2.10.2, с явным упоминанием исправления
   CPU/memory округления (Секция B) как единственного user-visible эффекта;
   остальное — "internal cleanup, no behavior change".
-- [ ] Создать `docs/releases/RELEASE_NOTES_2.10.2.md` и
+- [x] Создать `docs/releases/RELEASE_NOTES_2.10.2.md` и
   `docs/releases/REGRESSION_CHECKLIST_2.10.2.md` по образцу 2.10.1.
-- [ ] README.md/README.ru.md — обновить версию и ссылки на release notes/
+- [x] README.md/README.ru.md — обновить версию и ссылки на release notes/
   checklist (тот же паттерн, что при 2.10.1).
-- [ ] `NODE_MIGRATION_PROGRESS.md` — короткая запись про 2.10.2.
-- [ ] `docs/third-party-notices.md` — обновить версию в шапке (зависимости не
+- [x] `NODE_MIGRATION_PROGRESS.md` — короткая запись про 2.10.2.
+- [x] `docs/third-party-notices.md` — обновить версию в шапке (зависимости не
   меняются, если не появится новый пакет).
 
 ## Автоматический gate
 
-- [ ] `npm run lint`
-- [ ] `npm run format:check`
-- [ ] `npm run test:renderer`
-- [ ] `npm run typecheck`
-- [ ] `npm run build`
-- [ ] `npm --workspace apps/desktop run test:gateway`
-- [ ] `npm run verify:release`
+- [x] `npm run lint`
+- [x] `npm run format:check`
+- [x] `npm run test:renderer`
+- [x] `npm run typecheck`
+- [x] `npm run build`
+- [x] `npm --workspace apps/desktop run test:gateway`
+- [x] `npm run verify:release`
 
 ## Критерий завершения
 

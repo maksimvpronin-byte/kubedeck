@@ -1,3 +1,10 @@
+## 2.10.2 - Internal cleanup: shared HTTP error handling and terminal helpers
+
+- Fixed a rounding/unit-support mismatch between two independent CPU/memory quantity parsers: pod resource requests/limits (`resources/normalizers.ts`) now support `Pi`/`Ei` suffixes and truncate the same way node/pod metrics already did, so the same value no longer rounds differently depending on which code path produced it.
+- No other user-visible change. Consolidated 14 duplicate `decodePathPart` helpers, 12 duplicate HTTP error dispatchers, and 4 duplicate error classes across backend routes and WebSocket modules into shared `validation.ts`/`routes/routeErrors.ts` code.
+- Extracted `PodDrawer.tsx`'s logs and YAML-action state/handlers into `hooks/usePodDrawerLogs.ts` and `hooks/usePodDrawerYamlActions.ts`, and the duplicated xterm session helpers from `NodeSshTab.tsx`/`TerminalTab.tsx` into `utils/xtermSession.ts`.
+- Removed the unused `EventsTab.tsx` component (superseded by `ResourceSummary`'s events view).
+
 ## 2.10.1 - Encrypted LLM API key storage
 
 - Stopped storing the LLM API key as plaintext in `config.json`: it is now encrypted at rest via Electron `safeStorage` in `secrets/llm-api-key.bin` (`0700`/`0600` permissions) and decrypted only in-process for the duration of an outbound LLM request.
