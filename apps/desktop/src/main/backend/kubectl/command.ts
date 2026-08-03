@@ -19,9 +19,7 @@ export interface BuiltKubectlCommand {
   environment: NodeJS.ProcessEnv;
 }
 
-export function createKubectlCommand(
-  values: Omit<Partial<KubectlCommand>, "args"> & Pick<KubectlCommand, "args">,
-): KubectlCommand {
+export function createKubectlCommand(values: Omit<Partial<KubectlCommand>, "args"> & Pick<KubectlCommand, "args">): KubectlCommand {
   return {
     clusterId: values.clusterId ?? "",
     kubeconfigPath: values.kubeconfigPath ?? null,
@@ -75,14 +73,7 @@ function kubeconfigServerHost(kubeconfigPath?: string | null): string {
 
 export function kubectlEnvironment(kubeconfigPath?: string | null): NodeJS.ProcessEnv {
   const environment = { ...process.env };
-  const additions = [
-    "localhost",
-    "127.0.0.1",
-    "::1",
-    "10.0.0.0/8",
-    "172.16.0.0/12",
-    "192.168.0.0/16",
-  ];
+  const additions = ["localhost", "127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"];
 
   const serverHost = kubeconfigServerHost(kubeconfigPath);
   if (serverHost) additions.push(serverHost);
@@ -102,10 +93,7 @@ export function buildKubectlCommand(command: KubectlCommand): BuiltKubectlComman
   }
 
   if (command.timeoutSeconds > 0 && !hasRequestTimeout(command.args)) {
-    const requestTimeout = Math.max(
-      5,
-      Math.min(command.timeoutSeconds, Math.max(5, command.timeoutSeconds - 5)),
-    );
+    const requestTimeout = Math.max(5, Math.min(command.timeoutSeconds, Math.max(5, command.timeoutSeconds - 5)));
     args.push(`--request-timeout=${requestTimeout}s`);
   }
 

@@ -48,11 +48,7 @@ export class ResourceSnapshotCache {
     private readonly now: () => number = Date.now,
   ) {}
 
-  get(
-    clusterId: string,
-    resource: string,
-    namespace: string,
-  ): ResourceListResponse | null {
+  get(clusterId: string, resource: string, namespace: string): ResourceListResponse | null {
     const key = cacheKey(clusterId, resource, namespace);
     const entry = this.entries.get(key);
     if (!entry) return null;
@@ -74,8 +70,7 @@ export class ResourceSnapshotCache {
     clusterId: string,
     resource: string,
     namespace: string,
-    response: Omit<ResourceListResponse, "cached" | "cacheTtlSeconds"> &
-      Partial<Pick<ResourceListResponse, "cached" | "cacheTtlSeconds">>,
+    response: Omit<ResourceListResponse, "cached" | "cacheTtlSeconds"> & Partial<Pick<ResourceListResponse, "cached" | "cacheTtlSeconds">>,
   ): ResourceListResponse {
     const now = this.now();
     const value: ResourceListResponse = {
@@ -100,20 +95,12 @@ export class ResourceSnapshotCache {
     return cloneResponse(value);
   }
 
-  clearResource(
-    clusterId: string,
-    resource: string,
-    namespace: string,
-    reason = "watch.event",
-  ): number {
+  clearResource(clusterId: string, resource: string, namespace: string, reason = "watch.event"): number {
     const normalizedResource = resource.toLowerCase();
     let cleared = 0;
     for (const [key, entry] of this.entries) {
       if (entry.clusterId !== clusterId || entry.resource !== normalizedResource) continue;
-      const namespaceMatches =
-        namespace === "all" ||
-        entry.namespace === namespace ||
-        entry.namespace === "all";
+      const namespaceMatches = namespace === "all" || entry.namespace === namespace || entry.namespace === "all";
       if (!namespaceMatches) continue;
       this.entries.delete(key);
       cleared += 1;
@@ -185,9 +172,7 @@ export class ResourceSnapshotCache {
       resourceListCacheEnabled: true,
       resourceListTtlSeconds: this.ttlSeconds,
       lastInvalidations: this.invalidations.slice(-10),
-      note:
-        "Node resource-list snapshots use a 15-second read-through cache. " +
-        "Cached reads verify cluster readiness before returning data.",
+      note: "Node resource-list snapshots use a 15-second read-through cache. " + "Cached reads verify cluster readiness before returning data.",
     };
   }
 }

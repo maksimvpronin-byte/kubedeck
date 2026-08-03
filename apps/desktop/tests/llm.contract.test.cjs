@@ -4,22 +4,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
-const {
-  chatCompletion,
-  LlmClientError,
-  normalizeBaseUrl,
-  validateLlmSettings,
-} = require("../dist/main/backend/llm/client.js");
-const {
-  buildResourceContext,
-  sanitizeText,
-  sanitizeValue,
-} = require("../dist/main/backend/llm/context.js");
+const { chatCompletion, LlmClientError, normalizeBaseUrl, validateLlmSettings } = require("../dist/main/backend/llm/client.js");
+const { buildResourceContext, sanitizeText, sanitizeValue } = require("../dist/main/backend/llm/context.js");
 const { buildUserPrompt } = require("../dist/main/backend/llm/prompts.js");
-const {
-  handleLlmRequest,
-  publicLlmStatus,
-} = require("../dist/main/backend/routes/llm.js");
+const { handleLlmRequest, publicLlmStatus } = require("../dist/main/backend/routes/llm.js");
 const { writeSettings } = require("../dist/main/backend/routes/config.js");
 const { ConfigStore } = require("../dist/main/backend/config/configStore.js");
 const { MemorySecretStore } = require("../dist/main/backend/security/memorySecretStore.js");
@@ -78,9 +66,7 @@ function resourceRequest(overrides = {}) {
       status: {
         phase: "Running",
         qosClass: "Burstable",
-        containerStatuses: [
-          { name: "api", ready: true, restartCount: 0 },
-        ],
+        containerStatuses: [{ name: "api", ready: true, restartCount: 0 }],
       },
     },
     describe: "Name: api-0\nStatus: Running\nReady: 1/1\nRestart Count: 0\nEvents: <none>",
@@ -119,19 +105,14 @@ test("LLM sanitizer removes structured and textual secrets", () => {
   assert.equal(sanitized.data, "[REDACTED]");
   assert.equal(sanitized.stringData, "[REDACTED]");
 
-  const text = sanitizeText(
-    "Authorization: Bearer abc.def\nPASSWORD=super-secret\n-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
-  );
+  const text = sanitizeText("Authorization: Bearer abc.def\nPASSWORD=super-secret\n-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----");
   assert.doesNotMatch(text, /abc\.def|super-secret|BEGIN PRIVATE KEY/);
   assert.match(text, /\[REDACTED\]/);
 });
 
 test("resource context excludes Kubernetes log streams and preserves truncation", () => {
   const sentinel = "forbidden-log-sentinel";
-  const built = buildResourceContext(
-    resourceRequest({ logs: sentinel, previousLogs: `previous-${sentinel}` }),
-    60000,
-  );
+  const built = buildResourceContext(resourceRequest({ logs: sentinel, previousLogs: `previous-${sentinel}` }), 60000);
   assert.equal(built.truncated, false);
   assert.match(built.context, /RESOURCE IDENTITY/);
   assert.match(built.context, /LOG CONTEXT POLICY/);
@@ -140,10 +121,7 @@ test("resource context excludes Kubernetes log streams and preserves truncation"
   assert.doesNotMatch(built.context, /CONTAINER LOGS|previousLogs|currentLogs/);
   assert.match(built.context, /Events already provided by describe: <none>/);
 
-  const truncated = buildResourceContext(
-    resourceRequest({ describe: "x".repeat(10000) }),
-    1200,
-  );
+  const truncated = buildResourceContext(resourceRequest({ describe: "x".repeat(10000) }), 1200);
   assert.equal(truncated.truncated, true);
   assert.ok(truncated.context.length <= 1200);
   assert.match(truncated.context, /\[TRUNCATED\]$/);
@@ -211,27 +189,14 @@ test("LLM client preserves empty, reasoning-only and token-limit error codes", a
     },
   });
 
+  await assert.rejects(chatCompletion(base, [], response({ choices: [{ message: { content: "" } }] })), (error) => error instanceof LlmClientError && error.code === "LLM_EMPTY_RESPONSE");
   await assert.rejects(
-    chatCompletion(base, [], response({ choices: [{ message: { content: "" } }] })),
-    (error) => error instanceof LlmClientError && error.code === "LLM_EMPTY_RESPONSE",
+    chatCompletion(base, [], response({ choices: [{ finish_reason: "stop", message: { reasoning_content: "thinking" } }] })),
+    (error) => error instanceof LlmClientError && error.code === "LLM_EMPTY_FINAL_RESPONSE",
   );
   await assert.rejects(
-    chatCompletion(
-      base,
-      [],
-      response({ choices: [{ finish_reason: "stop", message: { reasoning_content: "thinking" } }] }),
-    ),
-    (error) =>
-      error instanceof LlmClientError && error.code === "LLM_EMPTY_FINAL_RESPONSE",
-  );
-  await assert.rejects(
-    chatCompletion(
-      base,
-      [],
-      response({ choices: [{ finish_reason: "length", message: { reasoning_content: "thinking" } }] }),
-    ),
-    (error) =>
-      error instanceof LlmClientError && error.code === "LLM_OUTPUT_TOKEN_LIMIT",
+    chatCompletion(base, [], response({ choices: [{ finish_reason: "length", message: { reasoning_content: "thinking" } }] })),
+    (error) => error instanceof LlmClientError && error.code === "LLM_OUTPUT_TOKEN_LIMIT",
   );
 });
 
@@ -270,8 +235,7 @@ test("LLM HTTP routes keep status, test, preview, and analyze contracts", async 
           {
             finish_reason: "stop",
             message: {
-              content:
-                '<kubedeck_final>{"conclusion":["Ответ"],"facts":["Факт"],"risks":[],"nextChecks":[],"missing":[]}</kubedeck_final>',
+              content: '<kubedeck_final>{"conclusion":["Ответ"],"facts":["Факт"],"risks":[],"nextChecks":[],"missing":[]}</kubedeck_final>',
             },
           },
         ],
@@ -423,10 +387,7 @@ test("MemorySecretStore behaves like the real SecretStore contract", () => {
 test("migratePlaintextLlmSecret moves an available plaintext key into secret storage and scrubs files", () => {
   const appDataRoot = tempAppDataRoot("kubedeck-llm-migrate-available-");
   const configPath = path.join(appDataRoot, "config.json");
-  fs.writeFileSync(
-    configPath,
-    JSON.stringify({ clusters: [], settings: { llm: { apiKey: "plaintext-secret" } } }),
-  );
+  fs.writeFileSync(configPath, JSON.stringify({ clusters: [], settings: { llm: { apiKey: "plaintext-secret" } } }));
 
   const secretStore = new MemorySecretStore();
   const result = migratePlaintextLlmSecret(appDataRoot, secretStore);
@@ -452,10 +413,7 @@ test("migratePlaintextLlmSecret moves an available plaintext key into secret sto
 test("migratePlaintextLlmSecret tightens permissions but keeps the key when secret storage is unavailable", () => {
   const appDataRoot = tempAppDataRoot("kubedeck-llm-migrate-blocked-");
   const configPath = path.join(appDataRoot, "config.json");
-  fs.writeFileSync(
-    configPath,
-    JSON.stringify({ clusters: [], settings: { llm: { apiKey: "plaintext-secret" } } }),
-  );
+  fs.writeFileSync(configPath, JSON.stringify({ clusters: [], settings: { llm: { apiKey: "plaintext-secret" } } }));
 
   const secretStore = new MemorySecretStore(false);
   const result = migratePlaintextLlmSecret(appDataRoot, secretStore);
@@ -476,10 +434,7 @@ test("migratePlaintextLlmSecret tightens permissions but keeps the key when secr
 
 test("migratePlaintextLlmSecret is a no-op when no plaintext key exists", () => {
   const appDataRoot = tempAppDataRoot("kubedeck-llm-migrate-empty-");
-  fs.writeFileSync(
-    path.join(appDataRoot, "config.json"),
-    JSON.stringify({ clusters: [], settings: { llm: { apiKeyConfigured: false } } }),
-  );
+  fs.writeFileSync(path.join(appDataRoot, "config.json"), JSON.stringify({ clusters: [], settings: { llm: { apiKeyConfigured: false } } }));
 
   const secretStore = new MemorySecretStore();
   const result = migratePlaintextLlmSecret(appDataRoot, secretStore);

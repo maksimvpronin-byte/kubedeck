@@ -48,30 +48,33 @@ export function OverviewPanel({
     setCapacityViewKey(loadCapacityViewKey(cluster?.id));
   }, [cluster?.id]);
 
-  const refresh = useCallback(async (silent = false) => {
-    if (!api || !cluster) return false;
-    requestRef.current?.abort();
-    const controller = new AbortController();
-    requestRef.current = controller;
-    if (!silent) setLoading(true);
-    try {
-      const response = await api.overview(cluster.id, namespaces, controller.signal);
-      setData(response);
-      setStale(false);
-      onError(null);
-      return true;
-    } catch (error) {
-      if (isAbortError(error)) return false;
-      setStale(Boolean(data));
-      onError(asErrorInfo(error));
-      return false;
-    } finally {
-      if (requestRef.current === controller) {
-        requestRef.current = null;
-        if (!silent) setLoading(false);
+  const refresh = useCallback(
+    async (silent = false) => {
+      if (!api || !cluster) return false;
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
+      if (!silent) setLoading(true);
+      try {
+        const response = await api.overview(cluster.id, namespaces, controller.signal);
+        setData(response);
+        setStale(false);
+        onError(null);
+        return true;
+      } catch (error) {
+        if (isAbortError(error)) return false;
+        setStale(Boolean(data));
+        onError(asErrorInfo(error));
+        return false;
+      } finally {
+        if (requestRef.current === controller) {
+          requestRef.current = null;
+          if (!silent) setLoading(false);
+        }
       }
-    }
-  }, [api, cluster?.id, namespaces.join(","), onError, data]);
+    },
+    [api, cluster?.id, namespaces.join(","), onError, data],
+  );
 
   useEffect(() => {
     void refresh();
@@ -96,7 +99,16 @@ export function OverviewPanel({
   }
 
   if (!data && loading) return <OverviewSkeleton />;
-  if (!data) return <section className="overview-empty"><AlertTriangle size={34} /><h2>{t("overview.unavailable")}</h2><button className="icon-text" onClick={() => void refresh()}>{t("common.retry")}</button></section>;
+  if (!data)
+    return (
+      <section className="overview-empty">
+        <AlertTriangle size={34} />
+        <h2>{t("overview.unavailable")}</h2>
+        <button className="icon-text" onClick={() => void refresh()}>
+          {t("common.retry")}
+        </button>
+      </section>
+    );
 
   const title = t(`overview.verdict.${data.verdict.tone}`);
   const now = Date.now();
@@ -127,7 +139,11 @@ export function OverviewPanel({
         </div>
       </header>
 
-      {data.errors.length ? <div className="overview-partial"><AlertTriangle size={14} /> {t("overview.partial")} ({data.errors.length})</div> : null}
+      {data.errors.length ? (
+        <div className="overview-partial">
+          <AlertTriangle size={14} /> {t("overview.partial")} ({data.errors.length})
+        </div>
+      ) : null}
 
       <div className="overview-grid">
         <OverviewCard title={t("overview.capacity")} onAction={() => onNavigate("nodes")} action={t("overview.openNodes")} wide>
@@ -155,7 +171,9 @@ export function OverviewPanel({
                 <section className="overview-capacity-group" key={group.id}>
                   <header>
                     <strong>{capacityGroupName(group.name, t)}</strong>
-                    <span>{group.readyNodes}/{group.nodes} {t("overview.capacityNodes")}</span>
+                    <span>
+                      {group.readyNodes}/{group.nodes} {t("overview.capacityNodes")}
+                    </span>
                   </header>
                   <CapacityRings
                     metrics={[
@@ -167,12 +185,20 @@ export function OverviewPanel({
                     availableLabel={t("overview.capacityAvailable")}
                   />
                   {Math.min(group.cpu.measuredNodes, group.memory.measuredNodes, group.storage.measuredNodes) < group.nodes ? (
-                    <p>{t("overview.capacityMetrics")} {Math.min(group.cpu.measuredNodes, group.memory.measuredNodes, group.storage.measuredNodes)}/{group.nodes}</p>
-                  ) : group.pressuredNodes ? <p className="is-danger">{group.pressuredNodes} {t("overview.pressuredNodes")}</p> : null}
+                    <p>
+                      {t("overview.capacityMetrics")} {Math.min(group.cpu.measuredNodes, group.memory.measuredNodes, group.storage.measuredNodes)}/{group.nodes}
+                    </p>
+                  ) : group.pressuredNodes ? (
+                    <p className="is-danger">
+                      {group.pressuredNodes} {t("overview.pressuredNodes")}
+                    </p>
+                  ) : null}
                 </section>
               ))}
             </div>
-          ) : <div className="overview-capacity-empty">{t("overview.capacityNoWorkers")}</div>}
+          ) : (
+            <div className="overview-capacity-empty">{t("overview.capacityNoWorkers")}</div>
+          )}
           <CapacityExclusions excluded={data.capacity.excluded} t={t} />
         </OverviewCard>
 
@@ -188,27 +214,40 @@ export function OverviewPanel({
 
         <OverviewCard title={t("overview.workloadHealth")} wide>
           <div className="overview-workloads">
-            {data.workloads.filter((item) => item.total > 0).map((item) => (
-              <button key={item.resource} onClick={() => onNavigate(item.resource)}>
-                <strong>{item.resource}</strong>
-                <span className="is-success">{item.healthy}</span>
-                <span className="is-pending">{item.pending}</span>
-                <span className="is-danger">{item.danger}</span>
-              </button>
-            ))}
+            {data.workloads
+              .filter((item) => item.total > 0)
+              .map((item) => (
+                <button key={item.resource} onClick={() => onNavigate(item.resource)}>
+                  <strong>{item.resource}</strong>
+                  <span className="is-success">{item.healthy}</span>
+                  <span className="is-pending">{item.pending}</span>
+                  <span className="is-danger">{item.danger}</span>
+                </button>
+              ))}
           </div>
         </OverviewCard>
 
         <OverviewCard title={t("overview.continue")}>
           <div className="overview-list compact">
-            {recentTabs.slice(-4).reverse().map((tab) => (
-              <button key={tab.id} className="overview-list-row" onClick={() => onOpenTab(tab)}>
-                <strong>{tab.row.name}</strong><span>{tab.resource} · {tab.namespace}</span><ArrowRight size={14} />
-              </button>
-            ))}
+            {recentTabs
+              .slice(-4)
+              .reverse()
+              .map((tab) => (
+                <button key={tab.id} className="overview-list-row" onClick={() => onOpenTab(tab)}>
+                  <strong>{tab.row.name}</strong>
+                  <span>
+                    {tab.resource} · {tab.namespace}
+                  </span>
+                  <ArrowRight size={14} />
+                </button>
+              ))}
             {!recentTabs.length ? <QuickAccess onNavigate={onNavigate} /> : null}
           </div>
-          {terminalCount ? <p className="overview-card-note">{terminalCount} {t("overview.terminals")}</p> : null}
+          {terminalCount ? (
+            <p className="overview-card-note">
+              {terminalCount} {t("overview.terminals")}
+            </p>
+          ) : null}
         </OverviewCard>
       </div>
     </section>
@@ -216,15 +255,43 @@ export function OverviewPanel({
 }
 
 function OverviewSkeleton() {
-  return <section className="overview-panel overview-skeleton" aria-label="Loading overview"><div /><div className="overview-grid"><div /><div /><div /><div /></div></section>;
+  return (
+    <section className="overview-panel overview-skeleton" aria-label="Loading overview">
+      <div />
+      <div className="overview-grid">
+        <div />
+        <div />
+        <div />
+        <div />
+      </div>
+    </section>
+  );
 }
 
 function OverviewCard({ title, action, onAction, wide, children }: { title: string; action?: string; onAction?: () => void; wide?: boolean; children: ReactNode }) {
-  return <article className={`overview-card ${wide ? "wide" : ""}`}><header><h3>{title}</h3>{action ? <button onClick={onAction}>{action}<ArrowRight size={13} /></button> : null}</header>{children}</article>;
+  return (
+    <article className={`overview-card ${wide ? "wide" : ""}`}>
+      <header>
+        <h3>{title}</h3>
+        {action ? (
+          <button onClick={onAction}>
+            {action}
+            <ArrowRight size={13} />
+          </button>
+        ) : null}
+      </header>
+      {children}
+    </article>
+  );
 }
 
 function Kpi({ label, value, tone = "neutral" }: { label: string; value: string; tone?: string }) {
-  return <div className={`overview-kpi is-${tone}`}><span>{label}</span><strong>{value}</strong></div>;
+  return (
+    <div className={`overview-kpi is-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
 }
 
 function CapacityRings({
@@ -239,12 +306,7 @@ function CapacityRings({
   const radii = [36, 54, 72];
   return (
     <div className="overview-capacity-visual">
-      <svg
-        className="overview-capacity-rings"
-        viewBox="0 0 180 180"
-        role="img"
-        aria-label={metrics.map((metric) => `${metric.label}: ${metric.format(metric.amount.used)} ${usedLabel}`).join(", ")}
-      >
+      <svg className="overview-capacity-rings" viewBox="0 0 180 180" role="img" aria-label={metrics.map((metric) => `${metric.label}: ${metric.format(metric.amount.used)} ${usedLabel}`).join(", ")}>
         {metrics.map((metric, index) => {
           const fill = capacityFill(metric.amount);
           return (
@@ -254,16 +316,32 @@ function CapacityRings({
             </g>
           );
         })}
-        <text x="90" y="86">CPU</text>
-        <text className="overview-capacity-ring-center-value" x="90" y="102">{metrics[0].format(metrics[0].amount.used)}</text>
+        <text x="90" y="86">
+          CPU
+        </text>
+        <text className="overview-capacity-ring-center-value" x="90" y="102">
+          {metrics[0].format(metrics[0].amount.used)}
+        </text>
       </svg>
       <div className="overview-capacity-legend">
         {metrics.map((metric) => (
           <section className={`is-${metric.id}`} key={metric.id}>
-            <header><i /><strong>{metric.label}</strong><span>{metric.format(metric.amount.used)} {usedLabel}</span></header>
+            <header>
+              <i />
+              <strong>{metric.label}</strong>
+              <span>
+                {metric.format(metric.amount.used)} {usedLabel}
+              </span>
+            </header>
             <dl>
-              <div><dt>{availableLabel}</dt><dd>{metric.format(metric.amount.available)}</dd></div>
-              <div><dt>{metric.totalLabel}</dt><dd>{metric.format(metric.amount.allocatable)}</dd></div>
+              <div>
+                <dt>{availableLabel}</dt>
+                <dd>{metric.format(metric.amount.available)}</dd>
+              </div>
+              <div>
+                <dt>{metric.totalLabel}</dt>
+                <dd>{metric.format(metric.amount.allocatable)}</dd>
+              </div>
             </dl>
           </section>
         ))}
@@ -273,16 +351,18 @@ function CapacityRings({
 }
 
 function capacityFill(amount: CapacityAmount): number {
-  return amount.used === undefined || !amount.allocatable ? 0 : Math.min(100, Math.max(0, amount.used / amount.allocatable * 100));
+  return amount.used === undefined || !amount.allocatable ? 0 : Math.min(100, Math.max(0, (amount.used / amount.allocatable) * 100));
 }
 
 function CapacityExclusions({ excluded, t }: { excluded: ClusterOverviewResponse["capacity"]["excluded"]; t: (key: string) => string }) {
-  const values = [
-    excluded.controlPlane ? `control-plane ${excluded.controlPlane}` : "",
-    excluded.etcd ? `etcd ${excluded.etcd}` : "",
-    excluded.ingress ? `ingress ${excluded.ingress}` : "",
-  ].filter(Boolean);
-  return values.length ? <p className="overview-capacity-excluded">{t("overview.capacitySeparated")}: {values.join(" · ")}</p> : null;
+  const values = [excluded.controlPlane ? `control-plane ${excluded.controlPlane}` : "", excluded.etcd ? `etcd ${excluded.etcd}` : "", excluded.ingress ? `ingress ${excluded.ingress}` : ""].filter(
+    Boolean,
+  );
+  return values.length ? (
+    <p className="overview-capacity-excluded">
+      {t("overview.capacitySeparated")}: {values.join(" · ")}
+    </p>
+  ) : null;
 }
 
 function capacityGroupName(name: string, t: (key: string) => string): string {
@@ -329,9 +409,23 @@ function saveCapacityViewKey(clusterId: string, key: string): void {
 }
 
 function QuickAccess({ onNavigate }: { onNavigate: (resource: string) => void }) {
-  return <div className="overview-quick">{["pods", "deployments", "nodes", "namespaces"].map((resource) => <button key={resource} onClick={() => onNavigate(resource)}><Server size={13} />{resource}</button>)}</div>;
+  return (
+    <div className="overview-quick">
+      {["pods", "deployments", "nodes", "namespaces"].map((resource) => (
+        <button key={resource} onClick={() => onNavigate(resource)}>
+          <Server size={13} />
+          {resource}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function ProfileFact({ label, values }: { label: string; values: string[] }) {
-  return <div><span>{label}</span><strong>{values.length ? values.join(", ") : "—"}</strong></div>;
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{values.length ? values.join(", ") : "—"}</strong>
+    </div>
+  );
 }

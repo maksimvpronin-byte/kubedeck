@@ -2,12 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
 
-const {
-  buildPodExecPlan,
-  handlePodExecRequest,
-  matchPodExecRoute,
-  requirePodExecConfirmation,
-} = require("../dist/main/backend/routes/podExec.js");
+const { buildPodExecPlan, handlePodExecRequest, matchPodExecRoute, requirePodExecConfirmation } = require("../dist/main/backend/routes/podExec.js");
 const { RequestValidationError } = require("../dist/main/backend/validation.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
@@ -55,10 +50,7 @@ function confirmation(target) {
 }
 
 test("pod exec route, plan, and confirmation contract", () => {
-  const target = matchPodExecRoute(
-    "POST",
-    "/clusters/cluster-1/pods/default/demo/exec",
-  );
+  const target = matchPodExecRoute("POST", "/clusters/cluster-1/pods/default/demo/exec");
 
   assert.deepEqual(target, {
     clusterId: "cluster-1",
@@ -72,34 +64,15 @@ test("pod exec route, plan, and confirmation contract", () => {
     shell: "bash",
   });
 
-  assert.deepEqual(plan.args, [
-    "exec",
-    "demo",
-    "-n",
-    "default",
-    "-c",
-    "main",
-    "--",
-    "bash",
-    "-lc",
-    "printf hello",
-  ]);
+  assert.deepEqual(plan.args, ["exec", "demo", "-n", "default", "-c", "main", "--", "bash", "-lc", "printf hello"]);
   assert.equal(plan.timeoutSeconds, 60);
   assert.equal(plan.maxOutputBytes, 16 * 1024 * 1024);
 
-  assert.doesNotThrow(() =>
-    requirePodExecConfirmation(confirmation(target), target),
-  );
+  assert.doesNotThrow(() => requirePodExecConfirmation(confirmation(target), target));
 
   assert.throws(
-    () =>
-      requirePodExecConfirmation(
-        { ...confirmation(target), typedName: "wrong" },
-        target,
-      ),
-    (error) =>
-      error instanceof RequestValidationError &&
-      error.code === "CONFIRMATION_TYPED_NAME_MISMATCH",
+    () => requirePodExecConfirmation({ ...confirmation(target), typedName: "wrong" }, target),
+    (error) => error instanceof RequestValidationError && error.code === "CONFIRMATION_TYPED_NAME_MISMATCH",
   );
 });
 
@@ -124,8 +97,7 @@ test("pod exec HTTP handler authorizes, executes, and audits metadata", async (t
         ok: true,
         stdout: "hello\n",
         stderr: "",
-        commandPreview:
-          'kubectl exec demo -n default -c main -- sh -lc "printf hello"',
+        commandPreview: 'kubectl exec demo -n default -c main -- sh -lc "printf hello"',
         returnCode: 0,
       };
     },
@@ -133,15 +105,7 @@ test("pod exec HTTP handler authorizes, executes, and audits metadata", async (t
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    const handled = handlePodExecRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(),
-      { append: (event) => auditEvents.push(event) },
-      runner,
-      () => {},
-    );
+    const handled = handlePodExecRequest(request, response, pathname, fakeConfigStore(), { append: (event) => auditEvents.push(event) }, runner, () => {});
 
     if (!handled) {
       response.statusCode = 404;
@@ -152,55 +116,33 @@ test("pod exec HTTP handler authorizes, executes, and audits metadata", async (t
   const baseUrl = await listen(server);
   t.after(() => close(server));
 
-  const response = await fetch(
-    `${baseUrl}/clusters/cluster-1/pods/default/demo/exec`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        command: "printf hello",
-        container: "main",
-        shell: "sh",
-        confirmation: confirmation({
-          clusterId: "cluster-1",
-          namespace: "default",
-          name: "demo",
-        }),
+  const response = await fetch(`${baseUrl}/clusters/cluster-1/pods/default/demo/exec`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      command: "printf hello",
+      container: "main",
+      shell: "sh",
+      confirmation: confirmation({
+        clusterId: "cluster-1",
+        namespace: "default",
+        name: "demo",
       }),
-    },
-  );
+    }),
+  });
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
     ok: true,
     stdout: "hello\n",
     stderr: "",
-    commandPreview:
-      'kubectl exec demo -n default -c main -- sh -lc "printf hello"',
+    commandPreview: 'kubectl exec demo -n default -c main -- sh -lc "printf hello"',
     returnCode: 0,
   });
 
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls[0].args, [
-    "auth",
-    "can-i",
-    "create",
-    "pods/exec",
-    "-n",
-    "default",
-  ]);
-  assert.deepEqual(calls[1].args, [
-    "exec",
-    "demo",
-    "-n",
-    "default",
-    "-c",
-    "main",
-    "--",
-    "sh",
-    "-lc",
-    "printf hello",
-  ]);
+  assert.deepEqual(calls[0].args, ["auth", "can-i", "create", "pods/exec", "-n", "default"]);
+  assert.deepEqual(calls[1].args, ["exec", "demo", "-n", "default", "-c", "main", "--", "sh", "-lc", "printf hello"]);
 
   assert.equal(auditEvents.length, 1);
   assert.equal(auditEvents[0].action, "pod.exec");
@@ -226,76 +168,59 @@ test("pod exec rejects denied authorization and invalid requests", async (t) => 
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    handlePodExecRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(),
-      { append: () => {} },
-      runner,
-      () => {},
-    );
+    handlePodExecRequest(request, response, pathname, fakeConfigStore(), { append: () => {} }, runner, () => {});
   });
 
   const baseUrl = await listen(server);
   t.after(() => close(server));
 
-  const denied = await fetch(
-    `${baseUrl}/clusters/cluster-1/pods/default/demo/exec`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        command: "id",
-        shell: "sh",
-        confirmation: confirmation({
-          clusterId: "cluster-1",
-          namespace: "default",
-          name: "demo",
-        }),
+  const denied = await fetch(`${baseUrl}/clusters/cluster-1/pods/default/demo/exec`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      command: "id",
+      shell: "sh",
+      confirmation: confirmation({
+        clusterId: "cluster-1",
+        namespace: "default",
+        name: "demo",
       }),
-    },
-  );
+    }),
+  });
 
   assert.equal(denied.status, 403);
   assert.equal((await denied.json()).detail.code, "KUBECTL_AUTH_DENIED");
 
-  const invalidShell = await fetch(
-    `${baseUrl}/clusters/cluster-1/pods/default/demo/exec`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        command: "id",
-        shell: "powershell",
-        confirmation: confirmation({
-          clusterId: "cluster-1",
-          namespace: "default",
-          name: "demo",
-        }),
+  const invalidShell = await fetch(`${baseUrl}/clusters/cluster-1/pods/default/demo/exec`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      command: "id",
+      shell: "powershell",
+      confirmation: confirmation({
+        clusterId: "cluster-1",
+        namespace: "default",
+        name: "demo",
       }),
-    },
-  );
+    }),
+  });
 
   assert.equal(invalidShell.status, 400);
   assert.equal((await invalidShell.json()).detail.code, "INVALID_SHELL");
 
-  const emptyCommand = await fetch(
-    `${baseUrl}/clusters/cluster-1/pods/default/demo/exec`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        command: "   ",
-        shell: "sh",
-        confirmation: confirmation({
-          clusterId: "cluster-1",
-          namespace: "default",
-          name: "demo",
-        }),
+  const emptyCommand = await fetch(`${baseUrl}/clusters/cluster-1/pods/default/demo/exec`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      command: "   ",
+      shell: "sh",
+      confirmation: confirmation({
+        clusterId: "cluster-1",
+        namespace: "default",
+        name: "demo",
       }),
-    },
-  );
+    }),
+  });
 
   assert.equal(emptyCommand.status, 400);
   assert.equal((await emptyCommand.json()).detail.code, "EMPTY_COMMAND");
@@ -329,37 +254,26 @@ test("pod exec maps kubectl failures and records failed audit metadata", async (
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    handlePodExecRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(),
-      { append: (event) => auditEvents.push(event) },
-      runner,
-      () => {},
-    );
+    handlePodExecRequest(request, response, pathname, fakeConfigStore(), { append: (event) => auditEvents.push(event) }, runner, () => {});
   });
 
   const baseUrl = await listen(server);
   t.after(() => close(server));
 
-  const response = await fetch(
-    `${baseUrl}/clusters/cluster-1/pods/default/demo/exec`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        command: "id",
-        container: "missing",
-        shell: "sh",
-        confirmation: confirmation({
-          clusterId: "cluster-1",
-          namespace: "default",
-          name: "demo",
-        }),
+  const response = await fetch(`${baseUrl}/clusters/cluster-1/pods/default/demo/exec`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      command: "id",
+      container: "missing",
+      shell: "sh",
+      confirmation: confirmation({
+        clusterId: "cluster-1",
+        namespace: "default",
+        name: "demo",
       }),
-    },
-  );
+    }),
+  });
 
   assert.notEqual(response.status, 200);
   assert.equal((await response.json()).detail.code, "NOT_FOUND");

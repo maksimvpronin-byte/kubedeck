@@ -21,7 +21,6 @@
   max-width: 760px;
 }
 
-
 .audit-header-actions {
   display: flex;
   align-items: center;
@@ -172,4 +171,3 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
-

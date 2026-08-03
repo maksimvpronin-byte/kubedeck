@@ -7,12 +7,7 @@ import { writeJson } from "../http";
 import { chatCompletion, LlmClientError, validateLlmSettings, type ResolvedLlmSettings } from "../llm/client";
 import { buildResourceContext } from "../llm/context";
 import { buildUserPrompt, SYSTEM_PROMPT } from "../llm/prompts";
-import type {
-  LlmAnalyzeResourceRequest,
-  LlmMessage,
-  LlmPromptBuildResult,
-  LlmTestRequest,
-} from "../llm/types";
+import type { LlmAnalyzeResourceRequest, LlmMessage, LlmPromptBuildResult, LlmTestRequest } from "../llm/types";
 
 const SECRET_NAME = "llm-api-key" as const;
 
@@ -38,21 +33,13 @@ function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function requiredString(
-  value: unknown,
-  field: string,
-  maximum = MAX_IDENTITY_CHARS,
-): string {
+function requiredString(value: unknown, field: string, maximum = MAX_IDENTITY_CHARS): string {
   const text = asString(value).trim();
   if (!text) {
     throw new LlmRequestError(400, "INVALID_LLM_REQUEST", `${field} is required`);
   }
   if (text.length > maximum) {
-    throw new LlmRequestError(
-      400,
-      "INVALID_LLM_REQUEST",
-      `${field} must be at most ${maximum} characters`,
-    );
+    throw new LlmRequestError(400, "INVALID_LLM_REQUEST", `${field} must be at most ${maximum} characters`);
   }
   return text;
 }
@@ -64,11 +51,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
     if (size > MAX_REQUEST_BYTES) {
-      throw new LlmRequestError(
-        413,
-        "REQUEST_TOO_LARGE",
-        `LLM request body exceeds ${MAX_REQUEST_BYTES} bytes`,
-      );
+      throw new LlmRequestError(413, "REQUEST_TOO_LARGE", `LLM request body exceeds ${MAX_REQUEST_BYTES} bytes`);
     }
     chunks.push(buffer);
   }
@@ -85,19 +68,11 @@ function normalizeAnalyzeRequest(value: unknown): LlmAnalyzeResourceRequest {
     throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "Request body must be an object");
   }
   if (Object.hasOwn(value, "logs") || Object.hasOwn(value, "previousLogs")) {
-    throw new LlmRequestError(
-      400,
-      "LLM_LOG_CONTEXT_FORBIDDEN",
-      "KubeDeck does not send Kubernetes logs to LLM providers.",
-    );
+    throw new LlmRequestError(400, "LLM_LOG_CONTEXT_FORBIDDEN", "KubeDeck does not send Kubernetes logs to LLM providers.");
   }
   const userRequest = asString(value.userRequest).trim();
   if (userRequest.length > MAX_USER_REQUEST_CHARS) {
-    throw new LlmRequestError(
-      400,
-      "INVALID_LLM_REQUEST",
-      `userRequest must be at most ${MAX_USER_REQUEST_CHARS} characters`,
-    );
+    throw new LlmRequestError(400, "INVALID_LLM_REQUEST", `userRequest must be at most ${MAX_USER_REQUEST_CHARS} characters`);
   }
   return {
     clusterId: requiredString(value.clusterId, "clusterId"),
@@ -109,9 +84,7 @@ function normalizeAnalyzeRequest(value: unknown): LlmAnalyzeResourceRequest {
     yaml: asString(value.yaml),
     events: Array.isArray(value.events) ? value.events : undefined,
     describe: asString(value.describe),
-    relatedResources: Array.isArray(value.relatedResources)
-      ? value.relatedResources
-      : undefined,
+    relatedResources: Array.isArray(value.relatedResources) ? value.relatedResources : undefined,
     relatedLinks: Array.isArray(value.relatedLinks) ? value.relatedLinks : undefined,
     related: Array.isArray(value.related) ? value.related : undefined,
     userRequest: userRequest || undefined,
@@ -124,43 +97,18 @@ function finiteNumber(value: unknown, fallback: number): number {
   return Number.isFinite(number) ? number : fallback;
 }
 
-function mergeSettings(
-  base: LlmSettings,
-  candidate: Partial<LlmSettings> | undefined,
-): LlmSettings {
+function mergeSettings(base: LlmSettings, candidate: Partial<LlmSettings> | undefined): LlmSettings {
   if (!candidate || !isRecord(candidate)) return { ...base };
   return {
-    enabled:
-      typeof candidate.enabled === "boolean" ? candidate.enabled : base.enabled,
-    provider:
-      typeof candidate.provider === "string"
-        ? (candidate.provider as LlmSettings["provider"])
-        : base.provider,
+    enabled: typeof candidate.enabled === "boolean" ? candidate.enabled : base.enabled,
+    provider: typeof candidate.provider === "string" ? (candidate.provider as LlmSettings["provider"]) : base.provider,
     baseUrl: asString(candidate.baseUrl, base.baseUrl).trim(),
     model: asString(candidate.model, base.model).trim(),
     apiKeyConfigured: base.apiKeyConfigured,
-    temperature: Math.min(
-      2,
-      Math.max(0, finiteNumber(candidate.temperature, base.temperature)),
-    ),
-    timeoutSeconds: Math.min(
-      600,
-      Math.max(1, Math.trunc(finiteNumber(candidate.timeoutSeconds, base.timeoutSeconds))),
-    ),
-    maxContextChars: Math.min(
-      250_000,
-      Math.max(
-        1_000,
-        Math.trunc(finiteNumber(candidate.maxContextChars, base.maxContextChars)),
-      ),
-    ),
-    maxOutputTokens: Math.min(
-      65_536,
-      Math.max(
-        1,
-        Math.trunc(finiteNumber(candidate.maxOutputTokens, base.maxOutputTokens)),
-      ),
-    ),
+    temperature: Math.min(2, Math.max(0, finiteNumber(candidate.temperature, base.temperature))),
+    timeoutSeconds: Math.min(600, Math.max(1, Math.trunc(finiteNumber(candidate.timeoutSeconds, base.timeoutSeconds)))),
+    maxContextChars: Math.min(250_000, Math.max(1_000, Math.trunc(finiteNumber(candidate.maxContextChars, base.maxContextChars)))),
+    maxOutputTokens: Math.min(65_536, Math.max(1, Math.trunc(finiteNumber(candidate.maxOutputTokens, base.maxOutputTokens)))),
   };
 }
 
@@ -213,10 +161,7 @@ function resolveApiKey(secretStore: SecretStore, update: ApiKeyUpdate): string {
   return secretStore.read(SECRET_NAME);
 }
 
-export function buildLlmPrompt(
-  settings: LlmSettings,
-  request: LlmAnalyzeResourceRequest,
-): LlmPromptBuildResult {
+export function buildLlmPrompt(settings: LlmSettings, request: LlmAnalyzeResourceRequest): LlmPromptBuildResult {
   const built = buildResourceContext(request, settings.maxContextChars);
   const messages: LlmMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -231,39 +176,22 @@ export function buildLlmPrompt(
   };
 }
 
-async function handleStatus(
-  response: ServerResponse,
-  configStore: ConfigStore,
-  secretStore: SecretStore,
-): Promise<void> {
+async function handleStatus(response: ServerResponse, configStore: ConfigStore, secretStore: SecretStore): Promise<void> {
   writeJson(response, publicLlmStatus(configStore.load().settings.llm, secretStore.isAvailable()));
 }
 
-async function handleTest(
-  request: IncomingMessage,
-  response: ServerResponse,
-  configStore: ConfigStore,
-  secretStore: SecretStore,
-): Promise<void> {
+async function handleTest(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore, secretStore: SecretStore): Promise<void> {
   const body = (await readJsonBody(request)) as LlmTestRequest;
   const base = configStore.load().settings.llm;
-  const settings = mergeSettings(
-    base,
-    isRecord(body) && isRecord(body.settings)
-      ? (body.settings as Partial<LlmSettings>)
-      : undefined,
-  );
+  const settings = mergeSettings(base, isRecord(body) && isRecord(body.settings) ? (body.settings as Partial<LlmSettings>) : undefined);
   const apiKey = resolveApiKey(secretStore, apiKeyUpdateFromRequest(body));
   const resolved: ResolvedLlmSettings = { ...settings, apiKey, enabled: true };
   try {
     validateLlmSettings(resolved, false);
-    const completion = await chatCompletion(
-      resolved,
-      [
-        { role: "system", content: "You are a health check endpoint. Reply with OK." },
-        { role: "user", content: "Reply with OK." },
-      ],
-    );
+    const completion = await chatCompletion(resolved, [
+      { role: "system", content: "You are a health check endpoint. Reply with OK." },
+      { role: "user", content: "Reply with OK." },
+    ]);
     writeJson(response, {
       ok: true,
       message: "Connection successful.",
@@ -285,22 +213,13 @@ async function handleTest(
   }
 }
 
-async function handlePreview(
-  request: IncomingMessage,
-  response: ServerResponse,
-  configStore: ConfigStore,
-): Promise<void> {
+async function handlePreview(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore): Promise<void> {
   const input = normalizeAnalyzeRequest(await readJsonBody(request));
   const settings = configStore.load().settings.llm;
   writeJson(response, buildLlmPrompt(settings, input));
 }
 
-async function handleAnalyze(
-  request: IncomingMessage,
-  response: ServerResponse,
-  configStore: ConfigStore,
-  secretStore: SecretStore,
-): Promise<void> {
+async function handleAnalyze(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore, secretStore: SecretStore): Promise<void> {
   const input = normalizeAnalyzeRequest(await readJsonBody(request));
   const settings = configStore.load().settings.llm;
   const prompt = buildLlmPrompt(settings, input);
@@ -316,11 +235,7 @@ async function handleAnalyze(
   });
 }
 
-function writeRouteError(
-  response: ServerResponse,
-  error: unknown,
-  log: (message: string) => void,
-): void {
+function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
   if (error instanceof LlmRequestError) {
     writeError(response, error.statusCode, error.code, error.message);
     return;
@@ -330,36 +245,19 @@ function writeRouteError(
     writeError(response, 400, error.code, error.publicMessage);
     return;
   }
-  log(
-    `gateway llm request failed: ${
-      error instanceof Error ? error.name : "unknown error"
-    }`,
-  );
+  log(`gateway llm request failed: ${error instanceof Error ? error.name : "unknown error"}`);
   writeError(response, 500, "LLM_REQUEST_FAILED", "Unable to process LLM request");
 }
 
-export function handleLlmRequest(
-  request: IncomingMessage,
-  response: ServerResponse,
-  pathname: string,
-  configStore: ConfigStore,
-  secretStore: SecretStore,
-  log: (message: string) => void,
-): boolean {
+export function handleLlmRequest(request: IncomingMessage, response: ServerResponse, pathname: string, configStore: ConfigStore, secretStore: SecretStore, log: (message: string) => void): boolean {
   let operation: Promise<void> | null = null;
   if (request.method === "GET" && pathname === "/llm/status") {
     operation = handleStatus(response, configStore, secretStore);
   } else if (request.method === "POST" && pathname === "/llm/test") {
     operation = handleTest(request, response, configStore, secretStore);
-  } else if (
-    request.method === "POST" &&
-    pathname === "/llm/preview-resource-prompt"
-  ) {
+  } else if (request.method === "POST" && pathname === "/llm/preview-resource-prompt") {
     operation = handlePreview(request, response, configStore);
-  } else if (
-    request.method === "POST" &&
-    pathname === "/llm/analyze-resource"
-  ) {
+  } else if (request.method === "POST" && pathname === "/llm/analyze-resource") {
     operation = handleAnalyze(request, response, configStore, secretStore);
   } else {
     return false;

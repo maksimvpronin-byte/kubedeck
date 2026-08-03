@@ -9,9 +9,7 @@ const { PassThrough } = require("node:stream");
 
 const { createKubectlCommand } = require("../dist/main/backend/kubectl/command.js");
 const { startGateway } = require("../dist/main/backend/gateway.js");
-const {
-  PortForwardManager,
-} = require("../dist/main/backend/portForward/portForwardManager.js");
+const { PortForwardManager } = require("../dist/main/backend/portForward/portForwardManager.js");
 
 const TOKEN = "port-forward-contract-token";
 
@@ -69,15 +67,7 @@ function commandFactory(localPort) {
     clusterId: "cluster-a",
     kubeconfigPath: "C:\\temp\\cluster.yaml",
     kubectlPath: "kubectl",
-    args: [
-      "port-forward",
-      "--address",
-      "127.0.0.1",
-      "-n",
-      "default",
-      "service/demo",
-      `${localPort}:8080`,
-    ],
+    args: ["port-forward", "--address", "127.0.0.1", "-n", "default", "service/demo", `${localPort}:8080`],
     timeoutSeconds: 0,
     maxOutputBytes: 0,
   });
@@ -100,10 +90,7 @@ test("Node PortForwardManager starts, deduplicates, lists, and stops sessions", 
     remotePort: 8080,
   };
 
-  const [started, concurrentDuplicate] = await Promise.all([
-    manager.start(commandFactory, "cluster-a", input),
-    manager.start(commandFactory, "cluster-a", input),
-  ]);
+  const [started, concurrentDuplicate] = await Promise.all([manager.start(commandFactory, "cluster-a", input), manager.start(commandFactory, "cluster-a", input)]);
   assert.equal(started.status, "running");
   assert.equal(concurrentDuplicate.id, started.id);
   assert.equal(concurrentDuplicate.alreadyRunning, true);
@@ -114,18 +101,7 @@ test("Node PortForwardManager starts, deduplicates, lists, and stops sessions", 
   assert.equal(started.alreadyRunning, false);
   assert.equal(manager.activeCount(), 1);
   assert.equal(state.commands.length, 1);
-  assert.deepEqual(
-    state.commands[0].args.slice(-7),
-    [
-      "port-forward",
-      "--address",
-      "127.0.0.1",
-      "-n",
-      "default",
-      "service/demo",
-      "62000:8080",
-    ],
-  );
+  assert.deepEqual(state.commands[0].args.slice(-7), ["port-forward", "--address", "127.0.0.1", "-n", "default", "service/demo", "62000:8080"]);
 
   const duplicate = await manager.start(commandFactory, "cluster-a", input);
   assert.equal(duplicate.id, started.id);
@@ -182,9 +158,7 @@ test("Node PortForwardManager rejects occupied ports and startup errors", async 
       localPort: 63001,
       remotePort: 8080,
     }),
-    (error) =>
-      error.code === "PORT_FORWARD_FAILED" &&
-      /address already in use/i.test(error.rawStderr),
+    (error) => error.code === "PORT_FORWARD_FAILED" && /address already in use/i.test(error.rawStderr),
   );
   assert.equal(failed.activeCount(), 0);
   await failed.close();
@@ -204,9 +178,7 @@ test("Node PortForwardManager rejects occupied ports and startup errors", async 
       localPort: 63001,
       remotePort: 8080,
     }),
-    (error) =>
-      error.code === "PORT_FORWARD_FAILED" &&
-      /did not become ready/i.test(error.message),
+    (error) => error.code === "PORT_FORWARD_FAILED" && /did not become ready/i.test(error.message),
   );
   assert.equal(silent.activeCount(), 0);
   assert.deepEqual(silentState.kills, ["SIGTERM"]);
@@ -216,20 +188,7 @@ test("Node PortForwardManager rejects occupied ports and startup errors", async 
 test("Node Gateway owns Port Forward HTTP contracts and reports process count", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-port-forward-"));
   const source = path.join(appDataRoot, "cluster.yaml");
-  fs.writeFileSync(
-    source,
-    [
-      "apiVersion: v1",
-      "clusters:",
-      "- cluster:",
-      "    server: https://127.0.0.1:6443",
-      "  name: test",
-      "contexts: []",
-      "current-context: test",
-      "",
-    ].join("\n"),
-    "utf8",
-  );
+  fs.writeFileSync(source, ["apiVersion: v1", "clusters:", "- cluster:", "    server: https://127.0.0.1:6443", "  name: test", "contexts: []", "current-context: test", ""].join("\n"), "utf8");
   t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
 
   const legacy = http.createServer((request, response) => {
@@ -272,37 +231,31 @@ test("Node Gateway owns Port Forward HTTP contracts and reports process count", 
   const emptyList = await fetch(`${gateway.baseUrl}/port-forwards`, { headers });
   assert.deepEqual(await emptyList.json(), { items: [] });
 
-  const invalidNamespace = await fetch(
-    `${gateway.baseUrl}/clusters/${cluster.id}/port-forwards`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        resource: "service",
-        namespace: "all",
-        name: "demo",
-        localPort: 0,
-        remotePort: 8080,
-      }),
-    },
-  );
+  const invalidNamespace = await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/port-forwards`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      resource: "service",
+      namespace: "all",
+      name: "demo",
+      localPort: 0,
+      remotePort: 8080,
+    }),
+  });
   assert.equal(invalidNamespace.status, 400);
   assert.equal((await invalidNamespace.json()).detail.code, "INVALID_NAMESPACE");
 
-  const startResponse = await fetch(
-    `${gateway.baseUrl}/clusters/${cluster.id}/port-forwards`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        resource: "services",
-        namespace: "default",
-        name: "demo",
-        localPort: 0,
-        remotePort: 8080,
-      }),
-    },
-  );
+  const startResponse = await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/port-forwards`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      resource: "services",
+      namespace: "default",
+      name: "demo",
+      localPort: 0,
+      remotePort: 8080,
+    }),
+  });
   assert.equal(startResponse.status, 200);
   const session = await startResponse.json();
   assert.equal(session.resource, "service");
@@ -322,17 +275,11 @@ test("Node Gateway owns Port Forward HTTP contracts and reports process count", 
   assert.equal(list.items.length, 1);
   assert.equal(list.items[0].id, session.id);
 
-  const stopResponse = await fetch(
-    `${gateway.baseUrl}/port-forwards/${encodeURIComponent(session.id)}`,
-    { method: "DELETE", headers },
-  );
+  const stopResponse = await fetch(`${gateway.baseUrl}/port-forwards/${encodeURIComponent(session.id)}`, { method: "DELETE", headers });
   assert.equal(stopResponse.status, 200);
   assert.deepEqual(await stopResponse.json(), { ok: true });
 
-  const missingResponse = await fetch(
-    `${gateway.baseUrl}/port-forwards/${encodeURIComponent(session.id)}`,
-    { method: "DELETE", headers },
-  );
+  const missingResponse = await fetch(`${gateway.baseUrl}/port-forwards/${encodeURIComponent(session.id)}`, { method: "DELETE", headers });
   assert.equal(missingResponse.status, 404);
   assert.equal((await missingResponse.json()).detail.code, "PORT_FORWARD_NOT_FOUND");
   assert.equal(state.kills.length, 1);

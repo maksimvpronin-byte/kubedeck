@@ -31,41 +31,22 @@ function decodePathPart(value: string, field: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} is not valid URL encoding`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
   }
 }
 
-export function matchSecretRoute(
-  method: string | undefined,
-  pathname: string,
-): SecretRouteTarget | null {
-  const match = pathname.match(
-    /^\/clusters\/([^/]+)\/secrets\/([^/]+)\/([^/]+)\/(keys|reveal|copy|update)$/,
-  );
+export function matchSecretRoute(method: string | undefined, pathname: string): SecretRouteTarget | null {
+  const match = pathname.match(/^\/clusters\/([^/]+)\/secrets\/([^/]+)\/([^/]+)\/(keys|reveal|copy|update)$/);
   if (!match) return null;
 
   const operation = match[4] as SecretOperation;
-  if (
-    (operation === "keys" && method !== "GET") ||
-    (operation !== "keys" && method !== "POST")
-  ) {
+  if ((operation === "keys" && method !== "GET") || (operation !== "keys" && method !== "POST")) {
     return null;
   }
 
   return {
-    clusterId: validateIdentifier(
-      decodePathPart(match[1], "cluster_id"),
-      "cluster_id",
-      128,
-    ),
-    namespace: validateIdentifier(
-      decodePathPart(match[2], "namespace"),
-      "namespace",
-    ),
+    clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
+    namespace: validateIdentifier(decodePathPart(match[2], "namespace"), "namespace"),
     name: validateIdentifier(decodePathPart(match[3], "name"), "name"),
     operation,
   };
@@ -90,9 +71,7 @@ export function secretDataMap(secret: JsonObject): Record<string, string> {
 export function decodeBase64Strict(encoded: string): Buffer {
   if (encoded === "") return Buffer.alloc(0);
 
-  const valid = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
-    encoded,
-  );
+  const valid = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded);
   if (!valid) {
     throw new Error("invalid base64");
   }
@@ -118,56 +97,42 @@ export function isBinaryPayload(value: Buffer): boolean {
   return textBytes / value.length < 0.85;
 }
 
-export async function loadSecretRaw(
-  target: SecretRouteTarget,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<JsonObject> {
-  return runner.runJson(clusterCommand(
-    configStore,
-    target.clusterId,
-    ["get", "secret", target.name, "-n", target.namespace, "-o", "json"],
-    30,
-    SECRET_JSON_MAX_OUTPUT_BYTES,
-  ));
+export async function loadSecretRaw(target: SecretRouteTarget, configStore: ConfigStore, runner: KubectlRunner): Promise<JsonObject> {
+  return runner.runJson(clusterCommand(configStore, target.clusterId, ["get", "secret", target.name, "-n", target.namespace, "-o", "json"], 30, SECRET_JSON_MAX_OUTPUT_BYTES));
 }
 
-export function secretKeysPayload(
-  secret: JsonObject,
-  target: SecretRouteTarget,
-  timeoutSeconds: number,
-): JsonObject {
+export function secretKeysPayload(secret: JsonObject, target: SecretRouteTarget, timeoutSeconds: number): JsonObject {
   const data = secretDataMap(secret);
-  const keys = Object.keys(data).sort((left, right) => left.localeCompare(right)).map((key) => {
-    const encoded = data[key] ?? "";
-    let decodedBytes = 0;
-    let validBase64 = true;
-    let binary = false;
+  const keys = Object.keys(data)
+    .sort((left, right) => left.localeCompare(right))
+    .map((key) => {
+      const encoded = data[key] ?? "";
+      let decodedBytes = 0;
+      let validBase64 = true;
+      let binary = false;
 
-    try {
-      const decoded = decodeBase64Strict(encoded);
-      decodedBytes = decoded.length;
-      binary = isBinaryPayload(decoded);
-    } catch {
-      validBase64 = false;
-    }
+      try {
+        const decoded = decodeBase64Strict(encoded);
+        decodedBytes = decoded.length;
+        binary = isBinaryPayload(decoded);
+      } catch {
+        validBase64 = false;
+      }
 
-    return {
-      key,
-      encodedBytes: Buffer.byteLength(encoded, "utf8"),
-      decodedBytes,
-      validBase64,
-      binary,
-    };
-  });
+      return {
+        key,
+        encodedBytes: Buffer.byteLength(encoded, "utf8"),
+        decodedBytes,
+        validBase64,
+        binary,
+      };
+    });
 
   const metadata = isRecord(secret.metadata) ? secret.metadata : {};
   return {
     type: typeof secret.type === "string" && secret.type ? secret.type : "Opaque",
     immutable: Boolean(secret.immutable ?? false),
-    namespace: typeof metadata.namespace === "string"
-      ? metadata.namespace
-      : target.namespace,
+    namespace: typeof metadata.namespace === "string" ? metadata.namespace : target.namespace,
     name: typeof metadata.name === "string" ? metadata.name : target.name,
     keys,
     revealTimeoutSeconds: timeoutSeconds,
@@ -177,26 +142,14 @@ export function secretKeysPayload(
 async function readSecretKey(request: IncomingMessage): Promise<string> {
   const body = await readJsonBody(request, SECRET_REQUEST_MAX_BYTES);
   if (!isRecord(body) || typeof body.key !== "string") {
-    throw new RequestValidationError(
-      422,
-      "INVALID_REQUEST",
-      "Request body must contain a secret key",
-    );
+    throw new RequestValidationError(422, "INVALID_REQUEST", "Request body must contain a secret key");
   }
   return validateIdentifier(body.key, "secret key", 512);
 }
 
-async function writeSecretKeys(
-  response: ServerResponse,
-  target: SecretRouteTarget,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<void> {
+async function writeSecretKeys(response: ServerResponse, target: SecretRouteTarget, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   const secret = await loadSecretRaw(target, configStore, runner);
-  writeJson(
-    response,
-    secretKeysPayload(secret, target, revealTimeoutSeconds(configStore)),
-  );
+  writeJson(response, secretKeysPayload(secret, target, revealTimeoutSeconds(configStore)));
 }
 
 async function writeSecretReveal(
@@ -212,11 +165,7 @@ async function writeSecretReveal(
   const data = secretDataMap(secret);
 
   if (!Object.prototype.hasOwnProperty.call(data, key)) {
-    throw new RequestValidationError(
-      404,
-      "SECRET_KEY_NOT_FOUND",
-      `Secret key was not found: ${key}`,
-    );
+    throw new RequestValidationError(404, "SECRET_KEY_NOT_FOUND", `Secret key was not found: ${key}`);
   }
 
   let decoded: Buffer;
@@ -233,11 +182,7 @@ async function writeSecretReveal(
       message: "invalid base64 data",
       extra: { key },
     });
-    throw new RequestValidationError(
-      400,
-      "SECRET_VALUE_INVALID_BASE64",
-      `Secret key is not valid base64 data: ${key}`,
-    );
+    throw new RequestValidationError(400, "SECRET_VALUE_INVALID_BASE64", `Secret key is not valid base64 data: ${key}`);
   }
 
   if (decoded.length > SECRET_VALUE_MAX_BYTES) {
@@ -251,11 +196,7 @@ async function writeSecretReveal(
       message: "secret value too large to reveal",
       extra: { key, decodedBytes: decoded.length },
     });
-    throw new RequestValidationError(
-      413,
-      "SECRET_VALUE_TOO_LARGE",
-      `Secret value is too large to reveal safely (${decoded.length} bytes)`,
-    );
+    throw new RequestValidationError(413, "SECRET_VALUE_TOO_LARGE", `Secret value is too large to reveal safely (${decoded.length} bytes)`);
   }
 
   const binary = isBinaryPayload(decoded);
@@ -278,12 +219,7 @@ async function writeSecretReveal(
   });
 }
 
-async function writeSecretCopy(
-  request: IncomingMessage,
-  response: ServerResponse,
-  target: SecretRouteTarget,
-  auditStore: AuditStore,
-): Promise<void> {
+async function writeSecretCopy(request: IncomingMessage, response: ServerResponse, target: SecretRouteTarget, auditStore: AuditStore): Promise<void> {
   const key = await readSecretKey(request);
   auditStore.append({
     action: "secret.copy",
@@ -310,26 +246,28 @@ async function writeSecretUpdate(request: IncomingMessage, response: ServerRespo
   const metadata = isRecord(secret.metadata) ? secret.metadata : {};
   const resourceVersion = String(metadata.resourceVersion || "");
   const escape = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
-  const patch = JSON.stringify([{ op: "test", path: "/metadata/resourceVersion", value: resourceVersion }, { op: "replace", path: `/data/${escape(key)}`, value: Buffer.from(body.value, "utf8").toString("base64") }]);
+  const patch = JSON.stringify([
+    { op: "test", path: "/metadata/resourceVersion", value: resourceVersion },
+    { op: "replace", path: `/data/${escape(key)}`, value: Buffer.from(body.value, "utf8").toString("base64") },
+  ]);
   const command = clusterCommand(configStore, target.clusterId, ["patch", "secret", target.name, "-n", target.namespace, "--type=json", "--patch-file=-"], 30, SECRET_JSON_MAX_OUTPUT_BYTES);
   command.stdinText = patch;
   await runner.run(command);
-  auditStore.append({ action: "secret.update", status: "success", clusterId: target.clusterId, namespace: target.namespace, resource: "secrets", name: target.name, extra: { key, decodedBytes: bytes } });
+  auditStore.append({
+    action: "secret.update",
+    status: "success",
+    clusterId: target.clusterId,
+    namespace: target.namespace,
+    resource: "secrets",
+    name: target.name,
+    extra: { key, decodedBytes: bytes },
+  });
   writeJson(response, { ok: true });
 }
 
-function writeRouteError(
-  response: ServerResponse,
-  error: unknown,
-  log: (message: string) => void,
-): void {
+function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
   if (error instanceof RequestBodyError) {
-    writeError(
-      response,
-      error.code === "REQUEST_TOO_LARGE" ? 413 : 400,
-      error.code,
-      error.message,
-    );
+    writeError(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, error.code, error.message);
     return;
   }
   if (error instanceof RequestValidationError) {
@@ -368,20 +306,14 @@ export function handleSecretRequest(
 
   if (!target) return false;
 
-  const operation = target.operation === "keys"
-    ? writeSecretKeys(response, target, configStore, runner)
-    : target.operation === "reveal"
-      ? writeSecretReveal(
-        request,
-        response,
-        target,
-        configStore,
-        auditStore,
-        runner,
-      )
-      : target.operation === "copy"
-        ? writeSecretCopy(request, response, target, auditStore)
-        : writeSecretUpdate(request, response, target, configStore, auditStore, runner);
+  const operation =
+    target.operation === "keys"
+      ? writeSecretKeys(response, target, configStore, runner)
+      : target.operation === "reveal"
+        ? writeSecretReveal(request, response, target, configStore, auditStore, runner)
+        : target.operation === "copy"
+          ? writeSecretCopy(request, response, target, auditStore)
+          : writeSecretUpdate(request, response, target, configStore, auditStore, runner);
 
   void operation.catch((error) => writeRouteError(response, error, log));
   return true;

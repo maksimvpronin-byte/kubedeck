@@ -8,20 +8,11 @@ const { EventEmitter } = require("node:events");
 const { PassThrough } = require("node:stream");
 const WebSocket = require("ws");
 
-const {
-  ResourceSnapshotCache,
-} = require("../dist/main/backend/cache/resourceSnapshotCache.js");
-const {
-  createKubectlCommand,
-} = require("../dist/main/backend/kubectl/command.js");
+const { ResourceSnapshotCache } = require("../dist/main/backend/cache/resourceSnapshotCache.js");
+const { createKubectlCommand } = require("../dist/main/backend/kubectl/command.js");
 const { startGateway } = require("../dist/main/backend/gateway.js");
-const {
-  ResourceWatchEventHub,
-  resourceWatchEventMatches,
-} = require("../dist/main/backend/watch/eventHub.js");
-const {
-  WatchManager,
-} = require("../dist/main/backend/watch/watchManager.js");
+const { ResourceWatchEventHub, resourceWatchEventMatches } = require("../dist/main/backend/watch/eventHub.js");
+const { WatchManager } = require("../dist/main/backend/watch/watchManager.js");
 
 const TOKEN = "watch-contract-test-token";
 
@@ -101,7 +92,6 @@ function waitForOpen(socket) {
   });
 }
 
-
 test("resource watch event filters preserve all, cluster, and namespace semantics", () => {
   const namespaced = {
     type: "resource.changed",
@@ -138,23 +128,12 @@ test("resource watch event filters preserve all, cluster, and namespace semantic
     }),
     false,
   );
-  assert.equal(
-    resourceWatchEventMatches(
-      { ...namespaced, resource: "nodes", namespace: "_cluster" },
-      { clusterId: "cluster-a", resource: "nodes", namespace: "_cluster" },
-    ),
-    true,
-  );
+  assert.equal(resourceWatchEventMatches({ ...namespaced, resource: "nodes", namespace: "_cluster" }, { clusterId: "cluster-a", resource: "nodes", namespace: "_cluster" }), true);
 });
 
 test("Node WatchManager stops active kubectl watches during shutdown", async () => {
   const state = { commands: [], children: [], kills: [] };
-  const manager = new WatchManager(
-    () => {},
-    { clearResource: () => 0 },
-    new ResourceWatchEventHub(),
-    createWatchSpawn(state),
-  );
+  const manager = new WatchManager(() => {}, { clearResource: () => 0 }, new ResourceWatchEventHub(), createWatchSpawn(state));
   await manager.start(
     createKubectlCommand({
       clusterId: "cluster-a",
@@ -175,12 +154,7 @@ test("Node WatchManager deduplicates, invalidates matching cache, publishes even
   const state = { commands: [], children: [], kills: [] };
   const cache = new ResourceSnapshotCache();
   const hub = new ResourceWatchEventHub();
-  const manager = new WatchManager(
-    () => {},
-    cache,
-    hub,
-    createWatchSpawn(state),
-  );
+  const manager = new WatchManager(() => {}, cache, hub, createWatchSpawn(state));
   cache.set("cluster-a", "pods", "default", {
     items: [{ uid: "1", name: "demo", namespace: "default" }],
     rawCount: 1,
@@ -199,15 +173,7 @@ test("Node WatchManager deduplicates, invalidates matching cache, publishes even
     clusterId: "cluster-a",
     kubeconfigPath: "C:\\temp\\cluster.yaml",
     kubectlPath: "kubectl",
-    args: [
-      "get",
-      "pods",
-      "-o",
-      "json",
-      "--watch-only=true",
-      "--output-watch-events=true",
-      "-A",
-    ],
+    args: ["get", "pods", "-o", "json", "--watch-only=true", "--output-watch-events=true", "-A"],
     timeoutSeconds: 0,
     maxOutputBytes: 0,
   });
@@ -251,20 +217,7 @@ test("Node WatchManager deduplicates, invalidates matching cache, publishes even
 test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-watch-"));
   const source = path.join(appDataRoot, "cluster.yaml");
-  fs.writeFileSync(
-    source,
-    [
-      "apiVersion: v1",
-      "clusters:",
-      "- cluster:",
-      "    server: https://127.0.0.1:6443",
-      "  name: test",
-      "contexts: []",
-      "current-context: test",
-      "",
-    ].join("\n"),
-    "utf8",
-  );
+  fs.writeFileSync(source, ["apiVersion: v1", "clusters:", "- cluster:", "    server: https://127.0.0.1:6443", "  name: test", "contexts: []", "current-context: test", ""].join("\n"), "utf8");
   t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
 
   const legacy = http.createServer((request, response) => {
@@ -308,33 +261,18 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
   assert.equal(statusBefore.status, 200);
   assert.equal((await statusBefore.json()).running, 0);
 
-  const startResponse = await fetch(
-    `${gateway.baseUrl}/clusters/${cluster.id}/watches`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ resource: "pods", namespace: "all" }),
-    },
-  );
+  const startResponse = await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/watches`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ resource: "pods", namespace: "all" }),
+  });
   assert.equal(startResponse.status, 200);
   const watch = await startResponse.json();
   assert.equal(watch.alreadyRunning, false);
   assert.equal(watch.status, "running");
-  assert.deepEqual(state.commands[0].args.slice(-7), [
-    "get",
-    "pods",
-    "-o",
-    "json",
-    "--watch-only=true",
-    "--output-watch-events=true",
-    "-A",
-  ]);
+  assert.deepEqual(state.commands[0].args.slice(-7), ["get", "pods", "-o", "json", "--watch-only=true", "--output-watch-events=true", "-A"]);
 
-  const wsUrl = gateway.baseUrl
-    .replace(/^http:/, "ws:")
-    .concat(
-      `/clusters/${cluster.id}/resources/pods/watch-events?namespace=all&token=${TOKEN}`,
-    );
+  const wsUrl = gateway.baseUrl.replace(/^http:/, "ws:").concat(`/clusters/${cluster.id}/resources/pods/watch-events?namespace=all&token=${TOKEN}`);
   const socket = new WebSocket(wsUrl, { origin: "http://127.0.0.1:5173" });
   const statusPromise = nextMessage(socket, (message) => message.type === "status");
   await waitForOpen(socket);
@@ -347,10 +285,7 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
   const pong = await pongPromise;
   assert.equal(pong.type, "pong");
 
-  const changedPromise = nextMessage(
-    socket,
-    (message) => message.type === "resource.changed",
-  );
+  const changedPromise = nextMessage(socket, (message) => message.type === "resource.changed");
   state.children[0].stdout.write(
     JSON.stringify({
       type: "ADDED",
@@ -364,14 +299,11 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
   assert.equal(changed.name, "demo");
   assert.equal(changed.eventType, "ADDED");
 
-  const duplicateResponse = await fetch(
-    `${gateway.baseUrl}/clusters/${cluster.id}/watches`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ resource: "pods", namespace: "all" }),
-    },
-  );
+  const duplicateResponse = await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/watches`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ resource: "pods", namespace: "all" }),
+  });
   const duplicate = await duplicateResponse.json();
   assert.equal(duplicate.alreadyRunning, true);
   assert.equal(duplicate.id, watch.id);
@@ -412,9 +344,7 @@ test("invalid watch WebSocket origin is rejected with policy violation", async (
     if (legacy.listening) await close(legacy);
   });
 
-  const wsUrl = gateway.baseUrl
-    .replace(/^http:/, "ws:")
-    .concat(`/clusters/test/resources/pods/watch-events?namespace=all&token=${TOKEN}`);
+  const wsUrl = gateway.baseUrl.replace(/^http:/, "ws:").concat(`/clusters/test/resources/pods/watch-events?namespace=all&token=${TOKEN}`);
   const code = await new Promise((resolve, reject) => {
     const socket = new WebSocket(wsUrl, { origin: "https://example.invalid" });
     const timer = setTimeout(() => reject(new Error("WebSocket close timeout")), 3000);

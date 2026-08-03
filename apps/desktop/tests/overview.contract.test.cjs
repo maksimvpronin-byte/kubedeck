@@ -81,7 +81,10 @@ test("overview snapshot keeps health conservative and summaries actionable", () 
   assert.equal(workers.memory.available, 9 * 1024 ** 3);
   assert.equal(workers.storage.used, 30 * 1024 ** 3);
   assert.equal(workers.storage.available, 270 * 1024 ** 3);
-  assert.deepEqual(roleGroups.map((group) => group.name), ["workers", "control-plane", "ingress"]);
+  assert.deepEqual(
+    roleGroups.map((group) => group.name),
+    ["workers", "control-plane", "ingress"],
+  );
   assert.deepEqual(
     snapshot.capacity.views.find((view) => view.key === "label:topology.kubernetes.io/zone").groups.map((group) => group.name),
     ["a", "b", "control-plane", "ingress"],

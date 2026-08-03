@@ -131,22 +131,23 @@
 
 /* Common drawer/tool buttons: YAML toolbar, logs toolbar, LLM toolbar, modal actions. */
 .drawer :where(
-  .drawer-actions,
-  .yaml-toolbar,
-  .yaml-editor-toolbar,
-  .yaml-actions,
-  .yaml-search-actions,
-  .log-toolbar,
-  .logs-toolbar,
-  .log-controls,
-  .logs-actions,
-  .llm-actions,
-  .llm-header-actions,
-  .llm-toolbar,
-  .modal-actions,
-  .secret-actions,
-  .related-actions
-) button:not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy),
+    .drawer-actions,
+    .yaml-toolbar,
+    .yaml-editor-toolbar,
+    .yaml-actions,
+    .yaml-search-actions,
+    .log-toolbar,
+    .logs-toolbar,
+    .log-controls,
+    .logs-actions,
+    .llm-actions,
+    .llm-header-actions,
+    .llm-toolbar,
+    .modal-actions,
+    .secret-actions,
+    .related-actions
+  )
+  button:not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy),
 .drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy),
 .drawer button.kd-action-button,
 .drawer button.kd-secondary-button {
@@ -160,26 +161,32 @@
   font-weight: 600;
   line-height: 1.2;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, opacity 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
 }
 
-.drawer :where(
-  .drawer-actions,
-  .yaml-toolbar,
-  .yaml-editor-toolbar,
-  .yaml-actions,
-  .yaml-search-actions,
-  .log-toolbar,
-  .logs-toolbar,
-  .log-controls,
-  .logs-actions,
-  .llm-actions,
-  .llm-header-actions,
-  .llm-toolbar,
-  .modal-actions,
-  .secret-actions,
-  .related-actions
-) button:not(:disabled):not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy):hover,
+.drawer
+  :where(
+    .drawer-actions,
+    .yaml-toolbar,
+    .yaml-editor-toolbar,
+    .yaml-actions,
+    .yaml-search-actions,
+    .log-toolbar,
+    .logs-toolbar,
+    .log-controls,
+    .logs-actions,
+    .llm-actions,
+    .llm-header-actions,
+    .llm-toolbar,
+    .modal-actions,
+    .secret-actions,
+    .related-actions
+  )
+  button:not(:disabled):not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy):hover,
 .drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:not(:disabled):not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy):hover,
 .drawer button.kd-action-button:not(:disabled):hover,
 .drawer button.kd-secondary-button:not(:disabled):hover {
@@ -188,23 +195,25 @@
   color: var(--text-inverse) !important;
 }
 
-.drawer :where(
-  .drawer-actions,
-  .yaml-toolbar,
-  .yaml-editor-toolbar,
-  .yaml-actions,
-  .yaml-search-actions,
-  .log-toolbar,
-  .logs-toolbar,
-  .log-controls,
-  .logs-actions,
-  .llm-actions,
-  .llm-header-actions,
-  .llm-toolbar,
-  .modal-actions,
-  .secret-actions,
-  .related-actions
-) button:disabled,
+.drawer
+  :where(
+    .drawer-actions,
+    .yaml-toolbar,
+    .yaml-editor-toolbar,
+    .yaml-actions,
+    .yaml-search-actions,
+    .log-toolbar,
+    .logs-toolbar,
+    .log-controls,
+    .logs-actions,
+    .llm-actions,
+    .llm-header-actions,
+    .llm-toolbar,
+    .modal-actions,
+    .secret-actions,
+    .related-actions
+  )
+  button:disabled,
 .drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
@@ -500,7 +509,11 @@
   letter-spacing: 0 !important;
   box-shadow: none !important;
   text-shadow: none !important;
-  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, opacity 120ms ease !important;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease !important;
 }
 
 .pod-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):hover:not(:disabled),

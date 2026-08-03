@@ -117,10 +117,13 @@ export function useBulkResourceActions(options: Options) {
     setNodeActionConfirmation(null);
   }, []);
 
-  const requestBulkDelete = useCallback((resource: string, rows: ResourceRow[]) => {
-    if (!activeCluster) return;
-    setBulkDelete({ clusterId: activeCluster.id, resource, rows });
-  }, [activeCluster]);
+  const requestBulkDelete = useCallback(
+    (resource: string, rows: ResourceRow[]) => {
+      if (!activeCluster) return;
+      setBulkDelete({ clusterId: activeCluster.id, resource, rows });
+    },
+    [activeCluster],
+  );
 
   const closeBulkDelete = useCallback(() => setBulkDelete(null), []);
   const closeNodeAction = useCallback(() => setNodeActionConfirmation(null), []);
@@ -210,7 +213,15 @@ export function useBulkResourceActions(options: Options) {
       } catch (error) {
         if (nodePreviewRequestRef.current !== requestId) return;
         const info = asErrorInfo(error);
-        setNodeActionConfirmation({ clusterId, action, rows, commandPreview, affectedPods: [], previewLoading: false, previewError: info.message || info.code || "Failed to load affected pods preview" });
+        setNodeActionConfirmation({
+          clusterId,
+          action,
+          rows,
+          commandPreview,
+          affectedPods: [],
+          previewLoading: false,
+          previewError: info.message || info.code || "Failed to load affected pods preview",
+        });
       }
     },
     [api, activeCluster],

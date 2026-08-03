@@ -52,35 +52,21 @@ function decodePathPart(value: string, field: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} is not valid URL encoding`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
   }
 }
 
-export function matchYamlRoute(
-  method: string | undefined,
-  pathname: string,
-): YamlRouteTarget | null {
+export function matchYamlRoute(method: string | undefined, pathname: string): YamlRouteTarget | null {
   const match = pathname.match(/^\/clusters\/([^/]+)\/yaml\/(dry-run|apply)$/);
   if (!match) return null;
 
   const operation = match[2] as YamlOperation;
-  if (
-    (operation === "dry-run" && method !== "POST") ||
-    (operation === "apply" && method !== "PUT")
-  ) {
+  if ((operation === "dry-run" && method !== "POST") || (operation === "apply" && method !== "PUT")) {
     return null;
   }
 
   return {
-    clusterId: validateIdentifier(
-      decodePathPart(match[1], "cluster_id"),
-      "cluster_id",
-      128,
-    ),
+    clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
     operation,
   };
 }
@@ -88,9 +74,7 @@ export function matchYamlRoute(
 function yamlParseErrorMessage(error: unknown): string {
   const candidate = error as { linePos?: Array<{ line?: number }> };
   const line = candidate.linePos?.[0]?.line;
-  return typeof line === "number"
-    ? `YAML cannot be parsed at line ${line}`
-    : "YAML cannot be parsed";
+  return typeof line === "number" ? `YAML cannot be parsed at line ${line}` : "YAML cannot be parsed";
 }
 
 export function parseYamlApplyTarget(payload: string): YamlApplyTarget {
@@ -104,29 +88,17 @@ export function parseYamlApplyTarget(payload: string): YamlApplyTarget {
 
   for (const document of parsedDocuments) {
     if (document.errors.length > 0) {
-      throw new RequestValidationError(
-        400,
-        "INVALID_YAML",
-        yamlParseErrorMessage(document.errors[0]),
-      );
+      throw new RequestValidationError(400, "INVALID_YAML", yamlParseErrorMessage(document.errors[0]));
     }
   }
 
   const documents = parsedDocuments.filter((document) => document.contents !== null);
 
   if (documents.length === 0) {
-    throw new RequestValidationError(
-      400,
-      "EMPTY_YAML",
-      "YAML payload must contain one Kubernetes object",
-    );
+    throw new RequestValidationError(400, "EMPTY_YAML", "YAML payload must contain one Kubernetes object");
   }
   if (documents.length !== 1) {
-    throw new RequestValidationError(
-      400,
-      "MULTI_DOCUMENT_APPLY_BLOCKED",
-      "KubeDeck allows YAML apply for one object at a time",
-    );
+    throw new RequestValidationError(400, "MULTI_DOCUMENT_APPLY_BLOCKED", "KubeDeck allows YAML apply for one object at a time");
   }
 
   let value: unknown;
@@ -137,20 +109,12 @@ export function parseYamlApplyTarget(payload: string): YamlApplyTarget {
   }
 
   if (!isRecord(value)) {
-    throw new RequestValidationError(
-      400,
-      "INVALID_YAML_OBJECT",
-      "YAML document must be a Kubernetes object",
-    );
+    throw new RequestValidationError(400, "INVALID_YAML_OBJECT", "YAML document must be a Kubernetes object");
   }
 
   const metadataValue = value.metadata ?? {};
   if (!isRecord(metadataValue)) {
-    throw new RequestValidationError(
-      400,
-      "INVALID_YAML_METADATA",
-      "YAML metadata must be an object",
-    );
+    throw new RequestValidationError(400, "INVALID_YAML_METADATA", "YAML metadata must be an object");
   }
 
   const kind = typeof value.kind === "string" ? value.kind.trim() : "";
@@ -158,19 +122,13 @@ export function parseYamlApplyTarget(payload: string): YamlApplyTarget {
     throw new RequestValidationError(400, "INVALID_YAML_KIND", "YAML kind is required");
   }
 
-  const rawName = typeof metadataValue.name === "string"
-    ? metadataValue.name
-    : "";
+  const rawName = typeof metadataValue.name === "string" ? metadataValue.name : "";
   const name = validateIdentifier(rawName, "metadata.name");
 
   let namespace = "_cluster";
   if (metadataValue.namespace !== undefined && metadataValue.namespace !== null) {
     if (typeof metadataValue.namespace !== "string") {
-      throw new RequestValidationError(
-        400,
-        "INVALID_YAML_METADATA",
-        "YAML metadata.namespace must be a string",
-      );
+      throw new RequestValidationError(400, "INVALID_YAML_METADATA", "YAML metadata.namespace must be a string");
     }
 
     const valueNamespace = metadataValue.namespace.trim();
@@ -192,11 +150,7 @@ export function parseYamlApplyTarget(payload: string): YamlApplyTarget {
 export function ensureYamlSize(payload: string): number {
   const payloadBytes = Buffer.byteLength(payload, "utf8");
   if (payloadBytes > MAX_APPLY_YAML_BYTES) {
-    throw new RequestValidationError(
-      413,
-      "PAYLOAD_TOO_LARGE",
-      `YAML payload is too large (${payloadBytes} bytes, limit ${MAX_APPLY_YAML_BYTES} bytes)`,
-    );
+    throw new RequestValidationError(413, "PAYLOAD_TOO_LARGE", `YAML payload is too large (${payloadBytes} bytes, limit ${MAX_APPLY_YAML_BYTES} bytes)`);
   }
   return payloadBytes;
 }
@@ -205,101 +159,52 @@ function confirmationString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-export function requireYamlApplyConfirmation(
-  confirmation: OperationConfirmation | undefined,
-  clusterId: string,
-  target: YamlApplyTarget,
-): void {
+export function requireYamlApplyConfirmation(confirmation: OperationConfirmation | undefined, clusterId: string, target: YamlApplyTarget): void {
   if (!confirmation || !isRecord(confirmation)) {
-    throw new RequestValidationError(
-      400,
-      "CONFIRMATION_REQUIRED",
-      "Confirmation is required for apply",
-    );
+    throw new RequestValidationError(400, "CONFIRMATION_REQUIRED", "Confirmation is required for apply");
   }
 
   if (confirmationString(confirmation.clusterId) !== clusterId) {
-    throw new RequestValidationError(
-      400,
-      "CONFIRMATION_CLUSTER_MISMATCH",
-      "Confirmation cluster does not match request",
-    );
+    throw new RequestValidationError(400, "CONFIRMATION_CLUSTER_MISMATCH", "Confirmation cluster does not match request");
   }
   if (confirmationString(confirmation.action) !== "apply") {
-    throw new RequestValidationError(
-      400,
-      "CONFIRMATION_ACTION_MISMATCH",
-      "Confirmation action does not match request",
-    );
+    throw new RequestValidationError(400, "CONFIRMATION_ACTION_MISMATCH", "Confirmation action does not match request");
   }
 
   const resource = confirmationString(confirmation.resource) || "yaml";
   if (resource !== "yaml") {
-    throw new RequestValidationError(
-      400,
-      "CONFIRMATION_RESOURCE_MISMATCH",
-      "Confirmation resource does not match request",
-    );
+    throw new RequestValidationError(400, "CONFIRMATION_RESOURCE_MISMATCH", "Confirmation resource does not match request");
   }
 
   const namespace = confirmationString(confirmation.namespace) || target.namespace;
   if (namespace !== target.namespace) {
-    throw new RequestValidationError(
-      400,
-      "CONFIRMATION_NAMESPACE_MISMATCH",
-      "Confirmation namespace does not match request",
-    );
+    throw new RequestValidationError(400, "CONFIRMATION_NAMESPACE_MISMATCH", "Confirmation namespace does not match request");
   }
 
   const name = confirmationString(confirmation.name) || target.name;
   if (name !== target.name) {
-    throw new RequestValidationError(
-      400,
-      "CONFIRMATION_NAME_MISMATCH",
-      "Confirmation name does not match request",
-    );
+    throw new RequestValidationError(400, "CONFIRMATION_NAME_MISMATCH", "Confirmation name does not match request");
   }
 
   if (confirmationString(confirmation.typedName) !== target.name) {
-    throw new RequestValidationError(
-      400,
-      "CONFIRMATION_TYPED_NAME_MISMATCH",
-      "Typed confirmation value is invalid",
-    );
+    throw new RequestValidationError(400, "CONFIRMATION_TYPED_NAME_MISMATCH", "Typed confirmation value is invalid");
   }
 }
 
 async function readYamlPayload(request: IncomingMessage): Promise<YamlRequestPayload> {
   const body = await readJsonBody(request, MAX_YAML_REQUEST_BYTES);
   if (!isRecord(body) || typeof body.yaml !== "string") {
-    throw new RequestValidationError(
-      400,
-      "INVALID_REQUEST",
-      "Request body must contain a YAML string",
-    );
+    throw new RequestValidationError(400, "INVALID_REQUEST", "Request body must contain a YAML string");
   }
 
   return {
     yaml: body.yaml,
-    ...(isRecord(body.confirmation)
-      ? { confirmation: body.confirmation as OperationConfirmation }
-      : {}),
+    ...(isRecord(body.confirmation) ? { confirmation: body.confirmation as OperationConfirmation } : {}),
   };
 }
 
-function yamlCommand(
-  configStore: ConfigStore,
-  clusterId: string,
-  args: string[],
-  yaml: string,
-) {
-  const command = clusterCommand(
-    configStore,
-    clusterId,
-    args,
-    YAML_COMMAND_TIMEOUT_SECONDS,
-    TEXT_MAX_OUTPUT_BYTES,
-  );
+function yamlCommand(configStore: ConfigStore, clusterId: string, args: string[], yaml: string) {
+  const command = clusterCommand(configStore, clusterId, args, YAML_COMMAND_TIMEOUT_SECONDS, TEXT_MAX_OUTPUT_BYTES);
   command.stdinText = yaml;
   return command;
 }
@@ -311,22 +216,10 @@ function writePlainText(response: ServerResponse, body: string): void {
   response.end(body);
 }
 
-async function executeDryRun(
-  request: IncomingMessage,
-  response: ServerResponse,
-  clusterId: string,
-  configStore: ConfigStore,
-  auditStore: AuditStore,
-  runner: KubectlRunner,
-): Promise<void> {
+async function executeDryRun(request: IncomingMessage, response: ServerResponse, clusterId: string, configStore: ConfigStore, auditStore: AuditStore, runner: KubectlRunner): Promise<void> {
   const payload = await readYamlPayload(request);
   const payloadBytes = ensureYamlSize(payload.yaml);
-  const command = yamlCommand(
-    configStore,
-    clusterId,
-    ["apply", "--dry-run=server", "-f", "-", "-o", "yaml"],
-    payload.yaml,
-  );
+  const command = yamlCommand(configStore, clusterId, ["apply", "--dry-run=server", "-f", "-", "-o", "yaml"], payload.yaml);
 
   try {
     const result = await runner.run(command);
@@ -369,12 +262,7 @@ async function executeApply(
   const target = parseYamlApplyTarget(payload.yaml);
   requireYamlApplyConfirmation(payload.confirmation, clusterId, target);
 
-  const command = yamlCommand(
-    configStore,
-    clusterId,
-    ["apply", "-f", "-"],
-    payload.yaml,
-  );
+  const command = yamlCommand(configStore, clusterId, ["apply", "-f", "-"], payload.yaml);
 
   try {
     const result = await runner.run(command);
@@ -421,11 +309,7 @@ async function executeApply(
   }
 }
 
-function writeRouteError(
-  response: ServerResponse,
-  error: unknown,
-  log: (message: string) => void,
-): void {
+function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
   if (error instanceof RequestBodyError) {
     const statusCode = error.code === "REQUEST_TOO_LARGE" ? 413 : 400;
     writeError(response, statusCode, error.code, error.message);
@@ -468,27 +352,11 @@ export function handleYamlRequest(
 
   if (!target) return false;
 
-  const operation = target.operation === "dry-run"
-    ? executeDryRun(
-      request,
-      response,
-      target.clusterId,
-      configStore,
-      auditStore,
-      runner,
-    )
-    : executeApply(
-      request,
-      response,
-      target.clusterId,
-      configStore,
-      auditStore,
-      runner,
-      log,
-      invalidateResourceCache,
-    );
+  const operation =
+    target.operation === "dry-run"
+      ? executeDryRun(request, response, target.clusterId, configStore, auditStore, runner)
+      : executeApply(request, response, target.clusterId, configStore, auditStore, runner, log, invalidateResourceCache);
 
   void operation.catch((error) => writeRouteError(response, error, log));
   return true;
 }
-

@@ -184,7 +184,9 @@
   pointer-events: none;
   opacity: 0;
   transform: translate(-50%, -3px);
-  transition: opacity 100ms ease, transform 100ms ease;
+  transition:
+    opacity 100ms ease,
+    transform 100ms ease;
   white-space: normal;
 }
 

@@ -29,9 +29,7 @@ export function sanitizeKubectlText(value: string): string {
     .split(/\r?\n/)
     .map((line) => {
       const lowered = line.toLowerCase();
-      return SENSITIVE_MARKERS.some((marker) => lowered.includes(marker))
-        ? "[redacted sensitive line]"
-        : line;
+      return SENSITIVE_MARKERS.some((marker) => lowered.includes(marker)) ? "[redacted sensitive line]" : line;
     })
     .join("\n");
 }
@@ -45,33 +43,15 @@ export function classifyKubectlError(stderr: string): string {
   const lowered = (stderr || "").toLowerCase();
 
   if (lowered.includes("forbidden")) return "FORBIDDEN";
-  if (
-    lowered.includes("unauthorized") ||
-    lowered.includes("the server has asked for the client to provide credentials")
-  ) return "UNAUTHORIZED";
+  if (lowered.includes("unauthorized") || lowered.includes("the server has asked for the client to provide credentials")) return "UNAUTHORIZED";
   if (lowered.includes("not found")) return "NOT_FOUND";
-  if (
-    lowered.includes("timed out") ||
-    lowered.includes("deadline exceeded") ||
-    lowered.includes("context deadline exceeded")
-  ) return "TIMEOUT";
-  if (
-    lowered.includes("connection refused") ||
-    lowered.includes("no route to host") ||
-    lowered.includes("i/o timeout")
-  ) return "CLUSTER_UNAVAILABLE";
-  if (
-    lowered.includes("certificate") &&
-    (lowered.includes("unknown authority") || lowered.includes("expired"))
-  ) return "TLS_ERROR";
+  if (lowered.includes("timed out") || lowered.includes("deadline exceeded") || lowered.includes("context deadline exceeded")) return "TIMEOUT";
+  if (lowered.includes("connection refused") || lowered.includes("no route to host") || lowered.includes("i/o timeout")) return "CLUSTER_UNAVAILABLE";
+  if (lowered.includes("certificate") && (lowered.includes("unknown authority") || lowered.includes("expired"))) return "TLS_ERROR";
 
   return "KUBECTL_COMMAND_FAILED";
 }
 
-export function writeKubectlError(
-  response: ServerResponse,
-  error: KubectlError,
-  statusCode = 502,
-): void {
+export function writeKubectlError(response: ServerResponse, error: KubectlError, statusCode = 502): void {
   writeJson(response, { detail: error.info }, statusCode);
 }

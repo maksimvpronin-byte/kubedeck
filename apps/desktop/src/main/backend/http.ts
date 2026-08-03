@@ -9,11 +9,7 @@ export class RequestBodyError extends Error {
   }
 }
 
-export function writeJson(
-  response: ServerResponse,
-  body: unknown,
-  statusCode = 200,
-): void {
+export function writeJson(response: ServerResponse, body: unknown, statusCode = 200): void {
   const serialized = JSON.stringify(body);
   response.statusCode = statusCode;
   response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -21,10 +17,7 @@ export function writeJson(
   response.end(serialized);
 }
 
-export async function readJsonBody(
-  request: IncomingMessage,
-  maxBytes = 1024 * 1024,
-): Promise<unknown> {
+export async function readJsonBody(request: IncomingMessage, maxBytes = 1024 * 1024): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let totalBytes = 0;

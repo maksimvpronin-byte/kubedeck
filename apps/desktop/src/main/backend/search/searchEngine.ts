@@ -95,9 +95,7 @@ export function genericSearchSummary(raw: Record<string, unknown>): Record<strin
   const metadata = record(raw.metadata);
   const status = record(raw.status);
   const spec = record(raw.spec);
-  const conditions = Array.isArray(status.conditions)
-    ? status.conditions.filter(isRecord)
-    : [];
+  const conditions = Array.isArray(status.conditions) ? status.conditions.filter(isRecord) : [];
   const lastCondition = conditions.at(-1) ?? {};
   return {
     uid: text(metadata.uid),
@@ -105,9 +103,7 @@ export function genericSearchSummary(raw: Record<string, unknown>): Record<strin
     namespace: text(metadata.namespace),
     createdAt: text(metadata.creationTimestamp),
     labels: record(metadata.labels),
-    ownerReferences: Array.isArray(metadata.ownerReferences)
-      ? metadata.ownerReferences.filter(isRecord)
-      : [],
+    ownerReferences: Array.isArray(metadata.ownerReferences) ? metadata.ownerReferences.filter(isRecord) : [],
     apiVersion: text(raw.apiVersion),
     kind: text(raw.kind),
     status: text(status.phase) || text(lastCondition.type),
@@ -124,11 +120,11 @@ export function parseApiResources(output: string): ApiResourceDefinition[] {
     if (parts.length < 5) continue;
     const namespacedIndex = parts.findIndex((part) => part === "true" || part === "false");
     if (namespacedIndex < 0 || namespacedIndex + 2 >= parts.length) continue;
-    const apiVersion = namespacedIndex > 0 ? parts[namespacedIndex - 1] ?? "" : "";
+    const apiVersion = namespacedIndex > 0 ? (parts[namespacedIndex - 1] ?? "") : "";
     items.push({
       name: parts[0] ?? "",
-      shortNames: namespacedIndex >= 3 ? parts[1] ?? "" : "",
-      apiGroup: apiVersion.includes("/") ? apiVersion.split("/", 1)[0] ?? "" : "",
+      shortNames: namespacedIndex >= 3 ? (parts[1] ?? "") : "",
+      apiGroup: apiVersion.includes("/") ? (apiVersion.split("/", 1)[0] ?? "") : "",
       namespaced: parts[namespacedIndex] === "true",
       kind: parts[namespacedIndex + 1] ?? "",
       verbs: parts.slice(namespacedIndex + 2).join(" "),
@@ -145,14 +141,8 @@ export function searchMatchesText(query: string, value: string): boolean {
     .every((token) => haystack.includes(token.toLocaleLowerCase()));
 }
 
-export function definitionMatchesQuery(
-  definition: ApiResourceDefinition,
-  query: string,
-): boolean {
-  return searchMatchesText(
-    query,
-    [definition.name, definition.shortNames, definition.apiGroup, definition.kind].join(" "),
-  );
+export function definitionMatchesQuery(definition: ApiResourceDefinition, query: string): boolean {
+  return searchMatchesText(query, [definition.name, definition.shortNames, definition.apiGroup, definition.kind].join(" "));
 }
 
 export function isProbableCustomResource(definition: ApiResourceDefinition): boolean {
@@ -167,12 +157,7 @@ export function fullyQualifiedApiResource(definition: ApiResourceDefinition): st
   return apiGroup && !name.endsWith(`.${apiGroup}`) ? `${name}.${apiGroup}` : name;
 }
 
-export function buildSearchResourceSpecs(
-  query: string,
-  includeCrdInstances: boolean,
-  definitions: readonly ApiResourceDefinition[],
-  maxCrdInstanceResources = 12,
-): SearchResourceSpec[] {
+export function buildSearchResourceSpecs(query: string, includeCrdInstances: boolean, definitions: readonly ApiResourceDefinition[], maxCrdInstanceResources = 12): SearchResourceSpec[] {
   const specs = BASE_RESOURCE_SPECS.map((item) => ({ ...item }));
   for (const definition of definitions) {
     if (!isProbableCustomResource(definition)) continue;
@@ -205,10 +190,7 @@ export function buildSearchResourceSpecs(
   return specs;
 }
 
-export function crdItemMatchesDefinition(
-  raw: Record<string, unknown>,
-  definition?: ApiResourceDefinition,
-): boolean {
+export function crdItemMatchesDefinition(raw: Record<string, unknown>, definition?: ApiResourceDefinition): boolean {
   if (!definition) return true;
   const metadata = record(raw.metadata);
   const spec = record(raw.spec);
@@ -217,21 +199,13 @@ export function crdItemMatchesDefinition(
   return candidates.has(definition.name) || text(names.kind) === definition.kind;
 }
 
-function resourceSummary(
-  spec: SearchResourceSpec,
-  raw: Record<string, unknown>,
-): Record<string, unknown> {
+function resourceSummary(spec: SearchResourceSpec, raw: Record<string, unknown>): Record<string, unknown> {
   if (spec.normalizer === "generic") return genericSearchSummary(raw);
   const rows = normalizeResourceItems(spec.resource, [raw]);
   return rows[0] ?? genericSearchSummary(raw);
 }
 
-export function scoreSearchResult(
-  query: string,
-  resource: string,
-  raw: Record<string, unknown>,
-  summary: Record<string, unknown>,
-): { score: number; matchedFields: string[] } {
+export function scoreSearchResult(query: string, resource: string, raw: Record<string, unknown>, summary: Record<string, unknown>): { score: number; matchedFields: string[] } {
   const tokens = query
     .split(/\s+/)
     .filter(Boolean)
@@ -293,12 +267,7 @@ export function scoreSearchResult(
   return { score, matchedFields: matchedFields.slice(0, 5) };
 }
 
-function resultSubtitle(
-  resource: string,
-  namespace: string,
-  row: Record<string, unknown>,
-  spec: SearchResourceSpec,
-): string {
+function resultSubtitle(resource: string, namespace: string, row: Record<string, unknown>, spec: SearchResourceSpec): string {
   const kind = text(row.kind) || spec.kind || resource;
   const parts = [kind, resource];
   if (namespace && namespace !== "_cluster") parts.push(namespace);
@@ -307,12 +276,7 @@ function resultSubtitle(
   return parts.join(" · ");
 }
 
-export function searchResultRow(
-  spec: SearchResourceSpec,
-  summary: Record<string, unknown>,
-  score: number,
-  matchedFields: string[],
-): SearchResultRow {
+export function searchResultRow(spec: SearchResourceSpec, summary: Record<string, unknown>, score: number, matchedFields: string[]): SearchResultRow {
   const row = { ...summary };
   const namespace = text(row.namespace) || (spec.scope === "cluster" ? "_cluster" : "");
   const name = text(row.name);
@@ -335,12 +299,7 @@ export function searchResultRow(
   };
 }
 
-export function rankRawItems(
-  spec: SearchResourceSpec,
-  rawItems: readonly unknown[],
-  query: string,
-  limit: number,
-): SearchResultRow[] {
+export function rankRawItems(spec: SearchResourceSpec, rawItems: readonly unknown[], query: string, limit: number): SearchResultRow[] {
   const collected: SearchResultRow[] = [];
   for (const value of rawItems) {
     if (!isRecord(value)) continue;
@@ -357,9 +316,7 @@ export function rankRawItems(
 }
 
 export function compareSearchResults(left: SearchResultRow, right: SearchResultRow): number {
-  return right.score - left.score
-    || left.resource.localeCompare(right.resource)
-    || left.name.localeCompare(right.name);
+  return right.score - left.score || left.resource.localeCompare(right.resource) || left.name.localeCompare(right.name);
 }
 
 export function deduplicateSearchResults(items: readonly SearchResultRow[]): SearchResultRow[] {

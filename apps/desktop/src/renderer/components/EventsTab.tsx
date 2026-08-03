@@ -18,18 +18,7 @@ interface EventsTabProps {
   now: number;
 }
 
-export function EventsTab({
-  events,
-  loading,
-  error,
-  copyLabel,
-  typeFilter,
-  onTypeFilterChange,
-  sort,
-  onSortChange,
-  onOpenRelated,
-  now,
-}: EventsTabProps) {
+export function EventsTab({ events, loading, error, copyLabel, typeFilter, onTypeFilterChange, sort, onSortChange, onOpenRelated, now }: EventsTabProps) {
   const filteredEvents = events
     .filter((event) => {
       if (typeFilter === "all") return true;
@@ -48,9 +37,15 @@ export function EventsTab({
     <section className="drawer-panel-stack">
       <div className="drawer-filterbar">
         <div className="segmented-control" aria-label="Event type filter">
-          <button className={typeFilter === "all" ? "active" : ""} onClick={() => onTypeFilterChange("all")}>All {events.length}</button>
-          <button className={typeFilter === "warning" ? "active" : ""} onClick={() => onTypeFilterChange("warning")}>Warning {warningCount}</button>
-          <button className={typeFilter === "normal" ? "active" : ""} onClick={() => onTypeFilterChange("normal")}>Normal {normalCount}</button>
+          <button className={typeFilter === "all" ? "active" : ""} onClick={() => onTypeFilterChange("all")}>
+            All {events.length}
+          </button>
+          <button className={typeFilter === "warning" ? "active" : ""} onClick={() => onTypeFilterChange("warning")}>
+            Warning {warningCount}
+          </button>
+          <button className={typeFilter === "normal" ? "active" : ""} onClick={() => onTypeFilterChange("normal")}>
+            Normal {normalCount}
+          </button>
         </div>
         <label className="compact-select">
           Sort
@@ -87,7 +82,10 @@ function EventCard({ event, onOpenRelated, now }: { event: ResourceRow; onOpenRe
       <header className="event-card-header">
         <div>
           <strong>{reason}</strong>
-          <span>{type}{count > 1 ? ` · ${count}x` : ""}</span>
+          <span>
+            {type}
+            {count > 1 ? ` · ${count}x` : ""}
+          </span>
         </div>
         {timestamp ? <time title={timestamp}>{formatAgeAgo(timestamp, now)}</time> : null}
       </header>

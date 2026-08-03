@@ -263,13 +263,7 @@ export function ResourceTable({
             {renderedRows.map((row) => {
               const key = rowKey(row);
               return (
-                <tr
-                  key={key}
-                  className={selectedRowKey === key ? "selected" : ""}
-                  onClick={() => onOpen?.(row)}
-                  onDoubleClick={() => onPin?.(row)}
-                  onContextMenu={(event) => event.preventDefault()}
-                >
+                <tr key={key} className={selectedRowKey === key ? "selected" : ""} onClick={() => onOpen?.(row)} onDoubleClick={() => onPin?.(row)} onContextMenu={(event) => event.preventDefault()}>
                   <td className="select-col" onClick={(event) => event.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(key)} onChange={() => toggleRow(key)} />
                   </td>

@@ -8,7 +8,8 @@ const SECRET_ASSIGNMENT_RE = /\b(authorization|bearer|token|password|passwd|secr
 const BEARER_TOKEN_RE = /\bbearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const PRIVATE_KEY_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gi;
 const CERTIFICATE_RE = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/gi;
-const DIAGNOSTIC_LINE_RE = /(last state|state:|reason:|exit code|signal|oom|killed|evict|restart|back-off|crash|failed|error|warning|unhealthy|liveness|readiness|startup|probe|qos class|limits:|requests:|node:)/i;
+const DIAGNOSTIC_LINE_RE =
+  /(last state|state:|reason:|exit code|signal|oom|killed|evict|restart|back-off|crash|failed|error|warning|unhealthy|liveness|readiness|startup|probe|qos class|limits:|requests:|node:)/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -63,11 +64,7 @@ export function sanitizeValue(value: unknown, parentKey = ""): unknown {
     const kind = String(value.kind ?? "").toLocaleLowerCase();
     const sanitized: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
-      if (
-        (kind === "secret" && (key === "data" || key === "stringData")) ||
-        sensitiveKey(key) ||
-        sensitiveKey(parentKey)
-      ) {
+      if ((kind === "secret" && (key === "data" || key === "stringData")) || sensitiveKey(key) || sensitiveKey(parentKey)) {
         sanitized[key] = REDACTED;
       } else {
         sanitized[key] = sanitizeValue(item, key);
@@ -95,9 +92,7 @@ function compactText(text: string, maxChars: number, keepTail = false): string {
   const marker = `\n${TRUNCATED_MARKER}\n`;
   const budget = maxChars - marker.length;
   if (budget <= 0) return TRUNCATED_MARKER;
-  return keepTail
-    ? `${marker}${text.slice(-budget).trimStart()}`
-    : `${text.slice(0, budget).trimEnd()}${marker}`;
+  return keepTail ? `${marker}${text.slice(-budget).trimStart()}` : `${text.slice(0, budget).trimEnd()}${marker}`;
 }
 
 function dedupe(lines: string[]): string[] {
@@ -121,9 +116,7 @@ function snippetAround(text: string, pattern: RegExp, before = 0, after = 8): st
   for (let index = 0; index < lines.length; index += 1) {
     pattern.lastIndex = 0;
     if (!pattern.test(lines[index])) continue;
-    return lines
-      .slice(Math.max(0, index - before), Math.min(lines.length, index + after + 1))
-      .join("\n");
+    return lines.slice(Math.max(0, index - before), Math.min(lines.length, index + after + 1)).join("\n");
   }
   return "";
 }
@@ -169,32 +162,19 @@ function diagnosticSignals(request: LlmAnalyzeResourceRequest): string {
   const combined = [describe, yaml, jsonExcerpt(request.resourceObject)].join("\n");
   const lines: string[] = [];
 
-  const restarts =
-    firstMatch(combined, /^\s*Restart Count:\s*(.+)$/im) ||
-    firstMatch(combined, /^\s*restartCount:\s*(.+)$/im);
+  const restarts = firstMatch(combined, /^\s*Restart Count:\s*(.+)$/im) || firstMatch(combined, /^\s*restartCount:\s*(.+)$/im);
   if (restarts) lines.push(`restartCount: ${restarts}`);
 
-  const lastState = snippetAround(
-    combined,
-    /^\s*(Last State:\s*.+|lastState:\s*)$/im,
-    0,
-    8,
-  );
+  const lastState = snippetAround(combined, /^\s*(Last State:\s*.+|lastState:\s*)$/im, 0, 8);
   if (lastState) lines.push(`lastState/status snippet:\n${sanitizeText(lastState)}`);
 
-  const exitCode =
-    firstMatch(combined, /^\s*Exit Code:\s*(.+)$/im) ||
-    firstMatch(combined, /^\s*exitCode:\s*(.+)$/im);
+  const exitCode = firstMatch(combined, /^\s*Exit Code:\s*(.+)$/im) || firstMatch(combined, /^\s*exitCode:\s*(.+)$/im);
   if (exitCode) lines.push(`exitCode: ${exitCode}`);
 
-  const reason =
-    firstMatch(combined, /^\s*Reason:\s*(.+)$/im) ||
-    firstMatch(combined, /^\s*reason:\s*(.+)$/im);
+  const reason = firstMatch(combined, /^\s*Reason:\s*(.+)$/im) || firstMatch(combined, /^\s*reason:\s*(.+)$/im);
   if (reason) lines.push(`reason: ${reason}`);
 
-  const qos =
-    firstMatch(combined, /^\s*QoS Class:\s*(.+)$/im) ||
-    firstMatch(combined, /^\s*qosClass:\s*(.+)$/im);
+  const qos = firstMatch(combined, /^\s*QoS Class:\s*(.+)$/im) || firstMatch(combined, /^\s*qosClass:\s*(.+)$/im);
   if (qos) lines.push(`qosClass: ${qos}`);
 
   const diagnosticLines = combined
@@ -227,10 +207,7 @@ function relatedPayload(request: LlmAnalyzeResourceRequest): unknown {
 function contextCoverage(request: LlmAnalyzeResourceRequest): string {
   const describe = request.describe ?? "";
   const related = relatedPayload(request);
-  const lines = [
-    `describe: ${describe.trim() ? "provided_full" : "missing"}`,
-    `yaml: ${request.yaml?.trim() ? "excerpt_provided" : "missing"}`,
-  ];
+  const lines = [`describe: ${describe.trim() ? "provided_full" : "missing"}`, `yaml: ${request.yaml?.trim() ? "excerpt_provided" : "missing"}`];
 
   if (request.events && request.events.length > 0) {
     lines.push("events: provided_from_events_api");
@@ -242,9 +219,7 @@ function contextCoverage(request: LlmAnalyzeResourceRequest): string {
     lines.push("events: missing");
   }
 
-  lines.push(
-    related ? "relatedResources: summary_provided_not_full_manifests" : "relatedResources: missing",
-  );
+  lines.push(related ? "relatedResources: summary_provided_not_full_manifests" : "relatedResources: missing");
   lines.push("rule: do not ask to check a source marked provided; analyze its provided content instead");
   lines.push("rule: if events are provided_empty_from_describe, say warning events are absent, not missing");
   return lines.join("\n");
@@ -256,13 +231,7 @@ function statusConditions(resourceObject: Record<string, unknown>): string {
   const status = isRecord(object.status) ? object.status : undefined;
   if (status) {
     const payload: Record<string, unknown> = {};
-    for (const key of [
-      "phase",
-      "conditions",
-      "containerStatuses",
-      "initContainerStatuses",
-      "qosClass",
-    ]) {
+    for (const key of ["phase", "conditions", "containerStatuses", "initContainerStatuses", "qosClass"]) {
       const value = status[key];
       if (value !== undefined && value !== null && value !== "") payload[key] = value;
     }
@@ -287,19 +256,9 @@ function containers(request: LlmAnalyzeResourceRequest): string {
   if (Object.keys(payload).length > 0) return jsonExcerpt(payload);
 
   const snippets: string[] = [];
-  const yamlStatus = snippetAround(
-    request.yaml ?? "",
-    /^\s*(containerStatuses|initContainerStatuses):\s*$/im,
-    0,
-    80,
-  );
+  const yamlStatus = snippetAround(request.yaml ?? "", /^\s*(containerStatuses|initContainerStatuses):\s*$/im, 0, 80);
   if (yamlStatus) snippets.push(`yaml container status snippet:\n${sanitizeText(yamlStatus)}`);
-  const describeContainers = snippetAround(
-    request.describe ?? "",
-    /^\s*Containers:\s*$/im,
-    0,
-    80,
-  );
+  const describeContainers = snippetAround(request.describe ?? "", /^\s*Containers:\s*$/im, 0, 80);
   if (describeContainers) {
     snippets.push(`describe containers snippet:\n${sanitizeText(describeContainers)}`);
   }
@@ -351,10 +310,7 @@ export interface ResourceContextResult {
   truncated: boolean;
 }
 
-export function buildResourceContext(
-  request: LlmAnalyzeResourceRequest,
-  maxChars: number,
-): ResourceContextResult {
+export function buildResourceContext(request: LlmAnalyzeResourceRequest, maxChars: number): ResourceContextResult {
   const describe = request.describe ?? "";
   const related = relatedPayload(request);
   const sections: Array<[string, string]> = [
@@ -364,25 +320,14 @@ export function buildResourceContext(
     ["CONTEXT COVERAGE", contextCoverage(request)],
     ["STATUS / CONDITIONS", statusConditions(request.resourceObject ?? {})],
     ["CONTAINERS", containers(request)],
-    [
-      "EVENTS (warnings first; if <none>, events are already checked and empty)",
-      eventsExcerpt(request.events) || eventsFromDescribe(describe),
-    ],
-    [
-      "LOG CONTEXT POLICY",
-      "Kubernetes log streams are not collected or sent to LLM providers by KubeDeck due to security policy.",
-    ],
+    ["EVENTS (warnings first; if <none>, events are already checked and empty)", eventsExcerpt(request.events) || eventsFromDescribe(describe)],
+    ["LOG CONTEXT POLICY", "Kubernetes log streams are not collected or sent to LLM providers by KubeDeck due to security policy."],
     ["DESCRIBE FULL ALREADY PROVIDED", sanitizeText(describe)],
     ["YAML EXCERPT", yamlExcerpt(request)],
-    [
-      "RELATED RESOURCES SUMMARY (not full manifests unless explicitly shown)",
-      jsonExcerpt(related),
-    ],
+    ["RELATED RESOURCES SUMMARY (not full manifests unless explicitly shown)", jsonExcerpt(related)],
   ];
 
-  const context = sections
-    .map(([title, body]) => `${title}\n${body || "Not provided."}`)
-    .join("\n\n");
+  const context = sections.map(([title, body]) => `${title}\n${body || "Not provided."}`).join("\n\n");
   const limit = Number.isFinite(maxChars) ? Math.trunc(maxChars) : 60_000;
   if (limit <= 0 || context.length <= limit) {
     return { context, contextChars: context.length, truncated: false };

@@ -70,13 +70,7 @@ export function writeConfig(response: ServerResponse, configStore: ConfigStore):
   writeJson(response, configStore.load());
 }
 
-export async function writeSettings(
-  request: IncomingMessage,
-  response: ServerResponse,
-  configStore: ConfigStore,
-  auditStore: AuditStore,
-  secretStore: SecretStore,
-): Promise<void> {
+export async function writeSettings(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore, auditStore: AuditStore, secretStore: SecretStore): Promise<void> {
   try {
     const body = await readJsonBody(request);
     const settings = settingsFromBody(body);
@@ -98,12 +92,7 @@ export async function writeSettings(
 
     writeJson(response, updated);
   } catch (error) {
-    const message =
-      error instanceof RequestBodyError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : String(error);
+    const message = error instanceof RequestBodyError ? error.message : error instanceof Error ? error.message : String(error);
 
     auditStore.append({
       action: "settings.update",
@@ -111,9 +100,7 @@ export async function writeSettings(
       message,
     });
 
-    const code = error instanceof SecretStorageUnavailableError
-      ? "SECRET_STORAGE_UNAVAILABLE"
-      : "INVALID_SETTINGS";
+    const code = error instanceof SecretStorageUnavailableError ? "SECRET_STORAGE_UNAVAILABLE" : "INVALID_SETTINGS";
     writeError(response, 400, code, message);
   }
 }

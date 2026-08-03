@@ -2,12 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 
-const ALLOWED_ORIGINS = new Set([
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "file://",
-  "null",
-]);
+const ALLOWED_ORIGINS = new Set(["http://localhost:5173", "http://127.0.0.1:5173", "file://", "null"]);
 
 function safeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left);
@@ -49,9 +44,7 @@ export function writePolicyViolation(request: IncomingMessage, socket: Duplex, r
     return;
   }
 
-  const accept = createHash("sha1")
-    .update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
-    .digest("base64");
+  const accept = createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
 
   const reasonBuffer = Buffer.from(reason.slice(0, 100), "utf8");
   const payloadLength = 2 + reasonBuffer.length;
@@ -61,15 +54,6 @@ export function writePolicyViolation(request: IncomingMessage, socket: Duplex, r
   frame.writeUInt16BE(1008, 2);
   reasonBuffer.copy(frame, 4);
 
-  socket.write(
-    [
-      "HTTP/1.1 101 Switching Protocols",
-      "Upgrade: websocket",
-      "Connection: Upgrade",
-      `Sec-WebSocket-Accept: ${accept}`,
-      "",
-      "",
-    ].join("\r\n"),
-  );
+  socket.write(["HTTP/1.1 101 Switching Protocols", "Upgrade: websocket", "Connection: Upgrade", `Sec-WebSocket-Accept: ${accept}`, "", ""].join("\r\n"));
   socket.end(frame);
 }

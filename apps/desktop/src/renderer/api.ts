@@ -1,4 +1,35 @@
-import type { ApiKeyUpdate, AppConfig, AuditResponse, BackendInfo, Cluster, ClusterOverviewResponse, CommandResult, ErrorInfo, KnownSshHost, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent, LlmAnalyzeResourceRequest, LlmAnalyzeResourceResponse, LlmPromptPreviewResponse, LlmStatus, LlmTestResponse } from "./types";
+import type {
+  ApiKeyUpdate,
+  AppConfig,
+  AuditResponse,
+  BackendInfo,
+  Cluster,
+  ClusterOverviewResponse,
+  CommandResult,
+  ErrorInfo,
+  KnownSshHost,
+  PortForwardSession,
+  PortForwardStartRequest,
+  GlobalSearchResponse,
+  ProblemsResponse,
+  RelatedResourcesResponse,
+  ResourceDefinition,
+  ResourceEventsResponse,
+  ResourceRow,
+  SecretKeysResponse,
+  SecretRevealResponse,
+  Settings,
+  DeploymentLogTargetsResponse,
+  ResourceCacheStatus,
+  WatchSession,
+  WatchStatus,
+  ResourceWatchEvent,
+  LlmAnalyzeResourceRequest,
+  LlmAnalyzeResourceResponse,
+  LlmPromptPreviewResponse,
+  LlmStatus,
+  LlmTestResponse,
+} from "./types";
 
 export class ApiError extends Error {
   info: ErrorInfo;
@@ -28,12 +59,7 @@ async function parseApiErrorResponse(response: Response): Promise<ErrorInfo> {
 function isErrorInfo(value: unknown): value is ErrorInfo {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.code === "string" &&
-    typeof candidate.message === "string" &&
-    typeof candidate.rawStderr === "string" &&
-    typeof candidate.commandPreview === "string"
-  );
+  return typeof candidate.code === "string" && typeof candidate.message === "string" && typeof candidate.rawStderr === "string" && typeof candidate.commandPreview === "string";
 }
 
 type OperationConfirmation = {
@@ -47,7 +73,10 @@ type OperationConfirmation = {
 };
 
 export class ApiClient {
-  constructor(private baseUrl: string, private token: string) {}
+  constructor(
+    private baseUrl: string,
+    private token: string,
+  ) {}
 
   async request<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -162,13 +191,7 @@ export class ApiClient {
     return this.request<{ items: Array<{ metadata: { name: string } }> }>(`/clusters/${clusterId}/namespaces`, { signal });
   }
 
-  resources(
-    clusterId: string,
-    resource: string,
-    namespace: string,
-    signal?: AbortSignal,
-    options: { useCache?: boolean; forceRefresh?: boolean } = {},
-  ) {
+  resources(clusterId: string, resource: string, namespace: string, signal?: AbortSignal, options: { useCache?: boolean; forceRefresh?: boolean } = {}) {
     const params = new URLSearchParams({ namespace });
     if (options.useCache) params.set("useCache", "true");
     if (options.forceRefresh) params.set("forceRefresh", "true");
@@ -187,7 +210,6 @@ export class ApiClient {
     const namespace = namespaces.length ? namespaces.join(",") : "all";
     return this.request<ClusterOverviewResponse>(`/clusters/${clusterId}/overview?namespace=${encodeURIComponent(namespace)}`, { signal });
   }
-
 
   audit(limit = 200, signal?: AbortSignal) {
     return this.request<AuditResponse>(`/audit?limit=${encodeURIComponent(String(limit))}`, { signal });
@@ -220,11 +242,16 @@ export class ApiClient {
   }
 
   resourceEvents(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {
-    return this.request<ResourceEventsResponse>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/events`, { signal });
+    return this.request<ResourceEventsResponse>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/events`, {
+      signal,
+    });
   }
 
   relatedResources(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {
-    return this.request<RelatedResourcesResponse>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/related`, { signal });
+    return this.request<RelatedResourcesResponse>(
+      `/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/related`,
+      { signal },
+    );
   }
 
   secretKeys(clusterId: string, namespace: string, name: string, signal?: AbortSignal) {
@@ -240,7 +267,10 @@ export class ApiClient {
   }
 
   updateSecret(clusterId: string, namespace: string, name: string, key: string, value: string) {
-    return this.request<{ ok: boolean }>(`/clusters/${clusterId}/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/update`, { method: "POST", body: JSON.stringify({ key, value }) });
+    return this.request<{ ok: boolean }>(`/clusters/${clusterId}/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/update`, {
+      method: "POST",
+      body: JSON.stringify({ key, value }),
+    });
   }
 
   dryRunYaml(clusterId: string, yaml: string) {
@@ -268,10 +298,10 @@ export class ApiClient {
       name,
       typedName,
     };
-    return this.request<string>(
-      `/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/action`,
-      { method: "POST", body: JSON.stringify({ action, replicas, confirmation }) }
-    );
+    return this.request<string>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/action`, {
+      method: "POST",
+      body: JSON.stringify({ action, replicas, confirmation }),
+    });
   }
 
   podText(clusterId: string, namespace: string, name: string, view: "yaml" | "describe" | "logs", tail = 500, follow = false, signal?: AbortSignal) {
@@ -279,13 +309,7 @@ export class ApiClient {
     return this.request<string>(`/clusters/${clusterId}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/${view}${suffix}`, { signal });
   }
 
-  podLogs(
-    clusterId: string,
-    namespace: string,
-    name: string,
-    options: { tail?: number; previous?: boolean; timestamps?: boolean; container?: string; all?: boolean } = {},
-    signal?: AbortSignal,
-  ) {
+  podLogs(clusterId: string, namespace: string, name: string, options: { tail?: number; previous?: boolean; timestamps?: boolean; container?: string; all?: boolean } = {}, signal?: AbortSignal) {
     const params = new URLSearchParams({
       previous: String(Boolean(options.previous)),
       timestamps: String(Boolean(options.timestamps)),
@@ -298,7 +322,6 @@ export class ApiClient {
     if (options.container) params.set("container", options.container);
     return this.request<string>(`/clusters/${clusterId}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/logs?${params.toString()}`, { signal });
   }
-
 
   deploymentLogTargets(clusterId: string, namespace: string, name: string, signal?: AbortSignal) {
     return this.request<DeploymentLogTargetsResponse>(`/clusters/${clusterId}/deployments/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/log-targets`, { signal });
@@ -334,12 +357,11 @@ export class ApiClient {
       name,
       typedName,
     };
-    return this.request<CommandResult>(
-      `/clusters/${clusterId}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/exec`,
-      { method: "POST", body: JSON.stringify({ command, container, shell, confirmation }) }
-    );
+    return this.request<CommandResult>(`/clusters/${clusterId}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/exec`, {
+      method: "POST",
+      body: JSON.stringify({ command, container, shell, confirmation }),
+    });
   }
-
 
   resourceWatchEventsUrl(clusterId: string, resource: string, namespace = "all") {
     const url = new URL(this.baseUrl);

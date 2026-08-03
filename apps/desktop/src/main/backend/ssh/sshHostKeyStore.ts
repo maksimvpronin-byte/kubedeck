@@ -50,7 +50,10 @@ export function sshKeyAlgorithm(key: Buffer): string {
  * always part of the identity: the same name on another port is another host.
  */
 export function canonicalSshHost(host: string, port: number): string {
-  const normalized = host.trim().toLowerCase().replace(/^\[(.*)\]$/, "$1");
+  const normalized = host
+    .trim()
+    .toLowerCase()
+    .replace(/^\[(.*)\]$/, "$1");
   return `${normalized}:${port}`;
 }
 

@@ -1,14 +1,7 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import type { Duplex } from "node:stream";
-import {
-  isAllowedOrigin,
-  isAuthorized,
-  requestOrigin,
-  requestToken,
-  websocketToken,
-  writePolicyViolation,
-} from "./auth";
+import { isAllowedOrigin, isAuthorized, requestOrigin, requestToken, websocketToken, writePolicyViolation } from "./auth";
 import { AuditStore } from "./audit/auditStore";
 import { ResourceSnapshotCache } from "./cache/resourceSnapshotCache";
 import { ResourceWatchEventHub } from "./watch/eventHub";
@@ -25,25 +18,13 @@ import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
 import { writeAppInfo } from "./routes/appInfo";
 import { writeAudit } from "./routes/audit";
-import {
-  writeClusters,
-  writeImportCluster,
-  writeNamespaces,
-  writeOpenCluster,
-  writeOpenLastCluster,
-  writeRemoveCluster,
-  writeReorderClusters,
-  writeRenameCluster,
-} from "./routes/clusters";
+import { writeClusters, writeImportCluster, writeNamespaces, writeOpenCluster, writeOpenLastCluster, writeRemoveCluster, writeReorderClusters, writeRenameCluster } from "./routes/clusters";
 import { writeConfig, writeSettings } from "./routes/config";
 import { writeHealth } from "./routes/health";
 import { writeKubectlStatus } from "./routes/kubectl";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import { handleResourceDetailsRequest } from "./routes/resourceDetails";
-import {
-  clearResourceDefinitionCache,
-  handleResourceDiscoveryEventsRequest,
-} from "./routes/resourceDiscoveryEvents";
+import { clearResourceDefinitionCache, handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscoveryEvents";
 import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
 import { handleYamlRequest } from "./routes/yaml";
 import { handleSecretRequest } from "./routes/secrets";
@@ -64,7 +45,7 @@ const ALLOWED_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
 const ALLOWED_HEADERS = "Content-Type,X-KubeDeck-Token";
 
 interface GatewayServices {
-configStore: ConfigStore;
+  configStore: ConfigStore;
   auditStore: AuditStore;
   kubectlRunner: KubectlRunner;
   resourceCache: ResourceSnapshotCache;
@@ -106,12 +87,7 @@ function decodePathPart(value: string, response: ServerResponse): string | null 
   }
 }
 
-function handleRequest(
-  request: IncomingMessage,
-  response: ServerResponse,
-  options: GatewayOptions,
-  services: GatewayServices,
-): void {
+function handleRequest(request: IncomingMessage, response: ServerResponse, options: GatewayOptions, services: GatewayServices): void {
   if (!applyCors(request, response)) return;
 
   if (request.method === "OPTIONS") {
@@ -128,12 +104,7 @@ function handleRequest(
   }
 
   if (!isAuthorized(requestToken(request), options.sessionToken)) {
-    writeError(
-      response,
-      401,
-      "UNAUTHORIZED",
-      "KubeDeck session token is missing or invalid",
-    );
+    writeError(response, 401, "UNAUTHORIZED", "KubeDeck session token is missing or invalid");
     return;
   }
 
@@ -173,13 +144,7 @@ function handleRequest(
   }
 
   if (request.method === "PUT" && pathname === "/settings") {
-    void writeSettings(
-      request,
-      response,
-      services.configStore,
-      services.auditStore,
-      services.secretStore,
-    ).catch((error) => {
+    void writeSettings(request, response, services.configStore, services.auditStore, services.secretStore).catch((error) => {
       options.log(`gateway settings update failed: ${String(error)}`);
       writeError(response, 500, "SETTINGS_UPDATE_FAILED", "Unable to update settings");
     });
@@ -196,11 +161,7 @@ function handleRequest(
   }
 
   if (request.method === "GET" && pathname === "/kubectl/status") {
-    void writeKubectlStatus(
-      response,
-      services.configStore,
-      services.kubectlRunner,
-    ).catch((error) => {
+    void writeKubectlStatus(response, services.configStore, services.kubectlRunner).catch((error) => {
       options.log(`gateway kubectl status failed: ${String(error)}`);
       writeError(response, 500, "KUBECTL_STATUS_FAILED", "Unable to read kubectl status");
     });
@@ -218,12 +179,7 @@ function handleRequest(
   }
 
   if (request.method === "POST" && pathname === "/clusters/import") {
-    void writeImportCluster(
-      request,
-      response,
-      services.configStore,
-      services.auditStore,
-    ).catch((error) => {
+    void writeImportCluster(request, response, services.configStore, services.auditStore).catch((error) => {
       options.log(`gateway cluster import failed: ${String(error)}`);
       writeError(response, 500, "IMPORT_FAILED", "Unable to import cluster");
     });
@@ -231,12 +187,7 @@ function handleRequest(
   }
 
   if (request.method === "PUT" && pathname === "/clusters/order") {
-    void writeReorderClusters(
-      request,
-      response,
-      services.configStore,
-      services.auditStore,
-    ).catch((error) => {
+    void writeReorderClusters(request, response, services.configStore, services.auditStore).catch((error) => {
       options.log(`gateway cluster reorder failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REORDER_FAILED", "Unable to save cluster order");
     });
@@ -244,11 +195,7 @@ function handleRequest(
   }
 
   if (request.method === "POST" && pathname === "/clusters/last/open") {
-    void writeOpenLastCluster(
-      response,
-      services.configStore,
-      services.kubectlRunner,
-    ).catch((error) => {
+    void writeOpenLastCluster(response, services.configStore, services.kubectlRunner).catch((error) => {
       options.log(`gateway last cluster open failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_OPEN_FAILED", "Unable to open last cluster");
     });
@@ -260,12 +207,7 @@ function handleRequest(
     const clusterId = decodePathPart(openClusterMatch[1], response);
     if (clusterId === null) return;
 
-    void writeOpenCluster(
-      response,
-      clusterId,
-      services.configStore,
-      services.kubectlRunner,
-    ).catch((error) => {
+    void writeOpenCluster(response, clusterId, services.configStore, services.kubectlRunner).catch((error) => {
       options.log(`gateway cluster open failed cluster=${clusterId}: ${String(error)}`);
       writeError(response, 500, "CLUSTER_OPEN_FAILED", "Unable to open cluster");
     });
@@ -277,12 +219,7 @@ function handleRequest(
     const clusterId = decodePathPart(namespacesMatch[1], response);
     if (clusterId === null) return;
 
-    void writeNamespaces(
-      response,
-      clusterId,
-      services.configStore,
-      services.kubectlRunner,
-    ).catch((error) => {
+    void writeNamespaces(response, clusterId, services.configStore, services.kubectlRunner).catch((error) => {
       options.log(`gateway namespaces failed cluster=${clusterId}: ${String(error)}`);
       writeError(response, 500, "NAMESPACES_FAILED", "Unable to load namespaces");
     });
@@ -295,13 +232,7 @@ function handleRequest(
     if (clusterId === null) return;
 
     if (request.method === "PATCH") {
-      void writeRenameCluster(
-        request,
-        response,
-        clusterId,
-        services.configStore,
-        services.auditStore,
-      ).catch((error) => {
+      void writeRenameCluster(request, response, clusterId, services.configStore, services.auditStore).catch((error) => {
         options.log(`gateway cluster rename failed: ${String(error)}`);
         writeError(response, 500, "CLUSTER_RENAME_FAILED", "Unable to rename cluster");
       });
@@ -317,12 +248,7 @@ function handleRequest(
       ]);
       services.resourceCache.clear(clusterId, "cluster.remove");
       clearResourceDefinitionCache(clusterId);
-      await writeRemoveCluster(
-        response,
-        clusterId,
-        services.configStore,
-        services.auditStore,
-      );
+      await writeRemoveCluster(response, clusterId, services.configStore, services.auditStore);
     })().catch((error) => {
       options.log(`gateway cluster remove failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_REMOVE_FAILED", "Unable to remove cluster");
@@ -330,208 +256,68 @@ function handleRequest(
     return;
   }
 
+  if (handlePortForwardRequest(request, response, pathname, services.configStore, services.auditStore, services.portForwardManager, options.log)) {
+    return;
+  }
+
+  if (handleWatchRequest(request, response, pathname, services.configStore, services.watchManager, options.log)) {
+    return;
+  }
+
+  if (handleOverviewRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
+    return;
+  }
+  if (handleProblemsRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
+    return;
+  }
+  if (handleSearchRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
+    return;
+  }
+  if (handleLlmRequest(request, response, pathname, services.configStore, services.secretStore, options.log)) {
+    return;
+  }
+  if (handleRelatedResourcesRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
+    return;
+  }
+  if (handleResourceListRequest(request, response, pathname, services.configStore, services.kubectlRunner, services.resourceCache, clearResourceDefinitionCache, options.log)) {
+    return;
+  }
+
+  if (handlePodExecRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log)) {
+    return;
+  }
+
+  if (handleSecretRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log)) {
+    return;
+  }
+
   if (
-    handlePortForwardRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.auditStore,
-      services.portForwardManager,
-      options.log,
-    )
+    handleResourceActionRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log, async (clusterId) => {
+      services.resourceCache.clear(clusterId, "mutation");
+      clearResourceDefinitionCache(clusterId);
+    })
   ) {
     return;
   }
 
   if (
-    handleWatchRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.watchManager,
-      options.log,
-    )
+    handleYamlRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log, async (clusterId) => {
+      services.resourceCache.clear(clusterId, "mutation");
+      clearResourceDefinitionCache(clusterId);
+    })
   ) {
     return;
   }
 
-  if (
-    handleOverviewRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
-    return;
-  }
-  if (
-    handleProblemsRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
-    return;
-  }
-  if (
-    handleSearchRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
-    return;
-  }
-  if (
-    handleLlmRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.secretStore,
-      options.log,
-    )
-  ) {
-    return;
-  }
-  if (
-    handleRelatedResourcesRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
-    return;
-  }
-  if (
-    handleResourceListRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.kubectlRunner,
-      services.resourceCache,
-      clearResourceDefinitionCache,
-      options.log,
-    )
-  ) {
+  if (handleDeploymentLogsRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
     return;
   }
 
-  if (
-    handlePodExecRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.auditStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
+  if (handleResourceDiscoveryEventsRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
     return;
   }
 
-  if (
-    handleSecretRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.auditStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
-    return;
-  }
-
-  if (
-    handleResourceActionRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.auditStore,
-      services.kubectlRunner,
-      options.log,
-      async (clusterId) => {
-        services.resourceCache.clear(clusterId, "mutation");
-        clearResourceDefinitionCache(clusterId);
-      },
-    )
-  ) {
-    return;
-  }
-
-  if (
-    handleYamlRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.auditStore,
-      services.kubectlRunner,
-      options.log,
-      async (clusterId) => {
-        services.resourceCache.clear(clusterId, "mutation");
-        clearResourceDefinitionCache(clusterId);
-      },
-    )
-  ) {
-    return;
-  }
-
-  if (
-    handleDeploymentLogsRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
-    return;
-  }
-
-  if (
-    handleResourceDiscoveryEventsRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
-    return;
-  }
-
-  if (
-    handleResourceDetailsRequest(
-      request,
-      response,
-      pathname,
-      services.configStore,
-      services.kubectlRunner,
-      options.log,
-    )
-  ) {
+  if (handleResourceDetailsRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
     return;
   }
 
@@ -568,12 +354,7 @@ function handleUpgrade(
 export async function startGateway(options: GatewayOptions): Promise<GatewayHandle> {
   const resourceCache = new ResourceSnapshotCache();
   const watchEvents = new ResourceWatchEventHub();
-  const watchManager = new WatchManager(
-    options.log,
-    resourceCache,
-    watchEvents,
-    options.spawnKubectl,
-  );
+  const watchManager = new WatchManager(options.log, resourceCache, watchEvents, options.spawnKubectl);
   const watchWebSocket = new ResourceWatchWebSocketServer(watchEvents, options.log);
   const configStore = new ConfigStore(options.appDataRoot);
   const auditStore = new AuditStore(options.appDataRoot, options.log);
@@ -581,15 +362,9 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   const portForwardManager = new PortForwardManager(options.log, {
     spawnProcess: options.spawnKubectl,
   });
-  const terminalWebSocket = new PodTerminalWebSocketServer(
-    configStore,
-    auditStore,
-    kubectlRunner,
-    options.log,
-    {
-      ptyFactory: options.terminalPtyFactory,
-    },
-  );
+  const terminalWebSocket = new PodTerminalWebSocketServer(configStore, auditStore, kubectlRunner, options.log, {
+    ptyFactory: options.terminalPtyFactory,
+  });
   const sshHostKeys = new SshHostKeyStore(configStore.paths.knownHosts);
   const sshWebSocket = new NodeSshWebSocketServer(auditStore, sshHostKeys, options.log, {
     clientFactory: options.sshClientFactory,
@@ -610,9 +385,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   };
 
   const sockets = new Set<Socket>();
-  const server = http.createServer((request, response) =>
-    handleRequest(request, response, options, services),
-  );
+  const server = http.createServer((request, response) => handleRequest(request, response, options, services));
 
   server.on("connection", (socket) => {
     sockets.add(socket);
@@ -620,15 +393,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   });
 
   server.on("upgrade", (request, socket, head) => {
-    handleUpgrade(
-      request,
-      socket,
-      head,
-      options,
-      watchWebSocket,
-      terminalWebSocket,
-      sshWebSocket,
-    );
+    handleUpgrade(request, socket, head, options, watchWebSocket, terminalWebSocket, sshWebSocket);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -657,11 +422,11 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
 
       closing = (async () => {
         await services.sshWebSocket.close();
-      await services.terminalWebSocket.close();
-      await services.portForwardManager.close();
-      await services.watchManager.close();
-      watchWebSocket.close();
-      await services.kubectlRunner.close();
+        await services.terminalWebSocket.close();
+        await services.portForwardManager.close();
+        await services.watchManager.close();
+        watchWebSocket.close();
+        await services.kubectlRunner.close();
 
         for (const socket of sockets) {
           socket.destroy();

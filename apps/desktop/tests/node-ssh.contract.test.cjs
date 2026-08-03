@@ -10,11 +10,7 @@ const { PassThrough } = require("node:stream");
 const { WebSocket } = require("ws");
 
 const { startGateway } = require("../dist/main/backend/gateway.js");
-const {
-  buildSshCommandPreview,
-  matchNodeSshWebSocket,
-  normalizeSshConnectPayload,
-} = require("../dist/main/backend/ssh/nodeSshWebSocket.js");
+const { buildSshCommandPreview, matchNodeSshWebSocket, normalizeSshConnectPayload } = require("../dist/main/backend/ssh/nodeSshWebSocket.js");
 
 const TOKEN = "node-ssh-contract-token";
 
@@ -283,24 +279,20 @@ function connectPayload(overrides = {}) {
 }
 
 test("Node SSH route and command preview remain compatible", () => {
-  assert.deepEqual(
-    matchNodeSshWebSocket({ url: "/clusters/cluster-a/nodes/node-a/ssh" }),
-    { clusterId: "cluster-a", name: "node-a" },
+  assert.deepEqual(matchNodeSshWebSocket({ url: "/clusters/cluster-a/nodes/node-a/ssh" }), { clusterId: "cluster-a", name: "node-a" });
+  const payload = normalizeSshConnectPayload(
+    connectPayload({
+      port: 2222,
+      useJumpHost: true,
+      jumpHost: "jump.example.test",
+      jumpPort: 2200,
+      jumpUsername: "jump-user",
+      jumpAuthMethod: "password",
+      jumpPassword: "jump-secret",
+    }),
   );
-  const payload = normalizeSshConnectPayload(connectPayload({
-    port: 2222,
-    useJumpHost: true,
-    jumpHost: "jump.example.test",
-    jumpPort: 2200,
-    jumpUsername: "jump-user",
-    jumpAuthMethod: "password",
-    jumpPassword: "jump-secret",
-  }));
   const preview = buildSshCommandPreview(payload);
-  assert.equal(
-    preview,
-    "ssh -p 2222 -J jump-user@jump.example.test:2200 devops@10.0.0.10",
-  );
+  assert.equal(preview, "ssh -p 2222 -J jump-user@jump.example.test:2200 devops@10.0.0.10");
   assert.equal(preview.includes("secret-password"), false);
   assert.equal(preview.includes("jump-secret"), false);
   assert.throws(
@@ -322,14 +314,8 @@ test("Node SSH password session supports output, input, resize, audit redaction,
     socket.once("error", reject);
   });
   autoTrustHostKeys(socket);
-  const connectedPromise = waitForMessage(
-    socket,
-    (message) => message.type === "status" && message.data === "Connected",
-  );
-  const outputPromise = waitForMessage(
-    socket,
-    (message) => message.type === "output",
-  );
+  const connectedPromise = waitForMessage(socket, (message) => message.type === "status" && message.data === "Connected");
+  const outputPromise = waitForMessage(socket, (message) => message.type === "output");
   socket.send(JSON.stringify(connectPayload()));
   await connectedPromise;
   const output = await outputPromise;
@@ -380,22 +366,23 @@ test("Node SSH private key through jump host opens a forwarded target connection
     socket.once("error", reject);
   });
   autoTrustHostKeys(socket);
-  const connected = waitForMessage(
-    socket,
-    (message) => message.type === "status" && message.data === "Connected",
+  const connected = waitForMessage(socket, (message) => message.type === "status" && message.data === "Connected");
+  socket.send(
+    JSON.stringify(
+      connectPayload({
+        authMethod: "privateKey",
+        password: "",
+        keyPath,
+        keyPassphrase: "target-passphrase",
+        useJumpHost: true,
+        jumpHost: "jump.example.test",
+        jumpPort: 2200,
+        jumpUsername: "jump-user",
+        jumpAuthMethod: "password",
+        jumpPassword: "jump-secret",
+      }),
+    ),
   );
-  socket.send(JSON.stringify(connectPayload({
-    authMethod: "privateKey",
-    password: "",
-    keyPath,
-    keyPassphrase: "target-passphrase",
-    useJumpHost: true,
-    jumpHost: "jump.example.test",
-    jumpPort: 2200,
-    jumpUsername: "jump-user",
-    jumpAuthMethod: "password",
-    jumpPassword: "jump-secret",
-  })));
   await connected;
   assert.equal(state.configs.length, 2);
   assert.equal(state.configs[0].host, "jump.example.test");
@@ -404,12 +391,14 @@ test("Node SSH private key through jump host opens a forwarded target connection
   assert.equal(Buffer.isBuffer(state.configs[1].privateKey), true);
   assert.equal(state.configs[1].passphrase, "target-passphrase");
   assert.ok(state.configs[1].sock);
-  assert.deepEqual(state.forwardOut, [{
-    sourceHost: "127.0.0.1",
-    sourcePort: 0,
-    destinationHost: "10.0.0.10",
-    destinationPort: 22,
-  }]);
+  assert.deepEqual(state.forwardOut, [
+    {
+      sourceHost: "127.0.0.1",
+      sourcePort: 0,
+      destinationHost: "10.0.0.10",
+      destinationPort: 22,
+    },
+  ]);
   socket.send(JSON.stringify({ type: "close" }));
   await waitForClose(socket);
 });

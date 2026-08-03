@@ -22,10 +22,7 @@ function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
 
-export function resourceWatchEventMatches(
-  event: ResourceChangedEvent,
-  filter: ResourceWatchFilter,
-): boolean {
+export function resourceWatchEventMatches(event: ResourceChangedEvent, filter: ResourceWatchFilter): boolean {
   if (event.clusterId !== filter.clusterId) return false;
   if (normalize(event.resource) !== normalize(filter.resource)) return false;
   if (filter.namespace === "all") return true;
@@ -36,9 +33,7 @@ export function resourceWatchEventMatches(
 export class ResourceWatchEventHub {
   private readonly listeners = new Set<ResourceWatchListener>();
 
-  publish(
-    event: Omit<ResourceChangedEvent, "at"> & Partial<Pick<ResourceChangedEvent, "at">>,
-  ): ResourceChangedEvent {
+  publish(event: Omit<ResourceChangedEvent, "at"> & Partial<Pick<ResourceChangedEvent, "at">>): ResourceChangedEvent {
     const published: ResourceChangedEvent = {
       ...event,
       at: typeof event.at === "number" ? event.at : Date.now() / 1000,

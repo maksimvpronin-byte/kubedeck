@@ -1,18 +1,9 @@
-import {
-  spawn,
-  type ChildProcessWithoutNullStreams,
-} from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import net from "node:net";
 
-import {
-  buildKubectlCommand,
-  type KubectlCommand,
-} from "../kubectl/command";
-import {
-  sanitizeKubectlText,
-  truncateKubectlText,
-} from "../kubectl/errors";
+import { buildKubectlCommand, type KubectlCommand } from "../kubectl/command";
+import { sanitizeKubectlText, truncateKubectlText } from "../kubectl/errors";
 import type { SpawnProcess } from "../kubectl/runner";
 
 const OUTPUT_TAIL_LINES = 40;
@@ -24,29 +15,11 @@ const AUTO_PORT_MIN = 62000;
 const AUTO_PORT_MAX = 65535;
 const AUTO_PORT_ATTEMPTS = 240;
 
-const READY_MARKERS = [
-  "Forwarding from 127.0.0.1:",
-  "Forwarding from [::1]:",
-  "Forwarding from localhost:",
-  "Handling connection for",
-];
+const READY_MARKERS = ["Forwarding from 127.0.0.1:", "Forwarding from [::1]:", "Forwarding from localhost:", "Handling connection for"];
 
-const ERROR_MARKERS = [
-  "unable to listen",
-  "address already in use",
-  "error forwarding",
-  "lost connection to pod",
-  "pod is not running",
-  "not found",
-  "connection refused",
-];
+const ERROR_MARKERS = ["unable to listen", "address already in use", "error forwarding", "lost connection to pod", "pod is not running", "not found", "connection refused"];
 
-export type PortForwardStatus =
-  | "starting"
-  | "running"
-  | "stopping"
-  | "stopped"
-  | "failed";
+export type PortForwardStatus = "starting" | "running" | "stopping" | "stopped" | "failed";
 
 export interface PortForwardStartInput {
   resource: "pod" | "service" | "deployment";
@@ -129,14 +102,7 @@ export interface PortForwardManagerOptions {
 }
 
 function sessionKey(clusterId: string, input: PortForwardStartInput): string {
-  return [
-    clusterId,
-    input.namespace,
-    input.resource,
-    input.name,
-    input.localPort === 0 ? "auto" : String(input.localPort),
-    String(input.remotePort),
-  ].join("\u0000");
+  return [clusterId, input.namespace, input.resource, input.name, input.localPort === 0 ? "auto" : String(input.localPort), String(input.remotePort)].join("\u0000");
 }
 
 function tailPush(target: string[], text: string): void {
@@ -152,9 +118,7 @@ function tailPush(target: string[], text: string): void {
 
 function compactOutput(value: string): string {
   const sanitized = sanitizeKubectlText(value);
-  return sanitized.length > OUTPUT_TEXT_CHARS
-    ? sanitized.slice(sanitized.length - OUTPUT_TEXT_CHARS)
-    : sanitized;
+  return sanitized.length > OUTPUT_TEXT_CHARS ? sanitized.slice(sanitized.length - OUTPUT_TEXT_CHARS) : sanitized;
 }
 
 function containsMarker(value: string, markers: readonly string[]): boolean {
@@ -180,30 +144,17 @@ export function canBindLocalPort(port: number): Promise<boolean> {
   });
 }
 
-function waitForClose(
-  session: PortForwardSession,
-  timeoutMs: number,
-): Promise<boolean> {
-  if (
-    session.process.exitCode !== null ||
-    session.status === "stopped" ||
-    session.status === "failed"
-  ) {
+function waitForClose(session: PortForwardSession, timeoutMs: number): Promise<boolean> {
+  if (session.process.exitCode !== null || session.status === "stopped" || session.status === "failed") {
     return Promise.resolve(true);
   }
-  return Promise.race([
-    session.closePromise.then(() => true),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-  ]);
+  return Promise.race([session.closePromise.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs))]);
 }
 
 export class PortForwardManager {
   private readonly sessions = new Map<string, PortForwardSession>();
   private readonly runningByKey = new Map<string, string>();
-  private readonly pendingStarts = new Map<
-    string,
-    Promise<PortForwardStartResult>
-  >();
+  private readonly pendingStarts = new Map<string, Promise<PortForwardStartResult>>();
   private closed = false;
   private readonly spawnProcess: SpawnProcess;
   private readonly portProbe: PortProbe;
@@ -221,15 +172,12 @@ export class PortForwardManager {
     this.now = options.now ?? Date.now;
     this.random = options.random ?? Math.random;
     this.stopTimeoutMs = options.stopTimeoutMs ?? DEFAULT_STOP_TIMEOUT_MS;
-    this.readinessTimeoutMs =
-      options.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
+    this.readinessTimeoutMs = options.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
   }
 
   list(): PortForwardView[] {
     return [...this.sessions.values()]
-      .filter((session) =>
-        ["starting", "running", "stopping"].includes(session.status),
-      )
+      .filter((session) => ["starting", "running", "stopping"].includes(session.status))
       .map((session) => this.view(session))
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   }
@@ -243,17 +191,9 @@ export class PortForwardManager {
     return this.list().length;
   }
 
-  async start(
-    commandFactory: (localPort: number) => KubectlCommand,
-    clusterId: string,
-    input: PortForwardStartInput,
-  ): Promise<PortForwardStartResult> {
+  async start(commandFactory: (localPort: number) => KubectlCommand, clusterId: string, input: PortForwardStartInput): Promise<PortForwardStartResult> {
     if (this.closed) {
-      throw new PortForwardError(
-        503,
-        "PORT_FORWARD_MANAGER_STOPPED",
-        "Port-forward manager is stopped",
-      );
+      throw new PortForwardError(503, "PORT_FORWARD_MANAGER_STOPPED", "Port-forward manager is stopped");
     }
 
     const key = sessionKey(clusterId, input);
@@ -274,27 +214,16 @@ export class PortForwardManager {
     }
   }
 
-  private async startInternal(
-    commandFactory: (localPort: number) => KubectlCommand,
-    clusterId: string,
-    input: PortForwardStartInput,
-  ): Promise<PortForwardStartResult> {
+  private async startInternal(commandFactory: (localPort: number) => KubectlCommand, clusterId: string, input: PortForwardStartInput): Promise<PortForwardStartResult> {
     if (this.closed) {
-      throw new PortForwardError(
-        503,
-        "PORT_FORWARD_MANAGER_STOPPED",
-        "Port-forward manager is stopped",
-      );
+      throw new PortForwardError(503, "PORT_FORWARD_MANAGER_STOPPED", "Port-forward manager is stopped");
     }
 
     const key = sessionKey(clusterId, input);
     const existingId = this.runningByKey.get(key);
     if (existingId) {
       const existing = this.sessions.get(existingId);
-      if (
-        existing &&
-        ["starting", "running", "stopping"].includes(existing.status)
-      ) {
+      if (existing && ["starting", "running", "stopping"].includes(existing.status)) {
         return { ...this.view(existing), alreadyRunning: true };
       }
       this.runningByKey.delete(key);
@@ -302,11 +231,7 @@ export class PortForwardManager {
 
     const localPort = await this.resolveLocalPort(input.localPort);
     if (this.closed) {
-      throw new PortForwardError(
-        503,
-        "PORT_FORWARD_MANAGER_STOPPED",
-        "Port-forward manager is stopped",
-      );
+      throw new PortForwardError(503, "PORT_FORWARD_MANAGER_STOPPED", "Port-forward manager is stopped");
     }
     const command = commandFactory(localPort);
     const built = buildKubectlCommand(command);
@@ -323,9 +248,7 @@ export class PortForwardManager {
       throw new PortForwardError(
         502,
         missing ? "KUBECTL_NOT_FOUND" : "PORT_FORWARD_FAILED",
-        missing
-          ? `kubectl not found: ${command.kubectlPath}`
-          : "kubectl port-forward could not be started",
+        missing ? `kubectl not found: ${command.kubectlPath}` : "kubectl port-forward could not be started",
         truncateKubectlText(sanitizeKubectlText(message)),
         built.preview,
       );
@@ -377,23 +300,11 @@ export class PortForwardManager {
       if (readinessTimer) clearTimeout(readinessTimer);
       resolveReady();
     };
-    const failReady = (
-      message: string,
-      raw = session.outputText,
-      code = "PORT_FORWARD_FAILED",
-    ) => {
+    const failReady = (message: string, raw = session.outputText, code = "PORT_FORWARD_FAILED") => {
       if (readySettled) return;
       readySettled = true;
       if (readinessTimer) clearTimeout(readinessTimer);
-      rejectReady(
-        new PortForwardError(
-          502,
-          code,
-          message,
-          truncateKubectlText(compactOutput(raw)),
-          built.preview,
-        ),
-      );
+      rejectReady(new PortForwardError(502, code, message, truncateKubectlText(compactOutput(raw)), built.preview));
     };
     const inspectReadiness = () => {
       if (containsMarker(session.outputText, READY_MARKERS)) {
@@ -423,9 +334,7 @@ export class PortForwardManager {
       session.status = "failed";
       session.updatedAt = new Date(this.now()).toISOString();
       failReady(
-        error.code === "ENOENT"
-          ? `kubectl not found: ${command.kubectlPath}`
-          : "kubectl port-forward could not be started",
+        error.code === "ENOENT" ? `kubectl not found: ${command.kubectlPath}` : "kubectl port-forward could not be started",
         error.message,
         error.code === "ENOENT" ? "KUBECTL_NOT_FOUND" : "PORT_FORWARD_FAILED",
       );
@@ -442,20 +351,12 @@ export class PortForwardManager {
         session.status = code === 0 ? "stopped" : "failed";
       }
       if (!readySettled) {
-        failReady(
-          `kubectl port-forward exited before becoming ready${
-            typeof code === "number" ? ` (code ${code})` : ""
-          }`,
-        );
+        failReady(`kubectl port-forward exited before becoming ready${typeof code === "number" ? ` (code ${code})` : ""}`);
       }
       this.runningByKey.delete(key);
       this.sessions.delete(session.id);
       session.resolveClose();
-      this.log(
-        `node port-forward stopped id=${session.id} status=${session.status} exitCode=${String(
-          session.exitCode,
-        )}`,
-      );
+      this.log(`node port-forward stopped id=${session.id} status=${session.status} exitCode=${String(session.exitCode)}`);
     });
     child.stdin.end();
 
@@ -492,9 +393,7 @@ export class PortForwardManager {
       throw new PortForwardError(
         502,
         missing ? "KUBECTL_NOT_FOUND" : "PORT_FORWARD_FAILED",
-        missing
-          ? `kubectl not found: ${command.kubectlPath}`
-          : "kubectl port-forward could not be started",
+        missing ? `kubectl not found: ${command.kubectlPath}` : "kubectl port-forward could not be started",
         truncateKubectlText(sanitizeKubectlText(message)),
         built.preview,
       );
@@ -510,22 +409,16 @@ export class PortForwardManager {
 
   async stopCluster(clusterId: string): Promise<number> {
     const prefix = `${clusterId}\u0000`;
-    const pending = [...this.pendingStarts.entries()]
-      .filter(([key]) => key.startsWith(prefix))
-      .map(([, operation]) => operation);
+    const pending = [...this.pendingStarts.entries()].filter(([key]) => key.startsWith(prefix)).map(([, operation]) => operation);
     await Promise.allSettled(pending);
-    const sessions = [...this.sessions.values()].filter(
-      (session) => session.clusterId === clusterId,
-    );
+    const sessions = [...this.sessions.values()].filter((session) => session.clusterId === clusterId);
     await Promise.all(sessions.map((session) => this.stopSession(session, false)));
     return sessions.length;
   }
 
   async stopAll(stoppedByUser = false): Promise<number> {
     const sessions = [...this.sessions.values()];
-    await Promise.all(
-      sessions.map((session) => this.stopSession(session, stoppedByUser)),
-    );
+    await Promise.all(sessions.map((session) => this.stopSession(session, stoppedByUser)));
     return sessions.length;
   }
 
@@ -540,42 +433,26 @@ export class PortForwardManager {
   private async resolveLocalPort(requestedPort: number): Promise<number> {
     if (requestedPort !== 0) {
       if (this.portRegistered(requestedPort) || !(await this.portProbe(requestedPort))) {
-        throw new PortForwardError(
-          409,
-          "LOCAL_PORT_IN_USE",
-          `Local port ${requestedPort} is already in use`,
-        );
+        throw new PortForwardError(409, "LOCAL_PORT_IN_USE", `Local port ${requestedPort} is already in use`);
       }
       return requestedPort;
     }
 
     const range = AUTO_PORT_MAX - AUTO_PORT_MIN + 1;
-    const preferred =
-      AUTO_PORT_MIN + Math.floor(Math.max(0, Math.min(0.999999, this.random())) * range);
+    const preferred = AUTO_PORT_MIN + Math.floor(Math.max(0, Math.min(0.999999, this.random())) * range);
     for (let offset = 0; offset < Math.min(AUTO_PORT_ATTEMPTS, range); offset += 1) {
       const port = AUTO_PORT_MIN + ((preferred - AUTO_PORT_MIN + offset) % range);
       if (this.portRegistered(port)) continue;
       if (await this.portProbe(port)) return port;
     }
-    throw new PortForwardError(
-      409,
-      "LOCAL_PORT_UNAVAILABLE",
-      "No free local port was found in the automatic port range",
-    );
+    throw new PortForwardError(409, "LOCAL_PORT_UNAVAILABLE", "No free local port was found in the automatic port range");
   }
 
   private portRegistered(port: number): boolean {
-    return [...this.sessions.values()].some(
-      (session) =>
-        session.localPort === port &&
-        ["starting", "running", "stopping"].includes(session.status),
-    );
+    return [...this.sessions.values()].some((session) => session.localPort === port && ["starting", "running", "stopping"].includes(session.status));
   }
 
-  private async stopSession(
-    session: PortForwardSession,
-    stoppedByUser: boolean,
-  ): Promise<void> {
+  private async stopSession(session: PortForwardSession, stoppedByUser: boolean): Promise<void> {
     if (session.status === "stopped" || session.status === "failed") return;
     session.stoppedByUser = session.stoppedByUser || stoppedByUser;
     session.status = "stopping";
@@ -583,20 +460,14 @@ export class PortForwardManager {
     try {
       if (!session.process.killed) session.process.kill();
     } catch (error) {
-      tailPush(
-        session.errorTail,
-        error instanceof Error ? error.message : String(error),
-      );
+      tailPush(session.errorTail, error instanceof Error ? error.message : String(error));
     }
     const closed = await waitForClose(session, this.stopTimeoutMs);
     if (!closed && session.process.exitCode === null) {
       try {
         session.process.kill("SIGKILL");
       } catch (error) {
-        tailPush(
-          session.errorTail,
-          error instanceof Error ? error.message : String(error),
-        );
+        tailPush(session.errorTail, error instanceof Error ? error.message : String(error));
       }
       await waitForClose(session, 1000);
     }

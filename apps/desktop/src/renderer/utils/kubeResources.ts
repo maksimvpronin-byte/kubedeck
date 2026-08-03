@@ -54,7 +54,9 @@ export function groupCrds(rows: ResourceRow[]) {
 
 export function canDeleteResource(definition: ResourceDefinition | undefined) {
   if (!definition) return true;
-  return String(definition.verbs ?? "").split(/\s*,\s*|\s+/).includes("delete");
+  return String(definition.verbs ?? "")
+    .split(/\s*,\s*|\s+/)
+    .includes("delete");
 }
 
 export async function loadNamespaceResourceBatches(
@@ -77,7 +79,7 @@ export async function loadNamespaceResourceBatches(
   const responses: Array<{ items: ResourceRow[]; rawCount: number; cached?: boolean; cacheTtlSeconds?: number }> = [];
   for (let index = 0; index < normalized.length; index += MAX_NAMESPACE_PARALLEL_REQUESTS) {
     const batch = normalized.slice(index, index + MAX_NAMESPACE_PARALLEL_REQUESTS);
-    responses.push(...await Promise.all(batch.map((item) => api.resources(clusterId, resource, item, signal, liveOptions))));
+    responses.push(...(await Promise.all(batch.map((item) => api.resources(clusterId, resource, item, signal, liveOptions)))));
   }
   return responses;
 }

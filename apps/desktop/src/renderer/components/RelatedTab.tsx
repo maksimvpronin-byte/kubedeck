@@ -16,20 +16,7 @@ interface RelatedTabProps {
   sourceResource: string;
 }
 
-export function RelatedTab({
-  pod,
-  relatedLinks,
-  loading,
-  error,
-  copyLabel,
-  sources,
-  errors,
-  resourceFilter,
-  onResourceFilterChange,
-  onOpenRelated,
-  onDeletePods,
-  sourceResource,
-}: RelatedTabProps) {
+export function RelatedTab({ pod, relatedLinks, loading, error, copyLabel, sources, errors, resourceFilter, onResourceFilterChange, onOpenRelated, onDeletePods, sourceResource }: RelatedTabProps) {
   const ownerLinks = ownerReferences(pod).map((owner) => {
     const resource = resourceForKind(owner.kind) || "";
     return {
@@ -58,12 +45,20 @@ export function RelatedTab({
           <select value={resourceFilter} onChange={(event) => onResourceFilterChange(event.target.value)}>
             <option value="all">All related ({allLinks.length})</option>
             {resourceOptions.map((option) => (
-              <option value={option} key={option}>{displayResource(option)} ({allLinks.filter((link) => (link.resource || link.kind) === option).length})</option>
+              <option value={option} key={option}>
+                {displayResource(option)} ({allLinks.filter((link) => (link.resource || link.kind) === option).length})
+              </option>
             ))}
           </select>
         </label>
-        <button className="icon-text" disabled={allLinks.length === 0} onClick={() => copyRelatedMap(pod, allLinks)}>Copy map</button>
-        {pvcPods.length ? <button className="danger" onClick={() => onDeletePods(pvcPods.map((link) => ({ uid: link.key, name: link.name, namespace: link.namespace, kind: "Pod" })))}>Delete all listed Pods ({pvcPods.length})</button> : null}
+        <button className="icon-text" disabled={allLinks.length === 0} onClick={() => copyRelatedMap(pod, allLinks)}>
+          Copy map
+        </button>
+        {pvcPods.length ? (
+          <button className="danger" onClick={() => onDeletePods(pvcPods.map((link) => ({ uid: link.key, name: link.name, namespace: link.namespace, kind: "Pod" })))}>
+            Delete all listed Pods ({pvcPods.length})
+          </button>
+        ) : null}
       </div>
       {relationSummary.length ? <RelationSummaryChips items={relationSummary} /> : null}
       {loading ? <div className="muted">Loading...</div> : null}
@@ -157,7 +152,9 @@ function RelatedResourceCard({ link, onOpenRelated }: { link: RelatedLink; onOpe
   return (
     <button className="related-card related-card-polished" disabled={!canOpen} onClick={() => onOpenRelated(link.resource, link.namespace || "_cluster", link.name)}>
       <div className="related-card-main">
-        <strong>{link.kind}/{link.name}</strong>
+        <strong>
+          {link.kind}/{link.name}
+        </strong>
         <span className="related-namespace">{link.namespace && link.namespace !== "_cluster" ? link.namespace : "cluster-scoped"}</span>
       </div>
       <div className="related-relation-row">
@@ -212,17 +209,22 @@ function RelatedDiagnostics({ sources, errors }: { sources: Record<string, numbe
         <div className="related-sources">
           <span className="muted">Scanned:</span>
           {sourceEntries.slice(0, 8).map(([resource, count]) => (
-            <span className="pill" key={resource}>{resource}: {count}</span>
+            <span className="pill" key={resource}>
+              {resource}: {count}
+            </span>
           ))}
           {sourceEntries.length > 8 ? <span className="pill">+{sourceEntries.length - 8}</span> : null}
         </div>
       ) : null}
       {errors.length ? (
         <details className="related-errors">
-          <summary>{errors.length} source{errors.length === 1 ? "" : "s"} failed</summary>
+          <summary>
+            {errors.length} source{errors.length === 1 ? "" : "s"} failed
+          </summary>
           {errors.slice(0, 5).map((err, index) => (
             <p key={`${err.resource || "source"}-${index}`}>
-              <strong>{err.resource || "resource"}</strong>{err.namespace ? `/${err.namespace}` : ""}: {err.message}
+              <strong>{err.resource || "resource"}</strong>
+              {err.namespace ? `/${err.namespace}` : ""}: {err.message}
             </p>
           ))}
         </details>
@@ -232,7 +234,7 @@ function RelatedDiagnostics({ sources, errors }: { sources: Record<string, numbe
 }
 
 function ownerReferences(row: ResourceRow): Array<{ kind?: string; name?: string; uid?: string; controller?: boolean }> {
-  return Array.isArray(row.ownerReferences) ? row.ownerReferences as Array<{ kind?: string; name?: string; uid?: string; controller?: boolean }> : [];
+  return Array.isArray(row.ownerReferences) ? (row.ownerReferences as Array<{ kind?: string; name?: string; uid?: string; controller?: boolean }>) : [];
 }
 
 function resourceForKind(kind: unknown) {
@@ -265,7 +267,8 @@ function resourceForKind(kind: unknown) {
 }
 
 function displayResource(resource: string) {
-  return resource.split(".")[0]
+  return resource
+    .split(".")[0]
     .replace(/-/g, " ")
     .replace(/(^|\s)\S/g, (part) => part.toUpperCase());
 }

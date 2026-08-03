@@ -38,9 +38,7 @@ interface DiscoveryCacheEntry {
 const discoveryCache = new Map<string, DiscoveryCacheEntry>();
 
 function asObject(value: unknown): JsonObject {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as JsonObject
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
 }
 
 function asString(value: unknown): string {
@@ -48,21 +46,14 @@ function asString(value: unknown): string {
 }
 
 function asObjectArray(value: unknown): JsonObject[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is JsonObject =>
-      Boolean(item) && typeof item === "object" && !Array.isArray(item))
-    : [];
+  return Array.isArray(value) ? value.filter((item): item is JsonObject => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
 }
 
 function decodePathPart(value: string, field: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} is not valid URL encoding`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
   }
 }
 
@@ -81,8 +72,7 @@ export function parseApiResources(output: string): ResourceDefinition[] {
     const parts = line.trim().split(/\s+/);
     if (parts.length < 5) continue;
 
-    const namespacedIndex = parts.findIndex((part) =>
-      part === "true" || part === "false");
+    const namespacedIndex = parts.findIndex((part) => part === "true" || part === "false");
 
     if (namespacedIndex < 0 || namespacedIndex + 2 >= parts.length) continue;
 
@@ -107,23 +97,15 @@ export function parseApiResources(output: string): ResourceDefinition[] {
 }
 
 export function matchResourceEventsPath(pathname: string): ResourceEventTarget | null {
-  const match = pathname.match(
-    /^\/clusters\/([^/]+)\/resources\/([^/]+)\/([^/]+)\/([^/]+)\/events$/,
-  );
+  const match = pathname.match(/^\/clusters\/([^/]+)\/resources\/([^/]+)\/([^/]+)\/([^/]+)\/events$/);
   if (!match) return null;
 
   const namespaceRaw = decodePathPart(match[3], "namespace");
 
   return {
     clusterId: decodePathPart(match[1], "cluster_id"),
-    resource: validateIdentifier(
-      decodePathPart(match[2], "resource"),
-      "resource",
-      128,
-    ).toLowerCase(),
-    namespace: namespaceRaw === "_cluster"
-      ? "_cluster"
-      : validateIdentifier(namespaceRaw, "namespace"),
+    resource: validateIdentifier(decodePathPart(match[2], "resource"), "resource", 128).toLowerCase(),
+    namespace: namespaceRaw === "_cluster" ? "_cluster" : validateIdentifier(namespaceRaw, "namespace"),
     name: validateIdentifier(decodePathPart(match[4], "name"), "name"),
   };
 }
@@ -188,62 +170,40 @@ function kindForResource(resource: string): string {
 function eventTimestamp(event: JsonObject): string {
   const metadata = asObject(event.metadata);
 
-  return (
-    asString(event.lastTimestamp) ||
-    asString(event.eventTime) ||
-    asString(event.firstTimestamp) ||
-    asString(metadata.creationTimestamp)
-  );
+  return asString(event.lastTimestamp) || asString(event.eventTime) || asString(event.firstTimestamp) || asString(metadata.creationTimestamp);
 }
 
-export function filterEventsForTarget(
-  events: JsonObject[],
-  target: ResourceEventTarget,
-  targetRaw: JsonObject,
-): JsonObject[] {
+export function filterEventsForTarget(events: JsonObject[], target: ResourceEventTarget, targetRaw: JsonObject): JsonObject[] {
   const metadata = asObject(targetRaw.metadata);
   const targetUid = asString(metadata.uid);
   const targetKind = asString(targetRaw.kind) || kindForResource(target.resource);
-  const targetNamespace =
-    asString(metadata.namespace) ||
-    (target.namespace === "_cluster" ? "" : target.namespace);
+  const targetNamespace = asString(metadata.namespace) || (target.namespace === "_cluster" ? "" : target.namespace);
 
   const matched = events.filter((event) => {
     const involvedObject = asObject(event.involvedObject);
     const regarding = asObject(event.regarding);
-    const involved = Object.keys(involvedObject).length > 0
-      ? involvedObject
-      : regarding;
+    const involved = Object.keys(involvedObject).length > 0 ? involvedObject : regarding;
     const eventName = asString(involved.name);
     const eventKind = asString(involved.kind);
     const eventUid = asString(involved.uid);
-    const eventNamespace =
-      asString(involved.namespace) ||
-      asString(asObject(event.metadata).namespace);
+    const eventNamespace = asString(involved.namespace) || asString(asObject(event.metadata).namespace);
 
     if (targetUid && eventUid && eventUid === targetUid) return true;
     if (eventName !== target.name) return false;
     if (targetKind && eventKind && eventKind !== targetKind) return false;
-    if (
-      targetNamespace &&
-      eventNamespace &&
-      eventNamespace !== targetNamespace
-    ) return false;
+    if (targetNamespace && eventNamespace && eventNamespace !== targetNamespace) return false;
 
     return true;
   });
 
-  return matched.sort((left, right) =>
-    eventTimestamp(right).localeCompare(eventTimestamp(left)));
+  return matched.sort((left, right) => eventTimestamp(right).localeCompare(eventTimestamp(left)));
 }
 
 export function summarizeEvent(event: JsonObject): JsonObject {
   const metadata = asObject(event.metadata);
   const involvedObject = asObject(event.involvedObject);
   const regarding = asObject(event.regarding);
-  const involved = Object.keys(involvedObject).length > 0
-    ? involvedObject
-    : regarding;
+  const involved = Object.keys(involvedObject).length > 0 ? involvedObject : regarding;
   const series = asObject(event.series);
   const createdAt = eventTimestamp(event);
 
@@ -261,23 +221,15 @@ export function summarizeEvent(event: JsonObject): JsonObject {
     object: `${asString(involved.kind)}/${asString(involved.name)}`,
     involvedKind: asString(involved.kind),
     involvedName: asString(involved.name),
-    involvedNamespace:
-      asString(involved.namespace) || asString(metadata.namespace),
+    involvedNamespace: asString(involved.namespace) || asString(metadata.namespace),
     involvedApiVersion: asString(involved.apiVersion),
     count,
-    source:
-      asString(source.component) ||
-      asString(event.reportingController) ||
-      asString(event.reportingInstance),
+    source: asString(source.component) || asString(event.reportingController) || asString(event.reportingInstance),
     lastTimestamp: createdAt,
   };
 }
 
-function writeRouteError(
-  response: ServerResponse,
-  error: unknown,
-  log: (message: string) => void,
-): void {
+function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
   if (error instanceof RequestValidationError) {
     writeError(response, error.statusCode, error.code, error.message);
     return;
@@ -291,25 +243,11 @@ function writeRouteError(
     return;
   }
 
-  log(
-    `gateway resource discovery/events failed: ${
-      error instanceof Error ? error.message : String(error)
-    }`,
-  );
-  writeError(
-    response,
-    500,
-    "RESOURCE_DISCOVERY_EVENTS_FAILED",
-    "Unable to load resource discovery or events",
-  );
+  log(`gateway resource discovery/events failed: ${error instanceof Error ? error.message : String(error)}`);
+  writeError(response, 500, "RESOURCE_DISCOVERY_EVENTS_FAILED", "Unable to load resource discovery or events");
 }
 
-async function writeResourceDefinitions(
-  response: ServerResponse,
-  clusterId: string,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<void> {
+async function writeResourceDefinitions(response: ServerResponse, clusterId: string, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   validateClusterExists(configStore, clusterId);
 
   const cached = discoveryCache.get(clusterId);
@@ -318,13 +256,7 @@ async function writeResourceDefinitions(
     return;
   }
 
-  const result = await runner.run(clusterCommand(
-    configStore,
-    clusterId,
-    ["api-resources", "--verbs=list", "-o", "wide"],
-    30,
-    DISCOVERY_MAX_OUTPUT_BYTES,
-  ));
+  const result = await runner.run(clusterCommand(configStore, clusterId, ["api-resources", "--verbs=list", "-o", "wide"], 30, DISCOVERY_MAX_OUTPUT_BYTES));
   const items = parseApiResources(result.stdout);
 
   discoveryCache.set(clusterId, {
@@ -335,12 +267,7 @@ async function writeResourceDefinitions(
   writeJson(response, { items, cached: false });
 }
 
-async function writeResourceEvents(
-  response: ServerResponse,
-  target: ResourceEventTarget,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<void> {
+async function writeResourceEvents(response: ServerResponse, target: ResourceEventTarget, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   const targetArgs = ["get", target.resource, target.name];
 
   if (target.namespace !== "_cluster") {
@@ -348,13 +275,7 @@ async function writeResourceEvents(
   }
   targetArgs.push("-o", "json");
 
-  const targetRaw = await runner.runJson(clusterCommand(
-    configStore,
-    target.clusterId,
-    targetArgs,
-    30,
-    EVENTS_MAX_OUTPUT_BYTES,
-  ));
+  const targetRaw = await runner.runJson(clusterCommand(configStore, target.clusterId, targetArgs, 30, EVENTS_MAX_OUTPUT_BYTES));
 
   const eventsArgs = ["get", "events"];
 
@@ -365,13 +286,7 @@ async function writeResourceEvents(
   }
   eventsArgs.push("-o", "json");
 
-  const eventList = await runner.runJson(clusterCommand(
-    configStore,
-    target.clusterId,
-    eventsArgs,
-    30,
-    EVENTS_MAX_OUTPUT_BYTES,
-  ));
+  const eventList = await runner.runJson(clusterCommand(configStore, target.clusterId, eventsArgs, 30, EVENTS_MAX_OUTPUT_BYTES));
 
   const events = asObjectArray(eventList.items);
   const filtered = filterEventsForTarget(events, target, targetRaw);
@@ -400,9 +315,7 @@ export function handleResourceDiscoveryEventsRequest(
 ): boolean {
   if (request.method !== "GET") return false;
 
-  const definitionsMatch = pathname.match(
-    /^\/clusters\/([^/]+)\/resource-definitions$/,
-  );
+  const definitionsMatch = pathname.match(/^\/clusters\/([^/]+)\/resource-definitions$/);
 
   if (definitionsMatch) {
     let clusterId: string;
@@ -413,8 +326,7 @@ export function handleResourceDiscoveryEventsRequest(
       return true;
     }
 
-    void writeResourceDefinitions(response, clusterId, configStore, runner)
-      .catch((error) => writeRouteError(response, error, log));
+    void writeResourceDefinitions(response, clusterId, configStore, runner).catch((error) => writeRouteError(response, error, log));
     return true;
   }
 
@@ -429,7 +341,6 @@ export function handleResourceDiscoveryEventsRequest(
 
   if (!target) return false;
 
-  void writeResourceEvents(response, target, configStore, runner)
-    .catch((error) => writeRouteError(response, error, log));
+  void writeResourceEvents(response, target, configStore, runner).catch((error) => writeRouteError(response, error, log));
   return true;
 }

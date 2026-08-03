@@ -59,7 +59,8 @@ export function useGlobalSearch({ api, activeClusterId, namespace, onError }: Us
     setLoading(true);
 
     const timer = window.setTimeout(() => {
-      api.search(activeClusterId, trimmed, namespace, 120, true, controller.signal)
+      api
+        .search(activeClusterId, trimmed, namespace, 120, true, controller.signal)
         .then((response) => {
           if (seqRef.current !== requestId) return;
           setResults(response.items);

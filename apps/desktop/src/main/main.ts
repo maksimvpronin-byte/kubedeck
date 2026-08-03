@@ -15,7 +15,6 @@ let gatewaySessionToken = "";
 let gatewayShutdown: Promise<void> | null = null;
 let quitAfterGatewayShutdown = false;
 
-
 type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
 
 const SENSITIVE_MARKERS = [
@@ -231,17 +230,20 @@ if (!gotSingleInstanceLock) {
     mainWindow.focus();
   });
 
-  app.whenReady().then(async () => {
-    Menu.setApplicationMenu(null);
-    logDesktop("desktop startup");
-    await startNodeGateway();
-    await createWindow();
-  }).catch((error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    logDesktop(`startup failed: ${message}`);
-    dialog.showErrorBox("KubeDeck startup failed", message);
-    app.quit();
-  });
+  app
+    .whenReady()
+    .then(async () => {
+      Menu.setApplicationMenu(null);
+      logDesktop("desktop startup");
+      await startNodeGateway();
+      await createWindow();
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      logDesktop(`startup failed: ${message}`);
+      dialog.showErrorBox("KubeDeck startup failed", message);
+      app.quit();
+    });
 }
 
 app.on("activate", () => {

@@ -3,18 +3,8 @@ const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const http = require("node:http");
 const { PassThrough } = require("node:stream");
-const {
-  ensureYamlSize,
-  handleYamlRequest,
-  MAX_APPLY_YAML_BYTES,
-  matchYamlRoute,
-  parseYamlApplyTarget,
-  requireYamlApplyConfirmation,
-} = require("../dist/main/backend/routes/yaml.js");
-const {
-  buildKubectlCommand,
-  createKubectlCommand,
-} = require("../dist/main/backend/kubectl/command.js");
+const { ensureYamlSize, handleYamlRequest, MAX_APPLY_YAML_BYTES, matchYamlRoute, parseYamlApplyTarget, requireYamlApplyConfirmation } = require("../dist/main/backend/routes/yaml.js");
+const { buildKubectlCommand, createKubectlCommand } = require("../dist/main/backend/kubectl/command.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 const { KubectlRunner } = require("../dist/main/backend/kubectl/runner.js");
 
@@ -50,26 +40,11 @@ function createFakeChild() {
 }
 
 test("YAML parsing and confirmation contract", () => {
-  assert.deepEqual(
-    matchYamlRoute("POST", "/clusters/demo/yaml/dry-run"),
-    { clusterId: "demo", operation: "dry-run" },
-  );
-  assert.deepEqual(
-    matchYamlRoute("PUT", "/clusters/demo/yaml/apply"),
-    { clusterId: "demo", operation: "apply" },
-  );
+  assert.deepEqual(matchYamlRoute("POST", "/clusters/demo/yaml/dry-run"), { clusterId: "demo", operation: "dry-run" });
+  assert.deepEqual(matchYamlRoute("PUT", "/clusters/demo/yaml/apply"), { clusterId: "demo", operation: "apply" });
   assert.equal(matchYamlRoute("GET", "/clusters/demo/yaml/apply"), null);
 
-  const target = parseYamlApplyTarget([
-    "apiVersion: apps/v1",
-    "kind: Deployment",
-    "metadata:",
-    "  name: demo-app",
-    "  namespace: default",
-    "spec:",
-    "  replicas: 1",
-    "",
-  ].join("\n"));
+  const target = parseYamlApplyTarget(["apiVersion: apps/v1", "kind: Deployment", "metadata:", "  name: demo-app", "  namespace: default", "spec:", "  replicas: 1", ""].join("\n"));
 
   assert.deepEqual(target, {
     kind: "Deployment",
@@ -78,24 +53,35 @@ test("YAML parsing and confirmation contract", () => {
     documentCount: 1,
   });
 
-  assert.doesNotThrow(() => requireYamlApplyConfirmation({
-    clusterId: "demo",
-    action: "apply",
-    resource: "yaml",
-    namespace: "default",
-    name: "demo-app",
-    typedName: "demo-app",
-  }, "demo", target));
+  assert.doesNotThrow(() =>
+    requireYamlApplyConfirmation(
+      {
+        clusterId: "demo",
+        action: "apply",
+        resource: "yaml",
+        namespace: "default",
+        name: "demo-app",
+        typedName: "demo-app",
+      },
+      "demo",
+      target,
+    ),
+  );
 
   assert.throws(
-    () => requireYamlApplyConfirmation({
-      clusterId: "demo",
-      action: "apply",
-      resource: "yaml",
-      namespace: "default",
-      name: "demo-app",
-      typedName: "wrong",
-    }, "demo", target),
+    () =>
+      requireYamlApplyConfirmation(
+        {
+          clusterId: "demo",
+          action: "apply",
+          resource: "yaml",
+          namespace: "default",
+          name: "demo-app",
+          typedName: "wrong",
+        },
+        "demo",
+        target,
+      ),
     (error) => error.code === "CONFIRMATION_TYPED_NAME_MISMATCH",
   );
 
@@ -159,7 +145,10 @@ test("kubectl runner sends YAML only through stdin", async () => {
 
   assert.equal(result.stdout, "configured\n");
   assert.equal(state.stdin, secretYaml);
-  assert.equal(logs.some((line) => line.includes("stdinBytes=")), true);
+  assert.equal(
+    logs.some((line) => line.includes("stdinBytes=")),
+    true,
+  );
   assert.equal(logs.join("\n").includes("never-log-this"), false);
 });
 
@@ -201,9 +190,7 @@ test("YAML dry-run and apply HTTP contract", async (t) => {
         ok: true,
         stdout: dryRun ? "kind: ConfigMap\nmetadata:\n  name: demo\n" : "configmap/demo configured\n",
         stderr: "",
-        commandPreview: dryRun
-          ? "kubectl apply --dry-run=server -f - -o yaml"
-          : "kubectl apply -f -",
+        commandPreview: dryRun ? "kubectl apply --dry-run=server -f - -o yaml" : "kubectl apply -f -",
         returnCode: 0,
       };
     },
@@ -231,16 +218,7 @@ test("YAML dry-run and apply HTTP contract", async (t) => {
   const baseUrl = await listen(server);
   t.after(async () => close(server));
 
-  const secretYaml = [
-    "apiVersion: v1",
-    "kind: Secret",
-    "metadata:",
-    "  name: demo-secret",
-    "  namespace: default",
-    "stringData:",
-    "  password: never-write-this-to-audit",
-    "",
-  ].join("\n");
+  const secretYaml = ["apiVersion: v1", "kind: Secret", "metadata:", "  name: demo-secret", "  namespace: default", "stringData:", "  password: never-write-this-to-audit", ""].join("\n");
 
   const dryRunResponse = await fetch(`${baseUrl}/clusters/demo/yaml/dry-run`, {
     method: "POST",
@@ -249,28 +227,12 @@ test("YAML dry-run and apply HTTP contract", async (t) => {
   });
   assert.equal(dryRunResponse.status, 200);
   assert.match(await dryRunResponse.text(), /kind: ConfigMap/);
-  assert.deepEqual(commands[0].args, [
-    "apply",
-    "--dry-run=server",
-    "-f",
-    "-",
-    "-o",
-    "yaml",
-  ]);
+  assert.deepEqual(commands[0].args, ["apply", "--dry-run=server", "-f", "-", "-o", "yaml"]);
   assert.equal(commands[0].stdinText, secretYaml);
   assert.equal(JSON.stringify(auditEvents).includes("never-write-this-to-audit"), false);
   assert.equal(auditEvents[0].action, "yaml.dry-run");
 
-  const applyYaml = [
-    "apiVersion: v1",
-    "kind: ConfigMap",
-    "metadata:",
-    "  name: demo-config",
-    "  namespace: default",
-    "data:",
-    "  key: value",
-    "",
-  ].join("\n");
+  const applyYaml = ["apiVersion: v1", "kind: ConfigMap", "metadata:", "  name: demo-config", "  namespace: default", "data:", "  key: value", ""].join("\n");
 
   const applyResponse = await fetch(`${baseUrl}/clusters/demo/yaml/apply`, {
     method: "PUT",

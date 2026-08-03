@@ -1,19 +1,11 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 
-import {
-  WebSocket,
-  WebSocketServer,
-  type RawData,
-} from "ws";
+import { WebSocket, WebSocketServer, type RawData } from "ws";
 
 import { writePolicyViolation } from "../auth";
 import { RequestValidationError, validateIdentifier } from "../validation";
-import {
-  resourceWatchEventMatches,
-  type ResourceWatchEventHub,
-  type ResourceWatchFilter,
-} from "./eventHub";
+import { resourceWatchEventMatches, type ResourceWatchEventHub, type ResourceWatchFilter } from "./eventHub";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_QUEUE_ITEMS = 200;
@@ -23,36 +15,19 @@ function decodePart(value: string, field: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} is not valid URL encoding`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
   }
 }
 
 function matchWatchWebSocket(request: IncomingMessage): ResourceWatchFilter | null {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
-  const match = url.pathname.match(
-    /^\/clusters\/([^/]+)\/resources\/([^/]+)\/watch-events$/,
-  );
+  const match = url.pathname.match(/^\/clusters\/([^/]+)\/resources\/([^/]+)\/watch-events$/);
   if (!match) return null;
   const rawNamespace = url.searchParams.get("namespace")?.trim() || "all";
-  const namespace =
-    rawNamespace === "all" || rawNamespace === "_cluster"
-      ? rawNamespace
-      : validateIdentifier(rawNamespace, "namespace");
+  const namespace = rawNamespace === "all" || rawNamespace === "_cluster" ? rawNamespace : validateIdentifier(rawNamespace, "namespace");
   return {
-    clusterId: validateIdentifier(
-      decodePart(match[1], "cluster_id"),
-      "cluster_id",
-      128,
-    ),
-    resource: validateIdentifier(
-      decodePart(match[2], "resource"),
-      "resource",
-      128,
-    ).toLowerCase(),
+    clusterId: validateIdentifier(decodePart(match[1], "cluster_id"), "cluster_id", 128),
+    resource: validateIdentifier(decodePart(match[2], "resource"), "resource", 128).toLowerCase(),
     namespace,
   };
 }
@@ -78,12 +53,7 @@ class BoundedSocketQueue {
   }
 
   private flush(): void {
-    if (
-      this.closed ||
-      this.sending ||
-      this.queue.length === 0 ||
-      this.socket.readyState !== WebSocket.OPEN
-    ) {
+    if (this.closed || this.sending || this.queue.length === 0 || this.socket.readyState !== WebSocket.OPEN) {
       return;
     }
     const next = this.queue.shift();
@@ -131,21 +101,13 @@ export class ResourceWatchWebSocketServer {
     private readonly log: (message: string) => void,
   ) {}
 
-  handleUpgrade(
-    request: IncomingMessage,
-    socket: Duplex,
-    head: Buffer,
-  ): boolean {
+  handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): boolean {
     let filter: ResourceWatchFilter | null;
     try {
       filter = matchWatchWebSocket(request);
     } catch (error) {
       if (this.isWatchPath(request)) {
-        this.rejectUpgrade(
-          request,
-          socket,
-          error instanceof Error ? error.message : "Invalid watch route",
-        );
+        this.rejectUpgrade(request, socket, error instanceof Error ? error.message : "Invalid watch route");
         return true;
       }
       return false;
@@ -207,19 +169,13 @@ export class ResourceWatchWebSocketServer {
 
   private isWatchPath(request: IncomingMessage): boolean {
     try {
-      return new URL(request.url ?? "/", "http://127.0.0.1").pathname.includes(
-        "/watch-events",
-      );
+      return new URL(request.url ?? "/", "http://127.0.0.1").pathname.includes("/watch-events");
     } catch {
       return false;
     }
   }
 
-  private rejectUpgrade(
-    request: IncomingMessage,
-    socket: Duplex,
-    reason: string,
-  ): void {
+  private rejectUpgrade(request: IncomingMessage, socket: Duplex, reason: string): void {
     writePolicyViolation(request, socket, reason);
   }
 

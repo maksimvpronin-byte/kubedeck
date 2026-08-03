@@ -39,9 +39,7 @@ function sanitizeLogText(value: unknown): string {
     .split(/\r?\n/)
     .map((line) => {
       const lowered = line.toLowerCase();
-      return SENSITIVE_MARKERS.some((marker) => lowered.includes(marker))
-        ? "[redacted sensitive line]"
-        : line;
+      return SENSITIVE_MARKERS.some((marker) => lowered.includes(marker)) ? "[redacted sensitive line]" : line;
     })
     .join("\n");
 }
@@ -52,21 +50,13 @@ function sanitizeExtra(extra: Record<string, unknown>): Record<string, unknown> 
   for (const [key, value] of Object.entries(extra)) {
     const cleanKey = sanitizeLogText(key).slice(0, 128);
 
-    if (
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean" ||
-      value === null
-    ) {
-      clean[cleanKey] =
-        typeof value === "string" ? sanitizeLogText(value).slice(0, 1000) : value;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null) {
+      clean[cleanKey] = typeof value === "string" ? sanitizeLogText(value).slice(0, 1000) : value;
       continue;
     }
 
     if (Array.isArray(value)) {
-      clean[cleanKey] = value
-        .slice(0, 20)
-        .map((item) => sanitizeLogText(item).slice(0, 300));
+      clean[cleanKey] = value.slice(0, 20).map((item) => sanitizeLogText(item).slice(0, 300));
       continue;
     }
 
@@ -113,20 +103,14 @@ export class AuditStore {
     }
 
     try {
-      if (
-        this.maxFileBytes > 0 &&
-        fs.existsSync(this.filePath) &&
-        fs.statSync(this.filePath).size + Buffer.byteLength(line, "utf8") + 1 > this.maxFileBytes
-      ) {
+      if (this.maxFileBytes > 0 && fs.existsSync(this.filePath) && fs.statSync(this.filePath).size + Buffer.byteLength(line, "utf8") + 1 > this.maxFileBytes) {
         const previousPath = path.join(path.dirname(this.filePath), "audit.previous.jsonl");
         fs.rmSync(previousPath, { force: true });
         fs.renameSync(this.filePath, previousPath);
       }
       fs.appendFileSync(this.filePath, `${line}\n`, "utf8");
     } catch (error) {
-      this.log(
-        `failed to write audit event action=${sanitizeLogText(eventInput.action)}: ${String(error)}`,
-      );
+      this.log(`failed to write audit event action=${sanitizeLogText(eventInput.action)}: ${String(error)}`);
     }
   }
 

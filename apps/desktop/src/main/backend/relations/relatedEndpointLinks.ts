@@ -1,12 +1,6 @@
 import { relatedLink, type RelatedLink } from "./relatedResourceLinks";
 import { resourceForKind } from "./relatedResourceKinds";
-import {
-  metadata,
-  record,
-  records,
-  text,
-  type UnknownRecord,
-} from "./relatedResourceValues";
+import { metadata, record, records, text, type UnknownRecord } from "./relatedResourceValues";
 
 export function endpointSliceServiceName(endpointSlice: UnknownRecord): string {
   return text(record(metadata(endpointSlice).labels)["kubernetes.io/service-name"]);
@@ -21,10 +15,7 @@ export function endpointSliceAddressDetail(endpointSlice: UnknownRecord): string
   return parts.join(", ");
 }
 
-export function endpointAddressLinks(
-  endpoints: UnknownRecord,
-  namespace: string,
-): RelatedLink[] {
+export function endpointAddressLinks(endpoints: UnknownRecord, namespace: string): RelatedLink[] {
   const links: RelatedLink[] = [];
   for (const subset of records(endpoints.subsets)) {
     for (const address of records(subset.addresses)) {
@@ -33,25 +24,13 @@ export function endpointAddressLinks(
       const name = text(targetRef.name);
       const resource = resourceForKind(kind);
       if (!resource || !name) continue;
-      links.push(
-        relatedLink(
-          resource,
-          text(targetRef.namespace) || namespace,
-          name,
-          kind,
-          "endpoint target",
-          text(address.ip),
-        ),
-      );
+      links.push(relatedLink(resource, text(targetRef.namespace) || namespace, name, kind, "endpoint target", text(address.ip)));
     }
   }
   return links;
 }
 
-export function endpointSliceAddressLinks(
-  endpointSlice: UnknownRecord,
-  namespace: string,
-): RelatedLink[] {
+export function endpointSliceAddressLinks(endpointSlice: UnknownRecord, namespace: string): RelatedLink[] {
   const links: RelatedLink[] = [];
   for (const endpoint of records(endpointSlice.endpoints)) {
     const targetRef = record(endpoint.targetRef);
@@ -59,19 +38,8 @@ export function endpointSliceAddressLinks(
     const name = text(targetRef.name);
     const resource = resourceForKind(kind);
     if (!resource || !name) continue;
-    const addresses = Array.isArray(endpoint.addresses)
-      ? endpoint.addresses.map(text).filter(Boolean).join(",")
-      : "";
-    links.push(
-      relatedLink(
-        resource,
-        text(targetRef.namespace) || namespace,
-        name,
-        kind,
-        "endpoint slice target",
-        addresses,
-      ),
-    );
+    const addresses = Array.isArray(endpoint.addresses) ? endpoint.addresses.map(text).filter(Boolean).join(",") : "";
+    links.push(relatedLink(resource, text(targetRef.namespace) || namespace, name, kind, "endpoint slice target", addresses));
   }
   return links;
 }

@@ -3,11 +3,7 @@ import type { AuditStore } from "../audit/auditStore";
 import { writeError } from "../errors";
 import { writeJson } from "../http";
 
-export function writeAudit(
-  requestUrl: string | undefined,
-  response: ServerResponse,
-  auditStore: AuditStore,
-): void {
+export function writeAudit(requestUrl: string | undefined, response: ServerResponse, auditStore: AuditStore): void {
   const url = new URL(requestUrl ?? "/audit", "http://127.0.0.1");
   const rawLimit = url.searchParams.get("limit");
   const limit = rawLimit === null ? 200 : Number(rawLimit);

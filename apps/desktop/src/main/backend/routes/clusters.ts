@@ -1,10 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AuditStore } from "../audit/auditStore";
-import {
-  ClusterNotFoundError,
-  ConfigStore,
-  InvalidClusterOrderError,
-} from "../config/configStore";
+import { ClusterNotFoundError, ConfigStore, InvalidClusterOrderError } from "../config/configStore";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
 import { clusterCommand, kubeconfigAvailable } from "../kubectl/clusterCommand";
@@ -34,19 +30,10 @@ export function writeClusters(response: ServerResponse, configStore: ConfigStore
   writeJson(response, { clusters: configStore.listClusters() });
 }
 
-export async function writeReorderClusters(
-  request: IncomingMessage,
-  response: ServerResponse,
-  configStore: ConfigStore,
-  auditStore: AuditStore,
-): Promise<void> {
+export async function writeReorderClusters(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore, auditStore: AuditStore): Promise<void> {
   try {
     const body = await readJsonBody(request);
-    if (
-      !isRecord(body) ||
-      !Array.isArray(body.clusterIds) ||
-      body.clusterIds.some((clusterId) => typeof clusterId !== "string")
-    ) {
+    if (!isRecord(body) || !Array.isArray(body.clusterIds) || body.clusterIds.some((clusterId) => typeof clusterId !== "string")) {
       writeError(response, 422, "INVALID_CLUSTER_ORDER", "clusterIds must be an array of strings");
       return;
     }
@@ -71,12 +58,7 @@ export async function writeReorderClusters(
   }
 }
 
-export async function writeImportCluster(
-  request: IncomingMessage,
-  response: ServerResponse,
-  configStore: ConfigStore,
-  auditStore: AuditStore,
-): Promise<void> {
+export async function writeImportCluster(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore, auditStore: AuditStore): Promise<void> {
   try {
     const body = await readJsonBody(request);
     if (!isRecord(body) || typeof body.sourcePath !== "string" || !body.sourcePath) {
@@ -84,19 +66,12 @@ export async function writeImportCluster(
       return;
     }
 
-    if (
-      body.displayName !== undefined &&
-      body.displayName !== null &&
-      typeof body.displayName !== "string"
-    ) {
+    if (body.displayName !== undefined && body.displayName !== null && typeof body.displayName !== "string") {
       writeError(response, 422, "INVALID_REQUEST", "displayName must be a string");
       return;
     }
 
-    const cluster = configStore.importCluster(
-      body.sourcePath,
-      typeof body.displayName === "string" ? body.displayName : undefined,
-    );
+    const cluster = configStore.importCluster(body.sourcePath, typeof body.displayName === "string" ? body.displayName : undefined);
 
     auditStore.append({
       action: "cluster.import",
@@ -114,13 +89,7 @@ export async function writeImportCluster(
   }
 }
 
-export async function writeRenameCluster(
-  request: IncomingMessage,
-  response: ServerResponse,
-  clusterId: string,
-  configStore: ConfigStore,
-  auditStore: AuditStore,
-): Promise<void> {
+export async function writeRenameCluster(request: IncomingMessage, response: ServerResponse, clusterId: string, configStore: ConfigStore, auditStore: AuditStore): Promise<void> {
   try {
     const body = await readJsonBody(request);
     if (!isRecord(body) || typeof body.displayName !== "string") {
@@ -151,12 +120,7 @@ export async function writeRenameCluster(
   }
 }
 
-export async function writeRemoveCluster(
-  response: ServerResponse,
-  clusterId: string,
-  configStore: ConfigStore,
-  auditStore: AuditStore,
-): Promise<void> {
+export async function writeRemoveCluster(response: ServerResponse, clusterId: string, configStore: ConfigStore, auditStore: AuditStore): Promise<void> {
   try {
     const result = configStore.removeCluster(clusterId);
 
@@ -181,11 +145,7 @@ export async function writeRemoveCluster(
   }
 }
 
-export async function writeOpenLastCluster(
-  response: ServerResponse,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<void> {
+export async function writeOpenLastCluster(response: ServerResponse, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   const cluster = configStore.lastOpenedCluster();
   if (!cluster) {
     writeJson(response, { cluster: null });
@@ -195,12 +155,7 @@ export async function writeOpenLastCluster(
   await writeOpenCluster(response, cluster.id, configStore, runner);
 }
 
-export async function writeOpenCluster(
-  response: ServerResponse,
-  clusterId: string,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<void> {
+export async function writeOpenCluster(response: ServerResponse, clusterId: string, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   let cluster;
 
   try {
@@ -219,21 +174,9 @@ export async function writeOpenCluster(
   }
 
   try {
-    await runner.run(clusterCommand(
-      configStore,
-      clusterId,
-      ["cluster-info"],
-      30,
-      16 * 1024 * 1024,
-    ));
+    await runner.run(clusterCommand(configStore, clusterId, ["cluster-info"], 30, 16 * 1024 * 1024));
 
-    const namespaces = await runner.runJson(clusterCommand(
-      configStore,
-      clusterId,
-      ["get", "namespaces", "-o", "json"],
-      30,
-      64 * 1024 * 1024,
-    ));
+    const namespaces = await runner.runJson(clusterCommand(configStore, clusterId, ["get", "namespaces", "-o", "json"], 30, 64 * 1024 * 1024));
 
     const opened = configStore.markOpened(clusterId);
     writeJson(response, {
@@ -250,20 +193,9 @@ export async function writeOpenCluster(
   }
 }
 
-export async function writeNamespaces(
-  response: ServerResponse,
-  clusterId: string,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<void> {
+export async function writeNamespaces(response: ServerResponse, clusterId: string, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   try {
-    const data = await runner.runJson(clusterCommand(
-      configStore,
-      clusterId,
-      ["get", "namespaces", "-o", "json"],
-      30,
-      64 * 1024 * 1024,
-    ));
+    const data = await runner.runJson(clusterCommand(configStore, clusterId, ["get", "namespaces", "-o", "json"], 30, 64 * 1024 * 1024));
 
     writeJson(response, { items: decodeItems(data) });
   } catch (error) {

@@ -1,9 +1,6 @@
 export type UnknownRecord = Record<string, unknown>;
 
-export type SafeLoad = (
-  resource: string,
-  namespace: string,
-) => Promise<Array<UnknownRecord>>;
+export type SafeLoad = (resource: string, namespace: string) => Promise<Array<UnknownRecord>>;
 
 function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -29,9 +26,6 @@ export function metadataName(item: UnknownRecord): string {
   return text(metadata(item).name);
 }
 
-export function metadataNamespace(
-  item: UnknownRecord,
-  fallback = "_cluster",
-): string {
+export function metadataNamespace(item: UnknownRecord, fallback = "_cluster"): string {
   return text(metadata(item).namespace) || fallback;
 }

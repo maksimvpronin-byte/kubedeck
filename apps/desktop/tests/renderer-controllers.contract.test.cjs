@@ -1052,7 +1052,7 @@ test("2.9.0 overview and navigation polish stay contracted", () => {
   assert.match(overview, /data\.capacity\.views/);
   assert.match(overview, /formatCpuCapacity/);
   assert.match(overview, /function CapacityRings/);
-  assert.match(overview, /amount\.used \/ amount\.allocatable \* 100/);
+  assert.match(overview, /\(amount\.used \/ amount\.allocatable\) \* 100/);
   assert.match(overview, /\{ id: "storage", label: "Storage"/);
   assert.match(overviewStyles, /\.overview-capacity-rings \.is-storage/);
   assert.match(overview, /view\.key\.slice\(6\) !== view\.label \? view\.key\.slice\(6\) : undefined/);

@@ -20,7 +20,7 @@ export function ResourceSummary({ row, resource, now, events = [] }: Props) {
   const failures = isPod(resource) ? restartFailures(row) : [];
   const warnings = warningEvents(events).slice(0, 5);
   const quota = isQuota(resource) ? quotaRows(row.quotaUsage) : [];
-  const workloadConditions = Array.isArray(row.workloadConditions) ? row.workloadConditions as Array<{ label: string; reason?: string; message?: string; tone?: string }> : [];
+  const workloadConditions = Array.isArray(row.workloadConditions) ? (row.workloadConditions as Array<{ label: string; reason?: string; message?: string; tone?: string }>) : [];
 
   return (
     <div className="resource-summary-layout">
@@ -35,7 +35,11 @@ export function ResourceSummary({ row, resource, now, events = [] }: Props) {
           <div className="resource-summary-section-title">Conditions</div>
           <div className="workload-condition-list summary-workload-conditions">
             {workloadConditions.map((condition) => (
-              <span className={`workload-condition is-${condition.tone || "neutral"}`} title={`${condition.reason || condition.label}${condition.message ? `: ${condition.message}` : ""}`} key={condition.label}>
+              <span
+                className={`workload-condition is-${condition.tone || "neutral"}`}
+                title={`${condition.reason || condition.label}${condition.message ? `: ${condition.message}` : ""}`}
+                key={condition.label}
+              >
                 {condition.label}
               </span>
             ))}
@@ -156,9 +160,35 @@ function summaryFacts(row: ResourceRow, resource: string, now: number): Fact[] {
     addFact(facts, "Kubelet", row.kubeletVersion);
     addFact(facts, "Runtime", row.containerRuntime);
     addFact(facts, "Platform", [row.osImage || row.os, row.architecture].filter(Boolean).join(" · "));
-    addFact(facts, "CPU", <ResourceUsageBar label="CPU" tone="cpu" percent={metricPercent(row.cpuUsagePercent)} used={row.cpuUsage} free={row.cpuAvailable} allocatable={row.cpuAllocatable ?? row.cpuCapacity} />);
-    addFact(facts, "Memory", <ResourceUsageBar label="RAM" tone="memory" percent={metricPercent(row.memoryUsagePercent)} used={row.memoryUsage} free={row.memoryAvailable} allocatable={row.memoryAllocatable ?? row.memoryCapacity} />);
-    addFact(facts, "Disk", <ResourceUsageBar label="Disk" tone="disk" percent={usagePercent(row.diskUsage, row.diskObservedCapacity ?? row.diskAllocatable ?? row.diskCapacity)} used={row.diskUsage} free={row.diskAvailable} allocatable={row.diskObservedCapacity ?? row.diskAllocatable ?? row.diskCapacity} />);
+    addFact(
+      facts,
+      "CPU",
+      <ResourceUsageBar label="CPU" tone="cpu" percent={metricPercent(row.cpuUsagePercent)} used={row.cpuUsage} free={row.cpuAvailable} allocatable={row.cpuAllocatable ?? row.cpuCapacity} />,
+    );
+    addFact(
+      facts,
+      "Memory",
+      <ResourceUsageBar
+        label="RAM"
+        tone="memory"
+        percent={metricPercent(row.memoryUsagePercent)}
+        used={row.memoryUsage}
+        free={row.memoryAvailable}
+        allocatable={row.memoryAllocatable ?? row.memoryCapacity}
+      />,
+    );
+    addFact(
+      facts,
+      "Disk",
+      <ResourceUsageBar
+        label="Disk"
+        tone="disk"
+        percent={usagePercent(row.diskUsage, row.diskObservedCapacity ?? row.diskAllocatable ?? row.diskCapacity)}
+        used={row.diskUsage}
+        free={row.diskAvailable}
+        allocatable={row.diskObservedCapacity ?? row.diskAllocatable ?? row.diskCapacity}
+      />,
+    );
     addFact(facts, "Pods", capacityText(row.podsAllocatable, row.podsCapacity));
     return facts;
   }
@@ -349,7 +379,12 @@ export function formatQuotaQuantity(resource: string, value: string) {
   if (!value || value === "0" || !/(memory|storage)/i.test(resource)) return value;
   const bytes = parseKubeQuantity(value);
   if (bytes === null) return value;
-  const units: Array<[string, number]> = [["TiB", 1024 ** 4], ["GiB", 1024 ** 3], ["MiB", 1024 ** 2], ["KiB", 1024]];
+  const units: Array<[string, number]> = [
+    ["TiB", 1024 ** 4],
+    ["GiB", 1024 ** 3],
+    ["MiB", 1024 ** 2],
+    ["KiB", 1024],
+  ];
   const [suffix, divisor] = units.find(([, threshold]) => bytes >= threshold) ?? ["B", 1];
   const rounded = Math.round((bytes / divisor) * 100) / 100;
   return `${rounded} ${suffix}`;

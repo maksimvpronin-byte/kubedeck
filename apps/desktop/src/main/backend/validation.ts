@@ -12,11 +12,7 @@ export class RequestValidationError extends Error {
   }
 }
 
-export function validateIdentifier(
-  value: string,
-  field: string,
-  maxLength = 253,
-): string {
+export function validateIdentifier(value: string, field: string, maxLength = 253): string {
   const text = String(value ?? "").trim();
 
   if (!text) {
@@ -26,18 +22,10 @@ export function validateIdentifier(
     throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is too long`);
   }
   if (text.includes("/") || text.includes("\\") || text.includes("\0")) {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} contains an invalid path separator`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} contains an invalid path separator`);
   }
   if (!IDENTIFIER_PATTERN.test(text)) {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} contains unsupported characters`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} contains unsupported characters`);
   }
 
   return text;
@@ -53,11 +41,7 @@ export function normalizeTailLines(value: string | null): number {
   return Math.max(1, Math.min(MAX_LOG_TAIL_LINES, parsed));
 }
 
-export function parseBooleanQuery(
-  value: string | null,
-  field: string,
-  defaultValue = false,
-): boolean {
+export function parseBooleanQuery(value: string | null, field: string, defaultValue = false): boolean {
   if (value === null || value.trim() === "") return defaultValue;
 
   const normalized = value.trim().toLowerCase();

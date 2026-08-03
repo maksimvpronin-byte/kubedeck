@@ -169,12 +169,8 @@ export function LlmTab({
           <button onClick={() => void togglePromptPreview()} disabled={busy}>
             {promptPreviewLoading ? t("llm.collectingContext") : promptPreviewOpen ? t("llm.hidePrompt") : t("llm.showPrompt")}
           </button>
-          {answer ? (
-            <button onClick={() => onCopy(answer, t("llm.answerCopied"))}>{t("llm.copyAnswer")}</button>
-          ) : null}
-          {promptPreviewOpen ? (
-            <button onClick={() => onCopy(promptPreview, t("llm.promptCopied"))}>{t("llm.copyPrompt")}</button>
-          ) : null}
+          {answer ? <button onClick={() => onCopy(answer, t("llm.answerCopied"))}>{t("llm.copyAnswer")}</button> : null}
+          {promptPreviewOpen ? <button onClick={() => onCopy(promptPreview, t("llm.promptCopied"))}>{t("llm.copyPrompt")}</button> : null}
         </div>
       </header>
       <ErrorPanel error={error} copyLabel={copyLabel} title={t("llm.analysisFailed")} />
@@ -191,10 +187,18 @@ export function LlmTab({
       {answer ? (
         <>
           <div className="llm-meta">
-            <span>{t("llm.model")}: {model}</span>
-            <span>{t("llm.elapsed")}: {elapsedMs} ms</span>
-            <span>{t("llm.contextSize")}: {contextChars}</span>
-            <span>{t("llm.truncated")}: {truncated ? t("llm.yes") : t("llm.no")}</span>
+            <span>
+              {t("llm.model")}: {model}
+            </span>
+            <span>
+              {t("llm.elapsed")}: {elapsedMs} ms
+            </span>
+            <span>
+              {t("llm.contextSize")}: {contextChars}
+            </span>
+            <span>
+              {t("llm.truncated")}: {truncated ? t("llm.yes") : t("llm.no")}
+            </span>
           </div>
           <pre className="llm-answer">{answer || t("llm.noResponse")}</pre>
         </>

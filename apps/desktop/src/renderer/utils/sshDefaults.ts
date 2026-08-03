@@ -69,13 +69,13 @@ function hasMeaningfulSshDefaults(settings?: Partial<Settings["ssh"]> | null): b
   if (!settings) return false;
   return Boolean(
     String(settings.defaultUsername ?? "").trim() ||
-    settings.defaultPort !== undefined && Number(settings.defaultPort) !== DEFAULT_SSH_SETTINGS.defaultPort ||
-    settings.defaultAuthMethod && settings.defaultAuthMethod !== DEFAULT_SSH_SETTINGS.defaultAuthMethod ||
-    settings.useJumpHost ||
-    String(settings.jumpHost ?? "").trim() ||
-    settings.jumpPort !== undefined && Number(settings.jumpPort) !== DEFAULT_SSH_SETTINGS.jumpPort ||
-    String(settings.jumpUsername ?? "").trim() ||
-    settings.jumpAuthMethod && settings.jumpAuthMethod !== DEFAULT_SSH_SETTINGS.jumpAuthMethod
+      (settings.defaultPort !== undefined && Number(settings.defaultPort) !== DEFAULT_SSH_SETTINGS.defaultPort) ||
+      (settings.defaultAuthMethod && settings.defaultAuthMethod !== DEFAULT_SSH_SETTINGS.defaultAuthMethod) ||
+      settings.useJumpHost ||
+      String(settings.jumpHost ?? "").trim() ||
+      (settings.jumpPort !== undefined && Number(settings.jumpPort) !== DEFAULT_SSH_SETTINGS.jumpPort) ||
+      String(settings.jumpUsername ?? "").trim() ||
+      (settings.jumpAuthMethod && settings.jumpAuthMethod !== DEFAULT_SSH_SETTINGS.jumpAuthMethod),
   );
 }
 

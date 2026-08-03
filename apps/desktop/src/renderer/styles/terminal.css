@@ -195,7 +195,9 @@
 }
 
 @keyframes terminal-action-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .terminal-toolbar button:hover:not(:disabled),

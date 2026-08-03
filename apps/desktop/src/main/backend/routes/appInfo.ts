@@ -4,11 +4,7 @@ import type { ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import type { GatewayOptions } from "../types";
 
-export function writeAppInfo(
-  response: ServerResponse,
-  options: GatewayOptions,
-  configStore: ConfigStore,
-): void {
+export function writeAppInfo(response: ServerResponse, options: GatewayOptions, configStore: ConfigStore): void {
   const config = configStore.load();
 
   writeJson(response, {

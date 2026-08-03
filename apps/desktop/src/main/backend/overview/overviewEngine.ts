@@ -76,12 +76,7 @@ function workerRole(node: Row): string {
   return roles.length ? roles.sort().join(" + ") : "workers";
 }
 
-function aggregateResource(
-  nodes: Row[],
-  allocatableKey: string,
-  usageKey: string,
-  parser: (value: unknown) => number | null,
-) {
+function aggregateResource(nodes: Row[], allocatableKey: string, usageKey: string, parser: (value: unknown) => number | null) {
   const allocatable = nodes.map((node) => parser(node[allocatableKey]));
   const used = nodes.map((node) => parser(node[usageKey]));
   const measuredNodes = used.filter((value) => value !== null).length;
@@ -114,9 +109,7 @@ function groupedCapacity(nodes: Row[], key: string, value: (node: Row) => string
     const group = value(node) || "unlabelled";
     grouped.set(group, [...(grouped.get(group) ?? []), node]);
   }
-  return [...grouped.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, rows]) => aggregateCapacityGroup(`${key}:${name}`, name, rows));
+  return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([name, rows]) => aggregateCapacityGroup(`${key}:${name}`, name, rows));
 }
 
 function labelName(key: string): string {
@@ -141,7 +134,16 @@ function groupingLabels(nodes: Row[]) {
       labels.set(key, values);
     }
   }
-  const priority = (key: string) => key === "topology.kubernetes.io/zone" ? 0 : key === "topology.kubernetes.io/region" ? 1 : key === "node.kubernetes.io/instance-type" ? 2 : /contour|pool|group|environment|stage/i.test(key) ? 3 : 10;
+  const priority = (key: string) =>
+    key === "topology.kubernetes.io/zone"
+      ? 0
+      : key === "topology.kubernetes.io/region"
+        ? 1
+        : key === "node.kubernetes.io/instance-type"
+          ? 2
+          : /contour|pool|group|environment|stage/i.test(key)
+            ? 3
+            : 10;
   return [...labels.entries()]
     .filter(([, values]) => values.size > 1 && values.size <= 12)
     .sort(([left], [right]) => priority(left) - priority(right) || left.localeCompare(right))
@@ -203,13 +205,7 @@ function clusterProfile(nodes: Row[], sources: ProblemSourceRows) {
   };
 }
 
-export function buildOverviewSnapshot(
-  clusterId: string,
-  namespaces: string[],
-  sources: ProblemSourceRows,
-  errors: Array<Record<string, unknown>>,
-  restartThreshold = 3,
-) {
+export function buildOverviewSnapshot(clusterId: string, namespaces: string[], sources: ProblemSourceRows, errors: Array<Record<string, unknown>>, restartThreshold = 3) {
   const problems = buildProblemRows(sources.pods ?? [], sources.deployments ?? [], sources.events ?? [], sources.nodes ?? [], sources.persistentvolumeclaims ?? [], restartThreshold);
   const problemSummary = summarizeProblems(problems, sources, errors);
   const workloads = ["pods", "deployments", "statefulsets", "daemonsets", "jobs"].map((resource) => workloadSummary(resource, sources[resource] ?? []));

@@ -30,7 +30,6 @@ export function ErrorPanel({ error, title, copyLabel }: Props) {
   );
 }
 
-
 function ErrorHints({ error }: { error: ErrorInfo }) {
   const hints = buildErrorHints(error);
   if (hints.length === 0) return null;
@@ -38,7 +37,9 @@ function ErrorHints({ error }: { error: ErrorInfo }) {
     <div className="error-hints">
       <strong>What to check</strong>
       <ul>
-        {hints.map((hint) => <li key={hint}>{hint}</li>)}
+        {hints.map((hint) => (
+          <li key={hint}>{hint}</li>
+        ))}
       </ul>
     </div>
   );
@@ -53,7 +54,7 @@ ${error.rawStderr}`.toLowerCase();
     return ["Check VPN/network access to the Kubernetes API server.", "Try the shown kubectl command in a terminal to compare behavior."];
   }
 
-  if (code.includes("AUTH") || code.includes("FORBIDDEN") || text.includes("forbidden") || text.includes("cannot") && text.includes("resource")) {
+  if (code.includes("AUTH") || code.includes("FORBIDDEN") || text.includes("forbidden") || (text.includes("cannot") && text.includes("resource"))) {
     return ["RBAC probably denies this request for the current kubeconfig user.", "Check kubectl auth can-i for the resource, verb and namespace."];
   }
 

@@ -8,9 +8,7 @@ export interface SecretMigrationResult {
 }
 
 function record(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 function secureRewrite(filePath: string, value: unknown): void {
@@ -39,9 +37,7 @@ function scrubSecret(value: unknown): unknown {
 }
 
 function knownFiles(appDataRoot: string): string[] {
-  const files = ["config.json", "config.backup.json", "config.broken.json"].map((name) =>
-    path.join(appDataRoot, name),
-  );
+  const files = ["config.json", "config.backup.json", "config.broken.json"].map((name) => path.join(appDataRoot, name));
   const tempPattern = /^config\.json\.\d+\.\d+\.tmp$/;
   if (fs.existsSync(appDataRoot)) {
     for (const name of fs.readdirSync(appDataRoot)) {
@@ -51,10 +47,7 @@ function knownFiles(appDataRoot: string): string[] {
   return files;
 }
 
-export function migratePlaintextLlmSecret(
-  appDataRoot: string,
-  secretStore: SecretStore,
-): SecretMigrationResult {
+export function migratePlaintextLlmSecret(appDataRoot: string, secretStore: SecretStore): SecretMigrationResult {
   const marker = path.join(appDataRoot, "secrets", "migration-v1.json");
   if (fs.existsSync(marker)) {
     return { migrated: false, blocked: false };

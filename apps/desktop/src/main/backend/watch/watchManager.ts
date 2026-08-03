@@ -1,19 +1,10 @@
-import {
-  spawn,
-  type ChildProcessWithoutNullStreams,
-} from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
 
 import type { ResourceSnapshotCache } from "../cache/resourceSnapshotCache";
-import {
-  buildKubectlCommand,
-  type KubectlCommand,
-} from "../kubectl/command";
-import {
-  sanitizeKubectlText,
-  truncateKubectlText,
-} from "../kubectl/errors";
+import { buildKubectlCommand, type KubectlCommand } from "../kubectl/command";
+import { sanitizeKubectlText, truncateKubectlText } from "../kubectl/errors";
 import type { SpawnProcess } from "../kubectl/runner";
 import type { ResourceWatchEventHub } from "./eventHub";
 
@@ -127,19 +118,10 @@ function parseWatchEvent(line: string): ParsedWatchEvent | null {
     const object = record.object;
     if (!object || typeof object !== "object" || Array.isArray(object)) return null;
     const metadataValue = (object as Record<string, unknown>).metadata;
-    const metadata =
-      metadataValue && typeof metadataValue === "object" && !Array.isArray(metadataValue)
-        ? (metadataValue as Record<string, unknown>)
-        : {};
-    const namespace =
-      typeof metadata.namespace === "string" && metadata.namespace.trim()
-        ? metadata.namespace.trim()
-        : "_cluster";
+    const metadata = metadataValue && typeof metadataValue === "object" && !Array.isArray(metadataValue) ? (metadataValue as Record<string, unknown>) : {};
+    const namespace = typeof metadata.namespace === "string" && metadata.namespace.trim() ? metadata.namespace.trim() : "_cluster";
     const name = typeof metadata.name === "string" ? metadata.name : "";
-    const eventType =
-      typeof record.type === "string" && record.type.trim()
-        ? record.type.trim()
-        : "OBJECT";
+    const eventType = typeof record.type === "string" && record.type.trim() ? record.type.trim() : "OBJECT";
     return { eventType, namespace, name };
   } catch {
     return null;
@@ -165,10 +147,7 @@ function waitForClose(session: WatchSession, timeoutMs: number): Promise<boolean
   if (session.process.exitCode !== null || session.status === "stopped" || session.status === "failed") {
     return Promise.resolve(true);
   }
-  return Promise.race([
-    session.closePromise.then(() => true),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-  ]);
+  return Promise.race([session.closePromise.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs))]);
 }
 
 export class WatchManager {
@@ -185,18 +164,9 @@ export class WatchManager {
     private readonly stopTimeoutMs = WATCH_STOP_TIMEOUT_MS,
   ) {}
 
-  async start(
-    command: KubectlCommand,
-    resource: string,
-    namespace = "all",
-  ): Promise<WatchStartResult> {
+  async start(command: KubectlCommand, resource: string, namespace = "all"): Promise<WatchStartResult> {
     if (this.closed) {
-      throw new WatchStartError(
-        "WATCH_START_FAILED",
-        "Watch manager is stopped",
-        "",
-        "",
-      );
+      throw new WatchStartError("WATCH_START_FAILED", "Watch manager is stopped", "", "");
     }
     const key: WatchKey = {
       clusterId: command.clusterId,
@@ -289,9 +259,7 @@ export class WatchManager {
       stdoutReader.close();
       stderrReader.close();
       resolveClose();
-      this.log(
-        `node watch stopped id=${session.id} status=${session.status} exitCode=${String(session.exitCode)}`,
-      );
+      this.log(`node watch stopped id=${session.id} status=${session.status} exitCode=${String(session.exitCode)}`);
     });
     child.stdin.on("error", () => {
       // stdin is intentionally closed for kubectl watch.
@@ -329,12 +297,7 @@ export class WatchManager {
     if (!parsed) return;
 
     session.cacheEvents += 1;
-    const cleared = this.cache.clearResource(
-      session.key.clusterId,
-      session.key.resource,
-      parsed.namespace,
-      "watch.event",
-    );
+    const cleared = this.cache.clearResource(session.key.clusterId, session.key.resource, parsed.namespace, "watch.event");
     session.cacheInvalidations += cleared;
     this.eventHub.publish({
       type: "resource.changed",
@@ -349,27 +312,25 @@ export class WatchManager {
   }
 
   status(): WatchManagerStatus {
-    const watches = [...this.sessions.values()]
-      .map((session) => this.view(session))
-      .sort((a, b) => b.startedAt - a.startedAt);
+    const watches = [...this.sessions.values()].map((session) => this.view(session)).sort((a, b) => b.startedAt - a.startedAt);
     return {
       enabled: true,
       mode: "cache-invalidation+websocket-events",
       running: watches.filter((watch) => watch.status === "running").length,
       total: watches.length,
       watches,
-      note:
-        "Running watches parse kubectl watch events, invalidate matching Node resource snapshots, and publish WebSocket events. HTTP polling remains the fallback.",
+      note: "Running watches parse kubectl watch events, invalidate matching Node resource snapshots, and publish WebSocket events. HTTP polling remains the fallback.",
     };
   }
 
   activeCount(): number {
-    return [...this.sessions.values()].filter(
-      (session) => session.status === "running" || session.status === "stopping",
-    ).length;
+    return [...this.sessions.values()].filter((session) => session.status === "running" || session.status === "stopping").length;
   }
 
-  async stop(id: string, stoppedByUser = true): Promise<{
+  async stop(
+    id: string,
+    stoppedByUser = true,
+  ): Promise<{
     ok: boolean;
     found: boolean;
     id: string;
@@ -382,11 +343,7 @@ export class WatchManager {
   }
 
   async stopCluster(clusterId: string): Promise<number> {
-    const sessions = [...this.sessions.values()].filter(
-      (session) =>
-        session.key.clusterId === clusterId &&
-        (session.status === "running" || session.status === "stopping"),
-    );
+    const sessions = [...this.sessions.values()].filter((session) => session.key.clusterId === clusterId && (session.status === "running" || session.status === "stopping"));
     await Promise.all(sessions.map((session) => this.stopSession(session, false)));
     return sessions.length;
   }
@@ -396,9 +353,7 @@ export class WatchManager {
     stopped: number;
     watches: WatchView[];
   }> {
-    const sessions = [...this.sessions.values()].filter(
-      (session) => session.status === "running" || session.status === "stopping",
-    );
+    const sessions = [...this.sessions.values()].filter((session) => session.status === "running" || session.status === "stopping");
     await Promise.all(sessions.map((session) => this.stopSession(session, stoppedByUser)));
     return {
       ok: true,
@@ -415,20 +370,14 @@ export class WatchManager {
     try {
       if (!session.process.killed) session.process.kill();
     } catch (error) {
-      tailPush(
-        session.errorTail,
-        error instanceof Error ? error.message : String(error),
-      );
+      tailPush(session.errorTail, error instanceof Error ? error.message : String(error));
     }
     const closed = await waitForClose(session, this.stopTimeoutMs);
     if (!closed && session.process.exitCode === null) {
       try {
         session.process.kill("SIGKILL");
       } catch (error) {
-        tailPush(
-          session.errorTail,
-          error instanceof Error ? error.message : String(error),
-        );
+        tailPush(session.errorTail, error instanceof Error ? error.message : String(error));
       }
       await waitForClose(session, 1000);
     }

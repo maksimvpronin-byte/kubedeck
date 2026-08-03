@@ -5,12 +5,7 @@ import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { loadNodeDiskMetrics } from "../resources/metrics";
-import {
-  normalizeTailLines,
-  parseBooleanQuery,
-  RequestValidationError,
-  validateIdentifier,
-} from "../validation";
+import { normalizeTailLines, parseBooleanQuery, RequestValidationError, validateIdentifier } from "../validation";
 
 const TEXT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const LOGS_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -36,18 +31,12 @@ function decodePathPart(value: string, field: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} is not valid URL encoding`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
   }
 }
 
 export function matchResourceDetailsPath(pathname: string): ResourceDetailsTarget | null {
-  const podMatch = pathname.match(
-    /^\/clusters\/([^/]+)\/pods\/([^/]+)\/([^/]+)\/(yaml|describe|logs)$/,
-  );
+  const podMatch = pathname.match(/^\/clusters\/([^/]+)\/pods\/([^/]+)\/([^/]+)\/(yaml|describe|logs)$/);
   if (podMatch) {
     return {
       clusterId: decodePathPart(podMatch[1], "cluster_id"),
@@ -58,33 +47,22 @@ export function matchResourceDetailsPath(pathname: string): ResourceDetailsTarge
     };
   }
 
-  const resourceMatch = pathname.match(
-    /^\/clusters\/([^/]+)\/resources\/([^/]+)\/([^/]+)\/([^/]+)\/(yaml|describe|metrics)$/,
-  );
+  const resourceMatch = pathname.match(/^\/clusters\/([^/]+)\/resources\/([^/]+)\/([^/]+)\/([^/]+)\/(yaml|describe|metrics)$/);
   if (!resourceMatch) return null;
 
   const namespaceRaw = decodePathPart(resourceMatch[3], "namespace");
-  const namespace = namespaceRaw === "_cluster"
-    ? "_cluster"
-    : validateIdentifier(namespaceRaw, "namespace");
+  const namespace = namespaceRaw === "_cluster" ? "_cluster" : validateIdentifier(namespaceRaw, "namespace");
 
   return {
     clusterId: decodePathPart(resourceMatch[1], "cluster_id"),
-    resource: validateIdentifier(
-      decodePathPart(resourceMatch[2], "resource"),
-      "resource",
-      128,
-    ).toLowerCase(),
+    resource: validateIdentifier(decodePathPart(resourceMatch[2], "resource"), "resource", 128).toLowerCase(),
     namespace,
     name: validateIdentifier(decodePathPart(resourceMatch[4], "name"), "name"),
     operation: resourceMatch[5] as DetailOperation,
   };
 }
 
-export function buildResourceDetailsInvocation(
-  target: ResourceDetailsTarget,
-  requestUrl: string,
-): ResourceDetailsInvocation {
+export function buildResourceDetailsInvocation(target: ResourceDetailsTarget, requestUrl: string): ResourceDetailsInvocation {
   if (target.operation === "metrics") {
     if (!["node", "nodes"].includes(target.resource)) {
       throw new RequestValidationError(400, "UNSUPPORTED_RESOURCE_METRICS", "Resource metrics are only available for nodes");
@@ -104,11 +82,7 @@ export function buildResourceDetailsInvocation(
     const timestamps = parseBooleanQuery(url.searchParams.get("timestamps"), "timestamps");
 
     if (follow) {
-      throw new RequestValidationError(
-        400,
-        "FOLLOW_LOGS_REQUIRES_STREAM",
-        "HTTP logs endpoint is bounded; KubeDeck uses bounded polling for follow mode",
-      );
+      throw new RequestValidationError(400, "FOLLOW_LOGS_REQUIRES_STREAM", "HTTP logs endpoint is bounded; KubeDeck uses bounded polling for follow mode");
     }
 
     const args = ["--request-timeout=20s", "logs", target.name, "-n", target.namespace];
@@ -135,9 +109,7 @@ export function buildResourceDetailsInvocation(
     return { args, timeoutSeconds, maxOutputBytes };
   }
 
-  const args = target.operation === "yaml"
-    ? ["get", target.resource, target.name]
-    : ["describe", target.resource, target.name];
+  const args = target.operation === "yaml" ? ["get", target.resource, target.name] : ["describe", target.resource, target.name];
 
   if (target.namespace !== "_cluster") {
     args.push("-n", target.namespace);
@@ -160,11 +132,7 @@ function writePlainText(response: ServerResponse, body: string): void {
   response.end(body);
 }
 
-function writeRouteError(
-  response: ServerResponse,
-  error: unknown,
-  log: (message: string) => void,
-): void {
+function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
   if (error instanceof RequestValidationError) {
     writeError(response, error.statusCode, error.code, error.message);
     return;
@@ -182,13 +150,7 @@ function writeRouteError(
   writeError(response, 500, "RESOURCE_DETAILS_FAILED", "Unable to load resource details");
 }
 
-async function executeResourceDetails(
-  request: IncomingMessage,
-  response: ServerResponse,
-  target: ResourceDetailsTarget,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<void> {
+async function executeResourceDetails(request: IncomingMessage, response: ServerResponse, target: ResourceDetailsTarget, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   if (target.operation === "metrics") {
     const metrics = await loadNodeDiskMetrics(configStore, runner, target.clusterId, target.name);
     response.statusCode = 200;
@@ -197,13 +159,7 @@ async function executeResourceDetails(
     return;
   }
   const invocation = buildResourceDetailsInvocation(target, request.url ?? "/");
-  const result = await runner.run(clusterCommand(
-    configStore,
-    target.clusterId,
-    invocation.args,
-    invocation.timeoutSeconds,
-    invocation.maxOutputBytes,
-  ));
+  const result = await runner.run(clusterCommand(configStore, target.clusterId, invocation.args, invocation.timeoutSeconds, invocation.maxOutputBytes));
   writePlainText(response, result.stdout);
 }
 
@@ -227,7 +183,6 @@ export function handleResourceDetailsRequest(
 
   if (!target) return false;
 
-  void executeResourceDetails(request, response, target, configStore, runner)
-    .catch((error) => writeRouteError(response, error, log));
+  void executeResourceDetails(request, response, target, configStore, runner).catch((error) => writeRouteError(response, error, log));
   return true;
 }

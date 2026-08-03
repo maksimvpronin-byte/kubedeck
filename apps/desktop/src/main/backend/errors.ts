@@ -16,12 +16,7 @@ export function errorInfo(code: string, message: string): ErrorInfo {
   };
 }
 
-export function writeError(
-  response: ServerResponse,
-  statusCode: number,
-  code: string,
-  message: string,
-): void {
+export function writeError(response: ServerResponse, statusCode: number, code: string, message: string): void {
   if (response.headersSent) {
     response.destroy();
     return;

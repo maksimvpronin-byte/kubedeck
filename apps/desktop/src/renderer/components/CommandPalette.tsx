@@ -33,9 +33,7 @@ export function CommandPalette({
   const [activeIndex, setActiveIndex] = useState(0);
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = useMemo(() => {
-    const source = normalizedQuery
-      ? items.filter((item) => `${item.title} ${item.subtitle} ${item.category} ${item.keywords}`.toLowerCase().includes(normalizedQuery))
-      : items;
+    const source = normalizedQuery ? items.filter((item) => `${item.title} ${item.subtitle} ${item.category} ${item.keywords}`.toLowerCase().includes(normalizedQuery)) : items;
     return source.slice(0, 60);
   }, [items, normalizedQuery]);
 
@@ -85,20 +83,17 @@ export function CommandPalette({
         </div>
         <div className="command-palette-results">
           {loading ? <div className="command-palette-empty">{t("command.searchingCluster")}</div> : null}
-          {filtered.length ? filtered.map((item, index) => (
-            <button
-              key={item.id}
-              className={index === activeIndex ? "active" : ""}
-              onMouseEnter={() => setActiveIndex(index)}
-              onClick={() => onRun(item)}
-            >
-              <span>
-                <strong>{item.title}</strong>
-                <small>{item.subtitle}</small>
-              </span>
-              <em>{item.category}</em>
-            </button>
-          )) : (
+          {filtered.length ? (
+            filtered.map((item, index) => (
+              <button key={item.id} className={index === activeIndex ? "active" : ""} onMouseEnter={() => setActiveIndex(index)} onClick={() => onRun(item)}>
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.subtitle}</small>
+                </span>
+                <em>{item.category}</em>
+              </button>
+            ))
+          ) : (
             <div className="command-palette-empty">{t("command.noMatches")}</div>
           )}
         </div>

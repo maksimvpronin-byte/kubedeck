@@ -13,16 +13,7 @@ interface PortForwardModalProps {
   onStart: () => void;
 }
 
-export function PortForwardModal({
-  draft,
-  row,
-  error,
-  copyLabel,
-  loading,
-  onDraftChange,
-  onCancel,
-  onStart,
-}: PortForwardModalProps) {
+export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraftChange, onCancel, onStart }: PortForwardModalProps) {
   const portChoices = portChoicesForRow(row, draft.remotePort);
 
   return (
@@ -35,17 +26,14 @@ export function PortForwardModal({
           </button>
         </header>
         <div className="confirm-body">
-          <p>Expose {draft.resource}/{draft.name} on localhost.</p>
+          <p>
+            Expose {draft.resource}/{draft.name} on localhost.
+          </p>
           <ErrorPanel error={error} copyLabel={copyLabel} />
           {portChoices.length ? (
             <div className="port-forward-port-pills" aria-label="Detected ports">
               {portChoices.map((port) => (
-                <button
-                  key={port}
-                  type="button"
-                  className={draft.remotePort === port ? "active" : ""}
-                  onClick={() => onDraftChange({ ...draft, remotePort: port })}
-                >
+                <button key={port} type="button" className={draft.remotePort === port ? "active" : ""} onClick={() => onDraftChange({ ...draft, remotePort: port })}>
                   {port}
                 </button>
               ))}
@@ -79,19 +67,19 @@ export function PortForwardModal({
             </label>
           </div>
           <label className="inline-check">
-            <input
-              type="checkbox"
-              checked={draft.localPort === 0}
-              onChange={(event) => onDraftChange({ ...draft, localPort: event.target.checked ? 0 : suggestedLocalPort(draft.remotePort) })}
-            />
+            <input type="checkbox" checked={draft.localPort === 0} onChange={(event) => onDraftChange({ ...draft, localPort: event.target.checked ? 0 : suggestedLocalPort(draft.remotePort) })} />
             Auto-pick free local port
           </label>
-          <code>kubectl port-forward -n {draft.namespace} {draft.resource}/{draft.name} {portForwardLocalPreview(draft.localPort)}:{portForwardRemotePreview(draft.remotePort)}</code>
+          <code>
+            kubectl port-forward -n {draft.namespace} {draft.resource}/{draft.name} {portForwardLocalPreview(draft.localPort)}:{portForwardRemotePreview(draft.remotePort)}
+          </code>
           {draft.localPort === 0 ? <p className="muted">KubeDeck will replace auto with a free high local port after Start.</p> : null}
           <p className="muted">If the requested local port is busy, KubeDeck will fail clearly instead of stealing another process port.</p>
         </div>
         <footer>
-          <button onClick={onCancel} disabled={loading}>Cancel</button>
+          <button onClick={onCancel} disabled={loading}>
+            Cancel
+          </button>
           <button className="primary" onClick={onStart} disabled={loading || !validLocalPort(draft.localPort) || !validPort(draft.remotePort)}>
             {loading ? "Starting..." : "Start"}
           </button>
@@ -124,7 +112,10 @@ function portChoicesForRow(row: ResourceRow, selectedPort?: number) {
   addPortCandidates(candidates, row.containerPorts);
   addPortCandidates(candidates, row.servicePorts);
   if (selectedPort && validPort(selectedPort)) candidates.add(selectedPort);
-  return Array.from(candidates).filter(validPort).sort((left, right) => left - right).slice(0, 12);
+  return Array.from(candidates)
+    .filter(validPort)
+    .sort((left, right) => left - right)
+    .slice(0, 12);
 }
 
 function addPortCandidates(target: Set<number>, value: unknown) {

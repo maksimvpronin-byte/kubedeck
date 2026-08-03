@@ -9,10 +9,7 @@ const { PassThrough } = require("node:stream");
 const { WebSocket } = require("ws");
 
 const { startGateway } = require("../dist/main/backend/gateway.js");
-const {
-  matchPodTerminalWebSocket,
-  terminalShellCommand,
-} = require("../dist/main/backend/terminal/podTerminalWebSocket.js");
+const { matchPodTerminalWebSocket, terminalShellCommand } = require("../dist/main/backend/terminal/podTerminalWebSocket.js");
 
 const TOKEN = "pod-terminal-contract-token";
 
@@ -82,7 +79,6 @@ function createTerminalSpawn(state, authorize = true) {
     return createChild(state, auth ? (authorize ? "auth-yes" : "auth-no") : "terminal");
   };
 }
-
 
 function createPtyFactory(state) {
   return (executable, args, options) => {
@@ -200,7 +196,6 @@ test("Pod Terminal route validation and auto-shell command remain compatible", (
   );
 });
 
-
 test("Node Pod Terminal uses PTY input and resize when ConPTY is available", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-terminal-pty-"));
   const source = path.join(appDataRoot, "cluster.yaml");
@@ -217,8 +212,14 @@ test("Node Pod Terminal uses PTY input and resize when ConPTY is available", asy
   });
   const legacyUrl = await listen(legacy);
   const state = {
-    commands: [], children: [], kills: [], stdin: [],
-    ptyCommands: [], ptyWrites: [], ptyResizes: [], ptyKills: 0,
+    commands: [],
+    children: [],
+    kills: [],
+    stdin: [],
+    ptyCommands: [],
+    ptyWrites: [],
+    ptyResizes: [],
+    ptyKills: 0,
   };
   const gateway = await startGateway({
     legacyBackendUrl: legacyUrl,
@@ -245,10 +246,7 @@ test("Node Pod Terminal uses PTY input and resize when ConPTY is available", asy
   const socket = new WebSocket(terminalUrl(gateway.baseUrl, cluster.id, "bash", TOKEN, { cols: 132, rows: 31 }), {
     origin: "http://127.0.0.1:5173",
   });
-  const connectedPromise = waitForMessage(
-    socket,
-    (message) => message.type === "status" && message.data === "connected",
-  );
+  const connectedPromise = waitForMessage(socket, (message) => message.type === "status" && message.data === "connected");
   const outputPromise = waitForMessage(socket, (message) => message.type === "output");
   const connected = await connectedPromise;
   const output = await outputPromise;
@@ -278,20 +276,7 @@ test("Node Pod Terminal uses PTY input and resize when ConPTY is available", asy
 test("Node Gateway rejects Pod Terminal when PTY is unavailable", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-terminal-"));
   const source = path.join(appDataRoot, "cluster.yaml");
-  fs.writeFileSync(
-    source,
-    [
-      "apiVersion: v1",
-      "clusters:",
-      "- cluster:",
-      "    server: https://127.0.0.1:6443",
-      "  name: test",
-      "contexts: []",
-      "current-context: test",
-      "",
-    ].join("\n"),
-    "utf8",
-  );
+  fs.writeFileSync(source, ["apiVersion: v1", "clusters:", "- cluster:", "    server: https://127.0.0.1:6443", "  name: test", "contexts: []", "current-context: test", ""].join("\n"), "utf8");
   t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
 
   const legacy = http.createServer((request, response) => {

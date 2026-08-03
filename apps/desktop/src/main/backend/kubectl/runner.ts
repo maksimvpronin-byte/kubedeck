@@ -1,15 +1,6 @@
-import {
-  spawn,
-  type ChildProcessWithoutNullStreams,
-  type SpawnOptionsWithoutStdio,
-} from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from "node:child_process";
 import { buildKubectlCommand, type KubectlCommand } from "./command";
-import {
-  classifyKubectlError,
-  KubectlError,
-  sanitizeKubectlText,
-  truncateKubectlText,
-} from "./errors";
+import { classifyKubectlError, KubectlError, sanitizeKubectlText, truncateKubectlText } from "./errors";
 
 export interface CommandResult {
   ok: boolean;
@@ -19,11 +10,7 @@ export interface CommandResult {
   returnCode: number;
 }
 
-export type SpawnProcess = (
-  command: string,
-  args: readonly string[],
-  options: SpawnOptionsWithoutStdio,
-) => ChildProcessWithoutNullStreams;
+export type SpawnProcess = (command: string, args: readonly string[], options: SpawnOptionsWithoutStdio) => ChildProcessWithoutNullStreams;
 
 interface ActiveProcess {
   child: ChildProcessWithoutNullStreams;
@@ -41,22 +28,20 @@ export class KubectlRunner {
 
   run(command: KubectlCommand, signal?: AbortSignal): Promise<CommandResult> {
     if (this.closed) {
-      return Promise.reject(new KubectlError({
-        code: "KUBECTL_RUNTIME_STOPPED",
-        message: "kubectl runtime is stopped",
-        rawStderr: "",
-        commandPreview: "",
-      }));
+      return Promise.reject(
+        new KubectlError({
+          code: "KUBECTL_RUNTIME_STOPPED",
+          message: "kubectl runtime is stopped",
+          rawStderr: "",
+          commandPreview: "",
+        }),
+      );
     }
 
     const built = buildKubectlCommand(command);
-    const stdinBytes = typeof command.stdinText === "string"
-      ? Buffer.byteLength(command.stdinText, "utf8")
-      : 0;
+    const stdinBytes = typeof command.stdinText === "string" ? Buffer.byteLength(command.stdinText, "utf8") : 0;
 
-    this.log(
-      `node kubectl preview=${built.preview} timeout=${command.timeoutSeconds}s maxOutput=${command.maxOutputBytes} stdinBytes=${stdinBytes}`,
-    );
+    this.log(`node kubectl preview=${built.preview} timeout=${command.timeoutSeconds}s maxOutput=${command.maxOutputBytes} stdinBytes=${stdinBytes}`);
 
     return new Promise<CommandResult>((resolve, reject) => {
       let child: ChildProcessWithoutNullStreams;
@@ -68,14 +53,14 @@ export class KubectlRunner {
           env: built.environment,
         });
       } catch (error) {
-        reject(new KubectlError({
-          code: "KUBECTL_NOT_FOUND",
-          message: `kubectl not found: ${command.kubectlPath}`,
-          rawStderr: sanitizeKubectlText(
-            error instanceof Error ? error.message : String(error),
-          ),
-          commandPreview: built.preview,
-        }));
+        reject(
+          new KubectlError({
+            code: "KUBECTL_NOT_FOUND",
+            message: `kubectl not found: ${command.kubectlPath}`,
+            rawStderr: sanitizeKubectlText(error instanceof Error ? error.message : String(error)),
+            commandPreview: built.preview,
+          }),
+        );
         return;
       }
 
@@ -111,12 +96,15 @@ export class KubectlRunner {
       };
 
       const cancel = (message: string) => {
-        fail(new KubectlError({
-          code: "KUBECTL_CANCELLED",
-          message,
-          rawStderr: "",
-          commandPreview: built.preview,
-        }), true);
+        fail(
+          new KubectlError({
+            code: "KUBECTL_CANCELLED",
+            message,
+            rawStderr: "",
+            commandPreview: built.preview,
+          }),
+          true,
+        );
       };
 
       this.active.set(processKey, { child, cancel });
@@ -134,12 +122,15 @@ export class KubectlRunner {
 
         if (command.maxOutputBytes > 0 && totalBytes > command.maxOutputBytes) {
           const partial = Buffer.concat([...stderrChunks, ...stdoutChunks, buffer]).toString("utf8");
-          fail(new KubectlError({
-            code: "OUTPUT_TOO_LARGE",
-            message: `kubectl output is too large (${totalBytes} bytes, limit ${command.maxOutputBytes} bytes). Narrow the namespace/resource or reduce logs tail.`,
-            rawStderr: truncateKubectlText(sanitizeKubectlText(partial)),
-            commandPreview: built.preview,
-          }), true);
+          fail(
+            new KubectlError({
+              code: "OUTPUT_TOO_LARGE",
+              message: `kubectl output is too large (${totalBytes} bytes, limit ${command.maxOutputBytes} bytes). Narrow the namespace/resource or reduce logs tail.`,
+              rawStderr: truncateKubectlText(sanitizeKubectlText(partial)),
+              commandPreview: built.preview,
+            }),
+            true,
+          );
           return;
         }
 
@@ -151,24 +142,27 @@ export class KubectlRunner {
 
       child.stdin.on("error", (error: NodeJS.ErrnoException) => {
         if (settled || error.code === "EPIPE") return;
-        fail(new KubectlError({
-          code: "KUBECTL_STDIN_FAILED",
-          message: "Unable to send input to kubectl",
-          rawStderr: truncateKubectlText(sanitizeKubectlText(error.message)),
-          commandPreview: built.preview,
-        }), true);
+        fail(
+          new KubectlError({
+            code: "KUBECTL_STDIN_FAILED",
+            message: "Unable to send input to kubectl",
+            rawStderr: truncateKubectlText(sanitizeKubectlText(error.message)),
+            commandPreview: built.preview,
+          }),
+          true,
+        );
       });
 
       child.on("error", (error: NodeJS.ErrnoException) => {
         const missing = error.code === "ENOENT";
-        fail(new KubectlError({
-          code: missing ? "KUBECTL_NOT_FOUND" : "KUBECTL_START_FAILED",
-          message: missing
-            ? `kubectl not found: ${command.kubectlPath}`
-            : "kubectl process could not be started",
-          rawStderr: truncateKubectlText(sanitizeKubectlText(error.message)),
-          commandPreview: built.preview,
-        }));
+        fail(
+          new KubectlError({
+            code: missing ? "KUBECTL_NOT_FOUND" : "KUBECTL_START_FAILED",
+            message: missing ? `kubectl not found: ${command.kubectlPath}` : "kubectl process could not be started",
+            rawStderr: truncateKubectlText(sanitizeKubectlText(error.message)),
+            commandPreview: built.preview,
+          }),
+        );
       });
 
       child.on("close", (code) => {
@@ -181,12 +175,14 @@ export class KubectlRunner {
         const returnCode = typeof code === "number" ? code : -1;
 
         if (returnCode !== 0) {
-          reject(new KubectlError({
-            code: classifyKubectlError(stderr),
-            message: "kubectl command failed",
-            rawStderr: truncateKubectlText(sanitizeKubectlText(stderr)),
-            commandPreview: built.preview,
-          }));
+          reject(
+            new KubectlError({
+              code: classifyKubectlError(stderr),
+              message: "kubectl command failed",
+              rawStderr: truncateKubectlText(sanitizeKubectlText(stderr)),
+              commandPreview: built.preview,
+            }),
+          );
           return;
         }
 
@@ -201,16 +197,17 @@ export class KubectlRunner {
 
       if (command.timeoutSeconds > 0) {
         timer = setTimeout(() => {
-          const raw = Buffer.concat(
-            stderrChunks.length ? stderrChunks : stdoutChunks,
-          ).toString("utf8");
+          const raw = Buffer.concat(stderrChunks.length ? stderrChunks : stdoutChunks).toString("utf8");
 
-          fail(new KubectlError({
-            code: "TIMEOUT",
-            message: `kubectl command timed out after ${command.timeoutSeconds}s`,
-            rawStderr: truncateKubectlText(sanitizeKubectlText(raw)),
-            commandPreview: built.preview,
-          }), true);
+          fail(
+            new KubectlError({
+              code: "TIMEOUT",
+              message: `kubectl command timed out after ${command.timeoutSeconds}s`,
+              rawStderr: truncateKubectlText(sanitizeKubectlText(raw)),
+              commandPreview: built.preview,
+            }),
+            true,
+          );
         }, command.timeoutSeconds * 1000);
       }
 
@@ -244,9 +241,7 @@ export class KubectlRunner {
       throw new KubectlError({
         code: "KUBECTL_INVALID_JSON",
         message: "kubectl returned invalid JSON",
-        rawStderr: truncateKubectlText(sanitizeKubectlText(
-          error instanceof Error ? error.message : String(error),
-        )),
+        rawStderr: truncateKubectlText(sanitizeKubectlText(error instanceof Error ? error.message : String(error))),
         commandPreview: result.commandPreview,
       });
     }
@@ -265,20 +260,23 @@ export class KubectlRunner {
       process.cancel("kubectl command cancelled because KubeDeck is shutting down");
     }
 
-    await Promise.all(active.map(({ child }) =>
-      new Promise<void>((resolve) => {
-        if (child.exitCode !== null) {
-          resolve();
-          return;
-        }
+    await Promise.all(
+      active.map(
+        ({ child }) =>
+          new Promise<void>((resolve) => {
+            if (child.exitCode !== null) {
+              resolve();
+              return;
+            }
 
-        const timer = setTimeout(resolve, 1000);
-        child.once("close", () => {
-          clearTimeout(timer);
-          resolve();
-        });
-      }),
-    ));
+            const timer = setTimeout(resolve, 1000);
+            child.once("close", () => {
+              clearTimeout(timer);
+              resolve();
+            });
+          }),
+      ),
+    );
 
     this.active.clear();
   }

@@ -32,13 +32,13 @@ export class LlmClientError extends Error {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 export function normalizeBaseUrl(baseUrl: string): string {
-  let value = String(baseUrl ?? "").trim().replace(/\/+$/, "");
+  let value = String(baseUrl ?? "")
+    .trim()
+    .replace(/\/+$/, "");
   if (!value) {
     throw new LlmClientError("LLM_BASE_URL_MISSING", "LLM API base URL is missing.");
   }
@@ -46,16 +46,10 @@ export function normalizeBaseUrl(baseUrl: string): string {
   try {
     parsed = new URL(value);
   } catch {
-    throw new LlmClientError(
-      "LLM_BASE_URL_INVALID",
-      "LLM API base URL must be an http(s) URL.",
-    );
+    throw new LlmClientError("LLM_BASE_URL_INVALID", "LLM API base URL must be an http(s) URL.");
   }
   if (!(["http:", "https:"] as string[]).includes(parsed.protocol) || !parsed.hostname) {
-    throw new LlmClientError(
-      "LLM_BASE_URL_INVALID",
-      "LLM API base URL must be an http(s) URL.",
-    );
+    throw new LlmClientError("LLM_BASE_URL_INVALID", "LLM API base URL must be an http(s) URL.");
   }
   if (value.endsWith("/chat/completions")) {
     value = value.slice(0, -"/chat/completions".length).replace(/\/+$/, "");
@@ -64,10 +58,7 @@ export function normalizeBaseUrl(baseUrl: string): string {
   return value;
 }
 
-export function validateLlmSettings(
-  settings: LlmSettings,
-  requireEnabled = true,
-): void {
+export function validateLlmSettings(settings: LlmSettings, requireEnabled = true): void {
   if (requireEnabled && !settings.enabled) {
     throw new LlmClientError("LLM_DISABLED", "LLM integration is disabled.");
   }
@@ -76,10 +67,7 @@ export function validateLlmSettings(
     throw new LlmClientError("LLM_MODEL_MISSING", "LLM model is missing.");
   }
   if (settings.provider !== "openai_compatible") {
-    throw new LlmClientError(
-      "LLM_PROVIDER_UNSUPPORTED",
-      "Only OpenAI-compatible local APIs are supported.",
-    );
+    throw new LlmClientError("LLM_PROVIDER_UNSUPPORTED", "Only OpenAI-compatible local APIs are supported.");
   }
 }
 
@@ -174,9 +162,7 @@ function asStringItems(value: unknown, maximum: number): string[] {
 function extractContext(messages: LlmMessage[]): string {
   const user = [...messages].reverse().find((message) => message.role === "user");
   if (!user) return "";
-  const match = user.content.match(
-    /KUBEDECK CONTEXT START\s*([\s\S]*?)\s*KUBEDECK CONTEXT END/i,
-  );
+  const match = user.content.match(/KUBEDECK CONTEXT START\s*([\s\S]*?)\s*KUBEDECK CONTEXT END/i);
   return match?.[1] ?? "";
 }
 
@@ -185,8 +171,7 @@ function healthyPodContext(context: string): boolean {
   const running = /(?:^|\n)\s*(?:phase|Phase):\s*Running\b/im.test(target);
   const ready = /(?:^|\n)\s*(?:ready|Ready):\s*(?:1\/1|true)\b/im.test(target);
   const zeroRestarts = /(?:^|\n)\s*(?:restarts|restartCount|Restart Count):\s*0\b/im.test(target);
-  const noEvents = /Events(?: already provided by describe)?:?\s*<none>/i.test(target) ||
-    /events:\s*provided_empty_from_describe/i.test(target);
+  const noEvents = /Events(?: already provided by describe)?:?\s*<none>/i.test(target) || /events:\s*provided_empty_from_describe/i.test(target);
   return running && ready && zeroRestarts && noEvents;
 }
 
@@ -214,31 +199,16 @@ function renderStandardAnswer(answer: string, messages: LlmMessage[]): string {
     ["2. Факты из контекста", facts, "Факты не предоставлены."],
     ["3. Проблемы / риски", risks, "Активных проблем не выявлено."],
     ["4. Что проверить дальше", nextChecks, "Ничего срочного."],
-    [
-      "5. Чего не хватает",
-      missing,
-      "Контекст достаточен для диагностики текущего состояния.",
-    ],
+    ["5. Чего не хватает", missing, "Контекст достаточен для диагностики текущего состояния."],
   ];
 
-  return sections
-    .map(([title, items, fallback]) => `${title}\n${(items.length ? items : [fallback])
-      .map((item) => `- ${item}`)
-      .join("\n")}`)
-    .join("\n\n");
+  return sections.map(([title, items, fallback]) => `${title}\n${(items.length ? items : [fallback]).map((item) => `- ${item}`).join("\n")}`).join("\n\n");
 }
 
-export async function chatCompletion(
-  settings: ResolvedLlmSettings,
-  messages: LlmMessage[],
-  fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
-): Promise<LlmCompletion> {
+export async function chatCompletion(settings: ResolvedLlmSettings, messages: LlmMessage[], fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike): Promise<LlmCompletion> {
   validateLlmSettings(settings);
   const endpoint = `${normalizeBaseUrl(settings.baseUrl)}/chat/completions`;
-  const maxOutputTokens = Math.max(
-    1,
-    Math.min(65_536, Math.trunc(Number(settings.maxOutputTokens) || 4096)),
-  );
+  const maxOutputTokens = Math.max(1, Math.min(65_536, Math.trunc(Number(settings.maxOutputTokens) || 4096)));
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const apiKey = String(settings.apiKey ?? "").trim();
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
@@ -271,10 +241,7 @@ export async function chatCompletion(
   }
 
   if (!response.ok) {
-    throw new LlmClientError(
-      "LLM_HTTP_ERROR",
-      `LLM server returned HTTP ${response.status}.`,
-    );
+    throw new LlmClientError("LLM_HTTP_ERROR", `LLM server returned HTTP ${response.status}.`);
   }
 
   const raw = await response.text();
@@ -282,26 +249,17 @@ export async function chatCompletion(
   try {
     body = JSON.parse(raw);
   } catch {
-    throw new LlmClientError(
-      "LLM_INVALID_RESPONSE",
-      "LLM response is not valid JSON.",
-    );
+    throw new LlmClientError("LLM_INVALID_RESPONSE", "LLM response is not valid JSON.");
   }
 
   const rawAnswer = extractContent(body);
   const reasoning = extractReasoning(body);
   const finishReason = extractFinishReason(body);
   if (!rawAnswer && reasoning && finishReason === "length") {
-    throw new LlmClientError(
-      "LLM_OUTPUT_TOKEN_LIMIT",
-      `LLM reached maxOutputTokens (${maxOutputTokens}) before producing final content. Increase max output tokens or reduce input context.`,
-    );
+    throw new LlmClientError("LLM_OUTPUT_TOKEN_LIMIT", `LLM reached maxOutputTokens (${maxOutputTokens}) before producing final content. Increase max output tokens or reduce input context.`);
   }
   if (!rawAnswer && reasoning) {
-    throw new LlmClientError(
-      "LLM_EMPTY_FINAL_RESPONSE",
-      "LLM returned only reasoning/thinking without a final answer.",
-    );
+    throw new LlmClientError("LLM_EMPTY_FINAL_RESPONSE", "LLM returned only reasoning/thinking without a final answer.");
   }
   if (!rawAnswer) {
     throw new LlmClientError("LLM_EMPTY_RESPONSE", "No LLM response content.");
@@ -310,10 +268,7 @@ export async function chatCompletion(
   let answer = extractFinalBlock(rawAnswer);
   if (!answer) answer = stripThinking(rawAnswer);
   if (!answer) {
-    throw new LlmClientError(
-      "LLM_EMPTY_FINAL_RESPONSE",
-      "LLM final answer is empty after removing reasoning/thinking.",
-    );
+    throw new LlmClientError("LLM_EMPTY_FINAL_RESPONSE", "LLM final answer is empty after removing reasoning/thinking.");
   }
 
   return {

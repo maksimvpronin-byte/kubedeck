@@ -5,10 +5,7 @@ import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { RequestValidationError, validateIdentifier } from "../validation";
-import {
-  WatchManager,
-  WatchStartError,
-} from "../watch/watchManager";
+import { WatchManager, WatchStartError } from "../watch/watchManager";
 
 interface WatchStartBody {
   resource: string;
@@ -19,23 +16,12 @@ function decodePart(value: string, field: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} is not valid URL encoding`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
   }
 }
 
 function watchArgs(resource: string, namespace: string): string[] {
-  const args = [
-    "get",
-    resource,
-    "-o",
-    "json",
-    "--watch-only=true",
-    "--output-watch-events=true",
-  ];
+  const args = ["get", resource, "-o", "json", "--watch-only=true", "--output-watch-events=true"];
   if (namespace === "all") args.push("-A");
   else if (namespace !== "_cluster") args.push("-n", namespace);
   return args;
@@ -47,33 +33,18 @@ function parseStartBody(value: unknown): WatchStartBody {
   }
   const record = value as Record<string, unknown>;
   const resource = validateIdentifier(String(record.resource ?? ""), "resource", 128).toLowerCase();
-  const rawNamespace =
-    typeof record.namespace === "string" && record.namespace.trim()
-      ? record.namespace.trim()
-      : "all";
-  const namespace =
-    rawNamespace === "all" || rawNamespace === "_cluster"
-      ? rawNamespace
-      : validateIdentifier(rawNamespace, "namespace");
+  const rawNamespace = typeof record.namespace === "string" && record.namespace.trim() ? record.namespace.trim() : "all";
+  const namespace = rawNamespace === "all" || rawNamespace === "_cluster" ? rawNamespace : validateIdentifier(rawNamespace, "namespace");
   return { resource, namespace };
 }
 
-function writeWatchError(
-  response: ServerResponse,
-  error: unknown,
-  log: (message: string) => void,
-): void {
+function writeWatchError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
   if (error instanceof RequestValidationError) {
     writeError(response, error.statusCode, error.code, error.message);
     return;
   }
   if (error instanceof RequestBodyError) {
-    writeError(
-      response,
-      error.code === "REQUEST_TOO_LARGE" ? 413 : 400,
-      error.code,
-      error.message,
-    );
+    writeError(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, error.code, error.message);
     return;
   }
   if (error instanceof ClusterNotFoundError) {
@@ -99,22 +70,10 @@ function writeWatchError(
   writeError(response, 500, "WATCH_FAILED", "Unable to manage resource watch");
 }
 
-async function startWatch(
-  request: IncomingMessage,
-  response: ServerResponse,
-  clusterId: string,
-  configStore: ConfigStore,
-  watchManager: WatchManager,
-): Promise<void> {
+async function startWatch(request: IncomingMessage, response: ServerResponse, clusterId: string, configStore: ConfigStore, watchManager: WatchManager): Promise<void> {
   const body = parseStartBody(await readJsonBody(request, 64 * 1024));
   const namespace = body.namespace ?? "all";
-  const command = clusterCommand(
-    configStore,
-    clusterId,
-    watchArgs(body.resource, namespace),
-    0,
-    0,
-  );
+  const command = clusterCommand(configStore, clusterId, watchArgs(body.resource, namespace), 0, 0);
   writeJson(response, await watchManager.start(command, body.resource, namespace));
 }
 
@@ -142,24 +101,14 @@ export function handleWatchRequest(
 
     const startMatch = pathname.match(/^\/clusters\/([^/]+)\/watches$/);
     if (request.method === "POST" && startMatch) {
-      const clusterId = validateIdentifier(
-        decodePart(startMatch[1], "cluster_id"),
-        "cluster_id",
-        128,
-      );
-      void startWatch(request, response, clusterId, configStore, watchManager).catch(
-        (error) => writeWatchError(response, error, log),
-      );
+      const clusterId = validateIdentifier(decodePart(startMatch[1], "cluster_id"), "cluster_id", 128);
+      void startWatch(request, response, clusterId, configStore, watchManager).catch((error) => writeWatchError(response, error, log));
       return true;
     }
 
     const stopMatch = pathname.match(/^\/watches\/([^/]+)$/);
     if (request.method === "DELETE" && stopMatch) {
-      const watchId = validateIdentifier(
-        decodePart(stopMatch[1], "watch_id"),
-        "watch_id",
-        64,
-      );
+      const watchId = validateIdentifier(decodePart(stopMatch[1], "watch_id"), "watch_id", 64);
       void watchManager
         .stop(watchId, true)
         .then((result) => writeJson(response, result))

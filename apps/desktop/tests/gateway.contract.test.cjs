@@ -167,24 +167,22 @@ function fakeKubectlSpawn(executable, args) {
     }
 
     if (commandArgs[0] === "version") {
-      child.stdout.write(JSON.stringify({
-        clientVersion: {
-          gitVersion: "v1.31.0-test",
-          platform: "windows/amd64",
-        },
-      }));
+      child.stdout.write(
+        JSON.stringify({
+          clientVersion: {
+            gitVersion: "v1.31.0-test",
+            platform: "windows/amd64",
+          },
+        }),
+      );
     } else if (commandArgs[0] === "cluster-info") {
       child.stdout.write("Kubernetes control plane is running");
-    } else if (
-      commandArgs[0] === "get" &&
-      commandArgs[1] === "namespaces"
-    ) {
-      child.stdout.write(JSON.stringify({
-        items: [
-          { metadata: { name: "default" } },
-          { metadata: { name: "kube-system" } },
-        ],
-      }));
+    } else if (commandArgs[0] === "get" && commandArgs[1] === "namespaces") {
+      child.stdout.write(
+        JSON.stringify({
+          items: [{ metadata: { name: "default" } }, { metadata: { name: "kube-system" } }],
+        }),
+      );
     } else {
       child.stdout.write(JSON.stringify({ ok: true }));
     }
@@ -261,25 +259,8 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-gateway-"));
   const goodSource = path.join(appDataRoot, "good.yaml");
   const unavailableSource = path.join(appDataRoot, "unavailable.yaml");
-  fs.writeFileSync(
-    goodSource,
-    [
-      "apiVersion: v1",
-      "clusters:",
-      "- cluster:",
-      "    server: https://10.10.10.10:6443",
-      "  name: test",
-      "contexts: []",
-      "current-context: test",
-      "",
-    ].join("\n"),
-    "utf8",
-  );
-  fs.writeFileSync(
-    unavailableSource,
-    "apiVersion: v1\nunavailable: true\n",
-    "utf8",
-  );
+  fs.writeFileSync(goodSource, ["apiVersion: v1", "clusters:", "- cluster:", "    server: https://10.10.10.10:6443", "  name: test", "contexts: []", "current-context: test", ""].join("\n"), "utf8");
+  fs.writeFileSync(unavailableSource, "apiVersion: v1\nunavailable: true\n", "utf8");
   t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
 
   const legacy = http.createServer((request, response) => {
@@ -309,21 +290,9 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
 
   legacy.on("upgrade", (request, socket) => {
     const key = request.headers["sec-websocket-key"];
-    const accept = crypto
-      .createHash("sha1")
-      .update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
-      .digest("base64");
+    const accept = crypto.createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
 
-    socket.end(
-      [
-        "HTTP/1.1 101 Switching Protocols",
-        "Upgrade: websocket",
-        "Connection: Upgrade",
-        `Sec-WebSocket-Accept: ${accept}`,
-        "",
-        "LEGACY_OK",
-      ].join("\r\n"),
-    );
+    socket.end(["HTTP/1.1 101 Switching Protocols", "Upgrade: websocket", "Connection: Upgrade", `Sec-WebSocket-Accept: ${accept}`, "", "LEGACY_OK"].join("\r\n"));
   });
 
   const legacyUrl = await listen(legacy);
@@ -401,17 +370,11 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   assert.equal(lastOpen.status, 200);
   assert.equal((await lastOpen.json()).cluster.id, goodCluster.id);
 
-  const namespaces = await fetch(
-    `${gateway.baseUrl}/clusters/${goodCluster.id}/namespaces`,
-    { headers: authHeaders },
-  );
+  const namespaces = await fetch(`${gateway.baseUrl}/clusters/${goodCluster.id}/namespaces`, { headers: authHeaders });
   assert.equal(namespaces.status, 200);
   assert.equal((await namespaces.json()).items.length, 2);
 
-  const missingCluster = await fetch(
-    `${gateway.baseUrl}/clusters/not-found/namespaces`,
-    { headers: authHeaders },
-  );
+  const missingCluster = await fetch(`${gateway.baseUrl}/clusters/not-found/namespaces`, { headers: authHeaders });
   assert.equal(missingCluster.status, 404);
   assert.equal((await missingCluster.json()).detail.code, "CLUSTER_NOT_FOUND");
 
@@ -426,10 +389,7 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   const missingFileCluster = await importMissingFile.json();
   fs.rmSync(missingFileCluster.kubeconfigPath);
 
-  const missingFileOpen = await fetch(
-    `${gateway.baseUrl}/clusters/${missingFileCluster.id}/open`,
-    { method: "POST", headers: authHeaders },
-  );
+  const missingFileOpen = await fetch(`${gateway.baseUrl}/clusters/${missingFileCluster.id}/open`, { method: "POST", headers: authHeaders });
   assert.equal(missingFileOpen.status, 400);
   assert.equal((await missingFileOpen.json()).detail.code, "CLUSTER_UNAVAILABLE");
 
@@ -443,10 +403,7 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   });
   const unavailableCluster = await importUnavailable.json();
 
-  const unavailableOpen = await fetch(
-    `${gateway.baseUrl}/clusters/${unavailableCluster.id}/open`,
-    { method: "POST", headers: authHeaders },
-  );
+  const unavailableOpen = await fetch(`${gateway.baseUrl}/clusters/${unavailableCluster.id}/open`, { method: "POST", headers: authHeaders });
   assert.equal(unavailableOpen.status, 502);
   assert.equal((await unavailableOpen.json()).detail.code, "CLUSTER_UNAVAILABLE");
 
@@ -459,7 +416,10 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   });
   assert.equal(reorderResponse.status, 200);
   const reordered = await reorderResponse.json();
-  assert.deepEqual(reordered.clusters.map((cluster) => cluster.id), desiredOrder);
+  assert.deepEqual(
+    reordered.clusters.map((cluster) => cluster.id),
+    desiredOrder,
+  );
   assert.deepEqual(
     JSON.parse(fs.readFileSync(configPath, "utf8")).clusters.map((cluster) => cluster.id),
     desiredOrder,
@@ -496,10 +456,7 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
     desiredOrder,
   );
 
-  const removeAfterReorder = await fetch(
-    `${gateway.baseUrl}/clusters/${unavailableCluster.id}`,
-    { method: "DELETE", headers: authHeaders },
-  );
+  const removeAfterReorder = await fetch(`${gateway.baseUrl}/clusters/${unavailableCluster.id}`, { method: "DELETE", headers: authHeaders });
   assert.equal(removeAfterReorder.status, 200);
 
   const importAfterReorder = await fetch(`${gateway.baseUrl}/clusters/import`, {
@@ -552,12 +509,14 @@ test("Node kubectl runtime enforces timeout, output limit, and shutdown", async 
   const timeoutRunner = new KubectlRunner(() => {}, hangingSpawnFactory(timeoutState));
 
   await assert.rejects(
-    timeoutRunner.run(createKubectlCommand({
-      args: ["get", "pods"],
-      kubectlPath: "kubectl",
-      timeoutSeconds: 0.02,
-      maxOutputBytes: 1024,
-    })),
+    timeoutRunner.run(
+      createKubectlCommand({
+        args: ["get", "pods"],
+        kubectlPath: "kubectl",
+        timeoutSeconds: 0.02,
+        maxOutputBytes: 1024,
+      }),
+    ),
     (error) => error.info?.code === "TIMEOUT",
   );
   assert.equal(timeoutState.kills, 1);
@@ -565,43 +524,47 @@ test("Node kubectl runtime enforces timeout, output limit, and shutdown", async 
 
   const outputRunner = new KubectlRunner(() => {}, oversizedSpawn);
   await assert.rejects(
-    outputRunner.run(createKubectlCommand({
-      args: ["get", "pods", "-o", "json"],
-      kubectlPath: "kubectl",
-      timeoutSeconds: 5,
-      maxOutputBytes: 16,
-    })),
+    outputRunner.run(
+      createKubectlCommand({
+        args: ["get", "pods", "-o", "json"],
+        kubectlPath: "kubectl",
+        timeoutSeconds: 5,
+        maxOutputBytes: 16,
+      }),
+    ),
     (error) => error.info?.code === "OUTPUT_TOO_LARGE",
   );
   await outputRunner.close();
 
   const shutdownState = { kills: 0, children: [] };
   const shutdownRunner = new KubectlRunner(() => {}, hangingSpawnFactory(shutdownState));
-  const pending = shutdownRunner.run(createKubectlCommand({
-    args: ["get", "pods"],
-    kubectlPath: "kubectl",
-    timeoutSeconds: 0,
-    maxOutputBytes: 1024,
-  }));
+  const pending = shutdownRunner.run(
+    createKubectlCommand({
+      args: ["get", "pods"],
+      kubectlPath: "kubectl",
+      timeoutSeconds: 0,
+      maxOutputBytes: 1024,
+    }),
+  );
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(shutdownRunner.activeCount(), 1);
   await shutdownRunner.close();
-  await assert.rejects(
-    pending,
-    (error) => error.info?.code === "KUBECTL_CANCELLED",
-  );
+  await assert.rejects(pending, (error) => error.info?.code === "KUBECTL_CANCELLED");
   assert.equal(shutdownState.kills, 1);
   assert.equal(shutdownRunner.activeCount(), 0);
 
   const abortState = { kills: 0, children: [] };
   const abortRunner = new KubectlRunner(() => {}, hangingSpawnFactory(abortState));
   const controller = new AbortController();
-  const aborted = abortRunner.run(createKubectlCommand({
-    args: ["get", "pods"],
-    kubectlPath: "kubectl",
-    timeoutSeconds: 0,
-    maxOutputBytes: 1024,
-  }), controller.signal);
+  const aborted = abortRunner.run(
+    createKubectlCommand({
+      args: ["get", "pods"],
+      kubectlPath: "kubectl",
+      timeoutSeconds: 0,
+      maxOutputBytes: 1024,
+    }),
+    controller.signal,
+  );
   controller.abort();
   await assert.rejects(aborted, (error) => error.info?.code === "KUBECTL_CANCELLED");
   assert.equal(abortState.kills, 1);

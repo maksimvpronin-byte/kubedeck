@@ -22,7 +22,9 @@ export function isKubernetesFailure(value: unknown): boolean {
 
 function isReady(value: unknown): boolean {
   if (value === true) return true;
-  const text = String(value ?? "").trim().toLowerCase();
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (text === "true") return true;
   const fraction = text.match(/^(\d+)\/(\d+)$/);
   return Boolean(fraction && Number(fraction[2]) > 0 && fraction[1] === fraction[2]);

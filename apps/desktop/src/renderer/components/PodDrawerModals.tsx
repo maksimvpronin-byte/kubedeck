@@ -15,16 +15,7 @@ interface ResourceActionConfirmModalProps {
   onConfirm: () => void;
 }
 
-export function ResourceActionConfirmModal({
-  action,
-  resource,
-  row,
-  replicas,
-  onReplicasChange,
-  loading,
-  onCancel,
-  onConfirm,
-}: ResourceActionConfirmModalProps) {
+export function ResourceActionConfirmModal({ action, resource, row, replicas, onReplicasChange, loading, onCancel, onConfirm }: ResourceActionConfirmModalProps) {
   const namespace = String(row.namespace || "_cluster");
   return (
     <div className="modal-backdrop" role="presentation">
@@ -43,12 +34,16 @@ export function ResourceActionConfirmModal({
               <input type="number" min="0" value={replicas} onChange={(event) => onReplicasChange(Number(event.target.value))} />
             </label>
           ) : null}
-          <code>{resource}/{row.name}</code>
+          <code>
+            {resource}/{row.name}
+          </code>
           <p className="muted">Review the exact kubectl action preview and confirm the action. Typing the resource name is not required.</p>
           <CommandPreviewBlock command={commandPreview(action, resource, namespace, row.name, replicas)} />
         </div>
         <footer>
-          <button onClick={onCancel} disabled={loading}>Cancel</button>
+          <button onClick={onCancel} disabled={loading}>
+            Cancel
+          </button>
           <button className={action === "delete" ? "danger" : "primary"} onClick={onConfirm} disabled={loading}>
             Confirm
           </button>
@@ -78,12 +73,16 @@ export function YamlApplyConfirmModal({ resource, row, loading, onCancel, onAppl
         </header>
         <div className="confirm-body">
           <p>Server dry-run is recommended before applying YAML. Review the target resource and confirm the apply operation.</p>
-          <code>{resource}/{row.name}</code>
+          <code>
+            {resource}/{row.name}
+          </code>
           <p className="muted">KubeDeck applies one YAML document at a time. Typing the resource name is not required.</p>
           <CommandPreviewBlock command="kubectl apply -f -" />
         </div>
         <footer>
-          <button onClick={onCancel} disabled={loading}>Cancel</button>
+          <button onClick={onCancel} disabled={loading}>
+            Cancel
+          </button>
           <button className="danger" onClick={onApply} disabled={loading}>
             Apply YAML
           </button>
@@ -112,11 +111,17 @@ export function UnsavedYamlConfirmModal({ resource, row, onDiscard, onContinueEd
         </header>
         <div className="confirm-body">
           <p>You have unsaved YAML changes for this resource. Close the drawer and discard them, or continue editing?</p>
-          <code>{resource}/{row.name}</code>
+          <code>
+            {resource}/{row.name}
+          </code>
         </div>
         <footer>
-          <button className="danger" onClick={onDiscard}>Discard changes</button>
-          <button className="primary" onClick={onContinueEditing}>Continue editing</button>
+          <button className="danger" onClick={onDiscard}>
+            Discard changes
+          </button>
+          <button className="primary" onClick={onContinueEditing}>
+            Continue editing
+          </button>
         </footer>
       </section>
     </div>

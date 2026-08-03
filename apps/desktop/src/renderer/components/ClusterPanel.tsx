@@ -3,13 +3,7 @@ import { ChevronDown, ChevronUp, GripVertical, Plus } from "lucide-react";
 import type { Cluster } from "../types";
 
 export function moveCluster(clusters: Cluster[], fromIndex: number, toIndex: number): Cluster[] {
-  if (
-    fromIndex < 0 ||
-    fromIndex >= clusters.length ||
-    toIndex < 0 ||
-    toIndex >= clusters.length ||
-    fromIndex === toIndex
-  ) {
+  if (fromIndex < 0 || fromIndex >= clusters.length || toIndex < 0 || toIndex >= clusters.length || fromIndex === toIndex) {
     return clusters;
   }
   const next = [...clusters];
@@ -59,19 +53,16 @@ export function ClusterPanel(props: {
       <div className="cluster-list">
         {props.clusters.map((cluster, index) => (
           <article
-            className={[
-              "cluster-card",
-              props.activeCluster?.id === cluster.id ? "active" : "",
-              draggedClusterId === cluster.id ? "dragging" : "",
-              dropTargetId === cluster.id ? "drop-target" : "",
-            ].filter(Boolean).join(" ")}
+            className={["cluster-card", props.activeCluster?.id === cluster.id ? "active" : "", draggedClusterId === cluster.id ? "dragging" : "", dropTargetId === cluster.id ? "drop-target" : ""]
+              .filter(Boolean)
+              .join(" ")}
             key={cluster.id}
             onDragOver={(event) => {
               if (actionsDisabled || !draggedClusterId) return;
               event.preventDefault();
               setDropTargetId(cluster.id);
             }}
-            onDragLeave={() => setDropTargetId((current) => current === cluster.id ? null : current)}
+            onDragLeave={() => setDropTargetId((current) => (current === cluster.id ? null : current))}
             onDrop={(event) => {
               event.preventDefault();
               if (!actionsDisabled) drop(index);
@@ -121,8 +112,12 @@ export function ClusterPanel(props: {
               <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.openCluster(cluster)}>
                 {props.openingClusterId === cluster.id ? props.t("clusters.opening") : props.t("clusters.open")}
               </button>
-              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.renameCluster(cluster)}>{props.t("clusters.rename")}</button>
-              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.removeCluster(cluster)}>{props.t("clusters.remove")}</button>
+              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.renameCluster(cluster)}>
+                {props.t("clusters.rename")}
+              </button>
+              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.removeCluster(cluster)}>
+                {props.t("clusters.remove")}
+              </button>
             </div>
           </article>
         ))}

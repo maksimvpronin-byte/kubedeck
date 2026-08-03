@@ -1,19 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const {
-  buildProblemRows,
-  classifyProblem,
-  summarizeProblems,
-} = require("../dist/main/backend/problems/problemEngine.js");
-const {
-  buildProblemsResponse,
-  handleProblemsRequest,
-  matchProblemsRoute,
-} = require("../dist/main/backend/routes/problems.js");
-const {
-  ClusterNotFoundError,
-} = require("../dist/main/backend/config/configStore.js");
+const { buildProblemRows, classifyProblem, summarizeProblems } = require("../dist/main/backend/problems/problemEngine.js");
+const { buildProblemsResponse, handleProblemsRequest, matchProblemsRoute } = require("../dist/main/backend/routes/problems.js");
+const { ClusterNotFoundError } = require("../dist/main/backend/config/configStore.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
 function listen(server) {
@@ -289,11 +279,7 @@ test("Problems route loads five sources concurrently and returns partial errors"
     },
   };
 
-  const body = await buildProblemsResponse(
-    fakeConfigStore(2),
-    runner,
-    "cluster-1",
-  );
+  const body = await buildProblemsResponse(fakeConfigStore(2), runner, "cluster-1");
   assert.equal(commands.length, 5);
   assert.ok(maximumActive > 1);
   assert.equal(body.errors.length, 1);
@@ -306,14 +292,7 @@ test("Problems route loads five sources concurrently and returns partial errors"
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    const handled = handleProblemsRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(2),
-      runner,
-      () => {},
-    );
+    const handled = handleProblemsRequest(request, response, pathname, fakeConfigStore(2), runner, () => {});
     if (!handled) {
       response.statusCode = 404;
       response.end();
@@ -339,14 +318,7 @@ test("Problems route reports missing cluster before starting kubectl", async (t)
   };
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    handleProblemsRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(),
-      runner,
-      () => {},
-    );
+    handleProblemsRequest(request, response, pathname, fakeConfigStore(), runner, () => {});
   });
   const baseUrl = await listen(server);
   t.after(() => close(server));
@@ -358,10 +330,7 @@ test("Problems route reports missing cluster before starting kubectl", async (t)
 });
 
 test("Problems route matcher validates method and cluster id", () => {
-  assert.deepEqual(
-    matchProblemsRoute("GET", "/clusters/cluster-1/problems"),
-    { clusterId: "cluster-1" },
-  );
+  assert.deepEqual(matchProblemsRoute("GET", "/clusters/cluster-1/problems"), { clusterId: "cluster-1" });
   assert.equal(matchProblemsRoute("POST", "/clusters/cluster-1/problems"), null);
   assert.throws(
     () => matchProblemsRoute("GET", "/clusters/%2Fetc/problems"),

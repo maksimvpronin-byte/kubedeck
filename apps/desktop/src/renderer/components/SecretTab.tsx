@@ -131,9 +131,19 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
 
   async function saveValue() {
     if (!editingKey || confirmationKey !== editingKey) return;
-    setLoading(true); setError(null);
-    try { await api.updateSecret(clusterId, namespace, name, editingKey, draft); setConfirmationKey(""); setEditingKey(""); setDraft(""); await loadSecret(); }
-    catch (err) { setConfirmationKey(""); setError(toErrorInfo(err)); setLoading(false); }
+    setLoading(true);
+    setError(null);
+    try {
+      await api.updateSecret(clusterId, namespace, name, editingKey, draft);
+      setConfirmationKey("");
+      setEditingKey("");
+      setDraft("");
+      await loadSecret();
+    } catch (err) {
+      setConfirmationKey("");
+      setError(toErrorInfo(err));
+      setLoading(false);
+    }
   }
 
   const keys = response?.keys ?? [];
@@ -217,7 +227,21 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
                     <span>Auto-hide at {new Date(visible.visibleUntil).toLocaleTimeString()}</span>
                     {visible.binary ? <span>Binary-like data is shown as UTF-8 with replacement characters.</span> : null}
                   </div>
-                  {editingKey === item.key ? <div className="secret-edit"><textarea aria-label={`Secret value ${item.key}`} value={draft} onChange={(event) => setDraft(event.target.value)} /><div className="modal-actions"><button type="button" onClick={() => setDraft(visible.value)}>Cancel</button><button className="primary" type="button" disabled={loading || draft === visible.value} onClick={() => setConfirmationKey(item.key)}>Save</button></div></div> : <pre>{visible.value}</pre>}
+                  {editingKey === item.key ? (
+                    <div className="secret-edit">
+                      <textarea aria-label={`Secret value ${item.key}`} value={draft} onChange={(event) => setDraft(event.target.value)} />
+                      <div className="modal-actions">
+                        <button type="button" onClick={() => setDraft(visible.value)}>
+                          Cancel
+                        </button>
+                        <button className="primary" type="button" disabled={loading || draft === visible.value} onClick={() => setConfirmationKey(item.key)}>
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <pre>{visible.value}</pre>
+                  )}
                 </div>
               ) : (
                 <div className="secret-value-placeholder">Hidden</div>
@@ -237,11 +261,17 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
             </header>
             <div className="confirm-body">
               <p>The decoded value is not shown in this confirmation.</p>
-              <code>{clusterId} · {namespace}/{name} · {confirmationKey}</code>
+              <code>
+                {clusterId} · {namespace}/{name} · {confirmationKey}
+              </code>
             </div>
             <footer className="modal-actions">
-              <button className="secondary" type="button" disabled={loading} onClick={() => setConfirmationKey("")}>Cancel</button>
-              <button className="primary" type="button" disabled={loading} onClick={() => void saveValue()}>{loading ? "Saving..." : "Confirm"}</button>
+              <button className="secondary" type="button" disabled={loading} onClick={() => setConfirmationKey("")}>
+                Cancel
+              </button>
+              <button className="primary" type="button" disabled={loading} onClick={() => void saveValue()}>
+                {loading ? "Saving..." : "Confirm"}
+              </button>
             </footer>
           </section>
         </div>

@@ -53,76 +53,37 @@ function demoPod(name, createdAt, labels = { app: "web", track: "stable" }) {
       labels,
     },
     spec: {
-      containers: [
-        { name: "app" },
-        { name: "sidecar" },
-      ],
+      containers: [{ name: "app" }, { name: "sidecar" }],
     },
     status: { phase: "Running" },
   };
 }
 
 test("deployment log path, selector and command contract", () => {
-  assert.deepEqual(
-    matchDeploymentLogsPath(
-      "/clusters/demo/deployments/default/web/log-targets",
-    ),
-    {
-      clusterId: "demo",
-      namespace: "default",
-      name: "web",
-      operation: "log-targets",
-    },
-  );
-
-  assert.equal(
-    selectorMatches(
-      { app: "web", track: "stable" },
-      demoDeployment().spec.selector,
-    ),
-    true,
-  );
-  assert.equal(
-    selectorMatches(
-      { app: "web", track: "old" },
-      demoDeployment().spec.selector,
-    ),
-    false,
-  );
-
-  const pods = matchingDeploymentPods(demoDeployment(), {
-    items: [
-      demoPod("web-b", "2026-06-21T10:00:02Z"),
-      demoPod("ignored", "2026-06-21T10:00:00Z", { app: "other", track: "stable" }),
-      demoPod("web-a", "2026-06-21T10:00:01Z"),
-    ],
+  assert.deepEqual(matchDeploymentLogsPath("/clusters/demo/deployments/default/web/log-targets"), {
+    clusterId: "demo",
+    namespace: "default",
+    name: "web",
+    operation: "log-targets",
   });
 
-  assert.deepEqual(pods.map((pod) => pod.name), ["web-a", "web-b"]);
+  assert.equal(selectorMatches({ app: "web", track: "stable" }, demoDeployment().spec.selector), true);
+  assert.equal(selectorMatches({ app: "web", track: "old" }, demoDeployment().spec.selector), false);
+
+  const pods = matchingDeploymentPods(demoDeployment(), {
+    items: [demoPod("web-b", "2026-06-21T10:00:02Z"), demoPod("ignored", "2026-06-21T10:00:00Z", { app: "other", track: "stable" }), demoPod("web-a", "2026-06-21T10:00:01Z")],
+  });
+
+  assert.deepEqual(
+    pods.map((pod) => pod.name),
+    ["web-a", "web-b"],
+  );
   assert.deepEqual(pods[0].containers, ["app", "sidecar"]);
 
-  const options = parseDeploymentLogOptions(
-    "/logs?all=true&previous=true&timestamps=true&container=app&pod=web-a",
-  );
-  const invocation = buildDeploymentPodLogInvocation(
-    "default",
-    pods[0],
-    options,
-  );
+  const options = parseDeploymentLogOptions("/logs?all=true&previous=true&timestamps=true&container=app&pod=web-a");
+  const invocation = buildDeploymentPodLogInvocation("default", pods[0], options);
 
-  assert.deepEqual(invocation.args, [
-    "--request-timeout=20s",
-    "logs",
-    "web-a",
-    "-n",
-    "default",
-    "--prefix=true",
-    "--tail=-1",
-    "-c",
-    "app",
-    "--previous",
-    "--timestamps",
-  ]);
+  assert.deepEqual(invocation.args, ["--request-timeout=20s", "logs", "web-a", "-n", "default", "--prefix=true", "--tail=-1", "-c", "app", "--previous", "--timestamps"]);
   assert.equal(invocation.timeoutSeconds, 60);
   assert.equal(invocation.maxOutputBytes, 32 * 1024 * 1024);
   assert.equal(invocation.header, "===== pod/web-a · app =====");
@@ -138,15 +99,13 @@ test("deployment log targets and combined logs HTTP contract", async (t) => {
   let activeLogs = 0;
   let maxActiveLogs = 0;
 
-  const pods = Array.from({ length: 6 }, (_, index) =>
-    demoPod(
-      `web-${String(index + 1).padStart(2, "0")}`,
-      `2026-06-21T10:00:0${index + 1}Z`,
-    ));
-  pods.push(demoPod("ignored", "2026-06-21T10:00:00Z", {
-    app: "other",
-    track: "stable",
-  }));
+  const pods = Array.from({ length: 6 }, (_, index) => demoPod(`web-${String(index + 1).padStart(2, "0")}`, `2026-06-21T10:00:0${index + 1}Z`));
+  pods.push(
+    demoPod("ignored", "2026-06-21T10:00:00Z", {
+      app: "other",
+      track: "stable",
+    }),
+  );
 
   const configStore = {
     load() {
@@ -207,14 +166,7 @@ test("deployment log targets and combined logs HTTP contract", async (t) => {
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    const handled = handleDeploymentLogsRequest(
-      request,
-      response,
-      pathname,
-      configStore,
-      runner,
-      () => {},
-    );
+    const handled = handleDeploymentLogsRequest(request, response, pathname, configStore, runner, () => {});
     if (!handled) {
       response.statusCode = 404;
       response.end();
@@ -224,9 +176,7 @@ test("deployment log targets and combined logs HTTP contract", async (t) => {
   const baseUrl = await listen(server);
   t.after(async () => close(server));
 
-  const targetsResponse = await fetch(
-    `${baseUrl}/clusters/demo/deployments/default/web/log-targets`,
-  );
+  const targetsResponse = await fetch(`${baseUrl}/clusters/demo/deployments/default/web/log-targets`);
   assert.equal(targetsResponse.status, 200);
   assert.deepEqual(await targetsResponse.json(), {
     namespace: "default",
@@ -239,9 +189,7 @@ test("deployment log targets and combined logs HTTP contract", async (t) => {
     containers: ["app", "sidecar"],
   });
 
-  const logsResponse = await fetch(
-    `${baseUrl}/clusters/demo/deployments/default/web/logs?tail=250&previous=true&timestamps=true&prefix=false`,
-  );
+  const logsResponse = await fetch(`${baseUrl}/clusters/demo/deployments/default/web/logs?tail=250&previous=true&timestamps=true&prefix=false`);
   assert.equal(logsResponse.status, 200);
   assert.match(logsResponse.headers.get("content-type"), /^text\/plain/);
 
@@ -255,26 +203,11 @@ test("deployment log targets and combined logs HTTP contract", async (t) => {
 
   const logCommands = commands.filter((command) => command.args.includes("logs"));
   assert.equal(logCommands.length, 6);
-  assert.deepEqual(logCommands[0].args, [
-    "--request-timeout=20s",
-    "logs",
-    "web-01",
-    "-n",
-    "default",
-    "--tail=250",
-    "--all-containers=true",
-    "--previous",
-    "--timestamps",
-  ]);
+  assert.deepEqual(logCommands[0].args, ["--request-timeout=20s", "logs", "web-01", "-n", "default", "--tail=250", "--all-containers=true", "--previous", "--timestamps"]);
   assert.equal(logCommands[0].timeoutSeconds, 35);
   assert.equal(logCommands[0].maxOutputBytes, 8 * 1024 * 1024);
 
-  const missingPodResponse = await fetch(
-    `${baseUrl}/clusters/demo/deployments/default/web/logs?pod=missing`,
-  );
+  const missingPodResponse = await fetch(`${baseUrl}/clusters/demo/deployments/default/web/logs?pod=missing`);
   assert.equal(missingPodResponse.status, 200);
-  assert.equal(
-    await missingPodResponse.text(),
-    "No pods matched deployment/web in namespace default.",
-  );
+  assert.equal(await missingPodResponse.text(), "No pods matched deployment/web in namespace default.");
 });

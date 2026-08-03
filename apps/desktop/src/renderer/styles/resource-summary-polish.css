@@ -34,11 +34,25 @@
   background: var(--surface);
 }
 
-.summary-container-row.is-warning { border-color: var(--warning-border); }
-.summary-container-row.is-danger { border-color: var(--danger-border); background: var(--danger-bg); }
+.summary-container-row.is-warning {
+  border-color: var(--warning-border);
+}
+.summary-container-row.is-danger {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
 .summary-container-row span,
-.summary-container-row small { color: var(--muted); font-size: 12px; }
-.summary-container-row small { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--danger-text); }
+.summary-container-row small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.summary-container-row small {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--danger-text);
+}
 
 .summary-problem-row,
 .summary-warning-row {
@@ -52,12 +66,27 @@
   background: var(--warning-bg);
 }
 
-.summary-problem-row { border-color: var(--danger-border); background: var(--danger-bg); }
+.summary-problem-row {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
 .summary-problem-row span,
-.summary-warning-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary-warning-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .summary-problem-row small,
-.summary-warning-row small { color: var(--muted); white-space: nowrap; }
-.resource-summary-empty { margin: 0; color: var(--muted); line-height: 1.5; }
+.summary-warning-row small {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.resource-summary-empty {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
 
 .resource-summary-details-grid {
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

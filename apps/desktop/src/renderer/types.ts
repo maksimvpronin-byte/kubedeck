@@ -41,15 +41,16 @@ export interface LlmAnalyzeResourceResponse {
   model: string;
   elapsedMs: number;
   contextChars: number;
-  truncated: boolean; maxOutputTokens: number;
+  truncated: boolean;
+  maxOutputTokens: number;
 }
 export interface LlmPromptPreviewResponse {
   messages: Array<{ role: string; content: string }>;
   context: string;
   contextChars: number;
-  truncated: boolean; maxOutputTokens: number;
+  truncated: boolean;
+  maxOutputTokens: number;
 }
-
 
 export interface DesktopInfo {
   appName: string;
@@ -89,8 +90,6 @@ export interface ResourceRow {
   createdAt?: string;
   [key: string]: unknown;
 }
-
-
 
 export interface GlobalSearchItem extends ResourceRow {
   resource: string;
@@ -237,7 +236,6 @@ export interface AuditResponse {
   limit: number;
 }
 
-
 export interface RelatedLink {
   key: string;
   resource: string;
@@ -253,7 +251,6 @@ export interface RelatedResourcesResponse {
   sources: Record<string, number>;
   errors: Array<ErrorInfo & { resource?: string; namespace?: string }>;
 }
-
 
 export interface DeploymentLogPodTarget {
   name: string;
@@ -403,7 +400,6 @@ export interface WatchSession {
   errorTail: string[];
   alreadyRunning?: boolean;
 }
-
 
 export interface ResourceWatchEvent {
   type: "resource.changed" | "status" | string;

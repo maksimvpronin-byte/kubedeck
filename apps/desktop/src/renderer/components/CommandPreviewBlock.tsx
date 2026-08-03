@@ -28,7 +28,9 @@ export function CommandPreviewBlock({ command, label = "Command preview", copyLa
           {copied ? "Copied" : copyLabel}
         </button>
       </div>
-      <pre><code>{safeCommand}</code></pre>
+      <pre>
+        <code>{safeCommand}</code>
+      </pre>
     </div>
   );
 }

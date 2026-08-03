@@ -70,9 +70,7 @@ test("resource discovery parser and event normalizer", () => {
     },
   ]);
 
-  const target = matchResourceEventsPath(
-    "/clusters/demo/resources/pods/default/web-123/events",
-  );
+  const target = matchResourceEventsPath("/clusters/demo/resources/pods/default/web-123/events");
   assert.deepEqual(target, {
     clusterId: "demo",
     resource: "pods",
@@ -162,12 +160,7 @@ test("resource discovery parser and event normalizer", () => {
     lastTimestamp: "2026-06-21T11:02:00Z",
   });
 
-  assert.throws(
-    () => matchResourceEventsPath(
-      "/clusters/demo/resources/pods/default%2Fevil/web-123/events",
-    ),
-    /path separator/,
-  );
+  assert.throws(() => matchResourceEventsPath("/clusters/demo/resources/pods/default%2Fevil/web-123/events"), /path separator/);
 });
 
 test("resource discovery and events HTTP handler", async (t) => {
@@ -186,11 +179,7 @@ test("resource discovery and events HTTP handler", async (t) => {
     run: async (command) => {
       commands.push(command);
       return {
-        stdout: [
-          "NAME SHORTNAMES APIVERSION NAMESPACED KIND VERBS CATEGORIES",
-          "pods po v1 true Pod [get list watch] all",
-          "nodes no v1 false Node [get list watch]",
-        ].join("\n"),
+        stdout: ["NAME SHORTNAMES APIVERSION NAMESPACED KIND VERBS CATEGORIES", "pods po v1 true Pod [get list watch] all", "nodes no v1 false Node [get list watch]"].join("\n"),
       };
     },
     runJson: async (command) => {
@@ -255,14 +244,7 @@ test("resource discovery and events HTTP handler", async (t) => {
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
-    const handled = handleResourceDiscoveryEventsRequest(
-      request,
-      response,
-      pathname,
-      configStore,
-      runner,
-      () => {},
-    );
+    const handled = handleResourceDiscoveryEventsRequest(request, response, pathname, configStore, runner, () => {});
 
     if (!handled) {
       response.statusCode = 404;
@@ -273,9 +255,7 @@ test("resource discovery and events HTTP handler", async (t) => {
   const baseUrl = await listen(server);
   t.after(async () => close(server));
 
-  const definitions = await fetch(
-    `${baseUrl}/clusters/demo/resource-definitions`,
-  );
+  const definitions = await fetch(`${baseUrl}/clusters/demo/resource-definitions`);
   assert.equal(definitions.status, 200);
   assert.deepEqual(await definitions.json(), {
     items: [
@@ -298,70 +278,31 @@ test("resource discovery and events HTTP handler", async (t) => {
     ],
     cached: false,
   });
-  assert.deepEqual(commands.at(-1).args, [
-    "api-resources",
-    "--verbs=list",
-    "-o",
-    "wide",
-  ]);
+  assert.deepEqual(commands.at(-1).args, ["api-resources", "--verbs=list", "-o", "wide"]);
   assert.equal(commands.at(-1).timeoutSeconds, 30);
 
-  const cachedDefinitions = await fetch(
-    `${baseUrl}/clusters/demo/resource-definitions`,
-  );
+  const cachedDefinitions = await fetch(`${baseUrl}/clusters/demo/resource-definitions`);
   assert.equal(cachedDefinitions.status, 200);
   assert.equal((await cachedDefinitions.json()).cached, true);
   assert.equal(commands.length, 1);
 
-  const events = await fetch(
-    `${baseUrl}/clusters/demo/resources/pods/default/web-123/events`,
-  );
+  const events = await fetch(`${baseUrl}/clusters/demo/resources/pods/default/web-123/events`);
   assert.equal(events.status, 200);
   const eventBody = await events.json();
   assert.equal(eventBody.rawCount, 1);
   assert.equal(eventBody.items[0].reason, "Started");
-  assert.deepEqual(commands.at(-2).args, [
-    "get",
-    "pods",
-    "web-123",
-    "-n",
-    "default",
-    "-o",
-    "json",
-  ]);
-  assert.deepEqual(commands.at(-1).args, [
-    "get",
-    "events",
-    "-n",
-    "default",
-    "-o",
-    "json",
-  ]);
+  assert.deepEqual(commands.at(-2).args, ["get", "pods", "web-123", "-n", "default", "-o", "json"]);
+  assert.deepEqual(commands.at(-1).args, ["get", "events", "-n", "default", "-o", "json"]);
 
-  const nodeEvents = await fetch(
-    `${baseUrl}/clusters/demo/resources/nodes/_cluster/node-a/events`,
-  );
+  const nodeEvents = await fetch(`${baseUrl}/clusters/demo/resources/nodes/_cluster/node-a/events`);
   assert.equal(nodeEvents.status, 200);
-  assert.deepEqual(commands.at(-1).args, [
-    "get",
-    "events",
-    "-A",
-    "-o",
-    "json",
-  ]);
+  assert.deepEqual(commands.at(-1).args, ["get", "events", "-A", "-o", "json"]);
 
-  const invalidNamespace = await fetch(
-    `${baseUrl}/clusters/demo/resources/pods/default%2Fevil/web-123/events`,
-  );
+  const invalidNamespace = await fetch(`${baseUrl}/clusters/demo/resources/pods/default%2Fevil/web-123/events`);
   assert.equal(invalidNamespace.status, 400);
-  assert.equal(
-    (await invalidNamespace.json()).detail.code,
-    "INVALID_IDENTIFIER",
-  );
+  assert.equal((await invalidNamespace.json()).detail.code, "INVALID_IDENTIFIER");
 
-  const missing = await fetch(
-    `${baseUrl}/clusters/demo/resources/missing/default/web-123/events`,
-  );
+  const missing = await fetch(`${baseUrl}/clusters/demo/resources/missing/default/web-123/events`);
   assert.equal(missing.status, 502);
   assert.equal((await missing.json()).detail.code, "NOT_FOUND");
 });

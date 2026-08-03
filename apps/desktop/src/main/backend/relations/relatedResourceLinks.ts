@@ -12,14 +12,7 @@ function normalizedNamespace(value: string): string {
   return value || "_cluster";
 }
 
-export function relatedLink(
-  resource: string,
-  namespace: string,
-  name: string,
-  kind: string,
-  relation: string,
-  detail = "",
-): RelatedLink {
+export function relatedLink(resource: string, namespace: string, name: string, kind: string, relation: string, detail = ""): RelatedLink {
   const normalized = normalizedNamespace(namespace);
   return {
     key: `${resource}:${normalized}:${name}:${relation}`,
@@ -43,10 +36,6 @@ export function deduplicateRelatedLinks(links: RelatedLink[]): RelatedLink[] {
     result.push(link);
   }
   return result.sort(
-    (left, right) =>
-      left.kind.localeCompare(right.kind) ||
-      left.namespace.localeCompare(right.namespace) ||
-      left.name.localeCompare(right.name) ||
-      left.relation.localeCompare(right.relation),
+    (left, right) => left.kind.localeCompare(right.kind) || left.namespace.localeCompare(right.namespace) || left.name.localeCompare(right.name) || left.relation.localeCompare(right.relation),
   );
 }

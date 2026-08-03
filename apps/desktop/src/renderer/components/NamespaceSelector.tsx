@@ -28,13 +28,7 @@ export function NamespaceSelector({
   const filteredNamespaces = useMemo(() => filterNamespaces(namespaces, selected, query), [namespaces, selected, query]);
   const isAll = normalized.includes("all");
   const isClusterScoped = normalized.includes("_cluster");
-  const label = isClusterScoped
-    ? (clusterScopedLabel ?? "Cluster-scoped")
-    : isAll
-      ? allLabel
-      : normalized.length === 1
-        ? normalized[0]
-        : `${normalized.length} namespaces`;
+  const label = isClusterScoped ? (clusterScopedLabel ?? "Cluster-scoped") : isAll ? allLabel : normalized.length === 1 ? normalized[0] : `${normalized.length} namespaces`;
 
   useEffect(() => {
     if (!open) return;
@@ -80,10 +74,15 @@ export function NamespaceSelector({
               placeholder={searchLabel}
             />
             {query ? (
-              <button type="button" aria-label={searchLabel} title={searchLabel} onClick={() => {
-                setQuery("");
-                searchRef.current?.focus();
-              }}>
+              <button
+                type="button"
+                aria-label={searchLabel}
+                title={searchLabel}
+                onClick={() => {
+                  setQuery("");
+                  searchRef.current?.focus();
+                }}
+              >
                 <X size={14} />
               </button>
             ) : null}
@@ -95,16 +94,14 @@ export function NamespaceSelector({
             </span>
           </label>
           <div className="namespace-menu-options">
-            {filteredNamespaces.length > 0 ? filteredNamespaces.map((namespace) => (
-              <label key={namespace} title={namespace}>
-                <input
-                  type="checkbox"
-                  checked={!isAll && normalized.includes(namespace)}
-                  onChange={() => toggleNamespace(namespace)}
-                />
-                <span className="namespace-menu-label">{namespace}</span>
-              </label>
-            )) : (
+            {filteredNamespaces.length > 0 ? (
+              filteredNamespaces.map((namespace) => (
+                <label key={namespace} title={namespace}>
+                  <input type="checkbox" checked={!isAll && normalized.includes(namespace)} onChange={() => toggleNamespace(namespace)} />
+                  <span className="namespace-menu-label">{namespace}</span>
+                </label>
+              ))
+            ) : (
               <div className="namespace-menu-empty">{emptySearchLabel}</div>
             )}
           </div>

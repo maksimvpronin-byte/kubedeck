@@ -6,11 +6,7 @@ import type { KubectlRunner } from "../kubectl/runner";
 import { writeError } from "../errors";
 import { writeJson } from "../http";
 
-export async function writeKubectlStatus(
-  response: ServerResponse,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-): Promise<void> {
+export async function writeKubectlStatus(response: ServerResponse, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   const config = configStore.load();
   const command = createKubectlCommand({
     clusterId: "",

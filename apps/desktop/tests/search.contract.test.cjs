@@ -1,21 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const {
-  buildSearchResourceSpecs,
-  deduplicateSearchResults,
-  parseApiResources,
-  rankRawItems,
-  scoreSearchResult,
-} = require("../dist/main/backend/search/searchEngine.js");
-const {
-  buildSearchResponse,
-  handleSearchRequest,
-  matchSearchRoute,
-} = require("../dist/main/backend/routes/search.js");
-const {
-  ClusterNotFoundError,
-} = require("../dist/main/backend/config/configStore.js");
+const { buildSearchResourceSpecs, deduplicateSearchResults, parseApiResources, rankRawItems, scoreSearchResult } = require("../dist/main/backend/search/searchEngine.js");
+const { buildSearchResponse, handleSearchRequest, matchSearchRoute } = require("../dist/main/backend/routes/search.js");
+const { ClusterNotFoundError } = require("../dist/main/backend/config/configStore.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
 function listen(server) {
@@ -38,9 +26,7 @@ function fakeConfigStore() {
     load() {
       return {
         settings: { kubectlPath: "kubectl" },
-        clusters: [
-          { id: "cluster-1", kubeconfigPath: "C:\\temp\\cluster-1.yaml" },
-        ],
+        clusters: [{ id: "cluster-1", kubeconfigPath: "C:\\temp\\cluster-1.yaml" }],
       };
     },
     getCluster(clusterId, config = this.load()) {
@@ -177,7 +163,10 @@ test("api discovery adds matching CRD definitions and instances", () => {
   assert.ok(specs.some((item) => item.resource === "widgets.widgets.example.com"));
   assert.ok(specs.some((item) => item.resource === "clusterwidgets.widgets.example.com"));
   const disabled = buildSearchResourceSpecs("widget", false, definitions);
-  assert.equal(disabled.some((item) => item.crdInstance), false);
+  assert.equal(
+    disabled.some((item) => item.crdInstance),
+    false,
+  );
 });
 
 test("ranking and deduplication keep the highest scoring resource row", () => {
@@ -254,14 +243,7 @@ test("Global Search runs sources concurrently and preserves partial errors", asy
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    const handled = handleSearchRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(),
-      runner,
-      () => {},
-    );
+    const handled = handleSearchRequest(request, response, pathname, fakeConfigStore(), runner, () => {});
     if (!handled) {
       response.statusCode = 404;
       response.end();
@@ -269,9 +251,7 @@ test("Global Search runs sources concurrently and preserves partial errors", asy
   });
   const baseUrl = await listen(server);
   t.after(() => close(server));
-  const response = await fetch(
-    `${baseUrl}/clusters/cluster-1/search?q=api&namespace=all&limit=20&includeCrdInstances=false`,
-  );
+  const response = await fetch(`${baseUrl}/clusters/cluster-1/search?q=api&namespace=all&limit=20&includeCrdInstances=false`);
   assert.equal(response.status, 200);
   const responseBody = await response.json();
   assert.equal(responseBody.summary.query, "api");
@@ -322,14 +302,7 @@ test("Global Search validates query, limit, route, and missing cluster", async (
   };
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    handleSearchRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(),
-      runner,
-      () => {},
-    );
+    handleSearchRequest(request, response, pathname, fakeConfigStore(), runner, () => {});
   });
   const baseUrl = await listen(server);
   t.after(() => close(server));
@@ -363,11 +336,15 @@ test("Global Search returns a partial response on total timeout", async () => {
     async runJson(_command, signal) {
       await new Promise((resolve, reject) => {
         const timer = setTimeout(resolve, 50);
-        signal.addEventListener("abort", () => {
-          aborted = true;
-          clearTimeout(timer);
-          reject(new Error("cancelled"));
-        }, { once: true });
+        signal.addEventListener(
+          "abort",
+          () => {
+            aborted = true;
+            clearTimeout(timer);
+            reject(new Error("cancelled"));
+          },
+          { once: true },
+        );
       });
       return { items: [] };
     },

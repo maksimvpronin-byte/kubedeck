@@ -72,7 +72,9 @@
   color: var(--danger-text);
 }
 
-.phase-value.is-neutral { color: var(--muted-strong); }
+.phase-value.is-neutral {
+  color: var(--muted-strong);
+}
 
 .node-resource-usage {
   display: grid;
@@ -138,11 +140,21 @@
   font-weight: 650;
 }
 
-.workload-condition.is-success { color: var(--success-text); }
-.workload-condition.is-info { color: var(--primary); }
-.workload-condition.is-warning { color: var(--warning-text); }
-.workload-condition.is-danger { color: var(--danger-text); }
-.workload-condition.is-neutral { color: var(--muted-strong); }
+.workload-condition.is-success {
+  color: var(--success-text);
+}
+.workload-condition.is-info {
+  color: var(--primary);
+}
+.workload-condition.is-warning {
+  color: var(--warning-text);
+}
+.workload-condition.is-danger {
+  color: var(--danger-text);
+}
+.workload-condition.is-neutral {
+  color: var(--muted-strong);
+}
 
 .node-label-chip {
   min-width: 0;
@@ -468,7 +480,11 @@
   box-shadow: none;
   text-shadow: none;
   white-space: nowrap;
-  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, opacity 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
 }
 
 .resource-table-header .resource-table-actions button.secondary-btn:hover:not(:disabled),

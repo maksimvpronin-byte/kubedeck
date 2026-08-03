@@ -102,7 +102,13 @@ export function AboutPanel({
           <p>{t("about.description")}</p>
         </div>
         <div className="about-actions">
-          <AsyncActionButton className="secondary-btn about-action-button about-refresh-button" phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => load())} disabled={loading} />
+          <AsyncActionButton
+            className="secondary-btn about-action-button about-refresh-button"
+            phase={refreshFeedback.phase}
+            labels={refreshActionLabels(t)}
+            onClick={() => void refreshFeedback.run(() => load())}
+            disabled={loading}
+          />
           <button className="primary about-action-button about-copy-button" onClick={copyDiagnostics}>
             {copied ? t("common.copied") : t("about.copyDiagnostics")}
           </button>
@@ -138,7 +144,6 @@ export function AboutPanel({
           <InfoRow label={t("about.kubeconfig")} value={activeCluster?.kubeconfigPath || "-"} mono />
           <InfoRow label={t("about.clusterCount")} value={String(config?.clusters.length ?? backendInfo?.clusters ?? 0)} />
         </AboutCard>
-
       </div>
     </section>
   );

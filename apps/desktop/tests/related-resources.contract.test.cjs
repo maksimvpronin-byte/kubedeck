@@ -1,20 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const {
-  buildRelatedResources,
-  deduplicateRelatedLinks,
-  relatedLink,
-  selectorMatches,
-} = require("../dist/main/backend/relations/relatedResourcesEngine.js");
-const {
-  buildRelatedResourcesResponse,
-  handleRelatedResourcesRequest,
-  matchRelatedResourcesRoute,
-} = require("../dist/main/backend/routes/relatedResources.js");
-const {
-  ClusterNotFoundError,
-} = require("../dist/main/backend/config/configStore.js");
+const { buildRelatedResources, deduplicateRelatedLinks, relatedLink, selectorMatches } = require("../dist/main/backend/relations/relatedResourcesEngine.js");
+const { buildRelatedResourcesResponse, handleRelatedResourcesRequest, matchRelatedResourcesRoute } = require("../dist/main/backend/routes/relatedResources.js");
+const { ClusterNotFoundError } = require("../dist/main/backend/config/configStore.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
 function listen(server) {
@@ -37,9 +26,7 @@ function fakeConfigStore() {
     load() {
       return {
         settings: { kubectlPath: "kubectl" },
-        clusters: [
-          { id: "cluster-1", kubeconfigPath: "C:\\temp\\cluster-1.yaml" },
-        ],
+        clusters: [{ id: "cluster-1", kubeconfigPath: "C:\\temp\\cluster-1.yaml" }],
       };
     },
     getCluster(clusterId, config = this.load()) {
@@ -116,10 +103,7 @@ function fixtureItems(resource) {
         spec: {
           nodeName: "worker-1",
           serviceAccountName: "api-sa",
-          volumes: [
-            { persistentVolumeClaim: { claimName: "api-data" } },
-            { configMap: { name: "api-config" } },
-          ],
+          volumes: [{ persistentVolumeClaim: { claimName: "api-data" } }, { configMap: { name: "api-config" } }],
         },
       },
     ],
@@ -130,9 +114,7 @@ function fixtureItems(resource) {
           rules: [
             {
               http: {
-                paths: [
-                  { backend: { service: { name: "api", port: { number: 80 } } } },
-                ],
+                paths: [{ backend: { service: { name: "api", port: { number: 80 } } } }],
               },
             },
           ],
@@ -324,16 +306,12 @@ test("related route builds kubectl commands and preserves response contract", as
       return { items: fixtureItems(resource) };
     },
   };
-  const body = await buildRelatedResourcesResponse(
-    fakeConfigStore(),
-    runner,
-    {
-      clusterId: "cluster-1",
-      resource: "pods",
-      namespace: "default",
-      name: "api-0",
-    },
-  );
+  const body = await buildRelatedResourcesResponse(fakeConfigStore(), runner, {
+    clusterId: "cluster-1",
+    resource: "pods",
+    namespace: "default",
+    name: "api-0",
+  });
   assert.ok(Array.isArray(body.items));
   assert.equal(typeof body.sources, "object");
   assert.ok(Array.isArray(body.errors));
@@ -342,14 +320,7 @@ test("related route builds kubectl commands and preserves response contract", as
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    const handled = handleRelatedResourcesRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(),
-      runner,
-      () => {},
-    );
+    const handled = handleRelatedResourcesRequest(request, response, pathname, fakeConfigStore(), runner, () => {});
     if (!handled) {
       response.statusCode = 404;
       response.end();
@@ -357,9 +328,7 @@ test("related route builds kubectl commands and preserves response contract", as
   });
   const baseUrl = await listen(server);
   t.after(() => close(server));
-  const response = await fetch(
-    `${baseUrl}/clusters/cluster-1/resources/pods/default/api-0/related`,
-  );
+  const response = await fetch(`${baseUrl}/clusters/cluster-1/resources/pods/default/api-0/related`);
   assert.equal(response.status, 200);
   const responseBody = await response.json();
   assert.ok(Array.isArray(responseBody.items));
@@ -368,17 +337,8 @@ test("related route builds kubectl commands and preserves response contract", as
 });
 
 test("related route validates matcher and missing cluster before kubectl", async (t) => {
-  assert.equal(
-    matchRelatedResourcesRoute(
-      "POST",
-      "/clusters/cluster-1/resources/pods/default/api-0/related",
-    ),
-    null,
-  );
-  const target = matchRelatedResourcesRoute(
-    "GET",
-    "/clusters/cluster-1/resources/nodes/_cluster/worker-1/related",
-  );
+  assert.equal(matchRelatedResourcesRoute("POST", "/clusters/cluster-1/resources/pods/default/api-0/related"), null);
+  const target = matchRelatedResourcesRoute("GET", "/clusters/cluster-1/resources/nodes/_cluster/worker-1/related");
   assert.deepEqual(target, {
     clusterId: "cluster-1",
     resource: "nodes",
@@ -395,20 +355,11 @@ test("related route validates matcher and missing cluster before kubectl", async
   };
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    handleRelatedResourcesRequest(
-      request,
-      response,
-      pathname,
-      fakeConfigStore(),
-      runner,
-      () => {},
-    );
+    handleRelatedResourcesRequest(request, response, pathname, fakeConfigStore(), runner, () => {});
   });
   const baseUrl = await listen(server);
   t.after(() => close(server));
-  const response = await fetch(
-    `${baseUrl}/clusters/missing/resources/pods/default/api-0/related`,
-  );
+  const response = await fetch(`${baseUrl}/clusters/missing/resources/pods/default/api-0/related`);
   assert.equal(response.status, 404);
   assert.equal((await response.json()).detail.code, "CLUSTER_NOT_FOUND");
   assert.equal(calls, 0);

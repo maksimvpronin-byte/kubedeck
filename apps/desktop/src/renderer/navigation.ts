@@ -79,7 +79,7 @@ export function normalizeStoredSection(value: unknown): Section {
   if (value === "nodes") return "nodes";
   if (value === "audit") return "settings";
   const known: Section[] = ["problems", "namespaces", "rbac", "workloads", "network", "storage", "config", "crd", "events", "about", "port-forwards", "help", "settings"];
-  return known.includes(value as Section) ? value as Section : "nodes";
+  return known.includes(value as Section) ? (value as Section) : "nodes";
 }
 
 export function resourceLabel(resource: string) {

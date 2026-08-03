@@ -504,11 +504,7 @@ export class NodeSshWebSocketServer {
         tunnel = await this.forwardOut(jumpClient, payload.target.host, payload.target.port);
       }
       const targetVerification = this.hostKeyVerification(session, payload.target, "target");
-      const targetClient = await this.connectClient(
-        withHostVerifier(connectConfig(payload.target, this.connectTimeoutMs, tunnel), targetVerification),
-        session,
-        targetVerification,
-      );
+      const targetClient = await this.connectClient(withHostVerifier(connectConfig(payload.target, this.connectTimeoutMs, tunnel), targetVerification), session, targetVerification);
       const channel = await this.openShell(targetClient, payload.cols, payload.rows);
       session.channel = channel;
       session.opened = true;

@@ -1,14 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const {
-  decodeBase64Strict,
-  handleSecretRequest,
-  isBinaryPayload,
-  matchSecretRoute,
-  SECRET_VALUE_MAX_BYTES,
-  secretKeysPayload,
-} = require("../dist/main/backend/routes/secrets.js");
+const { decodeBase64Strict, handleSecretRequest, isBinaryPayload, matchSecretRoute, SECRET_VALUE_MAX_BYTES, secretKeysPayload } = require("../dist/main/backend/routes/secrets.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
 function listen(server) {
@@ -27,28 +20,19 @@ function close(server) {
 }
 
 test("Secret parsing and metadata contract", () => {
-  assert.deepEqual(
-    matchSecretRoute("GET", "/clusters/demo/secrets/default/app/keys"),
-    {
-      clusterId: "demo",
-      namespace: "default",
-      name: "app",
-      operation: "keys",
-    },
-  );
-  assert.deepEqual(
-    matchSecretRoute("POST", "/clusters/demo/secrets/default/app/reveal"),
-    {
-      clusterId: "demo",
-      namespace: "default",
-      name: "app",
-      operation: "reveal",
-    },
-  );
-  assert.equal(
-    matchSecretRoute("GET", "/clusters/demo/secrets/default/app/reveal"),
-    null,
-  );
+  assert.deepEqual(matchSecretRoute("GET", "/clusters/demo/secrets/default/app/keys"), {
+    clusterId: "demo",
+    namespace: "default",
+    name: "app",
+    operation: "keys",
+  });
+  assert.deepEqual(matchSecretRoute("POST", "/clusters/demo/secrets/default/app/reveal"), {
+    clusterId: "demo",
+    namespace: "default",
+    name: "app",
+    operation: "reveal",
+  });
+  assert.equal(matchSecretRoute("GET", "/clusters/demo/secrets/default/app/reveal"), null);
 
   assert.equal(decodeBase64Strict("aGVsbG8=").toString("utf8"), "hello");
   assert.equal(decodeBase64Strict("").length, 0);
@@ -65,36 +49,41 @@ test("Secret parsing and metadata contract", () => {
     name: "app",
     operation: "keys",
   };
-  const payload = secretKeysPayload({
-    type: "kubernetes.io/tls",
-    immutable: true,
-    metadata: { namespace: "actual-ns", name: "actual-name" },
-    data: {
-      text: "aGVsbG8=",
-      binary: "AAEC",
-      invalid: "%%%",
-      empty: "",
+  const payload = secretKeysPayload(
+    {
+      type: "kubernetes.io/tls",
+      immutable: true,
+      metadata: { namespace: "actual-ns", name: "actual-name" },
+      data: {
+        text: "aGVsbG8=",
+        binary: "AAEC",
+        invalid: "%%%",
+        empty: "",
+      },
     },
-  }, target, 45);
+    target,
+    45,
+  );
 
   assert.equal(payload.type, "kubernetes.io/tls");
   assert.equal(payload.immutable, true);
   assert.equal(payload.namespace, "actual-ns");
   assert.equal(payload.name, "actual-name");
   assert.equal(payload.revealTimeoutSeconds, 45);
-  assert.deepEqual(payload.keys.map((item) => item.key), [
-    "binary",
-    "empty",
-    "invalid",
-    "text",
-  ]);
-  assert.deepEqual(payload.keys.find((item) => item.key === "text"), {
-    key: "text",
-    encodedBytes: 8,
-    decodedBytes: 5,
-    validBase64: true,
-    binary: false,
-  });
+  assert.deepEqual(
+    payload.keys.map((item) => item.key),
+    ["binary", "empty", "invalid", "text"],
+  );
+  assert.deepEqual(
+    payload.keys.find((item) => item.key === "text"),
+    {
+      key: "text",
+      encodedBytes: 8,
+      decodedBytes: 5,
+      validBase64: true,
+      binary: false,
+    },
+  );
   assert.equal(payload.keys.find((item) => item.key === "binary").binary, true);
   assert.equal(payload.keys.find((item) => item.key === "invalid").validBase64, false);
 });
@@ -165,15 +154,7 @@ test("Secret HTTP handler does not log or audit decoded values", async (t) => {
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    const handled = handleSecretRequest(
-      request,
-      response,
-      pathname,
-      configStore,
-      auditStore,
-      runner,
-      (message) => logs.push(message),
-    );
+    const handled = handleSecretRequest(request, response, pathname, configStore, auditStore, runner, (message) => logs.push(message));
 
     if (!handled) {
       response.statusCode = 404;
@@ -184,39 +165,24 @@ test("Secret HTTP handler does not log or audit decoded values", async (t) => {
   const baseUrl = await listen(server);
   t.after(async () => close(server));
 
-  const keysResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/app-secret/keys`,
-  );
+  const keysResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/app-secret/keys`);
   assert.equal(keysResponse.status, 200);
   const keys = await keysResponse.json();
   assert.equal(keys.name, "app-secret");
   assert.equal(keys.revealTimeoutSeconds, 45);
-  assert.deepEqual(keys.keys.map((item) => item.key), [
-    "binary",
-    "empty",
-    "invalid",
-    "text",
-  ]);
-  assert.deepEqual(commands.at(-1).args, [
-    "get",
-    "secret",
-    "app-secret",
-    "-n",
-    "default",
-    "-o",
-    "json",
-  ]);
+  assert.deepEqual(
+    keys.keys.map((item) => item.key),
+    ["binary", "empty", "invalid", "text"],
+  );
+  assert.deepEqual(commands.at(-1).args, ["get", "secret", "app-secret", "-n", "default", "-o", "json"]);
   assert.equal(commands.at(-1).timeoutSeconds, 30);
   assert.equal(commands.at(-1).maxOutputBytes, 8 * 1024 * 1024);
 
-  const revealResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "text" }),
-    },
-  );
+  const revealResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "text" }),
+  });
   assert.equal(revealResponse.status, 200);
   assert.deepEqual(await revealResponse.json(), {
     key: "text",
@@ -230,97 +196,63 @@ test("Secret HTTP handler does not log or audit decoded values", async (t) => {
   assert.equal(auditEvents.at(-1).extra.decodedBytes, Buffer.byteLength(secretValue));
 
   const commandCountBeforeCopy = commands.length;
-  const copyResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/app-secret/copy`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "text" }),
-    },
-  );
+  const copyResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/app-secret/copy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "text" }),
+  });
   assert.equal(copyResponse.status, 200);
   assert.deepEqual(await copyResponse.json(), { ok: true });
   assert.equal(commands.length, commandCountBeforeCopy);
   assert.equal(auditEvents.at(-1).action, "secret.copy");
 
-  const invalidBase64Response = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "invalid" }),
-    },
-  );
+  const invalidBase64Response = await fetch(`${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "invalid" }),
+  });
   assert.equal(invalidBase64Response.status, 400);
-  assert.equal(
-    (await invalidBase64Response.json()).detail.code,
-    "SECRET_VALUE_INVALID_BASE64",
-  );
+  assert.equal((await invalidBase64Response.json()).detail.code, "SECRET_VALUE_INVALID_BASE64");
   assert.equal(auditEvents.at(-1).status, "failed");
 
-  const missingKeyResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "missing" }),
-    },
-  );
+  const missingKeyResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "missing" }),
+  });
   assert.equal(missingKeyResponse.status, 404);
-  assert.equal(
-    (await missingKeyResponse.json()).detail.code,
-    "SECRET_KEY_NOT_FOUND",
-  );
+  assert.equal((await missingKeyResponse.json()).detail.code, "SECRET_KEY_NOT_FOUND");
 
-  const tooLargeResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/large-secret/reveal`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "huge" }),
-    },
-  );
+  const tooLargeResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/large-secret/reveal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "huge" }),
+  });
   assert.equal(tooLargeResponse.status, 413);
-  assert.equal(
-    (await tooLargeResponse.json()).detail.code,
-    "SECRET_VALUE_TOO_LARGE",
-  );
+  assert.equal((await tooLargeResponse.json()).detail.code, "SECRET_VALUE_TOO_LARGE");
   assert.equal(auditEvents.at(-1).status, "failed");
 
-  const invalidKeyResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "bad/key" }),
-    },
-  );
+  const invalidKeyResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "bad/key" }),
+  });
   assert.equal(invalidKeyResponse.status, 400);
   assert.equal((await invalidKeyResponse.json()).detail.code, "INVALID_IDENTIFIER");
 
-  const missingBodyResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    },
-  );
+  const missingBodyResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/app-secret/reveal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
   assert.equal(missingBodyResponse.status, 422);
   assert.equal((await missingBodyResponse.json()).detail.code, "INVALID_REQUEST");
 
-  const invalidNamespaceResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default%2Fevil/app-secret/keys`,
-  );
+  const invalidNamespaceResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default%2Fevil/app-secret/keys`);
   assert.equal(invalidNamespaceResponse.status, 400);
-  assert.equal(
-    (await invalidNamespaceResponse.json()).detail.code,
-    "INVALID_IDENTIFIER",
-  );
+  assert.equal((await invalidNamespaceResponse.json()).detail.code, "INVALID_IDENTIFIER");
 
-  const missingSecretResponse = await fetch(
-    `${baseUrl}/clusters/demo/secrets/default/missing-secret/keys`,
-  );
+  const missingSecretResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/missing-secret/keys`);
   assert.equal(missingSecretResponse.status, 502);
   assert.equal((await missingSecretResponse.json()).detail.code, "NOT_FOUND");
 

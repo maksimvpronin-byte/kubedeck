@@ -87,63 +87,21 @@ export function classifyProblem(kind: string, reason: string, message: string): 
   if (["crashloop", "back-off restarting", "backoff restarting"].some((token) => value.includes(token))) {
     return "crashLoop";
   }
-  if ([
-    "imagepull",
-    "errimagepull",
-    "image pull",
-    "pull image",
-    "pull access denied",
-    "manifest unknown",
-    "repository does not exist",
-  ].some((token) => value.includes(token))) {
+  if (["imagepull", "errimagepull", "image pull", "pull image", "pull access denied", "manifest unknown", "repository does not exist"].some((token) => value.includes(token))) {
     return "imagePull";
   }
-  if ([
-    "failedscheduling",
-    "unschedulable",
-    "0/",
-    "nodes are available",
-    "preemption",
-    "taint",
-    "toleration",
-    "affinity",
-    "insufficient",
-    "node(s) didn't match",
-  ].some((token) => value.includes(token))) {
+  if (
+    ["failedscheduling", "unschedulable", "0/", "nodes are available", "preemption", "taint", "toleration", "affinity", "insufficient", "node(s) didn't match"].some((token) => value.includes(token))
+  ) {
     return "scheduling";
   }
-  if ([
-    "failedmount",
-    "mountvolume",
-    "attachvolume",
-    "detachvolume",
-    "persistentvolume",
-    "storageclass",
-    "pvc",
-    "volume",
-    "multi-attach",
-  ].some((token) => value.includes(token))) {
+  if (["failedmount", "mountvolume", "attachvolume", "detachvolume", "persistentvolume", "storageclass", "pvc", "volume", "multi-attach"].some((token) => value.includes(token))) {
     return "storage";
   }
-  if ([
-    "nodepressure",
-    "node pressure",
-    "notready",
-    "node not ready",
-    "diskpressure",
-    "memorypressure",
-    "pidpressure",
-    "kubelet",
-  ].some((token) => value.includes(token))) {
+  if (["nodepressure", "node pressure", "notready", "node not ready", "diskpressure", "memorypressure", "pidpressure", "kubelet"].some((token) => value.includes(token))) {
     return "node";
   }
-  if ([
-    "readiness probe",
-    "liveness probe",
-    "startup probe",
-    "probe failed",
-    "unhealthy",
-  ].some((token) => value.includes(token))) {
+  if (["readiness probe", "liveness probe", "startup probe", "probe failed", "unhealthy"].some((token) => value.includes(token))) {
     return "probe";
   }
   if (["oomkilled", "restart", "restarts", "terminated"].some((token) => value.includes(token))) {
@@ -267,100 +225,47 @@ export function buildProblemRows(
     if (phase && !["Running", "Succeeded", "Completed"].includes(phase)) {
       const severity: ProblemSeverity = ["Failed", "Unknown"].includes(phase) ? "Critical" : "Warning";
       const category = phase === "Pending" ? "scheduling" : "podPhase";
-      results.push(problemRow(
-        `pod-phase-${uid}`,
-        severity,
-        "Pod",
-        "pods",
-        pod.namespace,
-        pod.name,
-        "Pod phase",
-        phase,
-        pod.createdAt,
-        { category },
-      ));
+      results.push(problemRow(`pod-phase-${uid}`, severity, "Pod", "pods", pod.namespace, pod.name, "Pod phase", phase, pod.createdAt, { category }));
     }
     if (restarts >= threshold) {
       const severity: ProblemSeverity = restarts >= threshold * 3 ? "Critical" : "Warning";
-      results.push(problemRow(
-        `pod-restarts-${uid}`,
-        severity,
-        "Pod",
-        "pods",
-        pod.namespace,
-        pod.name,
-        "Restart threshold",
-        `${restarts} restarts`,
-        pod.createdAt,
-        { category: "restarts" },
-      ));
+      results.push(problemRow(`pod-restarts-${uid}`, severity, "Pod", "pods", pod.namespace, pod.name, "Restart threshold", `${restarts} restarts`, pod.createdAt, { category: "restarts" }));
     }
     if (pod.reason || pod.statusMessage) {
       const reason = text(pod.reason) || "Pod status";
       const message = text(pod.statusMessage) || reason;
       const category = classifyProblem("Pod", reason, message);
-      results.push(problemRow(
-        `pod-status-${uid}`,
-        severityForCategory(category, "Warning"),
-        "Pod",
-        "pods",
-        pod.namespace,
-        pod.name,
-        reason,
-        message,
-        pod.createdAt,
-        { category },
-      ));
+      results.push(problemRow(`pod-status-${uid}`, severityForCategory(category, "Warning"), "Pod", "pods", pod.namespace, pod.name, reason, message, pod.createdAt, { category }));
     }
     if (pod.containerProblems) {
       const message = text(pod.containerProblems);
       const category = classifyProblem("Pod", "Container problem", message);
-      results.push(problemRow(
-        `pod-containers-${uid}`,
-        severityForCategory(category, "Warning"),
-        "Pod",
-        "pods",
-        pod.namespace,
-        pod.name,
-        "Container problem",
-        message,
-        pod.createdAt,
-        { category },
-      ));
+      results.push(problemRow(`pod-containers-${uid}`, severityForCategory(category, "Warning"), "Pod", "pods", pod.namespace, pod.name, "Container problem", message, pod.createdAt, { category }));
     }
     if (pod.conditions) {
       const message = text(pod.conditions);
       const category = classifyProblem("Pod", "Pod conditions", message);
-      results.push(problemRow(
-        `pod-conditions-${uid}`,
-        severityForCategory(category, "Warning"),
-        "Pod",
-        "pods",
-        pod.namespace,
-        pod.name,
-        "Pod conditions",
-        message,
-        pod.createdAt,
-        { category },
-      ));
+      results.push(problemRow(`pod-conditions-${uid}`, severityForCategory(category, "Warning"), "Pod", "pods", pod.namespace, pod.name, "Pod conditions", message, pod.createdAt, { category }));
     }
   }
 
   for (const deployment of deployments) {
     const [ready, desired] = parseReadyPair(deployment.ready);
     if (desired > 0 && ready < desired) {
-      results.push(problemRow(
-        `deployment-ready-${text(deployment.uid)}`,
-        "Warning",
-        "Deployment",
-        "deployments",
-        deployment.namespace,
-        deployment.name,
-        "Unavailable replicas",
-        text(deployment.ready),
-        deployment.createdAt,
-        { category: "deployment" },
-      ));
+      results.push(
+        problemRow(
+          `deployment-ready-${text(deployment.uid)}`,
+          "Warning",
+          "Deployment",
+          "deployments",
+          deployment.namespace,
+          deployment.name,
+          "Unavailable replicas",
+          text(deployment.ready),
+          deployment.createdAt,
+          { category: "deployment" },
+        ),
+      );
     }
   }
 
@@ -371,72 +276,43 @@ export function buildProblemRows(
     const category = classifyProblem("Event", reason, message);
     const targetKind = text(event.involvedKind);
     const targetNamespace = text(event.involvedNamespace) || text(event.namespace);
-    results.push(problemRow(
-      `event-${text(event.uid)}`,
-      severityForCategory(category, "Warning"),
-      "Event",
-      "events",
-      event.namespace,
-      event.name,
-      reason,
-      message,
-      text(event.lastTimestamp) || text(event.createdAt),
-      {
-        category,
-        targetKind,
-        targetResource: resourceForKind(targetKind),
-        targetNamespace,
-        targetName: event.involvedName,
-      },
-    ));
+    results.push(
+      problemRow(
+        `event-${text(event.uid)}`,
+        severityForCategory(category, "Warning"),
+        "Event",
+        "events",
+        event.namespace,
+        event.name,
+        reason,
+        message,
+        text(event.lastTimestamp) || text(event.createdAt),
+        {
+          category,
+          targetKind,
+          targetResource: resourceForKind(targetKind),
+          targetNamespace,
+          targetName: event.involvedName,
+        },
+      ),
+    );
   }
 
   for (const node of nodes) {
     if (text(node.status) !== "Ready") {
-      results.push(problemRow(
-        `node-ready-${text(node.uid)}`,
-        "Critical",
-        "Node",
-        "nodes",
-        "_cluster",
-        node.name,
-        "Node not ready",
-        text(node.status),
-        node.createdAt,
-        { category: "node" },
-      ));
+      results.push(problemRow(`node-ready-${text(node.uid)}`, "Critical", "Node", "nodes", "_cluster", node.name, "Node not ready", text(node.status), node.createdAt, { category: "node" }));
     }
     if (node.pressure) {
-      results.push(problemRow(
-        `node-pressure-${text(node.uid)}`,
-        "Critical",
-        "Node",
-        "nodes",
-        "_cluster",
-        node.name,
-        "Node pressure",
-        text(node.pressure),
-        node.createdAt,
-        { category: "node" },
-      ));
+      results.push(problemRow(`node-pressure-${text(node.uid)}`, "Critical", "Node", "nodes", "_cluster", node.name, "Node pressure", text(node.pressure), node.createdAt, { category: "node" }));
     }
   }
 
   for (const pvc of pvcs) {
     const status = text(pvc.status);
     if (status && status !== "Bound") {
-      results.push(problemRow(
-        `pvc-${text(pvc.uid)}`,
-        "Warning",
-        "PersistentVolumeClaim",
-        "persistentvolumeclaims",
-        pvc.namespace,
-        pvc.name,
-        "PVC not bound",
-        status,
-        pvc.createdAt,
-        { category: "storage" },
-      ));
+      results.push(
+        problemRow(`pvc-${text(pvc.uid)}`, "Warning", "PersistentVolumeClaim", "persistentvolumeclaims", pvc.namespace, pvc.name, "PVC not bound", status, pvc.createdAt, { category: "storage" }),
+      );
     }
   }
 
@@ -449,17 +325,10 @@ function countBy(items: ProblemRow[], key: "category" | "kind"): Record<string, 
     const value = text(item[key]) || "unknown";
     values.set(value, (values.get(value) ?? 0) + 1);
   }
-  return Object.fromEntries(
-    [...values.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])),
-  );
+  return Object.fromEntries([...values.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])));
 }
 
-export function summarizeProblems(
-  items: ProblemRow[],
-  sources: ProblemSourceRows,
-  errors: Array<Record<string, unknown>>,
-  now: () => Date = () => new Date(),
-): ProblemSummary {
+export function summarizeProblems(items: ProblemRow[], sources: ProblemSourceRows, errors: Array<Record<string, unknown>>, now: () => Date = () => new Date()): ProblemSummary {
   return {
     total: items.length,
     critical: items.filter((item) => item.severity === "Critical").length,

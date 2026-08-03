@@ -5,11 +5,7 @@ import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import {
-  buildProblemRows,
-  summarizeProblems,
-  type ProblemSourceRows,
-} from "../problems/problemEngine";
+import { buildProblemRows, summarizeProblems, type ProblemSourceRows } from "../problems/problemEngine";
 import { normalizeResourceItems } from "../resources/normalizers";
 import { RequestValidationError, validateIdentifier } from "../validation";
 
@@ -37,11 +33,7 @@ function decodePathPart(value: string, field: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    throw new RequestValidationError(
-      400,
-      "INVALID_IDENTIFIER",
-      `${field} is not valid URL encoding`,
-    );
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
   }
 }
 
@@ -51,19 +43,12 @@ function asItems(value: unknown): unknown[] {
   return Array.isArray(items) ? items : [];
 }
 
-export function matchProblemsRoute(
-  method: string | undefined,
-  pathname: string,
-): ProblemsTarget | null {
+export function matchProblemsRoute(method: string | undefined, pathname: string): ProblemsTarget | null {
   if (method !== "GET") return null;
   const match = pathname.match(/^\/clusters\/([^/]+)\/problems$/);
   if (!match) return null;
   return {
-    clusterId: validateIdentifier(
-      decodePathPart(match[1], "cluster_id"),
-      "cluster_id",
-      128,
-    ),
+    clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
   };
 }
 
@@ -74,21 +59,8 @@ function resourceArgs(source: ProblemSourceDefinition): string[] {
   return args;
 }
 
-async function loadProblemSource(
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-  clusterId: string,
-  source: ProblemSourceDefinition,
-): Promise<Array<Record<string, unknown>>> {
-  const data = await runner.runJson(
-    clusterCommand(
-      configStore,
-      clusterId,
-      resourceArgs(source),
-      RESOURCE_TIMEOUT_SECONDS,
-      RESOURCE_MAX_OUTPUT_BYTES,
-    ),
-  );
+async function loadProblemSource(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, source: ProblemSourceDefinition): Promise<Array<Record<string, unknown>>> {
+  const data = await runner.runJson(clusterCommand(configStore, clusterId, resourceArgs(source), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES));
   return normalizeResourceItems(source.resource, asItems(data));
 }
 
@@ -104,10 +76,7 @@ export async function buildProblemsResponse(
   const config = configStore.load();
   configStore.getCluster(clusterId, config);
   const configuredThreshold = Number(config.settings.restartProblemThreshold ?? 3);
-  const restartThreshold = Math.max(
-    1,
-    Number.isFinite(configuredThreshold) ? Math.trunc(configuredThreshold) : 3,
-  );
+  const restartThreshold = Math.max(1, Number.isFinite(configuredThreshold) ? Math.trunc(configuredThreshold) : 3);
 
   const results = await Promise.all(
     PROBLEM_SOURCES.map(async (source) => {
@@ -139,14 +108,7 @@ export async function buildProblemsResponse(
     if (result.error) errors.push(result.error);
   }
 
-  const items = buildProblemRows(
-    sources.pods ?? [],
-    sources.deployments ?? [],
-    sources.events ?? [],
-    sources.nodes ?? [],
-    sources.persistentvolumeclaims ?? [],
-    restartThreshold,
-  );
+  const items = buildProblemRows(sources.pods ?? [], sources.deployments ?? [], sources.events ?? [], sources.nodes ?? [], sources.persistentvolumeclaims ?? [], restartThreshold);
 
   return {
     items,
@@ -155,11 +117,7 @@ export async function buildProblemsResponse(
   };
 }
 
-function writeRouteError(
-  response: ServerResponse,
-  error: unknown,
-  log: (message: string) => void,
-): void {
+function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
   if (error instanceof RequestValidationError) {
     writeError(response, error.statusCode, error.code, error.message);
     return;
@@ -172,25 +130,11 @@ function writeRouteError(
     writeKubectlError(response, error);
     return;
   }
-  log(
-    `gateway problems failed: ${error instanceof Error ? error.message : String(error)}`,
-  );
-  writeError(
-    response,
-    500,
-    "PROBLEMS_FAILED",
-    "Unable to build Kubernetes problems dashboard",
-  );
+  log(`gateway problems failed: ${error instanceof Error ? error.message : String(error)}`);
+  writeError(response, 500, "PROBLEMS_FAILED", "Unable to build Kubernetes problems dashboard");
 }
 
-export function handleProblemsRequest(
-  request: IncomingMessage,
-  response: ServerResponse,
-  pathname: string,
-  configStore: ConfigStore,
-  runner: KubectlRunner,
-  log: (message: string) => void,
-): boolean {
+export function handleProblemsRequest(request: IncomingMessage, response: ServerResponse, pathname: string, configStore: ConfigStore, runner: KubectlRunner, log: (message: string) => void): boolean {
   try {
     const target = matchProblemsRoute(request.method, pathname);
     if (!target) return false;
