@@ -12,7 +12,16 @@ test("Secret summary exposes metadata without values", () => {
   assert.equal(row.keyNames, "password, token");
   assert.doesNotMatch(JSON.stringify(row), /c2VjcmV0/);
 });
-const { applyNamespaceMetrics, applyNodeMetrics, applyPodMetrics, parseNodeMetrics, parsePodMetrics } = require("../dist/main/backend/resources/metrics.js");
+const {
+  applyNamespaceMetrics,
+  applyNodeDiskMetrics,
+  applyNodeMetrics,
+  applyPodMetrics,
+  clearNodeDiskMetricsCache,
+  loadNodeDiskMetrics,
+  parseNodeMetrics,
+  parsePodMetrics,
+} = require("../dist/main/backend/resources/metrics.js");
 
 test("node metrics preserve CPU and memory usage for used/free calculations", () => {
   const metrics = parseNodeMetrics("worker-1 125m 6% 768Mi 39%\nworker-2 1 50% 2Gi 75%\n");
@@ -47,6 +56,63 @@ test("node list metrics use one top command regardless of node count", async () 
     commands.some((command) => command.args.some((arg) => arg.includes("/stats/summary"))),
     false,
   );
+});
+
+test("node disk metrics are cached per node for a TTL, then refetched, and can be cleared", async () => {
+  const clusterId = "cluster-disk-cache";
+  clearNodeDiskMetricsCache(clusterId);
+  let clock = 2_000_000_000_000;
+  let calls = 0;
+  const runner = {
+    async runJson(command) {
+      calls += 1;
+      const match = command.args[1].match(/nodes\/([^/]+)\/proxy/);
+      return { node: { fs: { usedBytes: "1000", availableBytes: "9000", capacityBytes: "10000" } }, name: match[1] };
+    },
+  };
+  const configStore = fakeConfigStore();
+
+  const first = await loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock);
+  assert.equal(calls, 1);
+  assert.equal(first.diskUsagePercent, 10);
+
+  const second = await loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock);
+  assert.equal(calls, 1, "second lookup within the TTL must reuse the cached value");
+  assert.equal(second.diskUsagePercent, 10);
+
+  clock += 31_000;
+  await loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock);
+  assert.equal(calls, 2, "lookup past the TTL must refetch");
+
+  clearNodeDiskMetricsCache(clusterId);
+  await loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock);
+  assert.equal(calls, 3, "clearNodeDiskMetricsCache must force a refetch on the next lookup");
+});
+
+test("applyNodeDiskMetrics reuses the per-node cache across a bulk overview poll", async () => {
+  const clusterId = "cluster-disk-cache-bulk";
+  clearNodeDiskMetricsCache(clusterId);
+  let clock = 3_000_000_000_000;
+  let calls = 0;
+  const runner = {
+    async runJson(command) {
+      calls += 1;
+      const match = command.args[1].match(/nodes\/([^/]+)\/proxy/);
+      return { node: { fs: { usedBytes: "1000", availableBytes: "9000", capacityBytes: "10000" } }, name: match[1] };
+    },
+  };
+  const rows = [
+    { uid: "n1", name: "worker-1" },
+    { uid: "n2", name: "worker-2" },
+  ];
+  const configStore = fakeConfigStore();
+
+  await applyNodeDiskMetrics(configStore, runner, clusterId, rows, () => clock);
+  assert.equal(calls, 2);
+  assert.equal(rows[0].diskUsagePercent, 10);
+
+  await applyNodeDiskMetrics(configStore, runner, clusterId, rows, () => clock);
+  assert.equal(calls, 2, "a second poll within the TTL must not spawn new kubectl calls per node");
 });
 
 test("namespace usage aggregates quota without double-counting ephemeral storage", async () => {

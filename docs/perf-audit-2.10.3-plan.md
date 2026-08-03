@@ -199,17 +199,37 @@ donut-диаграмме capacity.
 
 ### Задачи
 
-- [ ] Завести короткий TTL-кэш (например 30-60s, по аналогии с
+- [x] Завести короткий TTL-кэш (например 30-60s, по аналогии с
   `resourceSnapshotCache`/`discoveryCache`) для disk-metrics по ноде в
-  `resources/metrics.ts` или на уровне `routes/overview.ts`.
-- [ ] Не кэшировать дольше, чем имеет смысл для "живого" отображения
+  `resources/metrics.ts` или на уровне `routes/overview.ts`. Реализовано в
+  `resources/metrics.ts`: `nodeDiskCache` (30s TTL), ключ
+  `clusterId + nodeName`, читается/пишется в `loadNodeDiskMetrics()`. Кэш
+  общий для обоих потребителей — `applyNodeDiskMetrics()` (bulk-путь из
+  `routes/overview.ts`) и прямого вызова `loadNodeDiskMetrics()` из
+  `routes/resourceDetails.ts` (`operation === "metrics"`, срабатывает при
+  развороте диска конкретной ноды в UI) — второй теперь тоже получает
+  выгоду от кэша, если попадает в то же окно, что и последний overview-poll.
+  Добавлен `clearNodeDiskMetricsCache(clusterId?)`, подключён в
+  `gateway.ts` рядом с `clearResourceDefinitionCache`/`resourceCache.clear`
+  при удалении кластера — иначе кэш держал бы записи per-node вечно после
+  удаления кластера.
+- [x] Не кэшировать дольше, чем имеет смысл для "живого" отображения
   capacity — согласовать TTL с ожиданиями UI (сейчас обновляется каждые
-  10s, кэш не должен делать эти обновления бессмысленными).
+  10s, кэш не должен делать эти обновления бессмысленными). Выбран TTL 30s
+  (3 × стандартный 10s poll-интервал) — заметно сокращает число
+  kubectl-подпроцессов, но capacity всё ещё обновляется несколько раз в
+  минуту, а не раз в час.
 
 ### Контракты
 
-- [ ] Capacity-панель по-прежнему обновляет disk usage при развороте
-  дискового пространства ноды, просто не чаще TTL.
+- [x] Capacity-панель по-прежнему обновляет disk usage при развороте
+  дискового пространства ноды, просто не чаще TTL. Добавлены тесты в
+  `resource-lists.contract.test.cjs`: "node disk metrics are cached per
+  node for a TTL, then refetched, and can be cleared" (с инжектируемыми
+  часами — проверяет hit/miss/expiry/clear) и "applyNodeDiskMetrics reuses
+  the per-node cache across a bulk overview poll" (второй poll в течение
+  TTL не делает новых kubectl-вызовов). Полный `test:gateway` (102 теста)
+  проходит.
 
 ### Документация
 

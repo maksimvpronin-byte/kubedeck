@@ -25,6 +25,7 @@ import { writeKubectlStatus } from "./routes/kubectl";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import { handleResourceDetailsRequest } from "./routes/resourceDetails";
 import { clearResourceDefinitionCache, handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscoveryEvents";
+import { clearNodeDiskMetricsCache } from "./resources/metrics";
 import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
 import { handleYamlRequest } from "./routes/yaml";
 import { handleSecretRequest } from "./routes/secrets";
@@ -248,6 +249,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
       ]);
       services.resourceCache.clear(clusterId, "cluster.remove");
       clearResourceDefinitionCache(clusterId);
+      clearNodeDiskMetricsCache(clusterId);
       await writeRemoveCluster(response, clusterId, services.configStore, services.auditStore);
     })().catch((error) => {
       options.log(`gateway cluster remove failed: ${String(error)}`);
