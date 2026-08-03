@@ -71,29 +71,51 @@ export function matchDeploymentLogsPath(pathname: string): DeploymentLogTarget |
   };
 }
 
-export function selectorMatches(labelsValue: unknown, selectorValue: unknown): boolean {
-  const labels = asObject(labelsValue);
-  const selector = asObject(selectorValue);
-  const matchLabels = asObject(selector.matchLabels);
+interface CompiledMatchExpression {
+  key: string;
+  operator: string;
+  values: Set<string>;
+}
 
-  for (const [key, expected] of Object.entries(matchLabels)) {
+interface CompiledSelector {
+  matchLabels: JsonObject;
+  expressions: CompiledMatchExpression[];
+}
+
+function compileSelector(selectorValue: unknown): CompiledSelector {
+  const selector = asObject(selectorValue);
+  return {
+    matchLabels: asObject(selector.matchLabels),
+    expressions: asObjectArray(selector.matchExpressions).map((expression) => ({
+      key: asString(expression.key),
+      operator: asString(expression.operator),
+      values: new Set(Array.isArray(expression.values) ? expression.values.map((value) => String(value)) : []),
+    })),
+  };
+}
+
+function matchesCompiledSelector(labelsValue: unknown, selector: CompiledSelector): boolean {
+  const labels = asObject(labelsValue);
+
+  for (const [key, expected] of Object.entries(selector.matchLabels)) {
     if (String(labels[key] ?? "") !== String(expected ?? "")) return false;
   }
 
-  for (const expression of asObjectArray(selector.matchExpressions)) {
-    const key = asString(expression.key);
-    const operator = asString(expression.operator);
-    const values = new Set(Array.isArray(expression.values) ? expression.values.map((value) => String(value)) : []);
-    const hasKey = Object.prototype.hasOwnProperty.call(labels, key);
-    const actual = String(labels[key] ?? "");
+  for (const expression of selector.expressions) {
+    const hasKey = Object.prototype.hasOwnProperty.call(labels, expression.key);
+    const actual = String(labels[expression.key] ?? "");
 
-    if (operator === "In" && (!hasKey || !values.has(actual))) return false;
-    if (operator === "NotIn" && hasKey && values.has(actual)) return false;
-    if (operator === "Exists" && !hasKey) return false;
-    if (operator === "DoesNotExist" && hasKey) return false;
+    if (expression.operator === "In" && (!hasKey || !expression.values.has(actual))) return false;
+    if (expression.operator === "NotIn" && hasKey && expression.values.has(actual)) return false;
+    if (expression.operator === "Exists" && !hasKey) return false;
+    if (expression.operator === "DoesNotExist" && hasKey) return false;
   }
 
   return true;
+}
+
+export function selectorMatches(labelsValue: unknown, selectorValue: unknown): boolean {
+  return matchesCompiledSelector(labelsValue, compileSelector(selectorValue));
 }
 
 function deploymentSelector(deploymentValue: unknown): JsonObject {
@@ -109,13 +131,13 @@ function deploymentSelector(deploymentValue: unknown): JsonObject {
 }
 
 export function matchingDeploymentPods(deploymentValue: unknown, podListValue: unknown): DeploymentLogPod[] {
-  const selector = deploymentSelector(deploymentValue);
+  const selector = compileSelector(deploymentSelector(deploymentValue));
   const podList = asObject(podListValue);
   const pods: DeploymentLogPod[] = [];
 
   for (const item of asObjectArray(podList.items)) {
     const metadata = asObject(item.metadata);
-    if (!selectorMatches(metadata.labels, selector)) continue;
+    if (!matchesCompiledSelector(metadata.labels, selector)) continue;
 
     const podSpec = asObject(item.spec);
     const status = asObject(item.status);

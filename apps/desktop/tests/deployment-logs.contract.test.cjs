@@ -94,6 +94,41 @@ test("deployment log path, selector and command contract", () => {
   );
 });
 
+test("selector matching covers In, NotIn, Exists and DoesNotExist across many pods", () => {
+  const selector = {
+    matchLabels: { app: "web" },
+    matchExpressions: [
+      { key: "track", operator: "In", values: ["stable", "canary"] },
+      { key: "shard", operator: "NotIn", values: ["blocked"] },
+      { key: "tier", operator: "Exists" },
+      { key: "retired", operator: "DoesNotExist" },
+    ],
+  };
+  const deployment = { metadata: { name: "web" }, spec: { selector } };
+
+  assert.equal(selectorMatches({ app: "web", track: "stable", shard: "a", tier: "front" }, selector), true);
+  assert.equal(selectorMatches({ app: "web", track: "old", shard: "a", tier: "front" }, selector), false, "track not in In-set must fail");
+  assert.equal(selectorMatches({ app: "web", track: "stable", shard: "blocked", tier: "front" }, selector), false, "shard in NotIn-set must fail");
+  assert.equal(selectorMatches({ app: "web", track: "stable", shard: "a" }, selector), false, "missing tier (Exists) must fail");
+  assert.equal(selectorMatches({ app: "web", track: "stable", shard: "a", tier: "front", retired: "true" }, selector), false, "present retired (DoesNotExist) must fail");
+
+  const pods = matchingDeploymentPods(deployment, {
+    items: [
+      demoPod("keep-1", "2026-06-21T10:00:00Z", { app: "web", track: "canary", shard: "a", tier: "back" }),
+      demoPod("drop-track", "2026-06-21T10:00:01Z", { app: "web", track: "beta", shard: "a", tier: "back" }),
+      demoPod("drop-shard", "2026-06-21T10:00:02Z", { app: "web", track: "stable", shard: "blocked", tier: "back" }),
+      demoPod("drop-no-tier", "2026-06-21T10:00:03Z", { app: "web", track: "stable", shard: "a" }),
+      demoPod("drop-retired", "2026-06-21T10:00:04Z", { app: "web", track: "stable", shard: "a", tier: "back", retired: "true" }),
+      demoPod("keep-2", "2026-06-21T10:00:05Z", { app: "web", track: "stable", shard: "a", tier: "front" }),
+    ],
+  });
+
+  assert.deepEqual(
+    pods.map((pod) => pod.name),
+    ["keep-1", "keep-2"],
+  );
+});
+
 test("deployment log targets and combined logs HTTP contract", async (t) => {
   const commands = [];
   let activeLogs = 0;

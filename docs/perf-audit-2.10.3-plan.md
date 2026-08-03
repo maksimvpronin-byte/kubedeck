@@ -250,15 +250,26 @@ donut-диаграмме capacity.
 
 ### Задачи
 
-- [ ] Вынести построение `Set` из `matchExpressions` селектора наружу цикла
+- [x] Вынести построение `Set` из `matchExpressions` селектора наружу цикла
   по подам (посчитать один раз в `matchingDeploymentPods()`, передать
   готовую структуру в `selectorMatches()` или инлайнить один проход).
+  Реализовано: новый `compileSelector()` строит `matchLabels` +
+  `matchExpressions`-с-предпостроенными-`Set` **один раз**;
+  `matchesCompiledSelector()` использует готовую структуру внутри цикла по
+  подам в `matchingDeploymentPods()`. Публичный `selectorMatches()` остался
+  с прежней сигнатурой/поведением (тонкая обёртка: `compileSelector` +
+  `matchesCompiledSelector` за один вызов) — используется как раньше в
+  юнит-тестах.
 
 ### Контракты
 
-- [ ] `matchingDeploymentPods`/`selectorMatches` дают тот же список подов
+- [x] `matchingDeploymentPods`/`selectorMatches` дают тот же список подов
   для тех же входных данных — юнит-тест на `In`/`NotIn`/`Exists`/
-  `DoesNotExist` сценарии до и после.
+  `DoesNotExist` сценарии до и после. Добавлен тест "selector matching
+  covers In, NotIn, Exists and DoesNotExist across many pods" со всеми 4
+  операторами в одном селекторе и 6 подами (2 проходят, 4 отсеиваются по
+  разным причинам) — `deployment-logs.contract.test.cjs` (3 теста), полный
+  `test:gateway` (103 теста) проходят.
 
 ### Документация
 
