@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const fs = require("node:fs");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -187,7 +188,15 @@ function verifyLineEndingPolicy() {
   ok("Cross-platform line-ending policy");
 }
 
-function verifyReleasePayload(releaseDir, artifact, version) {
+function verifyMacSignature(appBundle) {
+  const result = spawnSync("codesign", ["-dv", "--verbose=4", appBundle], { encoding: "utf8" });
+  assert(result.status === 0, `codesign could not inspect ${appBundle}: ${result.stderr || result.error}`);
+  const info = `${result.stdout}${result.stderr}`;
+  assert(/Authority=Developer ID Application/.test(info), `macOS app is not signed with a Developer ID Application identity: ${appBundle}`);
+  assert(!/adhoc/i.test(info), `macOS app is only ad-hoc signed: ${appBundle}`);
+}
+
+function verifyReleasePayload(releaseDir, artifact, version, signed) {
   if (!releaseDir) return;
   const resolved = path.resolve(root, releaseDir);
   assert(fs.existsSync(resolved), `Release directory does not exist: ${resolved}`);
@@ -207,6 +216,9 @@ function verifyReleasePayload(releaseDir, artifact, version) {
     );
     const helper = path.join(resolved, "mac-arm64/KubeDeck.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper");
     assert(fs.existsSync(helper) && (fs.statSync(helper).mode & 0o111) !== 0, "Packaged macOS spawn-helper is missing or not executable");
+    if (signed) {
+      verifyMacSignature(path.join(resolved, "mac-arm64/KubeDeck.app"));
+    }
   }
   if (artifact === "linux") {
     // electron-builder names AppImage artifacts with the Linux arch spelling
@@ -231,7 +243,7 @@ try {
   verifyLicensing();
   verifyArtifactVersioning(version);
   verifyLineEndingPolicy();
-  verifyReleasePayload(argument("--release-dir"), argument("--artifact"), version);
+  verifyReleasePayload(argument("--release-dir"), argument("--artifact"), version, args.includes("--signed"));
   process.stdout.write("Release verification passed.\n");
 } catch (error) {
   process.stderr.write(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`);

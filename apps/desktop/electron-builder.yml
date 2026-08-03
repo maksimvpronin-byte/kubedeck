@@ -29,10 +29,11 @@ portable:
 
 mac:
   icon: assets/icon.icns
-  identity: null
   category: public.app-category.developer-tools
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
+  entitlements: assets/entitlements.mac.plist
+  entitlementsInherit: assets/entitlements.mac.plist
   target:
     - target: dmg
       arch:

@@ -91,8 +91,18 @@ SPAWN_HELPER="$ROOT/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper"
 [[ -f "$SPAWN_HELPER" ]] || fail "node-pty spawn-helper is missing: $SPAWN_HELPER"
 chmod 755 "$SPAWN_HELPER"
 
-step "Packaging unsigned macOS arm64 DMG and ZIP"
-export CSC_IDENTITY_AUTO_DISCOVERY=false
+SIGNING_ENABLED=false
+if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
+  [[ -n "${APPLE_ID:-}" ]] || fail "APPLE_TEAM_ID is set but APPLE_ID is not. Export APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID together, or unset all three for an unsigned build. See docs/macos-signing.md."
+  [[ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]] || fail "APPLE_TEAM_ID is set but APPLE_APP_SPECIFIC_PASSWORD is not. Export APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID together, or unset all three for an unsigned build. See docs/macos-signing.md."
+  SIGNING_ENABLED=true
+  step "Packaging and signing macOS arm64 DMG and ZIP"
+  printf 'Notarization team: %s\n' "$APPLE_TEAM_ID"
+  security find-identity -v -p codesigning || fail "No codesigning identity found in the login keychain. Import a Developer ID Application certificate first. See docs/macos-signing.md."
+else
+  step "Packaging unsigned macOS arm64 DMG and ZIP"
+  export CSC_IDENTITY_AUTO_DISCOVERY=false
+fi
 export npm_config_fetch_retries=5
 export npm_config_fetch_retry_mintimeout=20000
 export npm_config_fetch_retry_maxtimeout=120000
@@ -119,9 +129,23 @@ PACKAGED_SPAWN_HELPER="$RELEASE_DIR/mac-arm64/KubeDeck.app/Contents/Resources/ap
 [[ -x "$PACKAGED_SPAWN_HELPER" ]] ||
   fail "Packaged node-pty spawn-helper is not executable: $PACKAGED_SPAWN_HELPER"
 
-node "$ROOT/scripts/verify-release.cjs" --release-dir "$RELEASE_DIR" --artifact mac
+VERIFY_ARGS=(--release-dir "$RELEASE_DIR" --artifact mac)
+if [[ "$SIGNING_ENABLED" == "true" ]]; then
+  step "Verifying code signature and notarization"
+  APP_BUNDLE="$RELEASE_DIR/mac-arm64/KubeDeck.app"
+  codesign --verify --deep --strict "$APP_BUNDLE" || fail "codesign verification failed for $APP_BUNDLE"
+  spctl -a -t exec -vv "$APP_BUNDLE" || fail "Gatekeeper assessment failed for $APP_BUNDLE"
+  xcrun stapler validate "$DMG" || fail "Notarization ticket is not stapled to $DMG"
+  VERIFY_ARGS+=(--signed)
+fi
+
+node "$ROOT/scripts/verify-release.cjs" "${VERIFY_ARGS[@]}"
 
 printf '\nBuild completed successfully.\n'
 printf 'DMG: %s\n' "$DMG"
 printf 'ZIP: %s\n' "$ZIP"
-printf '\nThe build is unsigned. On first launch use Control-click -> Open in Finder if macOS blocks it.\n'
+if [[ "$SIGNING_ENABLED" == "true" ]]; then
+  printf '\nThe build is signed and notarized.\n'
+else
+  printf '\nThe build is unsigned. On first launch use Control-click -> Open in Finder if macOS blocks it.\n'
+fi

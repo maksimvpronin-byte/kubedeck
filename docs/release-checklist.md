@@ -29,6 +29,10 @@ npm.cmd run package:win
 npm run package:mac
 ```
 
+По умолчанию сборка не подписана. Для подписи и notarization см.
+[docs/macos-signing.md](./macos-signing.md) — это опциональный шаг, требующий
+собственного Apple Developer Program membership.
+
 Не выполнять dependency upgrades, `npm audit fix` или lockfile refresh как побочный эффект релиза.
 
 ## Release payload

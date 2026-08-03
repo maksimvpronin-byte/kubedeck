@@ -29,6 +29,12 @@ kubectl.exe.sha256
 *.dmg
 *.AppImage
 
+# Code signing material — certificates are imported into the login keychain,
+# never committed
+*.p12
+*.cer
+*.mobileprovision
+
 # Local/generated archives
 *.zip
 
