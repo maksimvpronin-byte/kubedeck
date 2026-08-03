@@ -214,6 +214,70 @@ test("Node WatchManager deduplicates, invalidates matching cache, publishes even
   await manager.close();
 });
 
+test("Node WatchManager removes explicitly stopped sessions from status() immediately", async () => {
+  const state = { commands: [], children: [], kills: [] };
+  const manager = new WatchManager(() => {}, { clearResource: () => 0 }, new ResourceWatchEventHub(), createWatchSpawn(state));
+  const started = await manager.start(
+    createKubectlCommand({
+      clusterId: "cluster-a",
+      kubectlPath: "kubectl",
+      args: ["get", "pods", "-o", "json", "--watch-only=true", "--output-watch-events=true", "-A"],
+      timeoutSeconds: 0,
+      maxOutputBytes: 0,
+    }),
+    "pods",
+    "all",
+  );
+  assert.equal(manager.status().total, 1);
+
+  const stopped = await manager.stop(started.id);
+  assert.equal(stopped.watch.status, "stopped");
+
+  const statusAfterStop = manager.status();
+  assert.equal(statusAfterStop.total, 0);
+  assert.deepEqual(
+    statusAfterStop.watches.map((watch) => watch.id),
+    [],
+  );
+  await manager.close();
+});
+
+test("Node WatchManager sweeps crashed sessions from status() only after the retention window", async () => {
+  const state = { commands: [], children: [], kills: [] };
+  let clock = 1_000_000_000_000;
+  const manager = new WatchManager(
+    () => {},
+    { clearResource: () => 0 },
+    new ResourceWatchEventHub(),
+    createWatchSpawn(state),
+    () => clock,
+  );
+  await manager.start(
+    createKubectlCommand({
+      clusterId: "cluster-a",
+      kubectlPath: "kubectl",
+      args: ["get", "pods", "-o", "json", "--watch-only=true", "--output-watch-events=true", "-A"],
+      timeoutSeconds: 0,
+      maxOutputBytes: 0,
+    }),
+    "pods",
+    "all",
+  );
+
+  state.children[0].exitCode = 1;
+  state.children[0].emit("close", 1);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const statusRightAfterCrash = manager.status();
+  assert.equal(statusRightAfterCrash.total, 1);
+  assert.equal(statusRightAfterCrash.watches[0].status, "failed");
+  assert.equal(manager.activeCount(), 0);
+
+  clock += 6 * 60 * 1000;
+  assert.equal(manager.status().total, 0);
+  await manager.close();
+});
+
 test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-watch-"));
   const source = path.join(appDataRoot, "cluster.yaml");

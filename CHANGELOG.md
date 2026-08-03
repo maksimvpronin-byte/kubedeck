@@ -1,3 +1,7 @@
+## 2.10.3 - Performance and memory-leak fixes
+
+- Fixed a memory leak: `WatchManager` never removed stopped or crashed resource-watch sessions from its internal session map, so `this.sessions` grew without bound over a long-running session as users switched between resource tabs, namespaces and clusters (each switch starts a new kubectl watch without the renderer ever calling `stop()` on the old one). Explicitly stopped sessions are now removed immediately; sessions that end because the underlying process exited on its own are kept visible in `GET /watches/status` for 5 minutes (so a crash reason can still be inspected) and then swept.
+
 ## 2.10.2 - Internal cleanup: shared HTTP error handling and terminal helpers
 
 - Fixed a rounding/unit-support mismatch between two independent CPU/memory quantity parsers: pod resource requests/limits (`resources/normalizers.ts`) now support `Pi`/`Ei` suffixes and truncate the same way node/pod metrics already did, so the same value no longer rounds differently depending on which code path produced it.

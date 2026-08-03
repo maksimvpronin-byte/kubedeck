@@ -11,6 +11,7 @@ import type { ResourceWatchEventHub } from "./eventHub";
 const WATCH_TAIL_LINES = 20;
 const WATCH_TAIL_LINE_CHARS = 1000;
 const WATCH_STOP_TIMEOUT_MS = 3000;
+const WATCH_TERMINAL_RETENTION_SECONDS = 5 * 60;
 
 export type WatchStatus = "running" | "stopping" | "stopped" | "failed";
 
@@ -311,7 +312,17 @@ export class WatchManager {
     });
   }
 
+  private sweepTerminalSessions(): void {
+    const cutoff = this.now() / 1000 - WATCH_TERMINAL_RETENTION_SECONDS;
+    for (const [id, session] of this.sessions) {
+      if ((session.status === "stopped" || session.status === "failed") && session.updatedAt < cutoff) {
+        this.sessions.delete(id);
+      }
+    }
+  }
+
   status(): WatchManagerStatus {
+    this.sweepTerminalSessions();
     const watches = [...this.sessions.values()].map((session) => this.view(session)).sort((a, b) => b.startedAt - a.startedAt);
     return {
       enabled: true,
@@ -386,6 +397,7 @@ export class WatchManager {
       session.updatedAt = this.now() / 1000;
     }
     this.runningByKey.delete(normalizedKey(session.key));
+    this.sessions.delete(session.id);
   }
 
   async close(): Promise<void> {

@@ -42,37 +42,50 @@ namespace) `this.sessions` растёт без ограничения, кажд�
 
 ### Задачи
 
-- [ ] В `stopSession()` (после перевода в `stopped`/`failed` и ожидания
+- [x] В `stopSession()` (после перевода в `stopped`/`failed` и ожидания
   `closePromise`) удалять сессию из `this.sessions` — но не раньше, чем
   клиент получит финальный статус (проверить, не читает ли что-то ещё
   `sessions.get(id)` после stop — например, финальный `view()` в `stop()`,
-  строка 342, должен успеть отработать до удаления).
-- [ ] В обработчике `child.on("close", …)` (248-263) — если сессия уже была
+  строка 342, должен успеть отработать до удаления). Реализовано:
+  `this.sessions.delete(session.id)` добавлен в конец `stopSession()`,
+  после `runningByKey.delete(...)` — `stop()`/`stopAll()`/`stopCluster()`
+  всё ещё читают финальный `view()` из локальной ссылки на `session`,
+  удаление из `Map` на это не влияет.
+- [x] В обработчике `child.on("close", …)` (248-263) — если сессия уже была
   помечена `stoppedByUser` или её `stop()` никто не вызовет (процесс упал
   сам), решить: удалять сразу или оставлять до следующего опроса `status()`
   с TTL очистки. Предпочтительно — простой TTL-based sweep (например, при
   каждом вызове `status()` удалять записи в терминальном статусе старше N
   минут), чтобы не ломать сценарий "посмотреть, почему watch упал" сразу
-  после падения.
-- [ ] Проверить `activeCount()` (327) и `status()` (315) — их семантика не
+  после падения. Реализовано: `sweepTerminalSessions()` вызывается в начале
+  `status()`, удаляет `stopped`/`failed` записи старше
+  `WATCH_TERMINAL_RETENTION_SECONDS` (5 минут).
+- [x] Проверить `activeCount()` (327) и `status()` (315) — их семантика не
   должна измениться для активных (`running`/`stopping`) сессий, только
-  переставшие расти для завершённых.
+  переставшие расти для завершённых. Подтверждено: `activeCount()` не
+  тронут, фильтрует только `running`/`stopping`; изменений в его логике нет.
 
 ### Контракты
 
-- [ ] После остановки нескольких watch подряд `GET /migration/status` и
+- [x] После остановки нескольких watch подряд `GET /migration/status` и
   `GET /watches/status` не показывают бесконечно растущий список
   завершённых записей.
-- [ ] `npm --workspace apps/desktop run test:gateway` (`watch.contract.test.cjs`
+- [x] `npm --workspace apps/desktop run test:gateway` (`watch.contract.test.cjs`
   и смежные) проходит; добавить тест на то, что после `stop`/`stopAll` и
-  последующего TTL/sweep сессия пропадает из `status()`.
+  последующего TTL/sweep сессия пропадает из `status()`. Добавлены два новых
+  теста: "Node WatchManager removes explicitly stopped sessions from
+  status() immediately" и "Node WatchManager sweeps crashed sessions from
+  status() only after the retention window" (последний с инжектируемыми
+  часами `now()`, симулирует падение процесса и продвигает время на 6
+  минут). Все 99 тестов `test:gateway` проходят.
 
 ### Документация
 
 `docs/security.md`/release notes — не требуется (не security-relevant), но
 `CHANGELOG.md` должен явно упомянуть это как **исправление утечки памяти**
 при долгих сессиях — единственная секция патча с реальным user-visible
-эффектом (стабильность при долгой работе), наравне с Секцией F.
+эффектом (стабильность при долгой работе), наравне с Секцией F. Сделано —
+см. `CHANGELOG.md`.
 
 ---
 
