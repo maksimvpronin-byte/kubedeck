@@ -103,18 +103,25 @@ clone в `cloneResponse()` (`cache/resourceSnapshotCache.ts:35-40`), вызыв�
 
 ### Задачи
 
-- [ ] Убрать `structuredClone` из `cloneResponse()` — возвращать `value`
+- [x] Убрать `structuredClone` из `cloneResponse()` — возвращать `value`
   (или мелкий `{...value, items: value.items}` без глубокого клонирования
-  элементов) на `set()` и `get()`.
-- [ ] Проверить `apps/desktop/tests` на ассерты, полагающиеся на то, что
+  элементов) на `set()` и `get()`. Реализовано: `cloneResponse()` удалена
+  целиком, `get()` возвращает `{...entry.value, cached: true,
+  cacheTtlSeconds}` (мелкий клон верхнего уровня), `set()` возвращает
+  `value` напрямую без клонирования элементов `items`.
+- [x] Проверить `apps/desktop/tests` на ассерты, полагающиеся на то, что
   вызывающий код может безопасно мутировать возвращённые из кэша объекты
-  in-place (не должно быть, но перепроверить перед удалением).
+  in-place (не должно быть, но перепроверить перед удалением). Подтверждено:
+  единственный вызывающий код (`routes/resourceLists.ts:94-135`) не
+  мутирует `rows`/`cached`/`result` после чтения из кэша — использует их
+  только для `writeJson()` (сериализация).
 
 ### Контракты
 
-- [ ] `GET /clusters/:id/resources/:resource` отдаёт тот же JSON, что и до
+- [x] `GET /clusters/:id/resources/:resource` отдаёт тот же JSON, что и до
   изменения — консольный тест на сериализованный ответ, не на identity
-  объектов.
+  объектов. `resource-lists.contract.test.cjs` (14 тестов, использует
+  `assert.deepEqual` на значения, не identity) проходит без изменений.
 
 ### Документация
 

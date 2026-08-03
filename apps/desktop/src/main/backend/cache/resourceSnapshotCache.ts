@@ -32,13 +32,6 @@ function cacheKey(clusterId: string, resource: string, namespace: string): strin
   return `${clusterId}\u0000${namespace}\u0000${resource.toLowerCase()}`;
 }
 
-function cloneResponse(value: ResourceListResponse): ResourceListResponse {
-  return {
-    ...value,
-    items: value.items.map((item) => structuredClone(item)),
-  };
-}
-
 export class ResourceSnapshotCache {
   private readonly entries = new Map<string, CacheEntry>();
   private readonly invalidations: Invalidation[] = [];
@@ -60,7 +53,7 @@ export class ResourceSnapshotCache {
 
     entry.hits += 1;
     return {
-      ...cloneResponse(entry.value),
+      ...entry.value,
       cached: true,
       cacheTtlSeconds: this.ttlSeconds,
     };
@@ -75,7 +68,6 @@ export class ResourceSnapshotCache {
     const now = this.now();
     const value: ResourceListResponse = {
       ...response,
-      items: response.items.map((item) => structuredClone(item)),
       rawCount: response.rawCount,
       cached: false,
       cacheTtlSeconds: this.ttlSeconds,
@@ -92,7 +84,7 @@ export class ResourceSnapshotCache {
       hits: 0,
     });
 
-    return cloneResponse(value);
+    return value;
   }
 
   clearResource(clusterId: string, resource: string, namespace: string, reason = "watch.event"): number {
