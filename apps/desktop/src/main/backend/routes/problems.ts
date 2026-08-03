@@ -1,13 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
+import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
+import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { buildProblemRows, summarizeProblems, type ProblemSourceRows } from "../problems/problemEngine";
 import { normalizeResourceItems } from "../resources/normalizers";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { decodePathPart, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 const RESOURCE_TIMEOUT_SECONDS = 45;
 const RESOURCE_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
@@ -28,14 +28,6 @@ const PROBLEM_SOURCES: readonly ProblemSourceDefinition[] = [
   { resource: "nodes", namespace: "_cluster" },
   { resource: "persistentvolumeclaims", namespace: "all" },
 ];
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
-}
 
 function asItems(value: unknown): unknown[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
@@ -117,33 +109,16 @@ export async function buildProblemsResponse(
   };
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-  log(`gateway problems failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeError(response, 500, "PROBLEMS_FAILED", "Unable to build Kubernetes problems dashboard");
-}
-
 export function handleProblemsRequest(request: IncomingMessage, response: ServerResponse, pathname: string, configStore: ConfigStore, runner: KubectlRunner, log: (message: string) => void): boolean {
   try {
     const target = matchProblemsRoute(request.method, pathname);
     if (!target) return false;
     void buildProblemsResponse(configStore, runner, target.clusterId)
       .then((body) => writeJson(response, body))
-      .catch((error) => writeRouteError(response, error, log));
+      .catch((error) => writeRouteError(response, error, log, { label: "problems", fallbackCode: "PROBLEMS_FAILED", fallbackMessage: "Unable to build Kubernetes problems dashboard" }));
     return true;
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "problems", fallbackCode: "PROBLEMS_FAILED", fallbackMessage: "Unable to build Kubernetes problems dashboard" });
     return true;
   }
 }

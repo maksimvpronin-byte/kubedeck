@@ -9,7 +9,7 @@ import { WebSocket, WebSocketServer, type RawData } from "ws";
 
 import type { AuditStore } from "../audit/auditStore";
 import { writePolicyViolation } from "../auth";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
 import { clampInteger, rawDataByteLength, rawDataText, safeSend } from "../webSocketMessages";
 import { sshKeyAlgorithm, sshSha256Fingerprint, type SshHostKeyStore } from "./sshHostKeyStore";
 
@@ -127,14 +127,6 @@ interface NodeSshWebSocketOptions {
   hostKeyDecisionTimeoutMs?: number;
 }
 
-function decodePart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
-}
-
 function limitedText(value: unknown, maxBytes: number, field: string): string {
   const text = typeof value === "string" ? value : String(value ?? "");
   if (Buffer.byteLength(text, "utf8") > maxBytes) {
@@ -234,8 +226,8 @@ export function matchNodeSshWebSocket(request: IncomingMessage): NodeSshTarget |
   const match = url.pathname.match(/^\/clusters\/([^/]+)\/nodes\/([^/]+)\/ssh$/);
   if (!match) return null;
   return {
-    clusterId: validateIdentifier(decodePart(match[1], "cluster_id"), "cluster_id", 128),
-    name: validateIdentifier(decodePart(match[2], "name"), "name", 253),
+    clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
+    name: validateIdentifier(decodePathPart(match[2], "name"), "name", 253),
   };
 }
 

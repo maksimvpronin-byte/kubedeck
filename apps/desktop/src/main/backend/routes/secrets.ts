@@ -1,12 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AuditStore } from "../audit/auditStore";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
-import { readJsonBody, RequestBodyError, writeJson } from "../http";
+import { type ConfigStore } from "../config/configStore";
+import { readJsonBody, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 const SECRET_JSON_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 export const SECRET_VALUE_MAX_BYTES = 2 * 1024 * 1024;
@@ -25,14 +24,6 @@ type JsonObject = Record<string, unknown>;
 
 function isRecord(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 export function matchSecretRoute(method: string | undefined, pathname: string): SecretRouteTarget | null {
@@ -265,28 +256,6 @@ async function writeSecretUpdate(request: IncomingMessage, response: ServerRespo
   writeJson(response, { ok: true });
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestBodyError) {
-    writeError(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, error.code, error.message);
-    return;
-  }
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-
-  log("gateway secret operation failed");
-  writeError(response, 500, "SECRET_OPERATION_FAILED", "Unable to process Secret operation");
-}
-
 export function handleSecretRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -300,7 +269,7 @@ export function handleSecretRequest(
   try {
     target = matchSecretRoute(request.method, pathname);
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "secret operation", fallbackCode: "SECRET_OPERATION_FAILED", fallbackMessage: "Unable to process Secret operation", logDetail: false });
     return true;
   }
 
@@ -315,6 +284,8 @@ export function handleSecretRequest(
           ? writeSecretCopy(request, response, target, auditStore)
           : writeSecretUpdate(request, response, target, configStore, auditStore, runner);
 
-  void operation.catch((error) => writeRouteError(response, error, log));
+  void operation.catch((error) =>
+    writeRouteError(response, error, log, { label: "secret operation", fallbackCode: "SECRET_OPERATION_FAILED", fallbackMessage: "Unable to process Secret operation", logDetail: false }),
+  );
   return true;
 }

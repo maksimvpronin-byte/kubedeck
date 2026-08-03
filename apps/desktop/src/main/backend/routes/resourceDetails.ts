@@ -1,11 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
+import { type ConfigStore } from "../config/configStore";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { loadNodeDiskMetrics } from "../resources/metrics";
-import { normalizeTailLines, parseBooleanQuery, RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, decodePathPart, normalizeTailLines, parseBooleanQuery, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 const TEXT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const LOGS_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -25,14 +24,6 @@ export interface ResourceDetailsInvocation {
   args: string[];
   timeoutSeconds: number;
   maxOutputBytes: number;
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 export function matchResourceDetailsPath(pathname: string): ResourceDetailsTarget | null {
@@ -132,24 +123,6 @@ function writePlainText(response: ServerResponse, body: string): void {
   response.end(body);
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-
-  log(`gateway resource details failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeError(response, 500, "RESOURCE_DETAILS_FAILED", "Unable to load resource details");
-}
-
 async function executeResourceDetails(request: IncomingMessage, response: ServerResponse, target: ResourceDetailsTarget, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   if (target.operation === "metrics") {
     const metrics = await loadNodeDiskMetrics(configStore, runner, target.clusterId, target.name);
@@ -177,12 +150,14 @@ export function handleResourceDetailsRequest(
   try {
     target = matchResourceDetailsPath(pathname);
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "resource details", fallbackCode: "RESOURCE_DETAILS_FAILED", fallbackMessage: "Unable to load resource details" });
     return true;
   }
 
   if (!target) return false;
 
-  void executeResourceDetails(request, response, target, configStore, runner).catch((error) => writeRouteError(response, error, log));
+  void executeResourceDetails(request, response, target, configStore, runner).catch((error) =>
+    writeRouteError(response, error, log, { label: "resource details", fallbackCode: "RESOURCE_DETAILS_FAILED", fallbackMessage: "Unable to load resource details" }),
+  );
   return true;
 }

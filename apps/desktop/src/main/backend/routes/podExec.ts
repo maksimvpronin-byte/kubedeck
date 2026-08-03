@@ -1,13 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { AuditStore } from "../audit/auditStore";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import type { ErrorInfo } from "../errors";
-import { readJsonBody, RequestBodyError, writeJson } from "../http";
+import { type ConfigStore } from "../config/configStore";
+import { readJsonBody, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
+import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, confirmationString, decodePathPart, validateIdentifier } from "../validation";
+import { RouteInfoError, writeRouteError } from "./routeErrors";
 
 const EXEC_REQUEST_MAX_BYTES = 64 * 1024;
 const MAX_EXEC_COMMAND_CHARS = 4000;
@@ -52,14 +52,6 @@ export interface PodExecPlan {
 
 function isRecord(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 export function matchPodExecRoute(method: string | undefined, pathname: string): PodExecRouteTarget | null {
@@ -131,10 +123,6 @@ async function readExecPayload(request: IncomingMessage): Promise<PodExecRequest
   };
 }
 
-function confirmationString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
 export function requirePodExecConfirmation(confirmation: OperationConfirmation | undefined, target: PodExecRouteTarget): void {
   if (!confirmation) {
     throw new RequestValidationError(400, "CONFIRMATION_REQUIRED", "Confirmation is required for pod exec");
@@ -175,15 +163,6 @@ export function buildPodExecPlan(target: PodExecRouteTarget, payload: Pick<PodEx
   };
 }
 
-class PodExecError extends Error {
-  constructor(
-    readonly statusCode: number,
-    readonly info: ErrorInfo,
-  ) {
-    super(info.message);
-  }
-}
-
 async function verifyPodExecAuthorization(configStore: ConfigStore, runner: KubectlRunner, target: PodExecRouteTarget): Promise<void> {
   const authCommand = clusterCommand(configStore, target.clusterId, ["auth", "can-i", "create", "pods/exec", "-n", target.namespace], AUTH_TIMEOUT_SECONDS, AUTH_MAX_OUTPUT_BYTES);
 
@@ -191,7 +170,7 @@ async function verifyPodExecAuthorization(configStore: ConfigStore, runner: Kube
   const output = result.stdout.trim().toLowerCase();
 
   if (!new Set(["yes", "y"]).has(output)) {
-    throw new PodExecError(403, {
+    throw new RouteInfoError(403, {
       code: "KUBECTL_AUTH_DENIED",
       message: `kubectl auth can-i create pods/exec returned ${output || "no"}`,
       rawStderr: "",
@@ -257,81 +236,6 @@ async function executePodExec(request: IncomingMessage, response: ServerResponse
   }
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestBodyError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: error.code,
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
-        },
-      },
-      error.code === "REQUEST_TOO_LARGE" ? 413 : 400,
-    );
-    return;
-  }
-
-  if (error instanceof RequestValidationError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: error.code,
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
-        },
-      },
-      error.statusCode,
-    );
-    return;
-  }
-
-  if (error instanceof ClusterNotFoundError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: "CLUSTER_NOT_FOUND",
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
-        },
-      },
-      404,
-    );
-    return;
-  }
-
-  if (error instanceof PodExecError) {
-    writeJson(response, { detail: error.info }, error.statusCode);
-    return;
-  }
-
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-
-  log(`gateway pod exec failed: ${error instanceof Error ? error.message : String(error)}`);
-
-  writeJson(
-    response,
-    {
-      detail: {
-        code: "POD_EXEC_FAILED",
-        message: "Unable to execute command in pod",
-        rawStderr: "",
-        commandPreview: "",
-      },
-    },
-    500,
-  );
-}
-
 export function handlePodExecRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -346,13 +250,15 @@ export function handlePodExecRequest(
   try {
     target = matchPodExecRoute(request.method, pathname);
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "pod exec", fallbackCode: "POD_EXEC_FAILED", fallbackMessage: "Unable to execute command in pod" });
     return true;
   }
 
   if (!target) return false;
 
-  void executePodExec(request, response, target, configStore, auditStore, runner).catch((error) => writeRouteError(response, error, log));
+  void executePodExec(request, response, target, configStore, auditStore, runner).catch((error) =>
+    writeRouteError(response, error, log, { label: "pod exec", fallbackCode: "POD_EXEC_FAILED", fallbackMessage: "Unable to execute command in pod" }),
+  );
 
   return true;
 }

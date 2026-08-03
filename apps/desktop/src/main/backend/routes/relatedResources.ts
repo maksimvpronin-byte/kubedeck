@@ -1,12 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
+import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { buildRelatedResources, type RelatedLink } from "../relations/relatedResourcesEngine";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { decodePathPart, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 const TARGET_TIMEOUT_SECONDS = 30;
 const SOURCE_TIMEOUT_SECONDS = 25;
@@ -37,14 +36,6 @@ interface RelatedTarget {
   resource: string;
   namespace: string;
   name: string;
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -116,23 +107,6 @@ export async function buildRelatedResourcesResponse(
   };
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-  log(`gateway related resources failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeError(response, 500, "RELATED_RESOURCES_FAILED", "Unable to load related Kubernetes resources");
-}
-
 export function handleRelatedResourcesRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -146,10 +120,12 @@ export function handleRelatedResourcesRequest(
     if (!target) return false;
     void buildRelatedResourcesResponse(configStore, runner, target)
       .then((body) => writeJson(response, body))
-      .catch((error) => writeRouteError(response, error, log));
+      .catch((error) =>
+        writeRouteError(response, error, log, { label: "related resources", fallbackCode: "RELATED_RESOURCES_FAILED", fallbackMessage: "Unable to load related Kubernetes resources" }),
+      );
     return true;
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "related resources", fallbackCode: "RELATED_RESOURCES_FAILED", fallbackMessage: "Unable to load related Kubernetes resources" });
     return true;
   }
 }

@@ -1,11 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { AuditStore } from "../audit/auditStore";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { readJsonBody, RequestBodyError, writeJson } from "../http";
+import type { ConfigStore } from "../config/configStore";
+import { readJsonBody, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { PortForwardError, type PortForwardManager, type PortForwardStartInput } from "../portForward/portForwardManager";
 import { RequestValidationError, validateIdentifier } from "../validation";
+import { writeRouteError as sharedWriteRouteError } from "./routeErrors";
 
 const REQUEST_MAX_BYTES = 64 * 1024;
 const SUPPORTED_RESOURCES = new Map<string, PortForwardStartInput["resource"]>([
@@ -66,79 +67,27 @@ async function readStartInput(request: IncomingMessage): Promise<PortForwardStar
 }
 
 function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestBodyError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: error.code,
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
+  sharedWriteRouteError(response, error, log, {
+    label: "port-forward",
+    fallbackCode: "PORT_FORWARD_FAILED",
+    fallbackMessage: "Unable to manage port-forward session",
+    extra: (error) => {
+      if (!(error instanceof PortForwardError)) return false;
+      writeJson(
+        response,
+        {
+          detail: {
+            code: error.code,
+            message: error.message,
+            rawStderr: error.rawStderr,
+            commandPreview: error.commandPreview,
+          },
         },
-      },
-      error.code === "REQUEST_TOO_LARGE" ? 413 : 400,
-    );
-    return;
-  }
-  if (error instanceof RequestValidationError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: error.code,
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
-        },
-      },
-      error.statusCode,
-    );
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: "CLUSTER_NOT_FOUND",
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
-        },
-      },
-      404,
-    );
-    return;
-  }
-  if (error instanceof PortForwardError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: error.code,
-          message: error.message,
-          rawStderr: error.rawStderr,
-          commandPreview: error.commandPreview,
-        },
-      },
-      error.statusCode,
-    );
-    return;
-  }
-  log(`gateway port-forward failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeJson(
-    response,
-    {
-      detail: {
-        code: "PORT_FORWARD_FAILED",
-        message: "Unable to manage port-forward session",
-        rawStderr: "",
-        commandPreview: "",
-      },
+        error.statusCode,
+      );
+      return true;
     },
-    500,
-  );
+  });
 }
 
 async function startPortForward(request: IncomingMessage, response: ServerResponse, clusterId: string, configStore: ConfigStore, auditStore: AuditStore, manager: PortForwardManager): Promise<void> {

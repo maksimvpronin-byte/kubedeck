@@ -1,3 +1,5 @@
+import { parseCpuMillicores, parseMemoryBytes } from "./quantity";
+
 export type JsonObject = Record<string, unknown>;
 export type ResourceRow = Record<string, unknown>;
 
@@ -26,39 +28,10 @@ function numberValue(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function cpuMillicores(value: unknown): number | null {
-  const raw = text(value).trim();
-  if (!raw) return null;
-  const parsed = raw.endsWith("m") ? Number(raw.slice(0, -1)) : raw.endsWith("u") ? Number(raw.slice(0, -1)) / 1000 : raw.endsWith("n") ? Number(raw.slice(0, -1)) / 1_000_000 : Number(raw) * 1000;
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function memoryBytes(value: unknown): number | null {
-  const raw = text(value).trim();
-  if (!raw) return null;
-  const units: Array<[string, number]> = [
-    ["Ki", 1024],
-    ["Mi", 1024 ** 2],
-    ["Gi", 1024 ** 3],
-    ["Ti", 1024 ** 4],
-    ["K", 1000],
-    ["M", 1000 ** 2],
-    ["G", 1000 ** 3],
-    ["T", 1000 ** 4],
-  ];
-  for (const [suffix, multiplier] of units) {
-    if (!raw.endsWith(suffix)) continue;
-    const parsed = Number(raw.slice(0, -suffix.length));
-    return Number.isFinite(parsed) ? parsed * multiplier : null;
-  }
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function containerResource(container: JsonObject, section: "requests" | "limits", resource: "cpu" | "memory"): number | null {
   const resources = record(container.resources);
   const values = record(resources[section]);
-  return resource === "cpu" ? cpuMillicores(values.cpu) : memoryBytes(values.memory);
+  return resource === "cpu" ? parseCpuMillicores(values.cpu) : parseMemoryBytes(values.memory);
 }
 
 function effectivePodResource(spec: JsonObject, section: "requests" | "limits", resource: "cpu" | "memory"): number | null {
@@ -67,7 +40,7 @@ function effectivePodResource(spec: JsonObject, section: "requests" | "limits", 
   if (section === "limits" && regularValues.some((value) => value === null)) return null;
   const regularTotal = regularValues.reduce<number>((total, value) => total + (value ?? 0), 0);
   const initMaximum = records(spec.initContainers).reduce((maximum, container) => Math.max(maximum, containerResource(container, section, resource) ?? 0), 0);
-  const overhead = resource === "cpu" ? cpuMillicores(record(spec.overhead).cpu) : memoryBytes(record(spec.overhead).memory);
+  const overhead = resource === "cpu" ? parseCpuMillicores(record(spec.overhead).cpu) : parseMemoryBytes(record(spec.overhead).memory);
   return Math.max(regularTotal, initMaximum) + (overhead ?? 0);
 }
 

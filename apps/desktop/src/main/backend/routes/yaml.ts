@@ -1,13 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { parseAllDocuments } from "yaml";
 import type { AuditStore } from "../audit/auditStore";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
-import { readJsonBody, RequestBodyError } from "../http";
+import { type ConfigStore } from "../config/configStore";
+import { readJsonBody } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
+import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, confirmationString, decodePathPart, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 export const MAX_APPLY_YAML_BYTES = 5 * 1024 * 1024;
 const MAX_YAML_REQUEST_BYTES = 12 * 1024 * 1024;
@@ -46,14 +46,6 @@ interface YamlRouteTarget {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 export function matchYamlRoute(method: string | undefined, pathname: string): YamlRouteTarget | null {
@@ -153,10 +145,6 @@ export function ensureYamlSize(payload: string): number {
     throw new RequestValidationError(413, "PAYLOAD_TOO_LARGE", `YAML payload is too large (${payloadBytes} bytes, limit ${MAX_APPLY_YAML_BYTES} bytes)`);
   }
   return payloadBytes;
-}
-
-function confirmationString(value: unknown): string {
-  return typeof value === "string" ? value : "";
 }
 
 export function requireYamlApplyConfirmation(confirmation: OperationConfirmation | undefined, clusterId: string, target: YamlApplyTarget): void {
@@ -309,29 +297,6 @@ async function executeApply(
   }
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestBodyError) {
-    const statusCode = error.code === "REQUEST_TOO_LARGE" ? 413 : 400;
-    writeError(response, statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-
-  log(`gateway YAML operation failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeError(response, 500, "YAML_OPERATION_FAILED", "Unable to process YAML operation");
-}
-
 export function handleYamlRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -346,7 +311,7 @@ export function handleYamlRequest(
   try {
     target = matchYamlRoute(request.method, pathname);
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "YAML operation", fallbackCode: "YAML_OPERATION_FAILED", fallbackMessage: "Unable to process YAML operation" });
     return true;
   }
 
@@ -357,6 +322,6 @@ export function handleYamlRequest(
       ? executeDryRun(request, response, target.clusterId, configStore, auditStore, runner)
       : executeApply(request, response, target.clusterId, configStore, auditStore, runner, log, invalidateResourceCache);
 
-  void operation.catch((error) => writeRouteError(response, error, log));
+  void operation.catch((error) => writeRouteError(response, error, log, { label: "YAML operation", fallbackCode: "YAML_OPERATION_FAILED", fallbackMessage: "Unable to process YAML operation" }));
   return true;
 }

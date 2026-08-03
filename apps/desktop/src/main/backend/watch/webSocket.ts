@@ -1,23 +1,16 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 
-import { WebSocket, WebSocketServer, type RawData } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 
 import { writePolicyViolation } from "../auth";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { decodePathPart, validateIdentifier } from "../validation";
+import { rawDataByteLength, rawDataText } from "../webSocketMessages";
 import { resourceWatchEventMatches, type ResourceWatchEventHub, type ResourceWatchFilter } from "./eventHub";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_QUEUE_ITEMS = 200;
 const MAX_CLIENT_MESSAGE_BYTES = 1024;
-
-function decodePart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
-}
 
 function matchWatchWebSocket(request: IncomingMessage): ResourceWatchFilter | null {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -26,8 +19,8 @@ function matchWatchWebSocket(request: IncomingMessage): ResourceWatchFilter | nu
   const rawNamespace = url.searchParams.get("namespace")?.trim() || "all";
   const namespace = rawNamespace === "all" || rawNamespace === "_cluster" ? rawNamespace : validateIdentifier(rawNamespace, "namespace");
   return {
-    clusterId: validateIdentifier(decodePart(match[1], "cluster_id"), "cluster_id", 128),
-    resource: validateIdentifier(decodePart(match[2], "resource"), "resource", 128).toLowerCase(),
+    clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
+    resource: validateIdentifier(decodePathPart(match[2], "resource"), "resource", 128).toLowerCase(),
     namespace,
   };
 }
@@ -73,20 +66,6 @@ class BoundedSocketQueue {
       this.flush();
     });
   }
-}
-
-function rawDataByteLength(data: RawData): number {
-  if (typeof data === "string") return Buffer.byteLength(data, "utf8");
-  if (Buffer.isBuffer(data)) return data.length;
-  if (Array.isArray(data)) return data.reduce((total, item) => total + item.length, 0);
-  return data.byteLength;
-}
-
-function rawDataText(data: RawData): string {
-  if (typeof data === "string") return data;
-  if (Buffer.isBuffer(data)) return data.toString("utf8");
-  if (Array.isArray(data)) return Buffer.concat(data).toString("utf8");
-  return Buffer.from(data).toString("utf8");
 }
 
 export class ResourceWatchWebSocketServer {

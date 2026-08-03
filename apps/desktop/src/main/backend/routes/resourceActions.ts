@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AuditStore } from "../audit/auditStore";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import type { ErrorInfo } from "../errors";
-import { readJsonBody, RequestBodyError, writeJson } from "../http";
+import { type ConfigStore } from "../config/configStore";
+import { readJsonBody } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
+import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, confirmationString, decodePathPart, validateIdentifier } from "../validation";
+import { RouteInfoError, writeRouteError } from "./routeErrors";
 
 const ACTION_REQUEST_MAX_BYTES = 64 * 1024;
 const ACTION_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
@@ -62,14 +62,6 @@ type JsonObject = Record<string, unknown>;
 
 function isRecord(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 export function matchResourceActionRoute(method: string | undefined, pathname: string): ResourceActionRouteTarget | null {
@@ -252,10 +244,6 @@ export function buildResourceActionPlan(target: ResourceActionRouteTarget, actio
   };
 }
 
-function confirmationString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
 export function requireResourceActionConfirmation(confirmation: OperationConfirmation | undefined, target: ResourceActionRouteTarget, plan: ResourceActionPlan): void {
   if (!confirmation || !isRecord(confirmation)) {
     throw new RequestValidationError(400, "CONFIRMATION_REQUIRED", "Confirmation is required for resource action");
@@ -282,19 +270,6 @@ export function requireResourceActionConfirmation(confirmation: OperationConfirm
   }
 }
 
-class ResourceActionError extends Error {
-  constructor(
-    readonly statusCode: number,
-    readonly info: ErrorInfo,
-  ) {
-    super(info.message);
-  }
-}
-
-function writeActionError(response: ServerResponse, error: ResourceActionError): void {
-  writeJson(response, { detail: error.info }, error.statusCode);
-}
-
 async function verifyAuthorization(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, check: AuthorizationCheck): Promise<void> {
   const args = ["auth", "can-i", check.verb, check.resource];
   if (check.allNamespaces) {
@@ -308,7 +283,7 @@ async function verifyAuthorization(configStore: ConfigStore, runner: KubectlRunn
   const output = result.stdout.trim().toLowerCase();
 
   if (!new Set(["yes", "y"]).has(output)) {
-    throw new ResourceActionError(403, {
+    throw new RouteInfoError(403, {
       code: "KUBECTL_AUTH_DENIED",
       message: `kubectl auth can-i ${check.verb} ${check.resource} returned ${output || "no"}`,
       rawStderr: "",
@@ -382,76 +357,6 @@ async function executeResourceAction(
   }
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestBodyError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: error.code,
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
-        },
-      },
-      error.code === "REQUEST_TOO_LARGE" ? 413 : 400,
-    );
-    return;
-  }
-  if (error instanceof RequestValidationError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: error.code,
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
-        },
-      },
-      error.statusCode,
-    );
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeJson(
-      response,
-      {
-        detail: {
-          code: "CLUSTER_NOT_FOUND",
-          message: error.message,
-          rawStderr: "",
-          commandPreview: "",
-        },
-      },
-      404,
-    );
-    return;
-  }
-  if (error instanceof ResourceActionError) {
-    writeActionError(response, error);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-
-  log(`gateway resource action failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeJson(
-    response,
-    {
-      detail: {
-        code: "RESOURCE_ACTION_FAILED",
-        message: "Unable to perform resource action",
-        rawStderr: "",
-        commandPreview: "",
-      },
-    },
-    500,
-  );
-}
-
 export function handleResourceActionRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -466,13 +371,15 @@ export function handleResourceActionRequest(
   try {
     target = matchResourceActionRoute(request.method, pathname);
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "resource action", fallbackCode: "RESOURCE_ACTION_FAILED", fallbackMessage: "Unable to perform resource action" });
     return true;
   }
 
   if (!target) return false;
 
-  void executeResourceAction(request, response, target, configStore, auditStore, runner, log, invalidateResourceCache).catch((error) => writeRouteError(response, error, log));
+  void executeResourceAction(request, response, target, configStore, auditStore, runner, log, invalidateResourceCache).catch((error) =>
+    writeRouteError(response, error, log, { label: "resource action", fallbackCode: "RESOURCE_ACTION_FAILED", fallbackMessage: "Unable to perform resource action" }),
+  );
 
   return true;
 }

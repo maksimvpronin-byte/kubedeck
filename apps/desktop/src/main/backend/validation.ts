@@ -50,3 +50,15 @@ export function parseBooleanQuery(value: string | null, field: string, defaultVa
 
   throw new RequestValidationError(422, "INVALID_QUERY", `${field} must be a boolean`);
 }
+
+export function decodePathPart(value: string, field: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
+  }
+}
+
+export function confirmationString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}

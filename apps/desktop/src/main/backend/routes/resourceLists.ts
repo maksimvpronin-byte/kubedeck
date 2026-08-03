@@ -1,15 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { ResourceSnapshotCache } from "../cache/resourceSnapshotCache";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
+import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
+import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { normalizeResourceItems } from "../resources/normalizers";
 import { applyNamespaceMetrics, applyNodeMetrics, applyPodMetrics } from "../resources/metrics";
-import { parseBooleanQuery, RequestValidationError, validateIdentifier } from "../validation";
+import { decodePathPart, parseBooleanQuery, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 const RESOURCE_TIMEOUT_SECONDS = 45;
 const RESOURCE_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
@@ -22,14 +22,6 @@ interface ResourceListTarget {
   namespace: string;
   useCache: boolean;
   forceRefresh: boolean;
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 function asItems(value: unknown): unknown[] {
@@ -168,26 +160,6 @@ function handleCacheStatus(request: IncomingMessage, response: ServerResponse, p
   return false;
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-
-  log(`gateway resource list failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeError(response, 500, "RESOURCE_LIST_FAILED", "Unable to load Kubernetes resources");
-}
-
 export function handleResourceListRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -206,11 +178,13 @@ export function handleResourceListRequest(
     const target = matchResourceListRoute(request.method, pathname, request.url);
     if (!target) return false;
 
-    void loadResources(response, target, configStore, runner, cache).catch((error) => writeRouteError(response, error, log));
+    void loadResources(response, target, configStore, runner, cache).catch((error) =>
+      writeRouteError(response, error, log, { label: "resource list", fallbackCode: "RESOURCE_LIST_FAILED", fallbackMessage: "Unable to load Kubernetes resources" }),
+    );
 
     return true;
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "resource list", fallbackCode: "RESOURCE_LIST_FAILED", fallbackMessage: "Unable to load Kubernetes resources" });
     return true;
   }
 }

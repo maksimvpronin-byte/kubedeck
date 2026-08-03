@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
+import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
+import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { normalizeTailLines, parseBooleanQuery, RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, decodePathPart, normalizeTailLines, parseBooleanQuery, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 const DEPLOYMENT_JSON_MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const POD_LIST_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
@@ -57,14 +57,6 @@ function asString(value: unknown): string {
 
 function asObjectArray(value: unknown): JsonObject[] {
   return Array.isArray(value) ? value.filter((item): item is JsonObject => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 export function matchDeploymentLogsPath(pathname: string): DeploymentLogTarget | null {
@@ -228,24 +220,6 @@ function writePlainText(response: ServerResponse, body: string): void {
   response.end(body);
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-
-  log(`gateway deployment logs failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeError(response, 500, "DEPLOYMENT_LOGS_FAILED", "Unable to load deployment logs");
-}
-
 async function writeDeploymentLogTargets(response: ServerResponse, target: DeploymentLogTarget, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   const pods = await loadDeploymentAndPods(target, configStore, runner);
   const containers = [...new Set(pods.flatMap((pod) => pod.containers))].sort((left, right) => left.localeCompare(right));
@@ -307,7 +281,7 @@ export function handleDeploymentLogsRequest(
   try {
     target = matchDeploymentLogsPath(pathname);
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "deployment logs", fallbackCode: "DEPLOYMENT_LOGS_FAILED", fallbackMessage: "Unable to load deployment logs" });
     return true;
   }
 
@@ -315,6 +289,6 @@ export function handleDeploymentLogsRequest(
 
   const operation = target.operation === "log-targets" ? writeDeploymentLogTargets(response, target, configStore, runner) : writeDeploymentLogs(request, response, target, configStore, runner);
 
-  void operation.catch((error) => writeRouteError(response, error, log));
+  void operation.catch((error) => writeRouteError(response, error, log, { label: "deployment logs", fallbackCode: "DEPLOYMENT_LOGS_FAILED", fallbackMessage: "Unable to load deployment logs" }));
   return true;
 }

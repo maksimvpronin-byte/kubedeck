@@ -1,9 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
+import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
+import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import {
   buildSearchResourceSpecs,
@@ -15,7 +14,8 @@ import {
   type SearchResourceSpec,
   type SearchResultRow,
 } from "../search/searchEngine";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 const SEARCH_QUERY_MAX_CHARS = 128;
 const SEARCH_TOTAL_TIMEOUT_SECONDS = 12;
@@ -41,14 +41,6 @@ interface SearchSourceResult {
   items: SearchResultRow[];
   rawCount: number;
   error: Record<string, unknown> | null;
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 function asItems(value: unknown): unknown[] {
@@ -295,23 +287,6 @@ export async function buildSearchResponse(
   };
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-  log(`gateway search failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeError(response, 500, "SEARCH_FAILED", "Unable to search Kubernetes resources");
-}
-
 export function handleSearchRequest(request: IncomingMessage, response: ServerResponse, pathname: string, configStore: ConfigStore, runner: KubectlRunner, log: (message: string) => void): boolean {
   try {
     const target = matchSearchRoute(request.method, pathname);
@@ -319,10 +294,10 @@ export function handleSearchRequest(request: IncomingMessage, response: ServerRe
     const options = requestOptions(request);
     void buildSearchResponse(configStore, runner, target.clusterId, options, log)
       .then((body) => writeJson(response, body))
-      .catch((error) => writeRouteError(response, error, log));
+      .catch((error) => writeRouteError(response, error, log, { label: "search", fallbackCode: "SEARCH_FAILED", fallbackMessage: "Unable to search Kubernetes resources" }));
     return true;
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "search", fallbackCode: "SEARCH_FAILED", fallbackMessage: "Unable to search Kubernetes resources" });
     return true;
   }
 }

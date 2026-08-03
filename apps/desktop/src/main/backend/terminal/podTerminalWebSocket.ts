@@ -12,7 +12,7 @@ import { clusterCommand } from "../kubectl/clusterCommand";
 import { buildKubectlCommand, type BuiltKubectlCommand } from "../kubectl/command";
 import { KubectlError, sanitizeKubectlText, truncateKubectlText } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
 import { clampInteger, rawDataByteLength, rawDataText, safeSend } from "../webSocketMessages";
 
 const MAX_CLIENT_MESSAGE_BYTES = 256 * 1024;
@@ -86,14 +86,6 @@ interface PtyCommand {
   environment: NodeJS.ProcessEnv;
 }
 
-function decodePart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
-}
-
 function normalizeShell(value: string): TerminalShell {
   const shell = (value || "auto").trim().toLowerCase();
   if (!["auto", "sh", "bash", "ash"].includes(shell)) {
@@ -108,9 +100,9 @@ export function matchPodTerminalWebSocket(request: IncomingMessage): PodTerminal
   if (!match) return null;
   const containerText = url.searchParams.get("container")?.trim() ?? "";
   return {
-    clusterId: validateIdentifier(decodePart(match[1], "cluster_id"), "cluster_id", 128),
-    namespace: validateIdentifier(decodePart(match[2], "namespace"), "namespace"),
-    name: validateIdentifier(decodePart(match[3], "name"), "name"),
+    clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
+    namespace: validateIdentifier(decodePathPart(match[2], "namespace"), "namespace"),
+    name: validateIdentifier(decodePathPart(match[3], "name"), "name"),
     container: containerText ? validateIdentifier(containerText, "container", 253) : "",
     shell: normalizeShell(url.searchParams.get("shell") ?? "auto"),
     cols: clampInteger(url.searchParams.get("cols") ?? undefined, DEFAULT_COLS, MIN_COLS, MAX_COLS),

@@ -1,11 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
-import { writeError } from "../errors";
+import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { decodePathPart, validateIdentifier } from "../validation";
+import { writeRouteError } from "./routeErrors";
 
 const DISCOVERY_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const EVENTS_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
@@ -47,14 +46,6 @@ function asString(value: unknown): string {
 
 function asObjectArray(value: unknown): JsonObject[] {
   return Array.isArray(value) ? value.filter((item): item is JsonObject => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
-}
-
-function decodePathPart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 function validateClusterExists(configStore: ConfigStore, clusterId: string): void {
@@ -229,24 +220,6 @@ export function summarizeEvent(event: JsonObject): JsonObject {
   };
 }
 
-function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof RequestValidationError) {
-    writeError(response, error.statusCode, error.code, error.message);
-    return;
-  }
-  if (error instanceof ClusterNotFoundError) {
-    writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
-    return;
-  }
-  if (error instanceof KubectlError) {
-    writeKubectlError(response, error);
-    return;
-  }
-
-  log(`gateway resource discovery/events failed: ${error instanceof Error ? error.message : String(error)}`);
-  writeError(response, 500, "RESOURCE_DISCOVERY_EVENTS_FAILED", "Unable to load resource discovery or events");
-}
-
 async function writeResourceDefinitions(response: ServerResponse, clusterId: string, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   validateClusterExists(configStore, clusterId);
 
@@ -322,11 +295,13 @@ export function handleResourceDiscoveryEventsRequest(
     try {
       clusterId = decodePathPart(definitionsMatch[1], "cluster_id");
     } catch (error) {
-      writeRouteError(response, error, log);
+      writeRouteError(response, error, log, { label: "resource discovery/events", fallbackCode: "RESOURCE_DISCOVERY_EVENTS_FAILED", fallbackMessage: "Unable to load resource discovery or events" });
       return true;
     }
 
-    void writeResourceDefinitions(response, clusterId, configStore, runner).catch((error) => writeRouteError(response, error, log));
+    void writeResourceDefinitions(response, clusterId, configStore, runner).catch((error) =>
+      writeRouteError(response, error, log, { label: "resource discovery/events", fallbackCode: "RESOURCE_DISCOVERY_EVENTS_FAILED", fallbackMessage: "Unable to load resource discovery or events" }),
+    );
     return true;
   }
 
@@ -335,12 +310,14 @@ export function handleResourceDiscoveryEventsRequest(
   try {
     target = matchResourceEventsPath(pathname);
   } catch (error) {
-    writeRouteError(response, error, log);
+    writeRouteError(response, error, log, { label: "resource discovery/events", fallbackCode: "RESOURCE_DISCOVERY_EVENTS_FAILED", fallbackMessage: "Unable to load resource discovery or events" });
     return true;
   }
 
   if (!target) return false;
 
-  void writeResourceEvents(response, target, configStore, runner).catch((error) => writeRouteError(response, error, log));
+  void writeResourceEvents(response, target, configStore, runner).catch((error) =>
+    writeRouteError(response, error, log, { label: "resource discovery/events", fallbackCode: "RESOURCE_DISCOVERY_EVENTS_FAILED", fallbackMessage: "Unable to load resource discovery or events" }),
+  );
   return true;
 }
