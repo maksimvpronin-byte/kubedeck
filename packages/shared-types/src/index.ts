@@ -8,12 +8,17 @@ export interface LlmSettings {
   provider: "openai_compatible";
   baseUrl: string;
   model: string;
-  apiKey: string;
+  apiKeyConfigured: boolean;
   temperature: number;
   timeoutSeconds: number;
   maxContextChars: number;
   maxOutputTokens: number;
 }
+
+export type ApiKeyUpdate =
+  | { action: "keep" }
+  | { action: "replace"; value: string }
+  | { action: "clear" };
 
 export interface SshSettings {
   defaultUsername: string;

@@ -1,4 +1,4 @@
-import type { AppConfig, AuditResponse, BackendInfo, Cluster, ClusterOverviewResponse, CommandResult, ErrorInfo, KnownSshHost, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent, LlmAnalyzeResourceRequest, LlmAnalyzeResourceResponse, LlmPromptPreviewResponse, LlmStatus, LlmTestResponse } from "./types";
+import type { ApiKeyUpdate, AppConfig, AuditResponse, BackendInfo, Cluster, ClusterOverviewResponse, CommandResult, ErrorInfo, KnownSshHost, PortForwardSession, PortForwardStartRequest, GlobalSearchResponse, ProblemsResponse, RelatedResourcesResponse, ResourceDefinition, ResourceEventsResponse, ResourceRow, SecretKeysResponse, SecretRevealResponse, Settings, DeploymentLogTargetsResponse, ResourceCacheStatus, WatchSession, WatchStatus, ResourceWatchEvent, LlmAnalyzeResourceRequest, LlmAnalyzeResourceResponse, LlmPromptPreviewResponse, LlmStatus, LlmTestResponse } from "./types";
 
 export class ApiError extends Error {
   info: ErrorInfo;
@@ -80,18 +80,18 @@ export class ApiClient {
     return this.request<BackendInfo>("/app/info", { signal });
   }
 
-  updateSettings(settings: Settings) {
-    return this.request<AppConfig>("/settings", { method: "PUT", body: JSON.stringify({ settings }) });
+  updateSettings(settings: Settings, apiKeyUpdate?: ApiKeyUpdate) {
+    return this.request<AppConfig>("/settings", { method: "PUT", body: JSON.stringify({ settings, apiKeyUpdate }) });
   }
 
   llmStatus() {
     return this.request<LlmStatus>("/llm/status");
   }
 
-  testLlm(settings?: Settings["llm"]) {
+  testLlm(settings?: Settings["llm"], apiKeyUpdate?: ApiKeyUpdate) {
     return this.request<LlmTestResponse>("/llm/test", {
       method: "POST",
-      body: JSON.stringify(settings ? { settings } : {}),
+      body: JSON.stringify({ ...(settings ? { settings } : {}), apiKeyUpdate }),
     });
   }
 

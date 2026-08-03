@@ -19,6 +19,8 @@ export type FetchLike = (
   },
 ) => Promise<FetchResponseLike>;
 
+export type ResolvedLlmSettings = LlmSettings & { apiKey: string };
+
 export class LlmClientError extends Error {
   constructor(
     readonly code: string,
@@ -227,7 +229,7 @@ function renderStandardAnswer(answer: string, messages: LlmMessage[]): string {
 }
 
 export async function chatCompletion(
-  settings: LlmSettings,
+  settings: ResolvedLlmSettings,
   messages: LlmMessage[],
   fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
 ): Promise<LlmCompletion> {

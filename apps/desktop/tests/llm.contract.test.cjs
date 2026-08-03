@@ -1,5 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const http = require("node:http");
 const {
   chatCompletion,
@@ -17,6 +20,10 @@ const {
   handleLlmRequest,
   publicLlmStatus,
 } = require("../dist/main/backend/routes/llm.js");
+const { writeSettings } = require("../dist/main/backend/routes/config.js");
+const { ConfigStore } = require("../dist/main/backend/config/configStore.js");
+const { MemorySecretStore } = require("../dist/main/backend/security/memorySecretStore.js");
+const { migratePlaintextLlmSecret } = require("../dist/main/backend/security/migrateSecrets.js");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -33,19 +40,28 @@ function close(server) {
   return new Promise((resolve) => server.close(resolve));
 }
 
-function settings(baseUrl, overrides = {}) {
+function tempAppDataRoot(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function llmSettings(baseUrl, overrides = {}) {
   return {
     enabled: true,
     provider: "openai_compatible",
     baseUrl,
     model: "test-model",
-    apiKey: "test-api-key",
+    apiKeyConfigured: true,
     temperature: 0.2,
     timeoutSeconds: 5,
     maxContextChars: 60000,
     maxOutputTokens: 4096,
     ...overrides,
   };
+}
+
+function resolvedSettings(baseUrl, overrides = {}) {
+  const { apiKey = "test-api-key", ...rest } = overrides;
+  return { ...llmSettings(baseUrl, rest), apiKey };
 }
 
 function resourceRequest(overrides = {}) {
@@ -78,6 +94,19 @@ async function readBody(request) {
   const chunks = [];
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+}
+
+async function startSettingsServer(configStore, auditStore, secretStore) {
+  const server = http.createServer((request, response) => {
+    if (request.method === "PUT" && request.url === "/settings") {
+      void writeSettings(request, response, configStore, auditStore, secretStore);
+      return;
+    }
+    response.statusCode = 404;
+    response.end();
+  });
+  const url = await listen(server);
+  return { server, url };
 }
 
 test("LLM sanitizer removes structured and textual secrets", () => {
@@ -159,7 +188,7 @@ test("LLM client normalizes endpoint and renders fixed five-section answer", asy
     { role: "system", content: "system" },
     { role: "user", content: buildUserPrompt(context) },
   ];
-  const completion = await chatCompletion(settings(baseUrl), messages);
+  const completion = await chatCompletion(resolvedSettings(baseUrl), messages);
 
   assert.equal(received.url, "/v1/chat/completions");
   assert.equal(received.authorization, "Bearer test-api-key");
@@ -173,7 +202,7 @@ test("LLM client normalizes endpoint and renders fixed five-section answer", asy
 });
 
 test("LLM client preserves empty, reasoning-only and token-limit error codes", async () => {
-  const base = settings("http://127.0.0.1:12345");
+  const base = resolvedSettings("http://127.0.0.1:12345");
   const response = (body) => async () => ({
     ok: true,
     status: 200,
@@ -206,23 +235,24 @@ test("LLM client preserves empty, reasoning-only and token-limit error codes", a
   );
 });
 
-test("LLM settings validation and public status do not expose API key", () => {
+test("LLM settings validation and public status do not expose the API key", () => {
   assert.equal(normalizeBaseUrl("http://127.0.0.1:1234/chat/completions"), "http://127.0.0.1:1234/v1");
   assert.throws(
-    () => validateLlmSettings(settings("file:///tmp/model")),
+    () => validateLlmSettings(llmSettings("file:///tmp/model")),
     (error) => error.code === "LLM_BASE_URL_INVALID",
   );
   assert.throws(
-    () => validateLlmSettings(settings("http://127.0.0.1:1234", { enabled: false })),
+    () => validateLlmSettings(llmSettings("http://127.0.0.1:1234", { enabled: false })),
     (error) => error.code === "LLM_DISABLED",
   );
-  const status = publicLlmStatus(settings("http://127.0.0.1:1234"));
+  const status = publicLlmStatus(llmSettings("http://127.0.0.1:1234"), true);
   assert.deepEqual(status, {
     enabled: true,
     configured: true,
     provider: "openai_compatible",
     baseUrl: "http://127.0.0.1:1234",
     model: "test-model",
+    secretStorageAvailable: true,
   });
   assert.equal("apiKey" in status, false);
 });
@@ -251,15 +281,18 @@ test("LLM HTTP routes keep status, test, preview, and analyze contracts", async 
   const llmUrl = await listen(llm);
   t.after(() => close(llm));
 
+  const secretStore = new MemorySecretStore();
+  secretStore.write("llm-api-key", "test-api-key");
+
   const configStore = {
     load() {
-      return { settings: { llm: settings(llmUrl) } };
+      return { settings: { llm: llmSettings(llmUrl) } };
     },
   };
   const logs = [];
   const api = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    if (!handleLlmRequest(request, response, pathname, configStore, (line) => logs.push(line))) {
+    if (!handleLlmRequest(request, response, pathname, configStore, secretStore, (line) => logs.push(line))) {
       response.statusCode = 404;
       response.end();
     }
@@ -271,6 +304,7 @@ test("LLM HTTP routes keep status, test, preview, and analyze contracts", async 
   assert.equal(statusResponse.status, 200);
   const status = await statusResponse.json();
   assert.equal(status.configured, true);
+  assert.equal(status.secretStorageAvailable, true);
   assert.equal("apiKey" in status, false);
 
   const testResponse = await fetch(`${apiUrl}/llm/test`, {
@@ -281,6 +315,15 @@ test("LLM HTTP routes keep status, test, preview, and analyze contracts", async 
   const tested = await testResponse.json();
   assert.equal(tested.ok, true);
   assert.equal(tested.model, "test-model");
+
+  const candidateResponse = await fetch(`${apiUrl}/llm/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ apiKeyUpdate: { action: "replace", value: "unsaved-candidate-key" } }),
+  });
+  const candidateTested = await candidateResponse.json();
+  assert.equal(candidateTested.ok, true);
+  assert.equal(secretStore.read("llm-api-key"), "test-api-key");
 
   const previewResponse = await fetch(`${apiUrl}/llm/preview-resource-prompt`, {
     method: "POST",
@@ -324,14 +367,14 @@ test("LLM HTTP routes keep status, test, preview, and analyze contracts", async 
 
 test("LLM route errors never log API keys or request payloads", async (t) => {
   const secret = "never-log-this-api-key";
+  const secretStore = new MemorySecretStore();
+  secretStore.write("llm-api-key", secret);
+
   const configStore = {
     load() {
       return {
         settings: {
-          llm: settings("http://127.0.0.1:1", {
-            apiKey: secret,
-            timeoutSeconds: 1,
-          }),
+          llm: llmSettings("http://127.0.0.1:1", { timeoutSeconds: 1 }),
         },
       };
     },
@@ -339,7 +382,7 @@ test("LLM route errors never log API keys or request payloads", async (t) => {
   const logs = [];
   const api = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    handleLlmRequest(request, response, pathname, configStore, (line) => logs.push(line));
+    handleLlmRequest(request, response, pathname, configStore, secretStore, (line) => logs.push(line));
   });
   const apiUrl = await listen(api);
   t.after(() => close(api));
@@ -356,4 +399,168 @@ test("LLM route errors never log API keys or request payloads", async (t) => {
   assert.doesNotMatch(joined, new RegExp(secret));
   assert.doesNotMatch(joined, /payload-secret-marker/);
   assert.match(joined, /code=LLM_UNREACHABLE/);
+});
+
+test("MemorySecretStore behaves like the real SecretStore contract", () => {
+  const store = new MemorySecretStore();
+  assert.equal(store.isAvailable(), true);
+  assert.equal(store.has("llm-api-key"), false);
+  assert.equal(store.read("llm-api-key"), "");
+
+  store.write("llm-api-key", "abc");
+  assert.equal(store.has("llm-api-key"), true);
+  assert.equal(store.read("llm-api-key"), "abc");
+
+  store.delete("llm-api-key");
+  assert.equal(store.has("llm-api-key"), false);
+  assert.equal(store.read("llm-api-key"), "");
+
+  const unavailable = new MemorySecretStore(false);
+  assert.equal(unavailable.isAvailable(), false);
+  assert.throws(() => unavailable.write("llm-api-key", "x"), /unavailable/);
+});
+
+test("migratePlaintextLlmSecret moves an available plaintext key into secret storage and scrubs files", () => {
+  const appDataRoot = tempAppDataRoot("kubedeck-llm-migrate-available-");
+  const configPath = path.join(appDataRoot, "config.json");
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({ clusters: [], settings: { llm: { apiKey: "plaintext-secret" } } }),
+  );
+
+  const secretStore = new MemorySecretStore();
+  const result = migratePlaintextLlmSecret(appDataRoot, secretStore);
+
+  assert.deepEqual(result, { migrated: true, blocked: false });
+  assert.equal(secretStore.read("llm-api-key"), "plaintext-secret");
+
+  const rewritten = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal("apiKey" in rewritten.settings.llm, false);
+  assert.equal(rewritten.settings.llm.apiKeyConfigured, true);
+
+  if (process.platform !== "win32") {
+    const mode = fs.statSync(configPath).mode & 0o777;
+    assert.equal(mode, 0o600);
+  }
+
+  assert.ok(fs.existsSync(path.join(appDataRoot, "secrets", "migration-v1.json")));
+
+  const secondRun = migratePlaintextLlmSecret(appDataRoot, secretStore);
+  assert.deepEqual(secondRun, { migrated: false, blocked: false });
+});
+
+test("migratePlaintextLlmSecret tightens permissions but keeps the key when secret storage is unavailable", () => {
+  const appDataRoot = tempAppDataRoot("kubedeck-llm-migrate-blocked-");
+  const configPath = path.join(appDataRoot, "config.json");
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({ clusters: [], settings: { llm: { apiKey: "plaintext-secret" } } }),
+  );
+
+  const secretStore = new MemorySecretStore(false);
+  const result = migratePlaintextLlmSecret(appDataRoot, secretStore);
+
+  assert.deepEqual(result, { migrated: false, blocked: true });
+  assert.equal(secretStore.has("llm-api-key"), false);
+
+  const untouched = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal(untouched.settings.llm.apiKey, "plaintext-secret");
+
+  if (process.platform !== "win32") {
+    const mode = fs.statSync(configPath).mode & 0o777;
+    assert.equal(mode, 0o600);
+  }
+
+  assert.equal(fs.existsSync(path.join(appDataRoot, "secrets", "migration-v1.json")), false);
+});
+
+test("migratePlaintextLlmSecret is a no-op when no plaintext key exists", () => {
+  const appDataRoot = tempAppDataRoot("kubedeck-llm-migrate-empty-");
+  fs.writeFileSync(
+    path.join(appDataRoot, "config.json"),
+    JSON.stringify({ clusters: [], settings: { llm: { apiKeyConfigured: false } } }),
+  );
+
+  const secretStore = new MemorySecretStore();
+  const result = migratePlaintextLlmSecret(appDataRoot, secretStore);
+
+  assert.deepEqual(result, { migrated: false, blocked: false });
+  assert.equal(secretStore.has("llm-api-key"), false);
+});
+
+test("PUT /settings applies apiKeyUpdate and never echoes the raw key", async (t) => {
+  const appDataRoot = tempAppDataRoot("kubedeck-settings-apikey-");
+  const configStore = new ConfigStore(appDataRoot);
+  const auditEvents = [];
+  const auditStore = { append: (event) => auditEvents.push(event) };
+  const secretStore = new MemorySecretStore();
+
+  const { server, url } = await startSettingsServer(configStore, auditStore, secretStore);
+  t.after(() => close(server));
+
+  const base = configStore.load().settings;
+
+  const replaceResponse = await fetch(`${url}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      settings: base,
+      apiKeyUpdate: { action: "replace", value: "brand-new-key" },
+    }),
+  });
+  assert.equal(replaceResponse.status, 200);
+  const afterReplace = await replaceResponse.json();
+  assert.equal(afterReplace.settings.llm.apiKeyConfigured, true);
+  assert.equal("apiKey" in afterReplace.settings.llm, false);
+  assert.equal(JSON.stringify(afterReplace).includes("brand-new-key"), false);
+  assert.equal(secretStore.read("llm-api-key"), "brand-new-key");
+
+  const keepResponse = await fetch(`${url}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings: afterReplace.settings }),
+  });
+  const afterKeep = await keepResponse.json();
+  assert.equal(afterKeep.settings.llm.apiKeyConfigured, true);
+  assert.equal(secretStore.read("llm-api-key"), "brand-new-key");
+
+  const clearResponse = await fetch(`${url}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings: afterKeep.settings, apiKeyUpdate: { action: "clear" } }),
+  });
+  const afterClear = await clearResponse.json();
+  assert.equal(afterClear.settings.llm.apiKeyConfigured, false);
+  assert.equal(secretStore.has("llm-api-key"), false);
+
+  const onDisk = JSON.parse(fs.readFileSync(configStore.paths.config, "utf8"));
+  assert.equal("apiKey" in onDisk.settings.llm, false);
+});
+
+test("PUT /settings rejects a replace when secret storage is unavailable, without persisting", async (t) => {
+  const appDataRoot = tempAppDataRoot("kubedeck-settings-apikey-unavailable-");
+  const configStore = new ConfigStore(appDataRoot);
+  const auditEvents = [];
+  const auditStore = { append: (event) => auditEvents.push(event) };
+  const secretStore = new MemorySecretStore(false);
+
+  const { server, url } = await startSettingsServer(configStore, auditStore, secretStore);
+  t.after(() => close(server));
+
+  const base = configStore.load().settings;
+  const response = await fetch(`${url}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      settings: base,
+      apiKeyUpdate: { action: "replace", value: "should-not-be-saved" },
+    }),
+  });
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.equal(body.detail.code, "SECRET_STORAGE_UNAVAILABLE");
+
+  const onDisk = JSON.parse(fs.readFileSync(configStore.paths.config, "utf8"));
+  assert.equal(onDisk.settings.llm.apiKeyConfigured, false);
+  assert.equal(JSON.stringify(onDisk).includes("should-not-be-saved"), false);
 });

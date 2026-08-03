@@ -1,4 +1,5 @@
 export type {
+  ApiKeyUpdate,
   AppConfig,
   Cluster,
   Language,

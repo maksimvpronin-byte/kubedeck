@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ConfigStore } from "../config/configStore";
-import type { LlmSettings } from "../config/types";
+import type { ApiKeyUpdate, LlmSettings } from "../config/types";
+import type { SecretStore } from "../security/secretStore";
 import { writeError } from "../errors";
 import { writeJson } from "../http";
-import { chatCompletion, LlmClientError, validateLlmSettings } from "../llm/client";
+import { chatCompletion, LlmClientError, validateLlmSettings, type ResolvedLlmSettings } from "../llm/client";
 import { buildResourceContext } from "../llm/context";
 import { buildUserPrompt, SYSTEM_PROMPT } from "../llm/prompts";
 import type {
@@ -12,6 +13,8 @@ import type {
   LlmPromptBuildResult,
   LlmTestRequest,
 } from "../llm/types";
+
+const SECRET_NAME = "llm-api-key" as const;
 
 const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 const MAX_IDENTITY_CHARS = 512;
@@ -135,7 +138,7 @@ function mergeSettings(
         : base.provider,
     baseUrl: asString(candidate.baseUrl, base.baseUrl).trim(),
     model: asString(candidate.model, base.model).trim(),
-    apiKey: asString(candidate.apiKey, base.apiKey).trim(),
+    apiKeyConfigured: base.apiKeyConfigured,
     temperature: Math.min(
       2,
       Math.max(0, finiteNumber(candidate.temperature, base.temperature)),
@@ -161,12 +164,16 @@ function mergeSettings(
   };
 }
 
-export function publicLlmStatus(settings: LlmSettings): {
+export function publicLlmStatus(
+  settings: LlmSettings,
+  secretStorageAvailable: boolean,
+): {
   enabled: boolean;
   configured: boolean;
   provider: LlmSettings["provider"];
   baseUrl: string;
   model: string;
+  secretStorageAvailable: boolean;
 } {
   return {
     enabled: settings.enabled,
@@ -174,7 +181,36 @@ export function publicLlmStatus(settings: LlmSettings): {
     provider: settings.provider,
     baseUrl: settings.baseUrl,
     model: settings.model,
+    secretStorageAvailable,
   };
+}
+
+function apiKeyUpdateFromRequest(value: unknown): ApiKeyUpdate {
+  if (!isRecord(value) || value.apiKeyUpdate === undefined) {
+    return { action: "keep" };
+  }
+
+  const update = value.apiKeyUpdate;
+  if (!isRecord(update) || typeof update.action !== "string") {
+    throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate must be an object with an action");
+  }
+
+  if (update.action === "keep") return { action: "keep" };
+  if (update.action === "clear") return { action: "clear" };
+  if (update.action === "replace") {
+    if (typeof update.value !== "string" || !update.value.trim()) {
+      throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate.value must be a non-empty string");
+    }
+    return { action: "replace", value: update.value };
+  }
+
+  throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate.action must be keep, replace or clear");
+}
+
+function resolveApiKey(secretStore: SecretStore, update: ApiKeyUpdate): string {
+  if (update.action === "replace") return update.value;
+  if (update.action === "clear") return "";
+  return secretStore.read(SECRET_NAME);
 }
 
 export function buildLlmPrompt(
@@ -198,14 +234,16 @@ export function buildLlmPrompt(
 async function handleStatus(
   response: ServerResponse,
   configStore: ConfigStore,
+  secretStore: SecretStore,
 ): Promise<void> {
-  writeJson(response, publicLlmStatus(configStore.load().settings.llm));
+  writeJson(response, publicLlmStatus(configStore.load().settings.llm, secretStore.isAvailable()));
 }
 
 async function handleTest(
   request: IncomingMessage,
   response: ServerResponse,
   configStore: ConfigStore,
+  secretStore: SecretStore,
 ): Promise<void> {
   const body = (await readJsonBody(request)) as LlmTestRequest;
   const base = configStore.load().settings.llm;
@@ -215,10 +253,12 @@ async function handleTest(
       ? (body.settings as Partial<LlmSettings>)
       : undefined,
   );
+  const apiKey = resolveApiKey(secretStore, apiKeyUpdateFromRequest(body));
+  const resolved: ResolvedLlmSettings = { ...settings, apiKey, enabled: true };
   try {
-    validateLlmSettings(settings, false);
+    validateLlmSettings(resolved, false);
     const completion = await chatCompletion(
-      { ...settings, enabled: true },
+      resolved,
       [
         { role: "system", content: "You are a health check endpoint. Reply with OK." },
         { role: "user", content: "Reply with OK." },
@@ -229,7 +269,7 @@ async function handleTest(
       message: "Connection successful.",
       model: completion.model,
       elapsedMs: completion.elapsedMs,
-      status: publicLlmStatus(settings),
+      status: publicLlmStatus(settings, secretStore.isAvailable()),
     });
   } catch (error) {
     if (error instanceof LlmClientError) {
@@ -237,7 +277,7 @@ async function handleTest(
         ok: false,
         code: error.code,
         message: error.publicMessage,
-        status: publicLlmStatus(settings),
+        status: publicLlmStatus(settings, secretStore.isAvailable()),
       });
       return;
     }
@@ -259,11 +299,13 @@ async function handleAnalyze(
   request: IncomingMessage,
   response: ServerResponse,
   configStore: ConfigStore,
+  secretStore: SecretStore,
 ): Promise<void> {
   const input = normalizeAnalyzeRequest(await readJsonBody(request));
   const settings = configStore.load().settings.llm;
   const prompt = buildLlmPrompt(settings, input);
-  const completion = await chatCompletion(settings, prompt.messages);
+  const resolved: ResolvedLlmSettings = { ...settings, apiKey: secretStore.read(SECRET_NAME) };
+  const completion = await chatCompletion(resolved, prompt.messages);
   writeJson(response, {
     answer: completion.answer,
     model: completion.model,
@@ -301,13 +343,14 @@ export function handleLlmRequest(
   response: ServerResponse,
   pathname: string,
   configStore: ConfigStore,
+  secretStore: SecretStore,
   log: (message: string) => void,
 ): boolean {
   let operation: Promise<void> | null = null;
   if (request.method === "GET" && pathname === "/llm/status") {
-    operation = handleStatus(response, configStore);
+    operation = handleStatus(response, configStore, secretStore);
   } else if (request.method === "POST" && pathname === "/llm/test") {
-    operation = handleTest(request, response, configStore);
+    operation = handleTest(request, response, configStore, secretStore);
   } else if (
     request.method === "POST" &&
     pathname === "/llm/preview-resource-prompt"
@@ -317,7 +360,7 @@ export function handleLlmRequest(
     request.method === "POST" &&
     pathname === "/llm/analyze-resource"
   ) {
-    operation = handleAnalyze(request, response, configStore);
+    operation = handleAnalyze(request, response, configStore, secretStore);
   } else {
     return false;
   }

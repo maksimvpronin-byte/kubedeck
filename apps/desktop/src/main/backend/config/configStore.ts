@@ -43,7 +43,7 @@ export function defaultLlmSettings(): LlmSettings {
     provider: "openai_compatible",
     baseUrl: "",
     model: "",
-    apiKey: "",
+    apiKeyConfigured: false,
     temperature: 0.2,
     timeoutSeconds: 60,
     maxContextChars: 60000,
@@ -94,7 +94,7 @@ function normalizeLlmSettings(value: unknown): LlmSettings {
     provider: "openai_compatible",
     baseUrl: asString(input.baseUrl).trim(),
     model: asString(input.model).trim(),
-    apiKey: asString(input.apiKey).trim(),
+    apiKeyConfigured: asBoolean(input.apiKeyConfigured, false),
     temperature: clamp(asFiniteNumber(input.temperature, 0.2), 0, 2),
     timeoutSeconds: clamp(asInteger(input.timeoutSeconds, 60), 1, 600),
     maxContextChars: clamp(asInteger(input.maxContextChars, 60000), 1000, 250000),
@@ -326,8 +326,10 @@ export class ConfigStore {
     try {
       if (createBackup && fs.existsSync(this.paths.config)) {
         fs.copyFileSync(this.paths.config, backupPath);
+        if (process.platform !== "win32") fs.chmodSync(backupPath, 0o600);
       }
       fs.renameSync(temporaryPath, this.paths.config);
+      if (process.platform !== "win32") fs.chmodSync(this.paths.config, 0o600);
     } catch (error) {
       fs.rmSync(temporaryPath, { force: true });
       throw error;

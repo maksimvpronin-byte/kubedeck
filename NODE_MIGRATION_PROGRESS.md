@@ -52,6 +52,15 @@
 
 Исторические release notes и checklist 2.0.6 удалены после переноса итогов в `CHANGELOG.md`. Актуальные проверки находятся в `docs/releases/REGRESSION_CHECKLIST_2.9.3.md` и `docs/release-checklist.md`.
 
+## 2.10.1 — шифрование LLM API key
+
+`2.10.1` закрывает долг, зафиксированный в плане `2.10.0`: LLM API key больше
+не хранится в `config.json` открытым текстом, а шифруется через Electron
+`safeStorage` в `secrets/llm-api-key.bin` с one-shot миграцией существующих
+ключей. Маршрутов не прибавилось — `PUT /settings` и `POST /llm/test`
+расширили контракт существующих routes. Node-only Gateway остаётся на 54
+маршрутах.
+
 ## Следующий этап
 
 `2.9.3` сохраняет единый Terminal Workspace, исправляет packaged UI и Windows packaging, а также добавляет тему Steel Graphite. Node-only Gateway содержит 52 маршрута.

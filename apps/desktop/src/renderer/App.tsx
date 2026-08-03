@@ -27,7 +27,7 @@ import { useResourceWatch } from "./hooks/useResourceWatch";
 import { createTranslator } from "./i18n";
 import { brandIcon as Database, isPlaceholderSection, normalizeStoredSection, resourceLabel, resourceTree, sectionTitle, sections, visibleTabs } from "./navigation";
 import { canDeleteResource, findResourceDefinition, groupCrds } from "./utils/kubeResources";
-import type { ErrorInfo, GlobalSearchItem, ResourceRow, Section, Settings } from "./types";
+import type { ApiKeyUpdate, ErrorInfo, GlobalSearchItem, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
@@ -400,12 +400,12 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources, watchHealthy]);
 
-  async function saveSettings(next: Settings) {
+  async function saveSettings(next: Settings, apiKeyUpdate?: ApiKeyUpdate) {
     if (!api) return;
     try {
       const normalized = normalizeSettingsSsh(next);
       saveStoredSshDefaults(normalized.ssh);
-      const updated = await api.updateSettings(normalized);
+      const updated = await api.updateSettings(normalized, apiKeyUpdate);
       setConfig({ ...updated, settings: normalizeSettingsSsh(updated.settings) });
       setLanguagePreview(null);
       setError(null);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ApiClient } from "../api";
-import type { Cluster, ErrorInfo, KnownSshHost, Settings, SshAuthMethod } from "../types";
+import type { ApiKeyUpdate, Cluster, ErrorInfo, KnownSshHost, Settings, SshAuthMethod } from "../types";
 import { normalizeRefreshIntervalSeconds, REFRESH_INTERVAL_OPTIONS_SECONDS } from "../utils/refresh";
 import { normalizeSettingsSsh, normalizeSshPort, normalizeSshSettings, saveStoredSshDefaults } from "../utils/sshDefaults";
 import { applyThemePreference, THEME_OPTIONS } from "../utils/theme";
@@ -31,7 +31,7 @@ export function SettingsPanel({
 }: {
   api: ApiClient | null;
   settings: Settings;
-  save: (settings: Settings) => void | Promise<void>;
+  save: (settings: Settings, apiKeyUpdate?: ApiKeyUpdate) => void | Promise<void>;
   onLanguagePreview: (language: Settings["language"] | null) => void;
   t: (key: string) => string;
   clusters: Cluster[];
@@ -54,6 +54,34 @@ export function SettingsPanel({
   const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [llmTestMessage, setLlmTestMessage] = useState("");
   const [showLocalActivity, setShowLocalActivity] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [clearApiKey, setClearApiKey] = useState(false);
+  const [secretStorageAvailable, setSecretStorageAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setApiKeyDraft("");
+    setClearApiKey(false);
+  }, [settings]);
+
+  useEffect(() => {
+    if (!api) return undefined;
+    let cancelled = false;
+    api
+      .llmStatus()
+      .then((status) => {
+        if (!cancelled) setSecretStorageAvailable(status.secretStorageAvailable);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  function apiKeyUpdate(): ApiKeyUpdate | undefined {
+    if (clearApiKey) return { action: "clear" };
+    if (apiKeyDraft.trim()) return { action: "replace", value: apiKeyDraft.trim() };
+    return undefined;
+  }
 
   useEffect(() => {
     applyThemePreference(draft.theme, undefined, { persist: false });
@@ -91,13 +119,18 @@ export function SettingsPanel({
       });
       saveStoredSshDefaults(normalizedSsh);
       await Promise.resolve(
-        save({
-          ...draft,
-          refreshIntervalSeconds: selectedRefreshInterval,
-          llm: normalizeLlmSettings(llmSettings),
-          ssh: normalizedSsh,
-        }),
+        save(
+          {
+            ...draft,
+            refreshIntervalSeconds: selectedRefreshInterval,
+            llm: normalizeLlmSettings(llmSettings),
+            ssh: normalizedSsh,
+          },
+          apiKeyUpdate(),
+        ),
       );
+      setApiKeyDraft("");
+      setClearApiKey(false);
       setSaveStatus("saved");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -110,7 +143,7 @@ export function SettingsPanel({
     setLlmTestStatus("testing");
     setLlmTestMessage("");
     try {
-      const result = await api.testLlm(normalizeLlmSettings(llmSettings));
+      const result = await api.testLlm(normalizeLlmSettings(llmSettings), apiKeyUpdate());
       setLlmTestStatus(result.ok ? "success" : "error");
       setLlmTestMessage(result.ok ? t("llm.connectionSuccessful") : `${t("llm.connectionFailed")}: ${result.message}`);
     } catch (error) {
@@ -244,7 +277,16 @@ export function SettingsPanel({
           </label>
           <label>
             {t("llm.apiKey")}
-            <input type="password" value={llmSettings.apiKey} onChange={(event) => setLlmSettings({ apiKey: event.target.value })} autoComplete="off" />
+            <input
+              type="password"
+              value={apiKeyDraft}
+              onChange={(event) => {
+                setApiKeyDraft(event.target.value);
+                if (event.target.value) setClearApiKey(false);
+              }}
+              placeholder={llmSettings.apiKeyConfigured ? t("llm.apiKeyConfigured") : ""}
+              autoComplete="off"
+            />
           </label>
           <label>
             {t("llm.temperature")}
@@ -263,6 +305,20 @@ export function SettingsPanel({
             <input type="number" value={llmSettings.maxOutputTokens} onChange={(event) => setLlmSettings({ maxOutputTokens: Number(event.target.value) })} />
           </label>
         </div>
+        {llmSettings.apiKeyConfigured ? (
+          <label className="settings-checkbox">
+            <input
+              type="checkbox"
+              checked={clearApiKey}
+              onChange={(event) => {
+                setClearApiKey(event.target.checked);
+                if (event.target.checked) setApiKeyDraft("");
+              }}
+            />
+            {t("llm.apiKeyClear")}
+          </label>
+        ) : null}
+        {secretStorageAvailable === false ? <p className="settings-warning">{t("llm.secretStorageUnavailable")}</p> : null}
         <div className="settings-actions settings-llm-actions">
           <button onClick={() => void testLlmConnection()} disabled={!api || llmTestStatus === "testing"}>
             {llmTestStatus === "testing" ? t("llm.testing") : t("llm.testConnection")}
@@ -396,7 +452,7 @@ function normalizeLlmSettings(settings: Partial<Settings["llm"]> | undefined): S
     provider: "openai_compatible",
     baseUrl: settings?.baseUrl ?? "",
     model: settings?.model ?? "",
-    apiKey: settings?.apiKey ?? "",
+    apiKeyConfigured: Boolean(settings?.apiKeyConfigured),
     temperature: clampNumber(settings?.temperature, 0, 2, 0.2),
     timeoutSeconds: clampNumber(settings?.timeoutSeconds, 1, 600, 60),
     maxContextChars: clampNumber(settings?.maxContextChars, 1000, 250000, 60000),

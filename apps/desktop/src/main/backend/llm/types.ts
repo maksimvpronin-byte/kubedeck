@@ -1,4 +1,4 @@
-import type { LlmSettings } from "../config/types";
+import type { ApiKeyUpdate, LlmSettings } from "../config/types";
 
 export type LlmRole = "system" | "user" | "assistant";
 
@@ -40,4 +40,5 @@ export interface LlmPromptBuildResult {
 
 export interface LlmTestRequest {
   settings?: Partial<LlmSettings>;
+  apiKeyUpdate?: ApiKeyUpdate;
 }

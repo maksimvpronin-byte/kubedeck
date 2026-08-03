@@ -4,9 +4,12 @@
 
 ## Известные ограничения
 
-- LLM API key хранится в `config.json` открытым текстом и без ограничения прав
-  файла. Перевод его на Electron `safeStorage` запланирован отдельной задачей и
-  в 2.10.0 не входит.
+- На системах без доступного keyring (типично для headless Linux без
+  `gnome-keyring`/`kwallet`) Electron `safeStorage` недоступен. LLM API key в
+  этом случае не шифруется: существующий plaintext-ключ остаётся на диске (но
+  с правами `0600`), а сохранение нового ключа отклоняется с
+  `SECRET_STORAGE_UNAVAILABLE`. UI показывает предупреждение через
+  `secretStorageAvailable` в `GET /llm/status`.
 - Release-сборки Windows, macOS и Linux не подписаны; macOS дополнительно не
   notarized.
 
@@ -49,6 +52,28 @@ IPC handlers обязаны валидировать enum-like arguments, Kubern
 - Временные terminal scripts удаляются по lifecycle и не должны содержать credentials.
 
 Kubeconfig content, authorization headers, LLM API keys, Secret values и session token запрещено логировать.
+
+## LLM API key storage
+
+- LLM API key хранится не в `config.json`, а зашифрованным через Electron
+  `safeStorage` в `<appDataRoot>/secrets/llm-api-key.bin`; каталог `secrets/`
+  имеет права `0700`, файл — `0600` (POSIX).
+- `config.json` хранит только `llm.apiKeyConfigured: boolean` — признак того,
+  что ключ сохранён, без самого значения.
+- Расшифрованное значение существует только в памяти процесса на время
+  исходящего запроса к LLM endpoint (`chatCompletion`) и никогда не
+  записывается на диск и не логируется.
+- При первом запуске после обновления one-shot миграция
+  (`migratePlaintextLlmSecret`) переносит уже сохранённый plaintext-ключ из
+  `config.json`, `config.backup.json`, `config.broken.json` и оставшихся
+  temp-файлов в encrypted storage и вычищает эти файлы. Если encrypted storage
+  недоступен, миграция не расшифровывает и не удаляет ключ, но ужесточает права
+  файла до `0600`.
+- `PUT /settings` принимает отдельное поле `apiKeyUpdate`
+  (`keep`/`replace`/`clear`) — само значение никогда не попадает в
+  `AppConfig`/`Settings`, которые возвращаются клиенту.
+- `POST /llm/test` поддерживает тот же `apiKeyUpdate`, что позволяет проверить
+  ещё не сохранённый ключ, не записывая его на диск.
 
 ## Redaction
 
@@ -120,7 +145,7 @@ Watch, Pod Terminal, Node SSH и Port Forward имеют явного владе
 - Renderer не добавляет логи в LLM-запрос, а gateway отклоняет legacy-поля `logs` и `previousLogs` до построения prompt.
 - Перед отправкой оставшийся разрешённый resource context проходит sanitizer; sanitizer не заменяет запрет передачи логов.
 - Secret values, credentials и чувствительные structured fields должны удаляться.
-- API key не возвращается публичными status/config responses и не попадает в audit/logs.
+- API key не возвращается публичными status/config responses и не попадает в audit/logs; `GET /llm/status` возвращает только `secretStorageAvailable`.
 - Ошибка внешнего LLM не должна включать исходный request payload в log.
 
 ## Packaging invariants

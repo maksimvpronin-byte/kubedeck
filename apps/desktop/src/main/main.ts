@@ -5,6 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startGateway } from "./backend/gateway";
 import type { GatewayHandle } from "./backend/types";
+import { ElectronSafeStorageSecretStore } from "./security/electronSafeStorageSecretStore";
+import { migratePlaintextLlmSecret } from "./backend/security/migrateSecrets";
 
 let mainWindow: BrowserWindow | null = null;
 let gatewayUrl = "";
@@ -77,11 +79,19 @@ async function startNodeGateway() {
   if (gateway) return;
 
   gatewaySessionToken = randomBytes(32).toString("base64url");
+  const secretStore = new ElectronSafeStorageSecretStore(appDataRoot());
+  const migration = migratePlaintextLlmSecret(appDataRoot(), secretStore);
+  if (migration.blocked) {
+    logDesktop("LLM secret migration blocked: encrypted storage unavailable, plaintext key permissions tightened");
+  } else if (migration.migrated) {
+    logDesktop("LLM secret migration completed: API key moved to encrypted storage");
+  }
   gateway = await startGateway({
     sessionToken: gatewaySessionToken,
     appDataRoot: appDataRoot(),
     appVersion: app.getVersion(),
     log: logDesktop,
+    secretStore,
   });
   gatewayUrl = gateway.baseUrl;
 }

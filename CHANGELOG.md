@@ -1,3 +1,12 @@
+## 2.10.1 - Encrypted LLM API key storage
+
+- Stopped storing the LLM API key as plaintext in `config.json`: it is now encrypted at rest via Electron `safeStorage` in `secrets/llm-api-key.bin` (`0700`/`0600` permissions) and decrypted only in-process for the duration of an outbound LLM request.
+- `config.json`, `GET /config` and `PUT /settings` now carry `llm.apiKeyConfigured: boolean` instead of the key value; the raw key is never echoed back to the renderer.
+- Added a one-shot migration that moves any existing plaintext key (including `config.backup.json`/`config.broken.json` copies) into encrypted storage on first launch after upgrade, tightening file permissions even when encrypted storage isn't available.
+- `PUT /settings` and `POST /llm/test` accept a dedicated `apiKeyUpdate` (`keep`/`replace`/`clear`), preserving the "test an unsaved key" flow without ever persisting it unless explicitly saved.
+- Exposed `secretStorageAvailable` via `GET /llm/status` so Settings can warn when encrypted storage isn't available on the host (relevant for headless Linux without a keyring).
+- Hardened `config.json`/`config.backup.json` to `0600` permissions on save (POSIX).
+
 ## 2.10.0 - Apache-2.0 license, SSH host key verification and Linux builds
 
 - Published KubeDeck under the Apache License 2.0 with a NOTICE that reserves the KubeDeck name and icons, and added a third-party notices document covering every redistributed component.

@@ -19,6 +19,8 @@ import { PodTerminalWebSocketServer } from "./terminal/podTerminalWebSocket";
 import { NodeSshWebSocketServer } from "./ssh/nodeSshWebSocket";
 import { SshHostKeyStore } from "./ssh/sshHostKeyStore";
 import { ConfigStore } from "./config/configStore";
+import { MemorySecretStore } from "./security/memorySecretStore";
+import type { SecretStore } from "./security/secretStore";
 import { writeError } from "./errors";
 import { KubectlRunner } from "./kubectl/runner";
 import { writeAppInfo } from "./routes/appInfo";
@@ -71,6 +73,7 @@ configStore: ConfigStore;
   terminalWebSocket: PodTerminalWebSocketServer;
   sshWebSocket: NodeSshWebSocketServer;
   sshHostKeys: SshHostKeyStore;
+  secretStore: SecretStore;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -175,6 +178,7 @@ function handleRequest(
       response,
       services.configStore,
       services.auditStore,
+      services.secretStore,
     ).catch((error) => {
       options.log(`gateway settings update failed: ${String(error)}`);
       writeError(response, 500, "SETTINGS_UPDATE_FAILED", "Unable to update settings");
@@ -395,6 +399,7 @@ function handleRequest(
       response,
       pathname,
       services.configStore,
+      services.secretStore,
       options.log,
     )
   ) {
@@ -590,6 +595,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     clientFactory: options.sshClientFactory,
     hostKeyDecisionTimeoutMs: options.sshHostKeyDecisionTimeoutMs,
   });
+  const secretStore = options.secretStore ?? new MemorySecretStore();
   const services: GatewayServices = {
     configStore,
     auditStore,
@@ -600,6 +606,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     terminalWebSocket,
     sshWebSocket,
     sshHostKeys,
+    secretStore,
   };
 
   const sockets = new Set<Socket>();

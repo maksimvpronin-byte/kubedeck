@@ -1,6 +1,7 @@
 import type { SpawnProcess } from "./kubectl/runner";
 import type { TerminalPtyFactory } from "./terminal/podTerminalWebSocket";
 import type { SshClientFactory } from "./ssh/nodeSshWebSocket";
+import type { SecretStore } from "./security/secretStore";
 
 export type RouteOwner = "node" | "python";
 export type RouteTransport = "http" | "websocket";
@@ -63,6 +64,7 @@ export interface GatewayOptions {
   terminalPtyFactory?: TerminalPtyFactory | null;
   sshClientFactory?: SshClientFactory;
   sshHostKeyDecisionTimeoutMs?: number;
+  secretStore?: SecretStore;
 }
 
 export interface GatewayHandle {
