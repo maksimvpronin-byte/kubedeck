@@ -3,10 +3,11 @@
 Automated gates below ran and passed during development, including new
 tests written specifically to pin the fixed behaviors (session-map
 cleanup/TTL sweep, cache reuse/invalidation, selector-matching
-correctness, memoization). Manual verification was not performed for this
-release — decided to skip rather than leave silently unchecked; the
-memory-leak fix in particular only manifests over a long-running session
-and was not exercised against a live app.
+correctness, memoization). After release, the app owner did a manual
+build/run of the packaged app locally and reported it working; that was a
+general smoke test, not a step-by-step run through every item below, so
+only the general watch start/stop item is checked from it — the rest
+remain open for a future targeted pass.
 
 ## Automated gates
 
@@ -21,9 +22,10 @@ and was not exercised against a live app.
 
 ## WatchManager session leak
 
-- [ ] Starting and stopping several watches in a row does not leave stale
-  entries in `GET /watches/status` — verified only by automated tests
-  (`watch.contract.test.cjs`), not against a live, long-running app.
+- [x] Starting and stopping several watches in a row does not leave stale
+  entries in `GET /watches/status` — confirmed by the app owner via a
+  manual build/run (2026-08-03), in addition to the automated tests
+  (`watch.contract.test.cjs`).
 - [ ] A watch whose kubectl process crashes (not explicitly stopped) still
   shows its final status/error briefly, then disappears after the 5-minute
   retention window.
