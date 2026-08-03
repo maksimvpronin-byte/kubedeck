@@ -1,6 +1,8 @@
 ## 2.10.3 - Performance and memory-leak fixes
 
 - Fixed a memory leak: `WatchManager` never removed stopped or crashed resource-watch sessions from its internal session map, so `this.sessions` grew without bound over a long-running session as users switched between resource tabs, namespaces and clusters (each switch starts a new kubectl watch without the renderer ever calling `stop()` on the old one). Explicitly stopped sessions are now removed immediately; sessions that end because the underlying process exited on its own are kept visible in `GET /watches/status` for 5 minutes (so a crash reason can still be inspected) and then swept.
+- Fixed an O(n²) allocation pattern in the resource table's row-selection bookkeeping that ran on every data refresh and, separately, every second while a row-age column was visible; the UI stays responsive with a large selection active on a busy, auto-refreshing table.
+- Several other performance and stability fixes across resource caching, node metrics polling and search: see the implementation plan (`docs/perf-audit-2.10.3-plan.md`) for details on each.
 
 ## 2.10.2 - Internal cleanup: shared HTTP error handling and terminal helpers
 

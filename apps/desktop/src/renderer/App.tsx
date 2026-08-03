@@ -484,7 +484,7 @@ export function App() {
     openResourceLocator,
   });
   const resourceTabs = visibleTabs(section, resourceTab);
-  const tableColumns = buildResourceTableColumns(t);
+  const tableColumns = useMemo(() => buildResourceTableColumns(t), [t]);
   const columns =
     tableColumns[resourceTab] ??
     (isCrdInstanceTab

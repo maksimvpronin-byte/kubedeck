@@ -368,24 +368,42 @@ CHANGELOG — упомянуть вместе с Секцией A как "perfor
 
 ### Задачи
 
-- [ ] `App.tsx` — обернуть `tableColumns` в `useMemo(() =>
+- [x] `App.tsx` — обернуть `tableColumns` в `useMemo(() =>
   buildResourceTableColumns(t), [t])` (t меняется только при смене языка).
-- [ ] `YamlTab.tsx` — вынести `text.toLowerCase()`/`query.toLowerCase()` из
+  Реализовано.
+- [x] `YamlTab.tsx` — вынести `text.toLowerCase()`/`query.toLowerCase()` из
   цикла в `countMatches`; обернуть вызов `countMatches(...)` в `useMemo` по
-  `[yamlDraft, yamlQuery]` (или что там реально входит).
-- [ ] `ManifestCompare.tsx` — обернуть `cleanManifest`+`buildManifestDiff`
+  `[yamlDraft, yamlQuery]` (или что там реально входит). Реализовано —
+  `countMatches` теперь считает `lowerText`/`lowerQuery` один раз до
+  `while`-цикла; вызов обёрнут в `useMemo` с зависимостями
+  `[yamlDraft, yamlQuery]`.
+- [x] `ManifestCompare.tsx` — обернуть `cleanManifest`+`buildManifestDiff`
   результат (переменная `rows`) в `useMemo` по фактическим входам (`left`,
-  `right`, `raw`), не пересчитывать на fold/collapse-изменения.
-- [ ] `LogsTab.tsx` — обернуть `lines`/`visibleLines`/`visibleText` в
-  `useMemo` по `[content, normalizedQuery]`.
+  `right`, `raw`), не пересчитывать на fold/collapse-изменения. Реализовано
+  как единый `useMemo` возвращающий `{ left, right, rows, renderError }` с
+  зависимостями `[currentYaml, targetYaml, raw, error]` (реальные примитивные
+  входы — `left`/`right`/`rows` раньше были производными от них, но
+  `rows` пересобирался как новый массив на каждый рендер, что уже
+  обесценивало downstream `useMemo(foldRanges)`/`useMemo(displayedRows)`,
+  зависящие от `rows` по identity — теперь и они получают пользу от фикса).
+- [x] `LogsTab.tsx` — обернуть `lines`/`visibleLines`/`visibleText` в
+  `useMemo` по `[content, normalizedQuery]`. Реализовано.
 
 ### Контракты
 
-- [ ] Ни одно из четырёх мест не меняет видимый результат — только частоту
+- [x] Ни одно из четырёх мест не меняет видимый результат — только частоту
   пересчёта. Renderer-тесты (`renderer-controllers.contract.test.cjs`)
   проходят без изменений в ассертах, если они не читают конкретные строки
   внутри этих функций текстом (проверить и обновить при необходимости — по
-  той же процедуре, что в 2.10.2).
+  той же процедуре, что в 2.10.2). Добавлен новый тест "resource table
+  columns, YAML match count, manifest diff and log filtering are memoized",
+  подтверждающий все 4 места структурно (полное поведенческое тестирование
+  через `loadTypeScript`-харнесс невозможно для JSX-компонентов — тот же
+  ограничение, что и в Секции F). Существующий тест "manifest compare marks
+  equal, changed, added, and removed lines" (проверяет `buildManifestDiff`
+  напрямую как чистую функцию) не затронут — сама функция не менялась,
+  изменился только её call site. Полный `test:renderer` (53 теста) и
+  `test:gateway` (103 теста, не затронуты) проходят.
 
 ### Документация
 

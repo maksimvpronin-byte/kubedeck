@@ -910,6 +910,23 @@ test("resource table selection pruning and derived row lists avoid O(n^2) and re
   assert.match(state, /const selectedPageRows = useMemo\(\(\) => renderedRows\.filter\(\(row\) => selected\.has\(rowKey\(row\)\)\), \[renderedRows, selected\]\);/);
 });
 
+test("resource table columns, YAML match count, manifest diff and log filtering are memoized", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  assert.match(app, /const tableColumns = useMemo\(\(\) => buildResourceTableColumns\(t\), \[t\]\);/);
+
+  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+  assert.match(yamlTab, /const matchCount = useMemo\(\(\) => \(yamlQuery \? countMatches\(yamlDraft, yamlQuery\) : 0\), \[yamlDraft, yamlQuery\]\);/);
+  assert.doesNotMatch(yamlTab, /index = text\.toLowerCase\(\)\.indexOf\(query\.toLowerCase\(\), index \+ query\.length\)/, "countMatches must not lower-case text/query inside its scan loop");
+
+  const manifestCompare = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
+  assert.match(manifestCompare, /const \{ left, right, rows, renderError \} = useMemo\(\(\) => \{/);
+  assert.match(manifestCompare, /\}, \[currentYaml, targetYaml, raw, error\]\);/);
+
+  const logsTab = fs.readFileSync(path.join(rendererRoot, "components/LogsTab.tsx"), "utf8");
+  assert.match(logsTab, /const \{ lines, visibleLines, visibleText \} = useMemo\(\(\) => \{/);
+  assert.match(logsTab, /\}, \[content, normalizedQuery\]\);/);
+});
+
 test("workspace resource tabs add, deduplicate, limit, and close deterministically", () => {
   const model = loadTypeScript("utils/workspaceTabs.ts");
   const make = (name) => ({ id: name, clusterId: "c", clusterName: "C", section: "workloads", resource: "pods", namespace: "default", row: { uid: name, name }, drawerTab: "summary" });

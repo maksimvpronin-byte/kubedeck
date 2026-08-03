@@ -237,20 +237,23 @@ export function ManifestCompare({
     }
   };
   const tab = candidates.find((item) => item.id === target);
-  let left = currentYaml;
-  let right = targetYaml;
-  let renderError = error;
-  try {
-    if (!raw) {
-      left = cleanManifest(left);
-      right = right ? cleanManifest(right) : "";
+  const { left, right, rows, renderError } = useMemo(() => {
+    let cleanedLeft = currentYaml;
+    let cleanedRight = targetYaml;
+    let manifestError = error;
+    try {
+      if (!raw) {
+        cleanedLeft = cleanManifest(cleanedLeft);
+        cleanedRight = cleanedRight ? cleanManifest(cleanedRight) : "";
+      }
+    } catch (cause) {
+      manifestError ||= cause instanceof Error ? cause.message : String(cause);
     }
-  } catch (cause) {
-    renderError ||= cause instanceof Error ? cause.message : String(cause);
-  }
-  const rows = right
-    ? buildManifestDiff(left, right)
-    : lines(left).map((value, index) => ({ left: value, right: null, leftNumber: index + 1, rightNumber: null, leftTone: "equal" as const, rightTone: "equal" as const }));
+    const diffRows = cleanedRight
+      ? buildManifestDiff(cleanedLeft, cleanedRight)
+      : lines(cleanedLeft).map((value, index) => ({ left: value, right: null, leftNumber: index + 1, rightNumber: null, leftTone: "equal" as const, rightTone: "equal" as const }));
+    return { left: cleanedLeft, right: cleanedRight, rows: diffRows, renderError: manifestError };
+  }, [currentYaml, targetYaml, raw, error]);
   const foldRanges = useMemo(() => [...diffFoldRanges(rows, "left", left), ...(right ? diffFoldRanges(rows, "right", right) : [])], [left, right, rows]);
   const displayedRows = useMemo(() => visibleDiffRows(rows, foldRanges, collapsed), [collapsed, foldRanges, rows]);
   const toggleFold = (key: string) =>

@@ -50,7 +50,7 @@ export function YamlTab({
   const [matchIndex, setMatchIndex] = useState(-1);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const highlightRef = useRef<HTMLPreElement | null>(null);
-  const matchCount = yamlQuery ? countMatches(yamlDraft, yamlQuery) : 0;
+  const matchCount = useMemo(() => (yamlQuery ? countMatches(yamlDraft, yamlQuery) : 0), [yamlDraft, yamlQuery]);
   const reloadFeedback = useAsyncActionFeedback();
   const [compareOpen, setCompareOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -343,11 +343,13 @@ function findYamlCommentIndex(line: string) {
 
 function countMatches(text: string, query: string) {
   if (!query) return 0;
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
   let count = 0;
-  let index = text.toLowerCase().indexOf(query.toLowerCase());
+  let index = lowerText.indexOf(lowerQuery);
   while (index !== -1) {
     count += 1;
-    index = text.toLowerCase().indexOf(query.toLowerCase(), index + query.length);
+    index = lowerText.indexOf(lowerQuery, index + lowerQuery.length);
   }
   return count;
 }

@@ -1,5 +1,5 @@
 import { Copy, Download, Search } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useControlledAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
@@ -70,10 +70,12 @@ export function LogsTab({
   const previousContentRef = useRef(content);
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const refreshFeedback = useControlledAsyncActionFeedback(loading, refreshFailed);
-  const lines = content ? content.split("\n") : [];
   const normalizedQuery = query.trim().toLowerCase();
-  const visibleLines = normalizedQuery ? lines.filter((line) => line.toLowerCase().includes(normalizedQuery)) : lines;
-  const visibleText = visibleLines.join("\n");
+  const { lines, visibleLines, visibleText } = useMemo(() => {
+    const allLines = content ? content.split("\n") : [];
+    const filteredLines = normalizedQuery ? allLines.filter((line) => line.toLowerCase().includes(normalizedQuery)) : allLines;
+    return { lines: allLines, visibleLines: filteredLines, visibleText: filteredLines.join("\n") };
+  }, [content, normalizedQuery]);
 
   useLayoutEffect(() => {
     const output = outputRef.current;
