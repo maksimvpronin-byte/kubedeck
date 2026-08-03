@@ -813,6 +813,7 @@ test("drawer request generations reject stale responses and reset resource data"
 test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results", () => {
   const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
   const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const yamlActions = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerYamlActions.ts"), "utf8");
   const yaml = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
   const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
   const lightStyles = fs.readFileSync(path.join(rendererRoot, "styles/related-panel-polish.css"), "utf8");
@@ -825,8 +826,8 @@ test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results",
   assert.match(drawer, /drawerResourceIdentity\(clusterId, resource, pod\)/);
   assert.doesNotMatch(drawer, /<div key=\{currentObjectKey\} className=/);
   assert.match(drawer, /setTab\(initialTab === "events" \? "summary" : initialTab\)/);
-  assert.match(drawer, /setYamlStatus\(t\("yaml\.dryRunPassed"\)\)/);
-  assert.match(drawer, /setYamlStatus\(t\("yaml\.applied"\)\)/);
+  assert.match(yamlActions, /setYamlStatus\(t\("yaml\.dryRunPassed"\)\)/);
+  assert.match(yamlActions, /setYamlStatus\(t\("yaml\.applied"\)\)/);
   assert.match(yaml, /className="apply-result" role="status" aria-live="polite"/);
   for (const source of [drawer, yaml, drawerStyles, lightStyles]) {
     assert.doesNotMatch(source, /yaml-operation-output/);

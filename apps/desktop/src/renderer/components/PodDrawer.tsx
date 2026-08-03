@@ -12,9 +12,11 @@ import { PortForwardModal, defaultPortForwardDraft, supportsPortForward } from "
 import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, supportedActions, type ResourceAction } from "./PodDrawerModals";
 import { useUiClock } from "../hooks/useUiClock";
 import { ResourceSummary } from "./ResourceSummary";
-import { containerNames, downloadTextFile, eventTargetForOpen, isAbortError } from "./podDrawerHelpers";
+import { containerNames, downloadTextFile, eventTargetForOpen } from "./podDrawerHelpers";
 import { availableDrawerTabs, PodDrawerActions, PodDrawerHeader, PodDrawerTabs, type DrawerTab } from "./PodDrawerChrome";
 import { drawerResourceIdentity, usePodDrawerResourceLifecycle } from "../hooks/usePodDrawerResourceLifecycle";
+import { usePodDrawerLogs } from "../hooks/usePodDrawerLogs";
+import { usePodDrawerYamlActions } from "../hooks/usePodDrawerYamlActions";
 import { toErrorInfo } from "../utils/errors";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
 import type { NodeActionKind } from "../hooks/useBulkResourceActions";
@@ -86,19 +88,7 @@ export function PodDrawer({
   const [portForwardDraft, setPortForwardDraft] = useState<PortForwardStartRequest | null>(null);
   const [replicas, setReplicas] = useState(1);
   const [relatedResourceFilter, setRelatedResourceFilter] = useState("all");
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logsDownloadLoading, setLogsDownloadLoading] = useState(false);
   const [terminalPickerOpen, setTerminalPickerOpen] = useState(false);
-  const [logsTail, setLogsTail] = useState(500);
-  const [logsPrevious, setLogsPrevious] = useState(false);
-  const [logsTimestamps, setLogsTimestamps] = useState(false);
-  const [logsFollow, setLogsFollow] = useState(false);
-  const [logsQuery, setLogsQuery] = useState("");
-  const [logsRefreshToken, setLogsRefreshToken] = useState(0);
-  const [logsContainer, setLogsContainer] = useState("");
-  const [logsPodFilter, setLogsPodFilter] = useState("");
-  const [deploymentLogPods, setDeploymentLogPods] = useState<string[]>([]);
-  const [deploymentLogContainers, setDeploymentLogContainers] = useState<string[]>([]);
   const [llmLoading, setLlmLoading] = useState(false);
   const [llmError, setLlmError] = useState<ErrorInfo | null>(null);
   const [llmAnswer, setLlmAnswer] = useState("");
@@ -112,9 +102,6 @@ export function PodDrawer({
   onTabChangeRef.current = onTabChange;
   onDirtyChangeRef.current = onDirtyChange;
 
-  const podUid = pod?.uid ? String(pod.uid) : "";
-  const podName = pod?.name ?? "";
-  const podNamespace = pod ? String(pod.namespace || "_cluster") : "";
   const currentObjectKey = drawerResourceIdentity(clusterId, resource, pod);
   const {
     content,
@@ -140,6 +127,47 @@ export function PodDrawer({
   const now = useUiClock(Boolean(pod), 1000);
   const isDeploymentResource = resource === "deployments" || resource === "deployments.apps" || resource === "deployment";
   const isNodeResource = resource === "nodes" || resource === "node";
+  const {
+    logsLoading,
+    logsDownloadLoading,
+    logsTail,
+    setLogsTail,
+    logsPrevious,
+    setLogsPrevious,
+    logsTimestamps,
+    setLogsTimestamps,
+    logsFollow,
+    setLogsFollow,
+    logsQuery,
+    setLogsQuery,
+    logsContainer,
+    setLogsContainer,
+    logsPodFilter,
+    setLogsPodFilter,
+    deploymentLogPods,
+    deploymentLogContainers,
+    downloadFullLogs,
+    refreshLogs,
+  } = usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentObjectKey, isDeploymentResource, setContent, setError });
+  const { runYamlDryRun, applyYaml, resetYamlDraft, reloadYamlFromCluster } = usePodDrawerYamlActions({
+    api,
+    clusterId,
+    pod,
+    resource,
+    currentObjectKey,
+    t,
+    yamlDraft,
+    yamlBaseline,
+    setYamlBaseline,
+    setYamlDraft,
+    setYamlObjectKey,
+    setLoading,
+    setError,
+    setApplyResult,
+    setYamlStatus,
+    setYamlApplyConfirmOpen,
+    onActionComplete,
+  });
 
   useEffect(() => onTabChangeRef.current?.(tab), [tab]);
   useEffect(() => setTab(initialTab === "events" ? "summary" : initialTab), [currentObjectKey, initialTab]);
@@ -163,14 +191,6 @@ export function PodDrawer({
     setApplyResult("");
     setYamlStatus("");
     setTerminalPickerOpen(false);
-    setLogsFollow(false);
-    setLogsQuery("");
-    setLogsLoading(false);
-    setLogsDownloadLoading(false);
-    setLogsContainer("");
-    setLogsPodFilter("");
-    setDeploymentLogPods([]);
-    setDeploymentLogContainers([]);
     setCloseConfirmOpen(false);
     setRelatedResourceFilter("all");
     setLlmLoading(false);
@@ -187,199 +207,6 @@ export function PodDrawer({
     setApplyResult("");
     if (tab !== "yaml") setYamlStatus("");
   }, [tab, currentObjectKey]);
-
-  useEffect(() => {
-    if (!pod || tab !== "logs") return;
-    const controller = new AbortController();
-
-    setLogsLoading(true);
-    setError(null);
-
-    if (isDeploymentResource) {
-      api
-        .deploymentLogTargets(clusterId, String(pod.namespace), pod.name, controller.signal)
-        .then((targets) => {
-          if (controller.signal.aborted) return "";
-          const podNames = targets.pods.map((item) => item.name).filter(Boolean);
-          setDeploymentLogPods(podNames);
-          setDeploymentLogContainers(targets.containers || []);
-          const selectedPod = logsPodFilter && podNames.includes(logsPodFilter) ? logsPodFilter : "";
-          if (logsPodFilter && !podNames.includes(logsPodFilter)) setLogsPodFilter("");
-          return api.deploymentLogs(
-            clusterId,
-            String(pod.namespace),
-            pod.name,
-            {
-              tail: logsTail,
-              previous: logsPrevious,
-              timestamps: logsTimestamps,
-              container: logsContainer || undefined,
-              pod: selectedPod || undefined,
-            },
-            controller.signal,
-          );
-        })
-        .then((text) => {
-          if (controller.signal.aborted || typeof text !== "string") return;
-          setContent((current) => (current === text ? current : text));
-        })
-        .catch((err) => {
-          if (isAbortError(err)) return;
-          setError(toErrorInfo(err));
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLogsLoading(false);
-        });
-      return () => controller.abort();
-    }
-
-    const selectedContainer = logsContainer || containerNames(pod)[0] || "";
-    api
-      .podLogs(
-        clusterId,
-        String(pod.namespace),
-        pod.name,
-        {
-          tail: logsTail,
-          previous: logsPrevious,
-          timestamps: logsTimestamps,
-          container: selectedContainer || undefined,
-        },
-        controller.signal,
-      )
-      .then((text) => {
-        if (controller.signal.aborted) return;
-        setContent((current) => (current === text ? current : text));
-      })
-      .catch((err) => {
-        if (isAbortError(err)) return;
-        setError(toErrorInfo(err));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLogsLoading(false);
-      });
-    return () => controller.abort();
-  }, [api, clusterId, podUid, podName, podNamespace, resource, isDeploymentResource, tab, logsTail, logsPrevious, logsTimestamps, logsContainer, logsPodFilter, logsRefreshToken]);
-
-  useEffect(() => {
-    if (!pod || tab !== "logs" || !logsFollow) return;
-    const timer = window.setInterval(() => {
-      setLogsRefreshToken((current) => current + 1);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [podUid, tab, logsFollow]);
-
-  async function downloadFullLogs() {
-    if (!pod) return;
-    setLogsDownloadLoading(true);
-    setError(null);
-    try {
-      if (isDeploymentResource) {
-        const text = await api.deploymentLogs(clusterId, String(pod.namespace), pod.name, {
-          all: true,
-          previous: logsPrevious,
-          timestamps: logsTimestamps,
-          container: logsContainer || undefined,
-          pod: logsPodFilter || undefined,
-        });
-        downloadTextFile(`${pod.name}.deployment.full.log`, text);
-        return;
-      }
-      const selectedContainer = logsContainer || containerNames(pod)[0] || "";
-      const text = await api.podLogs(clusterId, String(pod.namespace), pod.name, {
-        all: true,
-        previous: logsPrevious,
-        timestamps: logsTimestamps,
-        container: selectedContainer || undefined,
-      });
-      downloadTextFile(`${pod.name}.full.log`, text);
-    } catch (err) {
-      setError(toErrorInfo(err));
-    } finally {
-      setLogsDownloadLoading(false);
-    }
-  }
-
-  async function runYamlDryRun() {
-    if (!pod) return;
-    setLoading(true);
-    setError(null);
-    setApplyResult("");
-    setYamlStatus("");
-    try {
-      await api.dryRunYaml(clusterId, yamlDraft);
-      setYamlStatus(t("yaml.dryRunPassed"));
-    } catch (err) {
-      const info = toErrorInfo(err);
-      setYamlStatus("");
-      setError(info);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function applyYaml(typedName: string) {
-    if (!pod) return;
-    const namespace = String(pod.namespace || "_cluster");
-    const submittedYaml = yamlDraft;
-    setLoading(true);
-    setError(null);
-    setApplyResult("");
-    setYamlStatus("");
-    try {
-      await api.applyYaml(clusterId, submittedYaml, namespace, pod.name, typedName);
-      setYamlStatus(t("yaml.applied"));
-      setYamlBaseline(submittedYaml);
-      setYamlDraft(submittedYaml);
-      setYamlObjectKey(currentObjectKey);
-      onActionComplete();
-
-      try {
-        const refreshed = await api.resourceText(clusterId, resource, namespace, pod.name, "yaml");
-        setYamlBaseline(refreshed);
-        setYamlDraft(refreshed);
-        setYamlObjectKey(currentObjectKey);
-      } catch {
-        // Keep the submitted YAML as the new clean baseline if refresh fails.
-      }
-    } catch (err) {
-      const info = toErrorInfo(err);
-      setYamlStatus("");
-      setError(info);
-    } finally {
-      setYamlApplyConfirmOpen(false);
-      setLoading(false);
-    }
-  }
-
-  function resetYamlDraft() {
-    setYamlDraft(yamlBaseline);
-    setYamlStatus("");
-    setApplyResult("");
-    setError(null);
-  }
-
-  async function reloadYamlFromCluster() {
-    if (!pod) return false;
-    const namespace = String(pod.namespace || "_cluster");
-    setLoading(true);
-    setError(null);
-    setApplyResult("");
-    setYamlStatus("");
-    try {
-      const text = await api.resourceText(clusterId, resource, namespace, pod.name, "yaml");
-      setYamlBaseline(text);
-      setYamlDraft(text);
-      setYamlObjectKey(currentObjectKey);
-      return true;
-    } catch (err) {
-      const info = toErrorInfo(err);
-      setError(info);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function runAction(action: ResourceAction) {
     if (!pod) return;
@@ -653,7 +480,7 @@ export function PodDrawer({
                 onTargetPodChange={setLogsPodFilter}
                 contextLabel={isDeploymentResource ? "deployment" : "pod"}
                 fullDownloadLabel={isDeploymentResource ? "Full deployment log" : "Full pod log"}
-                onRefresh={() => setLogsRefreshToken((current) => current + 1)}
+                onRefresh={refreshLogs}
                 refreshFailed={Boolean(error)}
                 t={t}
                 onCopy={() => copyText(content, "Logs copied")}
