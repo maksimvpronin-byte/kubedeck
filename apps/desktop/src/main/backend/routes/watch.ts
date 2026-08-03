@@ -4,20 +4,12 @@ import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { decodePathPart, RequestValidationError, validateIdentifier } from "../validation";
 import { WatchManager, WatchStartError } from "../watch/watchManager";
 
 interface WatchStartBody {
   resource: string;
   namespace?: string;
-}
-
-function decodePart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 function watchArgs(resource: string, namespace: string): string[] {
@@ -101,14 +93,14 @@ export function handleWatchRequest(
 
     const startMatch = pathname.match(/^\/clusters\/([^/]+)\/watches$/);
     if (request.method === "POST" && startMatch) {
-      const clusterId = validateIdentifier(decodePart(startMatch[1], "cluster_id"), "cluster_id", 128);
+      const clusterId = validateIdentifier(decodePathPart(startMatch[1], "cluster_id"), "cluster_id", 128);
       void startWatch(request, response, clusterId, configStore, watchManager).catch((error) => writeWatchError(response, error, log));
       return true;
     }
 
     const stopMatch = pathname.match(/^\/watches\/([^/]+)$/);
     if (request.method === "DELETE" && stopMatch) {
-      const watchId = validateIdentifier(decodePart(stopMatch[1], "watch_id"), "watch_id", 64);
+      const watchId = validateIdentifier(decodePathPart(stopMatch[1], "watch_id"), "watch_id", 64);
       void watchManager
         .stop(watchId, true)
         .then((result) => writeJson(response, result))

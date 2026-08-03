@@ -8,22 +8,13 @@ import { chatCompletion, LlmClientError, validateLlmSettings, type ResolvedLlmSe
 import { buildResourceContext } from "../llm/context";
 import { buildUserPrompt, SYSTEM_PROMPT } from "../llm/prompts";
 import type { LlmAnalyzeResourceRequest, LlmMessage, LlmPromptBuildResult, LlmTestRequest } from "../llm/types";
+import { RequestValidationError } from "../validation";
 
 const SECRET_NAME = "llm-api-key" as const;
 
 const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 const MAX_IDENTITY_CHARS = 512;
 const MAX_USER_REQUEST_CHARS = 20_000;
-
-class LlmRequestError extends Error {
-  constructor(
-    readonly statusCode: number,
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -36,10 +27,10 @@ function asString(value: unknown, fallback = ""): string {
 function requiredString(value: unknown, field: string, maximum = MAX_IDENTITY_CHARS): string {
   const text = asString(value).trim();
   if (!text) {
-    throw new LlmRequestError(400, "INVALID_LLM_REQUEST", `${field} is required`);
+    throw new RequestValidationError(400, "INVALID_LLM_REQUEST", `${field} is required`);
   }
   if (text.length > maximum) {
-    throw new LlmRequestError(400, "INVALID_LLM_REQUEST", `${field} must be at most ${maximum} characters`);
+    throw new RequestValidationError(400, "INVALID_LLM_REQUEST", `${field} must be at most ${maximum} characters`);
   }
   return text;
 }
@@ -51,7 +42,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
     if (size > MAX_REQUEST_BYTES) {
-      throw new LlmRequestError(413, "REQUEST_TOO_LARGE", `LLM request body exceeds ${MAX_REQUEST_BYTES} bytes`);
+      throw new RequestValidationError(413, "REQUEST_TOO_LARGE", `LLM request body exceeds ${MAX_REQUEST_BYTES} bytes`);
     }
     chunks.push(buffer);
   }
@@ -59,20 +50,20 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {
-    throw new LlmRequestError(400, "INVALID_JSON", "Request body must be valid JSON");
+    throw new RequestValidationError(400, "INVALID_JSON", "Request body must be valid JSON");
   }
 }
 
 function normalizeAnalyzeRequest(value: unknown): LlmAnalyzeResourceRequest {
   if (!isRecord(value)) {
-    throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "Request body must be an object");
+    throw new RequestValidationError(400, "INVALID_LLM_REQUEST", "Request body must be an object");
   }
   if (Object.hasOwn(value, "logs") || Object.hasOwn(value, "previousLogs")) {
-    throw new LlmRequestError(400, "LLM_LOG_CONTEXT_FORBIDDEN", "KubeDeck does not send Kubernetes logs to LLM providers.");
+    throw new RequestValidationError(400, "LLM_LOG_CONTEXT_FORBIDDEN", "KubeDeck does not send Kubernetes logs to LLM providers.");
   }
   const userRequest = asString(value.userRequest).trim();
   if (userRequest.length > MAX_USER_REQUEST_CHARS) {
-    throw new LlmRequestError(400, "INVALID_LLM_REQUEST", `userRequest must be at most ${MAX_USER_REQUEST_CHARS} characters`);
+    throw new RequestValidationError(400, "INVALID_LLM_REQUEST", `userRequest must be at most ${MAX_USER_REQUEST_CHARS} characters`);
   }
   return {
     clusterId: requiredString(value.clusterId, "clusterId"),
@@ -140,19 +131,19 @@ function apiKeyUpdateFromRequest(value: unknown): ApiKeyUpdate {
 
   const update = value.apiKeyUpdate;
   if (!isRecord(update) || typeof update.action !== "string") {
-    throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate must be an object with an action");
+    throw new RequestValidationError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate must be an object with an action");
   }
 
   if (update.action === "keep") return { action: "keep" };
   if (update.action === "clear") return { action: "clear" };
   if (update.action === "replace") {
     if (typeof update.value !== "string" || !update.value.trim()) {
-      throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate.value must be a non-empty string");
+      throw new RequestValidationError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate.value must be a non-empty string");
     }
     return { action: "replace", value: update.value };
   }
 
-  throw new LlmRequestError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate.action must be keep, replace or clear");
+  throw new RequestValidationError(400, "INVALID_LLM_REQUEST", "apiKeyUpdate.action must be keep, replace or clear");
 }
 
 function resolveApiKey(secretStore: SecretStore, update: ApiKeyUpdate): string {
@@ -236,7 +227,7 @@ async function handleAnalyze(request: IncomingMessage, response: ServerResponse,
 }
 
 function writeRouteError(response: ServerResponse, error: unknown, log: (message: string) => void): void {
-  if (error instanceof LlmRequestError) {
+  if (error instanceof RequestValidationError) {
     writeError(response, error.statusCode, error.code, error.message);
     return;
   }

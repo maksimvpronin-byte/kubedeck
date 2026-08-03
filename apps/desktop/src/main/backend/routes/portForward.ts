@@ -5,7 +5,7 @@ import type { ConfigStore } from "../config/configStore";
 import { readJsonBody, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { PortForwardError, type PortForwardManager, type PortForwardStartInput } from "../portForward/portForwardManager";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { decodePathPart, RequestValidationError, validateIdentifier } from "../validation";
 import { writeRouteError as sharedWriteRouteError } from "./routeErrors";
 
 const REQUEST_MAX_BYTES = 64 * 1024;
@@ -22,14 +22,6 @@ type JsonObject = Record<string, unknown>;
 
 function isRecord(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function decodePart(value: string, field: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} is not valid URL encoding`);
-  }
 }
 
 function integerPort(value: unknown, field: string): number {
@@ -178,14 +170,14 @@ export function handlePortForwardRequest(
 
     const startMatch = pathname.match(/^\/clusters\/([^/]+)\/port-forwards$/);
     if (request.method === "POST" && startMatch) {
-      const clusterId = validateIdentifier(decodePart(startMatch[1], "cluster_id"), "cluster_id", 128);
+      const clusterId = validateIdentifier(decodePathPart(startMatch[1], "cluster_id"), "cluster_id", 128);
       void startPortForward(request, response, clusterId, configStore, auditStore, manager).catch((error) => writeRouteError(response, error, log));
       return true;
     }
 
     const stopMatch = pathname.match(/^\/port-forwards\/([^/]+)$/);
     if (request.method === "DELETE" && stopMatch) {
-      const sessionId = validateIdentifier(decodePart(stopMatch[1], "session_id"), "session_id", 128);
+      const sessionId = validateIdentifier(decodePathPart(stopMatch[1], "session_id"), "session_id", 128);
       void stopPortForward(response, sessionId, auditStore, manager).catch((error) => writeRouteError(response, error, log));
       return true;
     }
