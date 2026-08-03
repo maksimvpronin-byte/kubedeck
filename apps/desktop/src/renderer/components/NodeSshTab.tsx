@@ -6,11 +6,11 @@ import type { ApiClient } from "../api";
 import type { ResourceRow, Settings } from "../types";
 import { resolveSshDefaults } from "../utils/sshDefaults";
 import { terminalThemeFromCss } from "../utils/terminalTheme";
+import { copyTerminalSelection, disconnectTerminal, fitAndResizeTerminal, sendTerminalResizeIfChanged, terminalStatusClass, type TerminalSize } from "../utils/xtermSession";
 
 type AuthMethod = "agent" | "password" | "privateKey";
 
 type TerminalMessage = { type: string; data?: unknown; code?: string };
-type TerminalSize = { cols: number; rows: number };
 
 interface HostKeyPrompt {
   role: "target" | "jump";
@@ -116,12 +116,7 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true, t }:
       const fit = fitRef.current;
       const bounds = hostRef.current?.getBoundingClientRect();
       if (!terminal || !fit || !bounds || bounds.width <= 0 || bounds.height <= 0) return;
-      try {
-        fit.fit();
-        sendTerminalResizeIfChanged(socketRef.current, terminal, lastResizeRef);
-      } catch {
-        // xterm can briefly be detached while a terminal tab is activating.
-      }
+      fitAndResizeTerminal(fit, socketRef.current, terminal, lastResizeRef);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [active]);
@@ -175,12 +170,7 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true, t }:
     const fitAndResize = () => {
       const bounds = hostRef.current?.getBoundingClientRect();
       if (!activeRef.current || !bounds || bounds.width <= 0 || bounds.height <= 0) return;
-      try {
-        fit.fit();
-        sendTerminalResizeIfChanged(socketRef.current, terminal, lastResizeRef);
-      } catch {
-        // xterm can briefly be detached while its panel is resizing/closing.
-      }
+      fitAndResizeTerminal(fit, socketRef.current, terminal, lastResizeRef);
     };
     const resizeObserver = typeof ResizeObserver !== "undefined" && hostRef.current ? new ResizeObserver(() => window.requestAnimationFrame(() => window.requestAnimationFrame(fitAndResize))) : null;
     if (hostRef.current) resizeObserver?.observe(hostRef.current);
@@ -431,20 +421,6 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true, t }:
   );
 }
 
-function disconnectTerminal(socketRef: { current: WebSocket | null }, setConnected: (value: boolean) => void, setStatus: (value: string) => void, setConnecting?: (value: boolean) => void) {
-  const socket = socketRef.current;
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: "close" }));
-    socket.close();
-  } else if (socket) {
-    socket.close();
-  }
-  socketRef.current = null;
-  setConnected(false);
-  setConnecting?.(false);
-  setStatus("Disconnected");
-}
-
 function parseTerminalMessage(value: unknown): TerminalMessage {
   if (typeof value !== "string") return { type: "output", data: "" };
   try {
@@ -453,31 +429,6 @@ function parseTerminalMessage(value: unknown): TerminalMessage {
   } catch {
     return { type: "output", data: value };
   }
-}
-
-function sendTerminalResizeIfChanged(socket: WebSocket | null, terminal: XTerm, lastSizeRef: { current: TerminalSize | null }) {
-  if (socket?.readyState !== WebSocket.OPEN) return;
-  const cols = terminal.cols;
-  const rows = terminal.rows;
-  if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols <= 0 || rows <= 0) return;
-  const lastSize = lastSizeRef.current;
-  if (lastSize && lastSize.cols === cols && lastSize.rows === rows) return;
-  lastSizeRef.current = { cols, rows };
-  socket.send(JSON.stringify({ type: "resize", cols, rows }));
-}
-
-function copyTerminalSelection(terminal: XTerm | null, lastCopiedRef?: { current: string }) {
-  const selection = terminal?.getSelection();
-  if (!selection || selection === lastCopiedRef?.current) return;
-  lastCopiedRef && (lastCopiedRef.current = selection);
-  navigator.clipboard?.writeText(selection).catch(() => undefined);
-}
-
-function terminalStatusClass(status: string, connected: boolean, connecting: boolean) {
-  if (connected) return "terminal-status connected";
-  if (connecting) return "terminal-status connecting";
-  if (/error/i.test(status)) return "terminal-status error";
-  return "terminal-status";
 }
 
 function sshPreview(username: string, host: string, port: string, authMethod: AuthMethod, keyPath: string, useJumpHost: boolean, jumpUsername: string, jumpHost: string, jumpPort: string) {

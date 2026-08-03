@@ -952,13 +952,14 @@ test("hidden terminals never fit or resize the PTY", () => {
   const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
   const ssh = fs.readFileSync(path.join(rendererRoot, "components/NodeSshTab.tsx"), "utf8");
   const panel = fs.readFileSync(path.join(rendererRoot, "components/BottomTerminalPanel.tsx"), "utf8");
+  const xtermSession = fs.readFileSync(path.join(rendererRoot, "utils/xtermSession.ts"), "utf8");
   assert.match(terminal, /const activeRef = useRef\(active\)/);
   assert.match(terminal, /if \(!activeRef\.current\) return/);
   assert.match(terminal, /bounds\.width <= 0 \|\| bounds\.height <= 0/);
   assert.match(ssh, /const activeRef = useRef\(active\)/);
   assert.match(ssh, /!activeRef\.current \|\| !bounds/);
   assert.match(ssh, /bounds\.width <= 0 \|\| bounds\.height <= 0/);
-  assert.match(ssh, /lastSize\.cols === cols && lastSize\.rows === rows/);
+  assert.match(xtermSession, /lastSize\.cols === cols && lastSize\.rows === rows/);
   assert.match(panel, /active=\{!collapsed && target\.id === activeId\}/);
 });
 
