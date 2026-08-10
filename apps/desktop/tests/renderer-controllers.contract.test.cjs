@@ -186,6 +186,42 @@ test("cluster rail initials stay short and readable", () => {
   assert.equal(model.clusterInitials("тест-кластер"), "ТК");
 });
 
+test("cluster rail labels the part of the name that differs", () => {
+  const model = loadTypeScript("components/ClusterRail.tsx", { "lucide-react": { Plus: () => null } });
+  const label = (clusters) => [...model.clusterRailLabels(clusters).values()];
+
+  // Real-world naming: initials alone would read "K8" on almost every button.
+  assert.deepEqual(label(["k8s1", "k8s2", "k8s7", "k8s-infr", "k8s-office"].map((displayName, index) => ({ id: `c${index}`, displayName }))), ["1", "2", "7", "IN", "OF"]);
+  assert.deepEqual(
+    label([
+      { id: "a", displayName: "prod-eu" },
+      { id: "b", displayName: "prod-us" },
+    ]),
+    ["EU", "US"],
+  );
+  // Without a shared prefix, or with a name that is only the prefix, initials stay.
+  assert.deepEqual(
+    label([
+      { id: "a", displayName: "production" },
+      { id: "b", displayName: "staging" },
+    ]),
+    ["PR", "ST"],
+  );
+  assert.deepEqual(
+    label([
+      { id: "a", displayName: "k8s" },
+      { id: "b", displayName: "k8s1" },
+    ]),
+    ["K8", "K8"],
+  );
+  assert.deepEqual(label([{ id: "a", displayName: "k8s-office" }]), ["KO"]);
+
+  // The accent hue is stable per cluster id and differs between clusters.
+  assert.equal(model.clusterAccentHue("cluster-a"), model.clusterAccentHue("cluster-a"));
+  assert.notEqual(model.clusterAccentHue("cluster-a"), model.clusterAccentHue("cluster-b"));
+  assert.ok(model.clusterAccentHue("cluster-a") >= 0 && model.clusterAccentHue("cluster-a") < 360);
+});
+
 test("Pod Terminal delegates paste to the single xterm input path", () => {
   const source = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
   const keyboardHandler = source.slice(source.indexOf("terminal.attachCustomKeyEventHandler"), source.indexOf("terminal.onSelectionChange"));

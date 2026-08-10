@@ -46,19 +46,24 @@
   letter-spacing: 0.02em;
 }
 
+.cluster-rail-item {
+  border-color: color-mix(in srgb, var(--cluster-accent, var(--border)) 60%, var(--border));
+  background: color-mix(in srgb, var(--cluster-accent, transparent) 14%, var(--input-bg));
+}
+
 .cluster-rail-item:hover,
 .cluster-rail-import:hover,
 .cluster-rail-item:focus-visible,
 .cluster-rail-import:focus-visible {
-  border-color: var(--primary-border);
+  border-color: var(--cluster-accent, var(--primary-border));
   color: var(--text-strong);
 }
 
 .cluster-rail-item.is-active {
-  background: var(--primary-soft);
-  border-color: var(--primary-border);
+  background: color-mix(in srgb, var(--cluster-accent, var(--primary-soft)) 26%, var(--input-bg));
+  border-color: var(--cluster-accent, var(--primary-border));
   color: var(--text-strong);
-  box-shadow: inset 0 0 0 1px var(--primary-border);
+  box-shadow: inset 0 0 0 2px var(--primary-border);
 }
 
 .cluster-rail-item.is-opening {
