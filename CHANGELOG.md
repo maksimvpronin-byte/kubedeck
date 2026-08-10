@@ -1,3 +1,9 @@
+## 2.11.0 - Namespace scope fix, cluster rail and Windows icon
+
+- Fixed the resource table keeping the rows of the previously selected namespace after switching to All namespaces. Rows now belong to the scope (cluster, resource, namespace selection) they were loaded for and are cleared before the request is awaited when that scope changes, and silent watch-driven refreshes coalesce into one trailing refresh instead of aborting a running load of the same scope.
+- Fixed the running Windows application showing the default Electron icon in the window, taskbar and Alt+Tab while the artifact itself carried the KubeDeck icon: the window now loads the bundled icon, the icons ship with the payload, rcedit stays enabled for the packaged executable, and Windows gets the dev.kubedeck.app AppUserModelID.
+- Clusters are now switched from a vertical icon rail left of the resource navigation instead of the topbar dropdown; the rail shows active, opening and unavailable clusters, supports arrow-key navigation and carries the kubeconfig import button.
+
 ## 2.10.3 - Performance and memory-leak fixes
 
 - Fixed a memory leak: `WatchManager` never removed stopped or crashed resource-watch sessions from its internal session map, so `this.sessions` grew without bound over a long-running session as users switched between resource tabs, namespaces and clusters (each switch starts a new kubectl watch without the renderer ever calling `stop()` on the old one). Explicitly stopped sessions are now removed immediately; sessions that end because the underlying process exited on its own are kept visible in `GET /watches/status` for 5 minutes (so a crash reason can still be inspected) and then swept.
