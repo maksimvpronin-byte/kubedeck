@@ -1,6 +1,10 @@
 # KubeDeck 2.11.0 — рельс кластеров, scope таблицы, редактор kubeconfig и иконка Windows
 
-Статус: план, не реализовано.
+Статус: реализовано, автоматический gate зелёный. Открыты только пункты ручной
+проверки — их нельзя закрыть без реального кластера и packaged-сборки Windows.
+
+Коммиты: `4194ffe` (A), `67d8e45` (D), `1805279` (B), `b8cc708` (release
+metadata 2.11.0), `6c15348` (C).
 
 ## Цель
 
@@ -80,31 +84,31 @@ D вынесена вперёд, потому что она маленькая �
 
 ### Задачи
 
-- [ ] `utils/kubeResources.ts` — добавить и экспортировать
+- [x] `utils/kubeResources.ts` — добавить и экспортировать
   `resourceScopeKey(clusterId, resource, namespaces)`: нормализовать выбор
   через существующий `normalizeNamespaceSelection` и собрать строку
   `${clusterId}|${resource}|${ns.join(",")}`. Чистая функция, покрывается
   unit-тестом.
-- [ ] `useResourceLoader.ts` — хранить `loadedScopeRef: Map<resource, scopeKey>`
+- [x] `useResourceLoader.ts` — хранить `loadedScopeRef: Map<resource, scopeKey>`
   (scope последних **применённых** строк). В начале запроса, если scope
   отличается от записанного, сразу:
   `setRows((current) => ({ ...current, [nextResource]: [] }))` и
   `clearPendingActions()`. Тогда при любом исходе (успех, ошибка, abort,
   timeout) в таблице не может остаться чужой scope: либо новые строки, либо
   пустое состояние с честным `loading`/ошибкой.
-- [ ] `useResourceLoader.ts` — coalescing вместо срыва: хранить
+- [x] `useResourceLoader.ts` — coalescing вместо срыва: хранить
   `inFlightScopeRef`. Если пришёл **silent** вызов с тем же scope, что и
   выполняющийся запрос, — не вызывать `abort()`, а поднять флаг
   `pendingSilentRefreshRef` и вернуть `false`. После успешного завершения
   запроса, если флаг поднят, выполнить ровно один trailing silent refresh.
   Прерывание остаётся для не-silent вызовов (ручной Refresh) и для вызовов с
   другим scope (смена namespace/ресурса/кластера).
-- [ ] Записывать `loadedScopeRef` при успехе и при не-abort ошибке (пустая
+- [x] Записывать `loadedScopeRef` при успехе и при не-abort ошибке (пустая
   таблица тоже принадлежит scope), не записывать при abort/timeout.
-- [ ] Проверить, что `RESOURCE_LOAD_TIMEOUT` (`useResourceLoader.ts:99-104`)
+- [x] Проверить, что `RESOURCE_LOAD_TIMEOUT` (`useResourceLoader.ts:99-104`)
   теперь показывается на пустой таблице, а не поверх чужих строк, — текст
   сообщения менять не нужно.
-- [ ] Не менять debounce watch (350 мс) и polling fallback: после coalescing
+- [x] Не менять debounce watch (350 мс) и polling fallback: после coalescing
   они перестают быть причиной срыва, а лишние изменения таймингов усложняют
   проверку.
 
@@ -113,15 +117,15 @@ D вынесена вперёд, потому что она маленькая �
 `apps/desktop/tests/renderer-controllers.contract.test.cjs` (harness
 `loadTypeScript` уже умеет грузить хуки со stub-ами React):
 
-- [ ] `resourceScopeKey` — `["all"]`, `"kube-system"`, `["a","b"]`,
+- [x] `resourceScopeKey` — `["all"]`, `"kube-system"`, `["a","b"]`,
   `["_cluster"]`, дубликаты и пробелы дают ожидаемые ключи.
-- [ ] Смена scope очищает строки до await: fake `api.resources`, который
+- [x] Смена scope очищает строки до await: fake `api.resources`, который
   не резолвится, — после вызова загрузчика `setRows` уже вызван с пустым
   массивом для этого ресурса.
-- [ ] Silent refresh с тем же scope во время выполняющегося запроса не
+- [x] Silent refresh с тем же scope во время выполняющегося запроса не
   вызывает `abort()` и не приводит ко второму `api.resources` до завершения
   первого; после завершения выполняется ровно один trailing refresh.
-- [ ] Не-silent вызов и вызов с другим scope по-прежнему прерывают текущий
+- [x] Не-silent вызов и вызов с другим scope по-прежнему прерывают текущий
   запрос.
 
 ### Риски
@@ -153,49 +157,49 @@ kubeconfig. Выпадающий `ClusterSelector` из топбара удал�
 
 ### Задачи
 
-- [ ] Новый `components/ClusterRail.tsx`. Props: `clusters`, `activeClusterId`,
+- [x] Новый `components/ClusterRail.tsx`. Props: `clusters`, `activeClusterId`,
   `openingClusterId`, `unavailableClusterId`, `onSelect(cluster)`,
   `onImport()`, `t`. Экспортировать чистый хелпер `clusterInitials(displayName)`
   (1–2 символа, устойчив к пустой строке, юникоду и ведущим пробелам) — он
   тестируется отдельно.
-- [ ] Состояния кнопки: активный кластер (`aria-current="true"` + визуальное
+- [x] Состояния кнопки: активный кластер (`aria-current="true"` + визуальное
   кольцо), открывающийся (`openingClusterId` — тот же `.spin`, что в
   `layout.css`), недоступный (`unavailableCluster` — маркер ошибки).
   `title` и `aria-label` — полное `displayName`.
-- [ ] Клавиатура: `nav` с `aria-label`, кнопки в естественном порядке табуляции,
+- [x] Клавиатура: `nav` с `aria-label`, кнопки в естественном порядке табуляции,
   `ArrowUp`/`ArrowDown` перемещают фокус внутри рельса, `Enter`/`Space` —
   переключение. Порядок кластеров — тот же, что в `config.clusters`
   (ручная сортировка из `reorderClusters` уже персистится).
-- [ ] `App.tsx`: отрисовать `<ClusterRail>` первым потомком `.app-shell`,
+- [x] `App.tsx`: отрисовать `<ClusterRail>` первым потомком `.app-shell`,
   обработчик — тот же guard, что был у селектора:
   `if (confirmDrawerNavigation()) void openCluster(cluster)`; импорт —
   `importKubeconfig` из `useClusterController`. Удалить `<ClusterSelector>` из
   `<header className="topbar">` и его импорт.
-- [ ] Удалить `components/ClusterSelector.tsx` (проверить `grep -rn
+- [x] Удалить `components/ClusterSelector.tsx` (проверить `grep -rn
   ClusterSelector src/` — сейчас единственный потребитель `App.tsx`).
-- [ ] `styles/layout.css`: `.app-shell` →
+- [x] `styles/layout.css`: `.app-shell` →
   `grid-template-columns: var(--cluster-rail-width, 56px) var(--sidebar-width, 236px) 1fr;`
   плюс блок `.cluster-rail` (вертикальный скролл при большом числе кластеров,
   фон `--sidebar-bg`, разделитель `--border`). `styles/panels.css`,
   `@media (max-width: 1100px)` — `grid-template-columns: 48px 68px 1fr`.
-- [ ] Пустое состояние: кластеров нет — рельс показывает только кнопку импорта
+- [x] Пустое состояние: кластеров нет — рельс показывает только кнопку импорта
   с подсказкой `clusters.empty`.
-- [ ] i18n: новый ключ `clusters.rail` (aria-label рельса) в `locales/ru.json`
+- [x] i18n: новый ключ `clusters.rail` (aria-label рельса) в `locales/ru.json`
   и `locales/en.json`; переиспользовать `clusters.import`, `clusters.opening`,
   `clusters.empty`. Ключ `clusters.none` остаётся в использовании у
   `NamespaceSelector`/палитры — перед удалением проверить `grep`.
-- [ ] Топбар: пересчитать `grid-template-columns` в `.topbar` после удаления
+- [x] Топбар: пересчитать `grid-template-columns` в `.topbar` после удаления
   селектора, чтобы поиск и `status-line` не разъезжались (в том числе в
   media-блоке `max-width: 1100px`).
 
 ### Тесты
 
-- [ ] Заменить тест `cluster selector uses the themed in-app menu instead of a
+- [x] Заменить тест `cluster selector uses the themed in-app menu instead of a
   native select` (renderer-controllers, строка ~135) на тест рельса: нет
   `<select`, одна кнопка на кластер, активный помечен `aria-current`, в
   `App.tsx` нет импорта `ClusterSelector` и есть `ClusterRail`.
-- [ ] Unit-тест `clusterInitials`.
-- [ ] Source-assert: обработчик рельса вызывает `openCluster` только через
+- [x] Unit-тест `clusterInitials`.
+- [x] Source-assert: обработчик рельса вызывает `openCluster` только через
   `confirmDrawerNavigation()` (защита от потери несохранённого YAML в drawer).
 
 ### Риски
@@ -228,7 +232,7 @@ kubeconfig». Оно открывает модальное окно с YAML со
 
 ### Backend
 
-- [ ] `config/configStore.ts`:
+- [x] `config/configStore.ts`:
   - `readKubeconfig(clusterId)` → `{ content, path, managed, sizeBytes }`;
   - `writeKubeconfig(clusterId, content)` — только для managed-пути
     (уже есть хелпер `managedPath(...)`, см. `configStore.ts:467`); запись
@@ -241,53 +245,53 @@ kubeconfig». Оно открывает модальное окно с YAML со
     (и `users`, если он не пустой); `kind`, если указан, равен `Config`.
     Иначе — `INVALID_KUBECONFIG` с номером строки, как в
     `routes/yaml.ts:64-84`.
-- [ ] `routes/clusters.ts`: `GET /clusters/{cluster_id}/kubeconfig` и
+- [x] `routes/clusters.ts`: `GET /clusters/{cluster_id}/kubeconfig` и
   `PUT /clusters/{cluster_id}/kubeconfig`. PUT требует confirmation с
   `typedName === cluster.displayName` (тот же паттерн, что у apply YAML,
   `validation.confirmationString`).
-- [ ] `gateway.ts`: после успешного PUT выполнить тот же teardown, что и при
+- [x] `gateway.ts`: после успешного PUT выполнить тот же teardown, что и при
   удалении кластера (`gateway.ts:244-254`), но без удаления самого кластера:
   `watchManager.stopCluster`, `portForwardManager.stopCluster`,
   `terminalWebSocket.stopCluster`, `sshWebSocket.stopCluster`,
   `resourceCache.clear(clusterId, "cluster.kubeconfig.update")`,
   `clearResourceDefinitionCache`, `clearNodeDiskMetricsCache`. Иначе после
   смены server/context останутся живые сессии и кэш от старого endpoint.
-- [ ] Audit: `cluster.kubeconfig.read` и `cluster.kubeconfig.update` — только
+- [x] Audit: `cluster.kubeconfig.read` и `cluster.kubeconfig.update` — только
   метаданные (`clusterId`, `name`, `sizeBytes`, `documentCount`, результат).
   Содержимое, токены, сертификаты в audit и в лог **не попадают**; в
   `commandPreview` kubeconfig-путь не раскрывается (`docs/security.md:97`).
-- [ ] `routeOwnership.ts` — два новых маршрута, `targetRelease`/`migratedIn`
+- [x] `routeOwnership.ts` — два новых маршрута, `targetRelease`/`migratedIn`
   `2.11.0`, `sourceModule: "routes/clusters.ts"`.
 
 ### Renderer
 
-- [ ] `api.ts`: `kubeconfig(clusterId, signal?)` и
+- [x] `api.ts`: `kubeconfig(clusterId, signal?)` и
   `saveKubeconfig(clusterId, content, typedName)`.
-- [ ] Вынести из `YamlTab.tsx` редактор (слой подсветки + textarea,
+- [x] Вынести из `YamlTab.tsx` редактор (слой подсветки + textarea,
   `YamlTab.tsx:196-222` вместе с `highlightYaml`/`highlightYamlLine`) в
   `components/YamlSourceEditor.tsx` и переиспользовать в обоих местах — по
   правилу дедупликации из 2.10.2, копию подсветки не заводить.
-- [ ] Новый `components/KubeconfigEditorModal.tsx`: контент грузится только по
+- [x] Новый `components/KubeconfigEditorModal.tsx`: контент грузится только по
   явному открытию; баннер-предупреждение, что файл содержит учётные данные;
   действия Save (подтверждение вводом имени кластера) / Cancel (подтверждение
   при несохранённых изменениях); ошибки через `asErrorInfo` + `ErrorPanel`.
-- [ ] `ClusterPanel.tsx`: кнопка `clusters.editKubeconfig` в `row-actions`,
+- [x] `ClusterPanel.tsx`: кнопка `clusters.editKubeconfig` в `row-actions`,
   disabled при `reorderingClusters`/`openingClusterId`.
-- [ ] После успешного сохранения: если правился активный кластер — вызвать
+- [x] После успешного сохранения: если правился активный кластер — вызвать
   `openCluster(cluster)` (перечитать namespaces и resource definitions),
   иначе ничего не переоткрывать.
-- [ ] Содержимое kubeconfig **никогда** не попадает в `uiState`/localStorage,
+- [x] Содержимое kubeconfig **никогда** не попадает в `uiState`/localStorage,
   в LLM-контекст и в глобальный поиск; state модалки очищается при закрытии.
 
 ### Тесты
 
-- [ ] Новый `apps/desktop/tests/kubeconfig.contract.test.cjs` (добавить в
+- [x] Новый `apps/desktop/tests/kubeconfig.contract.test.cjs` (добавить в
   скрипт `test:gateway` в `apps/desktop/package.json`): GET отдаёт содержимое
   managed-файла; PUT с валидным YAML пишет атомарно и создаёт `.bak`;
   невалидный YAML → 400 `INVALID_KUBECONFIG`; >1 MiB → 413; неверный
   `typedName` → 422; audit-запись не содержит содержимого файла; после PUT
   ресурсный кэш кластера очищен.
-- [ ] renderer-controllers: `YamlSourceEditor` используется и `YamlTab`, и
+- [x] renderer-controllers: `YamlSourceEditor` используется и `YamlTab`, и
   модалкой (source-assert); модалка не вызывает `saveUiState`.
 
 ### Риски
@@ -352,39 +356,39 @@ Windows группирует окно по хост-процессу, что п�
 
 ### Задачи
 
-- [ ] `electron-builder.yml`, `files:` — добавить `assets/icon.ico` и
+- [x] `electron-builder.yml`, `files:` — добавить `assets/icon.ico` и
   `assets/icon-512.png` (нужен для окна на Linux). Не тянуть в payload
   `kubedeck-icon-source.png` (1.6 МБ) и `icon.png`; `icon.icns` для macOS
   подставляет сам electron-builder из `mac.icon`.
-- [ ] `main.ts` — хелпер `resolveWindowIcon()`: на `win32` берёт
+- [x] `main.ts` — хелпер `resolveWindowIcon()`: на `win32` берёт
   `assets/icon.ico`, иначе `assets/icon-512.png`; путь строится от `__dirname`
   (`dist/main` → `../../assets/...`); загрузка через
   `nativeImage.createFromPath`. Если `image.isEmpty()` — не передавать `icon`
   вовсе и записать предупреждение через `logDesktop`, приложение не должно
   падать из-за иконки.
-- [ ] `main.ts` — передать полученный icon в `new BrowserWindow({...})`
+- [x] `main.ts` — передать полученный icon в `new BrowserWindow({...})`
   (`main.ts:111`). Это же чинит dev-режим, где процесс — `electron.exe`.
-- [ ] `main.ts` — вызвать `app.setAppUserModelId("dev.kubedeck.app")` до
+- [x] `main.ts` — вызвать `app.setAppUserModelId("dev.kubedeck.app")` до
   `app.whenReady()`; значение обязано совпадать с `appId` из
   `electron-builder.yml`. На не-Windows вызов безвреден, но лучше ограничить
   `process.platform === "win32"`, чтобы не вводить в заблуждение.
-- [ ] `electron-builder.yml` — `win.signAndEditExecutable: true`, чтобы rcedit
+- [x] `electron-builder.yml` — `win.signAndEditExecutable: true`, чтобы rcedit
   прописал иконку и version-info (ProductName, FileDescription, версия) во
   внутренний `KubeDeck.exe`. Подпись при этом не выполняется: сборка идёт с
   `CSC_IDENTITY_AUTO_DISCOVERY=false` и без сертификата
   (`scripts/build-portable-windows.ps1`). **Если** rcedit падает в конкретной
   среде сборки — откатывать только этот пункт: runtime-иконка от него не
   зависит, а свойства файла останутся дефолтными.
-- [ ] Проверить, что macOS не регрессирует: там иконка берётся из бандла
+- [x] Проверить, что macOS не регрессирует: там иконка берётся из бандла
   `.icns`, `BrowserWindow.icon` игнорируется.
 
 ### Тесты
 
-- [ ] `apps/desktop/tests/release.contract.test.cjs` (там уже читается
+- [x] `apps/desktop/tests/release.contract.test.cjs` (там уже читается
   `electron-builder.yml` и скрипты сборки): ассерты, что `files:` содержит
   `assets/icon.ico`, что `win.signAndEditExecutable` не выключен, и что
   `main.ts` вызывает `setAppUserModelId` и передаёт `icon` в `BrowserWindow`.
-- [ ] Проверить, что `verify:release` проходит: `verifyReleasePayload`
+- [x] Проверить, что `verify:release` проходит: `verifyReleasePayload`
   (`scripts/verify-release.cjs:199-235`) работает по denylist, добавление
   ассетов его не нарушает.
 
@@ -417,33 +421,43 @@ Windows группирует окно по хост-процессу, что п�
 
 ## Release sync 2.11.0
 
-- [ ] Версия `2.11.0` в `package.json`, `apps/desktop/package.json`
+- [x] Версия `2.11.0` в `package.json`, `apps/desktop/package.json`
   (и зависимость `@kubedeck/shared-types`), `packages/shared-types/package.json`,
   пересобрать `package-lock.json`.
-- [ ] `release-contract.json`: `nodeRoutes` 54 → **56** (две новых
+- [x] `release-contract.json`: `nodeRoutes` 54 → **56** (две новых
   kubeconfig-ручки). Синхронно — константы в
   `apps/desktop/tests/release.contract.test.cjs:68-73` (`/56/`,
   `Node 56 / Python 0`) и `docs/release-checklist.md:50`.
-- [ ] `docs/architecture.md:104` — там сейчас устаревшее `52 Node / 0 Python`
+- [x] `docs/architecture.md:104` — там сейчас устаревшее `52 Node / 0 Python`
   при фактических 54; в этом патче привести к 56.
-- [ ] `CHANGELOG.md` — запись 2.11.0: Секции A (таблица показывала ресурсы
+- [x] `CHANGELOG.md` — запись 2.11.0: Секции A (таблица показывала ресурсы
   предыдущего namespace) и D (иконка запущенного приложения на Windows) как
   bugfix, B и C как features.
-- [ ] `docs/releases/RELEASE_NOTES_2.11.0.md` и
+- [x] `docs/releases/RELEASE_NOTES_2.11.0.md` и
   `docs/releases/REGRESSION_CHECKLIST_2.11.0.md` по образцу 2.10.3.
-- [ ] `README.md` / `README.ru.md` — версия и ссылки на release notes/checklist.
-- [ ] `NODE_MIGRATION_PROGRESS.md` — короткая запись про 2.11.0.
-- [ ] `docs/third-party-notices.md` — версия в шапке.
+- [x] `README.md` / `README.ru.md` — версия и ссылки на release notes/checklist.
+- [x] `NODE_MIGRATION_PROGRESS.md` — короткая запись про 2.11.0.
+- [x] `docs/third-party-notices.md` — версия в шапке.
 
 ## Автоматический gate (после каждой секции)
 
-- [ ] `npm run lint`
-- [ ] `npm run format:check`
-- [ ] `npm run test:renderer`
-- [ ] `npm run typecheck`
-- [ ] `npm run build`
-- [ ] `npm --workspace apps/desktop run test:gateway`
-- [ ] `npm run verify:release`
+- [x] `npm run lint`
+- [x] `npm run format:check`
+- [x] `npm run test:renderer`
+- [x] `npm run typecheck`
+- [x] `npm run build`
+- [x] `npm --workspace apps/desktop run test:gateway`
+- [x] `npm run verify:release`
+
+Итог после секции C: `npm run verify` зелёный — renderer 59 тестов (было 53),
+gateway 109 тестов (было 103, из них 5 новых в
+`tests/kubeconfig.contract.test.cjs`). `verify:release` подтверждает
+`Node 56 / Python 0` и версию 2.11.0.
+
+Дополнительно проверено вживую (не заменяет ручной прогон ниже): рельс
+отрисован в dev-сборке renderer через Vite — `.app-shell` даёт
+`56px 236px 1fr`, на ширине 1000px переключается на `48px 68px 1fr`,
+горизонтального переполнения нет.
 
 ## Ручная проверка (нужна, автотесты её не заменяют)
 
@@ -461,6 +475,26 @@ Windows группирует окно по хост-процессу, что п�
 - [ ] Секция D: см. её собственный блок ручной проверки (packaged-сборка +
   dev-режим). Это единственная секция, которую нельзя закрыть без сборки
   портейбла на Windows.
+
+## Отклонения от плана при реализации
+
+- Маршруты kubeconfig вынесены в отдельный модуль
+  `routes/clusterKubeconfig.ts`, а не добавлены в `routes/clusters.ts`:
+  валидация, audit и обработка ошибок для них самостоятельные, и в
+  `clusters.ts` они бы только размывали границу модуля.
+- Teardown кластера вынесен в общий `releaseClusterRuntime()` в `gateway.ts` и
+  переиспользован удалением кластера — вместо копии того же блока.
+- Отдельный ключ `clusters.rail` не заводился: aria-label рельса —
+  существующий `clusters.title`.
+- Методы API названы `clusterKubeconfig`/`saveClusterKubeconfig` (не
+  `kubeconfig`/`saveKubeconfig`), чтобы не путать с импортом kubeconfig.
+- Release sync выполнен **до** секции C отдельным коммитом: release contract
+  test проверяет число маршрутов против release-документов текущей версии,
+  поэтому бампнуть маршруты до 56 без версии 2.11.0 нельзя, не переписывая
+  release notes 2.10.3.
+- Кроме `release.contract.test.cjs`, число маршрутов зашито ещё в четырёх
+  gateway-тестах (`gateway`, `watch`, `port-forward`, `pod-terminal`) — они
+  тоже обновлены на 56; в плане это не было учтено.
 
 ## Не входит в патч
 
