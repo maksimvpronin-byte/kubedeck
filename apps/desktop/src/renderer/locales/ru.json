@@ -48,7 +48,6 @@
   "common.none": "Нет",
   "common.all": "all",
   "clusters.title": "Кластеры",
-  "clusters.none": "Нет кластеров",
   "clusters.import": "Импорт kubeconfig",
   "clusters.open": "Открыть",
   "clusters.opening": "Открытие...",

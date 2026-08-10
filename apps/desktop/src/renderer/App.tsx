@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, Dispatch, MouseEvent as ReactMouseEvent, ReactNode, SetStateAction } from "react";
 import { AppCommandPalette } from "./components/AppCommandPalette";
-import { ClusterSelector } from "./components/ClusterSelector";
+import { ClusterRail } from "./components/ClusterRail";
 import { UnavailableClusterPanel } from "./components/UnavailableClusterPanel";
 import { BulkActionModals } from "./components/BulkActionModals";
 import { ErrorPanel } from "./components/ErrorPanel";
@@ -531,6 +531,23 @@ export function App() {
 
   return (
     <div className="app-shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
+      <ClusterRail
+        clusters={clusters}
+        activeClusterId={activeCluster?.id}
+        unavailableClusterId={unavailableCluster?.id}
+        openingClusterId={openingClusterId}
+        railLabel={t("clusters.title")}
+        importLabel={t("clusters.import")}
+        emptyLabel={t("clusters.empty")}
+        openingLabel={t("clusters.opening")}
+        onSelect={(cluster) => {
+          if (cluster.id === activeCluster?.id) return;
+          if (confirmDrawerNavigation()) void openCluster(cluster);
+        }}
+        onImport={() => {
+          void importKubeconfig().catch(() => undefined);
+        }}
+      />
       <aside className="sidebar">
         <div className="sidebar-resize-handle" onMouseDown={startSidebarResize} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />
         <div className="brand">
@@ -604,15 +621,6 @@ export function App() {
       </aside>
       <main className={resourceTabs.length > 1 ? "workspace" : "workspace workspace-no-tabs"}>
         <header className="topbar">
-          <ClusterSelector
-            clusters={clusters}
-            activeClusterId={activeCluster?.id}
-            openingClusterId={openingClusterId}
-            emptyLabel={t("clusters.none")}
-            onChange={(cluster) => {
-              if (confirmDrawerNavigation()) void openCluster(cluster);
-            }}
-          />
           <NamespaceSelector
             namespaces={namespaces}
             selected={isClusterScoped ? ["_cluster"] : selectedNamespaces}

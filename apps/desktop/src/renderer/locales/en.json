@@ -48,7 +48,6 @@
   "common.none": "None",
   "common.all": "all",
   "clusters.title": "Clusters",
-  "clusters.none": "No clusters",
   "clusters.import": "Import kubeconfig",
   "clusters.open": "Open",
   "clusters.opening": "Opening...",

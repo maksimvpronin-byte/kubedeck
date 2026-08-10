@@ -132,21 +132,36 @@ test("revealed text secrets edit immediately with themed safe confirmation", () 
   assert.match(styles, /\.secret-edit textarea\s*\{[^}]*background:\s*var\(--code-bg\);[^}]*color:\s*var\(--text\);[^}]*caret-color:\s*var\(--focus-ring\);/s);
 });
 
-test("cluster selector uses the themed in-app menu instead of a native select", () => {
-  const component = fs.readFileSync(path.join(rendererRoot, "components/ClusterSelector.tsx"), "utf8");
+test("clusters are switched from the icon rail instead of a topbar dropdown", () => {
+  const component = fs.readFileSync(path.join(rendererRoot, "components/ClusterRail.tsx"), "utf8");
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
-  const topbarClusterControl = app.slice(app.indexOf('<header className="topbar">'), app.indexOf("<NamespaceSelector"));
+  const topbar = app.slice(app.indexOf('<header className="topbar">'), app.indexOf("<NamespaceSelector"));
 
-  assert.match(topbarClusterControl, /<ClusterSelector/);
-  assert.doesNotMatch(topbarClusterControl, /<select/);
+  assert.equal(fs.existsSync(path.join(rendererRoot, "components/ClusterSelector.tsx")), false);
+  assert.doesNotMatch(app, /ClusterSelector/);
+  assert.doesNotMatch(topbar, /<select/);
+  assert.match(app, /<ClusterRail/);
+  // The rail sits left of the resource navigation and keeps the drawer guard.
+  assert.ok(app.indexOf("<ClusterRail") < app.indexOf('<aside className="sidebar">'));
+  assert.match(app, /onSelect=\{\(cluster\) => \{[\s\S]*?confirmDrawerNavigation\(\)[\s\S]*?openCluster\(cluster\)/);
+
   assert.doesNotMatch(component, /<select/);
-  assert.match(component, /aria-haspopup="listbox"/);
-  assert.match(component, /role="option"/);
-  assert.match(component, /window\.addEventListener\("pointerdown", closeOnOutsideClick\)/);
-  assert.match(component, /event\.key === "Escape"/);
-  assert.match(layout, /\.cluster-menu\s*\{[^}]*width:\s*max-content;[^}]*min-width:\s*100%;/s);
-  assert.match(layout, /\.cluster-menu-option\.is-selected/);
+  assert.match(component, /aria-current=\{active \? "true" : undefined\}/);
+  assert.match(component, /event\.key === "ArrowDown"/);
+  assert.match(component, /event\.key === "ArrowUp"/);
+  assert.match(layout, /\.app-shell\s*\{[^}]*grid-template-columns:\s*var\(--cluster-rail-width[^}]*\}/s);
+  assert.match(layout, /\.cluster-rail-item\.is-active/);
+});
+
+test("cluster rail initials stay short and readable", () => {
+  const model = loadTypeScript("components/ClusterRail.tsx", { "lucide-react": { Plus: () => null } });
+  assert.equal(model.clusterInitials("production"), "PR");
+  assert.equal(model.clusterInitials("prod-eu-west"), "PE");
+  assert.equal(model.clusterInitials("  staging cluster "), "SC");
+  assert.equal(model.clusterInitials("k"), "K");
+  assert.equal(model.clusterInitials(""), "?");
+  assert.equal(model.clusterInitials("тест-кластер"), "ТК");
 });
 
 test("Pod Terminal delegates paste to the single xterm input path", () => {
