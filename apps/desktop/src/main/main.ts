@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell } from "electron";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -107,13 +107,30 @@ function stopNodeGateway(reason: string): Promise<void> {
   });
   return gatewayShutdown;
 }
+// Windows takes the window, taskbar and Alt+Tab icon from the running
+// executable unless the window carries its own icon, so the packaged app used
+// to show the default Electron icon even though the artifact had ours.
+function resolveWindowIcon() {
+  const iconPath = path.join(__dirname, "../../assets", process.platform === "win32" ? "icon.ico" : "icon-512.png");
+  try {
+    const image = nativeImage.createFromPath(iconPath);
+    if (!image.isEmpty()) return image;
+    logDesktop(`window icon is empty: ${iconPath}`);
+  } catch (error) {
+    logDesktop(`window icon could not be loaded: ${String(error)}`);
+  }
+  return undefined;
+}
+
 async function createWindow() {
+  const icon = resolveWindowIcon();
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1120,
     minHeight: 720,
     backgroundColor: "#101317",
+    ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
@@ -219,6 +236,13 @@ ipcMain.handle("kubedeck:getDesktopInfo", () => ({
     kubeconfigs: kubeconfigsDir(),
   },
 }));
+// Without an explicit AppUserModelID Windows groups the window under the host
+// process, which shows the wrong taskbar icon and breaks pinning. The value
+// must stay in sync with `appId` in electron-builder.yml.
+if (process.platform === "win32") {
+  app.setAppUserModelId("dev.kubedeck.app");
+}
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!gotSingleInstanceLock) {

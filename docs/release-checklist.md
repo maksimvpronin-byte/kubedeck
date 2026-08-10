@@ -61,6 +61,7 @@ npm run package:mac
 12. Проверить Port Forward start/open/stop и cleanup при выходе.
 13. Проверить dark/light/system theme и ru/en/system language.
 14. Проверить Help/About: версия совпадает с packaged app, описание terminal workspace актуально, diagnostics не включают kubeconfig content или Secret values.
+15. Windows: проверить иконку KubeDeck у окна, в панели задач и Alt+Tab, а также ProductName/версию в свойствах распакованного `KubeDeck.exe`.
 
 ## После проверки
 

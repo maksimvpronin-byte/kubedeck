@@ -12,13 +12,20 @@ directories:
 files:
   - dist/**/*
   - package.json
+  # Window, taskbar and Alt+Tab icons are loaded at runtime, so the icon files
+  # must be part of the payload and not only of the installer metadata.
+  - assets/icon.ico
+  - assets/icon-512.png
 
 asarUnpack:
   - node_modules/node-pty/**/*
 
 win:
   icon: assets/icon.ico
-  signAndEditExecutable: false
+  # Keep rcedit enabled so the packaged KubeDeck.exe carries the KubeDeck icon
+  # and version info. Signing stays off: builds run without a certificate and
+  # with CSC_IDENTITY_AUTO_DISCOVERY=false.
+  signAndEditExecutable: true
   target:
     - target: portable
       arch:

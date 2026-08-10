@@ -26,6 +26,23 @@ test("Windows packaging uses a committed multi-size ICO", () => {
   assert.ok(windowsIcon.readUInt16LE(4) >= 6);
 });
 
+test("the running application carries the KubeDeck icon, not the Electron default", () => {
+  const builderConfig = read("apps/desktop/electron-builder.yml");
+  const main = read("apps/desktop/src/main/main.ts");
+
+  // The icon has to be inside the payload, otherwise the window cannot load it.
+  assert.match(builderConfig, /files:[\s\S]*?- assets\/icon\.ico/);
+  assert.match(builderConfig, /files:[\s\S]*?- assets\/icon-512\.png/);
+  // rcedit must stay enabled so the packaged executable keeps icon and version info.
+  assert.match(builderConfig, /signAndEditExecutable: true/);
+
+  assert.match(main, /nativeImage\.createFromPath/);
+  assert.match(main, /resolveWindowIcon\(\)/);
+  assert.match(main, /\.\.\/\.\.\/assets/);
+  assert.match(main, /setAppUserModelId\("dev\.kubedeck\.app"\)/);
+  assert.match(builderConfig, /appId: dev\.kubedeck\.app/);
+});
+
 test("KubeDeck release metadata stays synchronized", () => {
   const rootPackage = readJson("package.json");
   const expectedVersion = rootPackage.version;
