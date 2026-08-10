@@ -869,6 +869,157 @@ test("resource watch lifecycle does not stop a shared backend watch", () => {
   assert.doesNotMatch(source, /autoStartedWatchId/);
 });
 
+function normalizeNamespaceSelectionForTest(value) {
+  const raw = Array.isArray(value) ? value : value.split(",");
+  const normalized = [...new Set(raw.map((item) => item.trim()).filter(Boolean))];
+  if (normalized.includes("_cluster")) return ["_cluster"];
+  if (normalized.includes("all") || normalized.length === 0) return ["all"];
+  return normalized;
+}
+
+function createResourceLoaderHarness() {
+  const batches = [];
+  const state = { rows: {}, loading: false, error: null, clearedPendingActions: 0 };
+  const setRows = (next) => {
+    state.rows = typeof next === "function" ? next(state.rows) : next;
+  };
+  const model = loadTypeScript("hooks/useResourceLoader.ts", {
+    "../utils/errors": {
+      asErrorInfo: (error) => ({ code: "FAILED", message: String(error?.message ?? error), rawStderr: "", commandPreview: "" }),
+      isAbortError: (error) => error?.name === "AbortError",
+    },
+    "../utils/kubeResources": {
+      normalizeNamespaceSelection: normalizeNamespaceSelectionForTest,
+      resourceScopeKey: (clusterId, resource, namespaces) => `${clusterId} ${resource} ${normalizeNamespaceSelectionForTest(namespaces).join(",")}`,
+      loadNamespaceResourceBatches: (api, clusterId, resource, namespaces, signal) =>
+        new Promise((resolve, reject) => {
+          batches.push({ clusterId, resource, namespaces: [...namespaces], signal, resolve, reject });
+        }),
+    },
+  });
+  // The hook runs against the stubbed React of this harness, so it is called
+  // through a plain alias and not as a React hook.
+  const buildLoader = model.useResourceLoader;
+  const load = buildLoader({
+    api: {},
+    activeCluster: { id: "cluster-a" },
+    resource: "pods",
+    namespaces: ["all"],
+    setRows,
+    setNamespaces: () => undefined,
+    setActiveCluster: () => undefined,
+    setUnavailableCluster: () => undefined,
+    setSelectedRow: () => undefined,
+    clearPendingActions: () => {
+      state.clearedPendingActions += 1;
+    },
+    setLoading: (value) => {
+      state.loading = value;
+    },
+    setError: (value) => {
+      state.error = value;
+    },
+  });
+  return { load, batches, state };
+}
+
+test("resource scope key identifies cluster, resource and namespace selection", () => {
+  const model = loadTypeScript("utils/kubeResources.ts");
+  const scope = (clusterId, resource, namespaces) => [clusterId, resource, namespaces].join("\u0000");
+  assert.equal(model.resourceScopeKey("cluster-a", "pods", ["all"]), scope("cluster-a", "pods", "all"));
+  assert.equal(model.resourceScopeKey("cluster-a", "pods", "kube-system"), scope("cluster-a", "pods", "kube-system"));
+  assert.equal(model.resourceScopeKey("cluster-a", "pods", ["kube-system", "all"]), scope("cluster-a", "pods", "all"));
+  assert.equal(model.resourceScopeKey("cluster-a", "pods", [" tools ", "tools", "apps"]), scope("cluster-a", "pods", "tools,apps"));
+  assert.equal(model.resourceScopeKey("cluster-a", "nodes", ["_cluster"]), scope("cluster-a", "nodes", "_cluster"));
+  assert.notEqual(model.resourceScopeKey("cluster-a", "pods", ["kube-system"]), model.resourceScopeKey("cluster-b", "pods", ["kube-system"]));
+});
+
+test("a namespace switch drops the rows of the previous scope before awaiting", async () => {
+  const previousWindow = global.window;
+  global.window = { setTimeout: () => 0, clearTimeout: () => undefined };
+  try {
+    const { load, batches, state } = createResourceLoaderHarness();
+
+    const scoped = load("cluster-a", "pods", ["kube-system"]);
+    batches[0].resolve([{ items: [{ uid: "pod-kube-system" }] }]);
+    assert.equal(await scoped, true);
+    assert.deepEqual(state.rows.pods, [{ uid: "pod-kube-system" }]);
+
+    const clearedBefore = state.clearedPendingActions;
+    const widened = load("cluster-a", "pods", ["all"]);
+    // The table must not keep another namespace on screen while the wide load runs.
+    assert.deepEqual(state.rows.pods, []);
+    assert.equal(state.clearedPendingActions, clearedBefore + 1, "pending bulk actions of the previous scope must be dropped");
+    assert.equal(batches[1].namespaces.length, 1);
+    assert.equal(batches[1].namespaces[0], "all");
+
+    batches[1].resolve([{ items: [{ uid: "pod-a" }, { uid: "pod-b" }] }]);
+    assert.equal(await widened, true);
+    assert.deepEqual(state.rows.pods, [{ uid: "pod-a" }, { uid: "pod-b" }]);
+  } finally {
+    global.window = previousWindow;
+  }
+});
+
+test("a silent watch refresh never aborts a running load of the same scope", async () => {
+  const previousWindow = global.window;
+  global.window = { setTimeout: () => 0, clearTimeout: () => undefined };
+  try {
+    const { load, batches, state } = createResourceLoaderHarness();
+
+    const widened = load("cluster-a", "pods", ["all"]);
+    assert.equal(batches.length, 1);
+
+    assert.equal(await load("cluster-a", "pods", ["all"], true), false);
+    assert.equal(await load("cluster-a", "pods", ["all"], true), false);
+    assert.equal(batches.length, 1, "silent refreshes must be coalesced instead of restarting the load");
+    assert.equal(batches[0].signal.aborted, false, "the running load must survive watch events");
+
+    batches[0].resolve([{ items: [{ uid: "pod-a" }] }]);
+    assert.equal(await widened, true);
+    assert.deepEqual(state.rows.pods, [{ uid: "pod-a" }]);
+
+    // Coalesced watch events still produce exactly one trailing refresh.
+    assert.equal(batches.length, 2);
+    assert.deepEqual(batches[1].namespaces, ["all"]);
+    batches[1].resolve([{ items: [{ uid: "pod-a" }, { uid: "pod-b" }] }]);
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepEqual(state.rows.pods, [{ uid: "pod-a" }, { uid: "pod-b" }]);
+    assert.equal(batches.length, 2);
+  } finally {
+    global.window = previousWindow;
+  }
+});
+
+test("manual refresh and scope changes still supersede a running load", async () => {
+  const previousWindow = global.window;
+  global.window = { setTimeout: () => 0, clearTimeout: () => undefined };
+  try {
+    const { load, batches, state } = createResourceLoaderHarness();
+
+    const stale = load("cluster-a", "pods", ["all"]);
+    const manual = load("cluster-a", "pods", ["all"]);
+    assert.equal(batches.length, 2);
+    assert.equal(batches[0].signal.aborted, true);
+
+    batches[1].resolve([{ items: [{ uid: "pod-a" }] }]);
+    assert.equal(await manual, true);
+    batches[0].resolve([{ items: [{ uid: "stale" }] }]);
+    assert.equal(await stale, false);
+    assert.deepEqual(state.rows.pods, [{ uid: "pod-a" }], "a superseded response must never reach the table");
+
+    const switched = load("cluster-a", "pods", ["kube-system"]);
+    assert.equal(batches[1].signal.aborted, false);
+    assert.equal(batches[2].namespaces[0], "kube-system");
+    assert.deepEqual(state.rows.pods, []);
+    batches[2].resolve([{ items: [{ uid: "pod-kube-system" }] }]);
+    assert.equal(await switched, true);
+  } finally {
+    global.window = previousWindow;
+  }
+});
+
 test("resource polling is only a fallback while live watch is unavailable", () => {
   const refresh = loadTypeScript("utils/refresh.ts");
   assert.equal(refresh.shouldPollResources(10, false), true);

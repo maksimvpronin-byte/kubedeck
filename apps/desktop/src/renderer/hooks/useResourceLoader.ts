@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, ResourceRow } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
-import { loadNamespaceResourceBatches, normalizeNamespaceSelection } from "../utils/kubeResources";
+import { loadNamespaceResourceBatches, normalizeNamespaceSelection, resourceScopeKey } from "../utils/kubeResources";
 
 const RESOURCE_LOAD_TIMEOUT_MS = 30_000;
 
@@ -45,6 +45,8 @@ interface UseResourceLoaderOptions {
   setError: Dispatch<SetStateAction<ErrorInfo | null>>;
 }
 
+type ResourceLoad = (clusterId?: string, nextResource?: string, nextNamespaces?: string | string[], silent?: boolean) => Promise<boolean>;
+
 export function useResourceLoader({
   api,
   activeCluster,
@@ -61,33 +63,59 @@ export function useResourceLoader({
 }: UseResourceLoaderOptions) {
   const abortRef = useRef<AbortController | null>(null);
   const requestSequenceRef = useRef(0);
+  const loadedScopeRef = useRef(new Map<string, string>());
+  const inFlightScopeRef = useRef<string | null>(null);
+  const pendingSilentRefreshRef = useRef(false);
+  const loadRef = useRef<ResourceLoad | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  return useCallback(
+  const load = useCallback<ResourceLoad>(
     async (clusterId = activeCluster?.id, nextResource = resource, nextNamespaces: string | string[] = namespaces, silent = false) => {
       if (!api || !clusterId || nextResource === "port-forwards") return false;
+
+      const normalizedNamespaces = normalizeNamespaceSelection(nextNamespaces);
+      const scopeKey = resourceScopeKey(clusterId, nextResource, normalizedNamespaces);
+
+      // A silent refresh must never abort a running load of the same scope.
+      // Watch events on a busy cluster arrive faster than a wide `kubectl get -A`
+      // finishes, so aborting here starved the load and left the table on the
+      // rows of the previously selected namespace.
+      if (silent && inFlightScopeRef.current === scopeKey) {
+        pendingSilentRefreshRef.current = true;
+        return false;
+      }
 
       const requestId = requestSequenceRef.current + 1;
       requestSequenceRef.current = requestId;
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
+      inFlightScopeRef.current = scopeKey;
       let timedOut = false;
       const timeoutId = window.setTimeout(() => {
         timedOut = true;
         controller.abort();
       }, RESOURCE_LOAD_TIMEOUT_MS);
 
+      // Rows are dropped before the request is awaited when the scope changes,
+      // so an aborted or failing load cannot leave another scope on screen.
+      if (loadedScopeRef.current.get(nextResource) !== scopeKey) {
+        loadedScopeRef.current.delete(nextResource);
+        pendingSilentRefreshRef.current = false;
+        setRows((current) => (current[nextResource]?.length ? { ...current, [nextResource]: [] } : current));
+        clearPendingActions();
+      }
+
       if (!silent) setLoading(true);
       try {
-        const normalizedNamespaces = normalizeNamespaceSelection(nextNamespaces);
         const responses = await loadNamespaceResourceBatches(api, clusterId, nextResource, normalizedNamespaces, controller.signal, { useCache: false, forceRefresh: true });
         if (requestSequenceRef.current !== requestId) return false;
         setRows((current) => ({
           ...current,
           [nextResource]: responses.flatMap((response) => response.items),
         }));
+        loadedScopeRef.current.set(nextResource, scopeKey);
         setError(null);
         setUnavailableCluster((current) => (current?.id === clusterId ? null : current));
         return true;
@@ -110,10 +138,14 @@ export function useResourceLoader({
           void api.clearResourceCache(clusterId).catch(() => undefined);
           setRows({});
           setNamespaces([]);
+          loadedScopeRef.current.clear();
           setUnavailableCluster((current) => current ?? activeCluster ?? null);
           setActiveCluster((current) => (current?.id === clusterId ? null : current));
         } else {
           setRows((current) => ({ ...current, [nextResource]: [] }));
+          // An empty table belongs to the scope that failed, so the next refresh
+          // of the same scope does not need to clear it again.
+          loadedScopeRef.current.set(nextResource, scopeKey);
         }
         setSelectedRow(null);
         clearPendingActions();
@@ -123,10 +155,17 @@ export function useResourceLoader({
         window.clearTimeout(timeoutId);
         if (requestSequenceRef.current === requestId) {
           if (abortRef.current === controller) abortRef.current = null;
+          if (inFlightScopeRef.current === scopeKey) inFlightScopeRef.current = null;
           if (!silent) setLoading(false);
+          if (pendingSilentRefreshRef.current) {
+            pendingSilentRefreshRef.current = false;
+            void loadRef.current?.(clusterId, nextResource, normalizedNamespaces, true);
+          }
         }
       }
     },
     [api, activeCluster, resource, namespaces, setRows, setNamespaces, setActiveCluster, setUnavailableCluster, setSelectedRow, clearPendingActions, setLoading, setError],
   );
+  loadRef.current = load;
+  return load;
 }

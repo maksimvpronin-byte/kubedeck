@@ -99,6 +99,8 @@ Resource list responses могут сохраняться в `ResourceSnapshotCa
 
 Для активной таблицы renderer создаёт watch subscription. `kubectl watch` публикует нормализованные события через локальный WebSocket, после чего renderer выполняет debounced silent refresh. Периодический polling остаётся fallback-механизмом.
 
+Строки таблицы принадлежат scope `(cluster, resource, namespace selection)`. При смене scope renderer очищает строки до отправки запроса, поэтому прерванная или неудачная загрузка не может оставить на экране данные другого namespace. Silent refresh от watch не прерывает выполняющуюся загрузку того же scope: события коалесцируются в один trailing refresh после её завершения. Прерывание остаётся только за ручным refresh и за сменой scope.
+
 ## Contract ownership
 
 Существующие HTTP/WebSocket маршруты принадлежат Node runtime. `/migration/status` сохранён как release diagnostic и должен сообщать `node-only`, `52 Node / 0 Python` для текущего contract baseline.

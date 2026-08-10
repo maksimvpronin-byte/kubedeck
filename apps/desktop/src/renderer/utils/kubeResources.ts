@@ -11,6 +11,13 @@ export function normalizeNamespaceSelection(value: string | string[]) {
   return normalized;
 }
 
+// Rows of a resource table belong to the scope they were loaded for. The key
+// makes that scope comparable so a load can never apply, or leave behind, rows
+// that belong to another cluster or namespace selection.
+export function resourceScopeKey(clusterId: string, resource: string, namespaces: string | string[]) {
+  return `${clusterId}\u0000${resource}\u0000${normalizeNamespaceSelection(namespaces).join(",")}`;
+}
+
 export function arraysEqual(left: string[], right: string[]) {
   return left.length === right.length && left.every((item, index) => item === right[index]);
 }
