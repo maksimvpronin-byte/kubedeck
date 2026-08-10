@@ -136,6 +136,15 @@ export interface ProblemsResponse {
   errors: Array<ErrorInfo & { resource?: string; namespace?: string }>;
 }
 
+export interface ClusterKubeconfig {
+  clusterId: string;
+  displayName: string;
+  path: string;
+  editable: boolean;
+  maxBytes: number;
+  content: string;
+}
+
 export interface ClusterOverviewResponse {
   generatedAt: string;
   scope: { clusterId: string; namespaces: string[] };

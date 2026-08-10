@@ -8,7 +8,7 @@
 
 Все существующие backend-контракты перенесены из Python/FastAPI в Node.js внутри Electron main process.
 
-- Node routes: **54**.
+- Node routes: **56**.
 - Python routes: **0**.
 - Runtime mode: **node-only**.
 - Legacy HTTP/WebSocket proxy: удалён.
@@ -81,7 +81,10 @@ namespace: строки принадлежат scope (cluster, resource, namespa
 выполняющуюся загрузку того же scope. Переключение кластеров переехало из
 выпадающего списка в топбаре в вертикальный рельс иконок слева от навигации.
 На Windows запущенное приложение получило иконку KubeDeck вместо дефолтной
-Electron (icon у окна, ассеты в payload, rcedit и AppUserModelID).
+Electron (icon у окна, ассеты в payload, rcedit и AppUserModelID). Добавлено
+редактирование kubeconfig кластера из Settings: два новых маршрута
+(`GET`/`PUT /clusters/{cluster_id}/kubeconfig`), Node-only Gateway — 56
+маршрутов.
 
 ## 2.10.3 — устранение утечки памяти и проблем производительности
 

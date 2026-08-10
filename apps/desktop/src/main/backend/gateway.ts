@@ -19,6 +19,7 @@ import { KubectlRunner } from "./kubectl/runner";
 import { writeAppInfo } from "./routes/appInfo";
 import { writeAudit } from "./routes/audit";
 import { writeClusters, writeImportCluster, writeNamespaces, writeOpenCluster, writeOpenLastCluster, writeRemoveCluster, writeReorderClusters, writeRenameCluster } from "./routes/clusters";
+import { handleClusterKubeconfigRequest } from "./routes/clusterKubeconfig";
 import { writeConfig, writeSettings } from "./routes/config";
 import { writeHealth } from "./routes/health";
 import { writeKubectlStatus } from "./routes/kubectl";
@@ -86,6 +87,21 @@ function decodePathPart(value: string, response: ServerResponse): string | null 
     writeError(response, 400, "INVALID_CLUSTER_ID", "Cluster id is not valid URL encoding");
     return null;
   }
+}
+
+// Everything that is bound to a cluster endpoint: live sessions and cached
+// data become invalid as soon as the cluster is removed or its kubeconfig is
+// rewritten.
+async function releaseClusterRuntime(services: GatewayServices, clusterId: string, reason: string): Promise<void> {
+  await Promise.all([
+    services.watchManager.stopCluster(clusterId),
+    services.portForwardManager.stopCluster(clusterId),
+    services.terminalWebSocket.stopCluster(clusterId),
+    services.sshWebSocket.stopCluster(clusterId),
+  ]);
+  services.resourceCache.clear(clusterId, reason);
+  clearResourceDefinitionCache(clusterId);
+  clearNodeDiskMetricsCache(clusterId);
 }
 
 function handleRequest(request: IncomingMessage, response: ServerResponse, options: GatewayOptions, services: GatewayServices): void {
@@ -227,6 +243,20 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
     return;
   }
 
+  if (
+    handleClusterKubeconfigRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.auditStore,
+      (clusterId) => releaseClusterRuntime(services, clusterId, "cluster.kubeconfig.update"),
+      options.log,
+    )
+  ) {
+    return;
+  }
+
   const clusterMatch = pathname.match(/^\/clusters\/([^/]+)$/);
   if (clusterMatch && (request.method === "PATCH" || request.method === "DELETE")) {
     const clusterId = decodePathPart(clusterMatch[1], response);
@@ -241,15 +271,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
     }
 
     void (async () => {
-      await Promise.all([
-        services.watchManager.stopCluster(clusterId),
-        services.portForwardManager.stopCluster(clusterId),
-        services.terminalWebSocket.stopCluster(clusterId),
-        services.sshWebSocket.stopCluster(clusterId),
-      ]);
-      services.resourceCache.clear(clusterId, "cluster.remove");
-      clearResourceDefinitionCache(clusterId);
-      clearNodeDiskMetricsCache(clusterId);
+      await releaseClusterRuntime(services, clusterId, "cluster.remove");
       await writeRemoveCluster(response, clusterId, services.configStore, services.auditStore);
     })().catch((error) => {
       options.log(`gateway cluster remove failed: ${String(error)}`);

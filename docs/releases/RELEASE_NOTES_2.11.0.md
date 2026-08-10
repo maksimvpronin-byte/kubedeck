@@ -45,7 +45,22 @@ unavailable cluster, supports arrow-key navigation and carries the kubeconfig
 import button. Switching still goes through the unsaved-YAML guard. Renaming,
 reordering and removing clusters remain in Settings.
 
+## Cluster kubeconfig editing
+
+Settings → Clusters can now open the kubeconfig of a cluster in a YAML editor
+and save it back, so a changed API server address, context or user no longer
+requires re-importing the file.
+
+The content is validated as a kubeconfig before anything is written, the
+previous version is kept next to the file as `.bak`, and saving requires
+typing the cluster name. Writes are limited to 1 MiB, are atomic, keep `0600`
+permissions and are refused for kubeconfig files outside the KubeDeck
+directory. Because the API server or context may have moved, a successful
+save stops the cluster's watch, port-forward, terminal and SSH sessions and
+clears its caches. The file content is never logged, never recorded in the
+audit trail, never written to persisted UI state and never sent to the LLM.
+
 ## Release contract
 
-No route/contract-count change so far in this release. Node-only ownership
-stays at Node 54 / Python 0.
+Two new routes: `GET` and `PUT /clusters/{cluster_id}/kubeconfig`. Node-only
+ownership moves to Node 56 / Python 0.

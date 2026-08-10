@@ -49,6 +49,8 @@ IPC handlers обязаны валидировать enum-like arguments, Kubern
 ## Local data
 
 - Импортированные kubeconfig копируются в app-data `kubeconfigs/`.
+- Kubeconfig кластера редактируется из Settings через `GET`/`PUT /clusters/{cluster_id}/kubeconfig`. Запись разрешена только для копий внутри `kubeconfigs/`, выполняется атомарно (tmp + rename) с правами `0600`, ограничена 1 MiB и проходит проверку структуры kubeconfig до замены файла. Предыдущее содержимое сохраняется рядом как `<cluster-id>.yaml.bak` с теми же правами.
+- Содержимое kubeconfig не попадает в audit (пишутся только `sizeBytes`, число clusters/contexts), в logs, в persisted UI state и в LLM-контекст. После успешной записи watch, port-forward, terminal и SSH сессии кластера останавливаются, а его кэши очищаются.
 - Подтверждённые SSH host key fingerprints хранятся в `hostkeys.json` с правами `0600`.
 - Config хранит пути и настройки, но не должен попадать в diagnostic clipboard целиком.
 - Resource cache, decoded Secrets и session state не сохраняются на диск.

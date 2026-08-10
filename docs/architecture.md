@@ -36,7 +36,7 @@ React renderer
 Основные данные:
 
 - `config.json` — настройки и список кластеров;
-- `kubeconfigs/` — импортированные kubeconfig-файлы;
+- `kubeconfigs/` — импортированные kubeconfig-файлы, редактируемые из Settings (атомарная запись, права 0600, копия предыдущей версии в `.bak`);
 - `logs/` — desktop/backend diagnostic logs;
 - `terminals/` — временные shell scripts, когда они нужны platform integration.
 
@@ -105,7 +105,7 @@ Resource list responses могут сохраняться в `ResourceSnapshotCa
 
 ## Contract ownership
 
-Существующие HTTP/WebSocket маршруты принадлежат Node runtime. `/migration/status` сохранён как release diagnostic и должен сообщать `node-only`, `52 Node / 0 Python` для текущего contract baseline.
+Существующие HTTP/WebSocket маршруты принадлежат Node runtime. `/migration/status` сохранён как release diagnostic и должен сообщать `node-only`, `56 Node / 0 Python` для текущего contract baseline.
 
 Изменение request/response shape требует синхронного обновления типов renderer/main и соответствующего contract test. План 2.1 предусматривает перенос общих публичных контрактов в `@kubedeck/shared-types`.
 

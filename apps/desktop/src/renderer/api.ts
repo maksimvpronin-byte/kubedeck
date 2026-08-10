@@ -4,6 +4,7 @@ import type {
   AuditResponse,
   BackendInfo,
   Cluster,
+  ClusterKubeconfig,
   ClusterOverviewResponse,
   CommandResult,
   ErrorInfo,
@@ -270,6 +271,17 @@ export class ApiClient {
     return this.request<{ ok: boolean }>(`/clusters/${clusterId}/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/update`, {
       method: "POST",
       body: JSON.stringify({ key, value }),
+    });
+  }
+
+  clusterKubeconfig(clusterId: string, signal?: AbortSignal) {
+    return this.request<ClusterKubeconfig>(`/clusters/${clusterId}/kubeconfig`, { signal });
+  }
+
+  saveClusterKubeconfig(clusterId: string, content: string, typedName: string) {
+    return this.request<{ ok: boolean; cluster: Cluster; path: string }>(`/clusters/${clusterId}/kubeconfig`, {
+      method: "PUT",
+      body: JSON.stringify({ content, confirmation: { clusterId, action: "kubeconfig.update", typedName } }),
     });
   }
 

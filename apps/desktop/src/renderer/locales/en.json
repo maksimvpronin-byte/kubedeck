@@ -52,6 +52,7 @@
   "clusters.open": "Open",
   "clusters.opening": "Opening...",
   "clusters.rename": "Rename",
+  "clusters.editKubeconfig": "Edit kubeconfig",
   "clusters.renameTitle": "Rename cluster",
   "clusters.name": "Cluster name",
   "clusters.remove": "Remove",
@@ -528,5 +529,12 @@
   "overview.terminals": "active terminals",
   "settings.localActivity": "Local activity",
   "settings.localActivityDescription": "Actions performed through KubeDeck. Stored locally on this Mac.",
-  "settings.openLocalActivity": "Open local activity"
+  "settings.openLocalActivity": "Open local activity",
+  "kubeconfig.title": "Cluster kubeconfig",
+  "kubeconfig.credentialsWarning": "This file holds cluster credentials. It is never logged, audited or sent to the LLM.",
+  "kubeconfig.readOnly": "This kubeconfig lives outside the KubeDeck directory and is read-only.",
+  "kubeconfig.confirm": "Type the cluster name to confirm",
+  "kubeconfig.save": "Save kubeconfig",
+  "kubeconfig.saving": "Saving...",
+  "kubeconfig.discard": "Discard unsaved kubeconfig changes?"
 }

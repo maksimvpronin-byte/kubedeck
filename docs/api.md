@@ -36,7 +36,7 @@ ws://127.0.0.1:<port>/clusters/<cluster>/pods/<namespace>/<pod>/terminal?token=<
 ## Route groups
 
 - application/config: health, app info, migration status, config, audit;
-- clusters/kubectl: import, persistent manual ordering (`PUT /clusters/order`), rename, remove, open, namespaces, kubectl status;
+- clusters/kubectl: import, persistent manual ordering (`PUT /clusters/order`), rename, remove, open, namespaces, kubectl status, чтение и запись kubeconfig кластера (`GET`/`PUT /clusters/{cluster_id}/kubeconfig`);
 - resources: discovery, lists, YAML, Describe, Events, logs и related resources;
 - mutations: YAML dry-run/apply, resource actions и Pod exec;
 - diagnostics: Problems, Global Search, cache и watch status;
@@ -51,6 +51,7 @@ ws://127.0.0.1:<port>/clusters/<cluster>/pods/<namespace>/<pod>/terminal?token=<
 - JSON request body имеет route-specific size limit;
 - malformed JSON возвращает structured client error;
 - YAML передаётся в kubectl через stdin;
-- Secret/YAML/LLM payload не логируется;
+- Secret/YAML/LLM payload и содержимое kubeconfig не логируются;
+- `PUT /clusters/{cluster_id}/kubeconfig` требует confirmation с именем кластера, ограничен 1 MiB, проверяет структуру kubeconfig до записи и отклоняет файлы вне каталога `kubeconfigs/` (`KUBECONFIG_NOT_EDITABLE`);
 - HTTP Origin и session token проверяются до выполнения handler;
 - WebSocket выполняет те же проверки до создания session.

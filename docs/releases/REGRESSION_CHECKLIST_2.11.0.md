@@ -15,7 +15,7 @@ build.
 - [x] `npm run build`
 - [x] `npm --workspace apps/desktop run test:gateway`
 - [x] `npm run verify:release`
-- [x] `/migration/status` remains `node-only`, **Node 54 / Python 0**
+- [x] `/migration/status` remains `node-only`, **Node 56 / Python 0**
 
 ## Namespace scope of the resource table
 
@@ -50,6 +50,17 @@ build.
 - [ ] Properties of the extracted `KubeDeck.exe` show the KubeDeck product
   name and version.
 - [ ] `npm run dev` also shows the KubeDeck window icon.
+
+## Cluster kubeconfig editing
+
+- [ ] Editing the kubeconfig of a non-active cluster saves, keeps a .bak copy
+  and leaves the cluster openable.
+- [ ] Editing the kubeconfig of the active cluster reopens it and its watch,
+  port-forward, terminal and SSH sessions are closed.
+- [ ] Saving a broken kubeconfig is rejected without touching the file.
+- [ ] Saving requires typing the cluster name, and closing with unsaved
+  changes asks for confirmation.
+- [ ] The audit trail records the update without any file content.
 
 ## Product regression
 

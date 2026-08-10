@@ -690,3 +690,91 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* KubeDeck 2.11.0: cluster kubeconfig editor */
+.kubeconfig-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(920px, calc(100vw - 48px));
+  height: min(720px, calc(100vh - 64px));
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.kubeconfig-modal header,
+.kubeconfig-modal footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.kubeconfig-modal header {
+  border-bottom: 1px solid var(--border);
+}
+
+.kubeconfig-modal footer {
+  border-top: 1px solid var(--border);
+}
+
+.kubeconfig-modal h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.kubeconfig-body {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+.kubeconfig-body .yaml-ide-editor {
+  min-height: 0;
+  height: 100%;
+}
+
+.kubeconfig-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--warning-text, var(--muted-strong));
+}
+
+.kubeconfig-path {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.kubeconfig-readonly {
+  margin: 0;
+  color: var(--muted-strong);
+}
+
+.kubeconfig-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-strong);
+}
+
+.kubeconfig-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.kubeconfig-actions button {
+  border: 1px solid var(--border-strong);
+  background: var(--button-bg);
+  color: var(--text);
+  border-radius: 8px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-weight: 600;
+}

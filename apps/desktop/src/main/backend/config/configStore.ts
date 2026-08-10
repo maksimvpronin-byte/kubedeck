@@ -243,6 +243,18 @@ export class InvalidClusterOrderError extends Error {
   }
 }
 
+export class KubeconfigEditError extends Error {
+  constructor(
+    readonly code: "KUBECONFIG_NOT_EDITABLE" | "KUBECONFIG_TOO_LARGE" | "KUBECONFIG_UNREADABLE" | "INVALID_KUBECONFIG",
+    message: string,
+  ) {
+    super(message);
+    this.name = "KubeconfigEditError";
+  }
+}
+
+export const MAX_KUBECONFIG_BYTES = 1024 * 1024;
+
 function managedPath(pathname: string, baseDirectory: string): boolean {
   if (!fs.existsSync(pathname)) return false;
 
@@ -477,5 +489,71 @@ export class ConfigStore {
     }
 
     return { cluster, removedManagedFile };
+  }
+
+  // Only the copies KubeDeck owns inside app-data may be rewritten. A kubeconfig
+  // referenced from anywhere else stays read-only, so the editor can never write
+  // outside the application directory.
+  private editableKubeconfig(clusterId: string): { cluster: Cluster; editable: boolean } {
+    const cluster = this.getCluster(clusterId);
+    return { cluster, editable: managedPath(cluster.kubeconfigPath, this.paths.kubeconfigs) };
+  }
+
+  readKubeconfig(clusterId: string): { path: string; editable: boolean; content: string; sizeBytes: number } {
+    const { cluster, editable } = this.editableKubeconfig(clusterId);
+
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(cluster.kubeconfigPath);
+    } catch {
+      throw new KubeconfigEditError("KUBECONFIG_UNREADABLE", "Kubeconfig file is missing or unreadable");
+    }
+    if (!stat.isFile()) {
+      throw new KubeconfigEditError("KUBECONFIG_UNREADABLE", "Kubeconfig path is not a file");
+    }
+    if (stat.size > MAX_KUBECONFIG_BYTES) {
+      throw new KubeconfigEditError("KUBECONFIG_TOO_LARGE", `Kubeconfig is larger than ${MAX_KUBECONFIG_BYTES} bytes and cannot be edited here`);
+    }
+
+    return { path: cluster.kubeconfigPath, editable, content: fs.readFileSync(cluster.kubeconfigPath, "utf8"), sizeBytes: stat.size };
+  }
+
+  writeKubeconfig(clusterId: string, content: string): { cluster: Cluster; path: string; sizeBytes: number; backupPath: string } {
+    const { cluster, editable } = this.editableKubeconfig(clusterId);
+    if (!editable) {
+      throw new KubeconfigEditError("KUBECONFIG_NOT_EDITABLE", "Only kubeconfig copies managed by KubeDeck can be edited");
+    }
+
+    const sizeBytes = Buffer.byteLength(content, "utf8");
+    if (sizeBytes > MAX_KUBECONFIG_BYTES) {
+      throw new KubeconfigEditError("KUBECONFIG_TOO_LARGE", `Kubeconfig must not exceed ${MAX_KUBECONFIG_BYTES} bytes`);
+    }
+
+    const target = cluster.kubeconfigPath;
+    const backupPath = `${target}.bak`;
+    const temporaryTarget = `${target}.${process.pid}.${Date.now()}.tmp`;
+
+    try {
+      fs.copyFileSync(target, backupPath);
+      fs.chmodSync(backupPath, 0o600);
+    } catch {
+      // A missing previous copy must not block writing a valid kubeconfig.
+    }
+
+    try {
+      fs.writeFileSync(temporaryTarget, content, { encoding: "utf8", mode: 0o600 });
+      fs.renameSync(temporaryTarget, target);
+      fs.chmodSync(target, 0o600);
+    } catch (error) {
+      fs.rmSync(temporaryTarget, { force: true });
+      throw error;
+    }
+
+    const config = this.load();
+    const stored = this.getCluster(clusterId, config);
+    stored.updatedAt = utcNow();
+    this.save(config);
+
+    return { cluster: stored, path: target, sizeBytes, backupPath };
   }
 }

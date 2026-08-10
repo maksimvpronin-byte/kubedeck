@@ -6,6 +6,7 @@ import { normalizeSettingsSsh, normalizeSshPort, normalizeSshSettings, saveStore
 import { applyThemePreference, THEME_OPTIONS } from "../utils/theme";
 import { toErrorInfo } from "../utils/errors";
 import { ClusterPanel } from "./ClusterPanel";
+import { KubeconfigEditorModal } from "./KubeconfigEditorModal";
 import { ResourceCacheDiagnostics } from "./ResourceCacheDiagnostics";
 import { WatchDiagnostics } from "./WatchDiagnostics";
 import { AuditPanel } from "./AuditPanel";
@@ -54,6 +55,7 @@ export function SettingsPanel({
   const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [llmTestMessage, setLlmTestMessage] = useState("");
   const [showLocalActivity, setShowLocalActivity] = useState(false);
+  const [kubeconfigCluster, setKubeconfigCluster] = useState<Cluster | null>(null);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
   const [secretStorageAvailable, setSecretStorageAvailable] = useState<boolean | null>(null);
@@ -355,9 +357,20 @@ export function SettingsPanel({
         openCluster={openCluster}
         renameCluster={renameCluster}
         removeCluster={removeCluster}
+        editKubeconfig={setKubeconfigCluster}
         reorderClusters={reorderClusters}
         reorderingClusters={reorderingClusters}
         t={t}
+      />
+      <KubeconfigEditorModal
+        api={api}
+        cluster={kubeconfigCluster}
+        t={t}
+        onClose={() => setKubeconfigCluster(null)}
+        onSaved={(cluster) => {
+          // The endpoint may have moved, so the open cluster has to be reopened.
+          if (cluster.id === activeCluster?.id) openCluster(cluster);
+        }}
       />
     </section>
   );

@@ -52,6 +52,7 @@
   "clusters.open": "Открыть",
   "clusters.opening": "Открытие...",
   "clusters.rename": "Переименовать",
+  "clusters.editKubeconfig": "Редактировать kubeconfig",
   "clusters.renameTitle": "Переименовать кластер",
   "clusters.name": "Имя кластера",
   "clusters.remove": "Удалить",
@@ -528,5 +529,12 @@
   "overview.terminals": "активных терминалов",
   "settings.localActivity": "Локальная активность",
   "settings.localActivityDescription": "Действия, выполненные через KubeDeck. Хранятся локально на этом Mac.",
-  "settings.openLocalActivity": "Открыть локальную активность"
+  "settings.openLocalActivity": "Открыть локальную активность",
+  "kubeconfig.title": "Kubeconfig кластера",
+  "kubeconfig.credentialsWarning": "Файл содержит учётные данные кластера. Он не пишется в логи и audit и не передаётся в LLM.",
+  "kubeconfig.readOnly": "Этот kubeconfig лежит вне каталога KubeDeck и доступен только для чтения.",
+  "kubeconfig.confirm": "Введите имя кластера для подтверждения",
+  "kubeconfig.save": "Сохранить kubeconfig",
+  "kubeconfig.saving": "Сохранение...",
+  "kubeconfig.discard": "Отменить несохранённые изменения kubeconfig?"
 }

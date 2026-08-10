@@ -20,6 +20,7 @@ export function ClusterPanel(props: {
   openCluster: (cluster: Cluster) => void;
   renameCluster: (cluster: Cluster) => void;
   removeCluster: (cluster: Cluster) => void;
+  editKubeconfig: (cluster: Cluster) => void;
   reorderClusters: (clusters: Cluster[]) => void | Promise<void>;
   reorderingClusters: boolean;
   t: (key: string) => string;
@@ -114,6 +115,9 @@ export function ClusterPanel(props: {
               </button>
               <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.renameCluster(cluster)}>
                 {props.t("clusters.rename")}
+              </button>
+              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.editKubeconfig(cluster)}>
+                {props.t("clusters.editKubeconfig")}
               </button>
               <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.removeCluster(cluster)}>
                 {props.t("clusters.remove")}

@@ -154,6 +154,28 @@ test("clusters are switched from the icon rail instead of a topbar dropdown", ()
   assert.match(layout, /\.cluster-rail-item\.is-active/);
 });
 
+test("the kubeconfig editor reuses the YAML editor and never persists credentials", () => {
+  const modal = fs.readFileSync(path.join(rendererRoot, "components/KubeconfigEditorModal.tsx"), "utf8");
+  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+  const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
+  const clusterPanel = fs.readFileSync(path.join(rendererRoot, "components/ClusterPanel.tsx"), "utf8");
+  const api = fs.readFileSync(path.join(rendererRoot, "api.ts"), "utf8");
+
+  // One highlighting implementation, used by both surfaces.
+  assert.match(modal, /<YamlSourceEditor/);
+  assert.match(yamlTab, /<YamlSourceEditor/);
+  assert.doesNotMatch(yamlTab, /function highlightYaml\(/);
+  assert.match(editor, /function highlightYaml\(/);
+
+  // Kubeconfig content holds credentials: it must not reach persisted UI state.
+  assert.doesNotMatch(modal, /saveUiState|localStorage|uiState/);
+  // Saving is confirmed by typing the cluster name.
+  assert.match(modal, /typedName\.trim\(\) !== cluster\.displayName/);
+  assert.match(api, /saveClusterKubeconfig\(clusterId: string, content: string, typedName: string\)/);
+
+  assert.match(clusterPanel, /clusters\.editKubeconfig/);
+});
+
 test("cluster rail initials stay short and readable", () => {
   const model = loadTypeScript("components/ClusterRail.tsx", { "lucide-react": { Plus: () => null } });
   assert.equal(model.clusterInitials("production"), "PR");

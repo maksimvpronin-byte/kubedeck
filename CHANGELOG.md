@@ -2,6 +2,7 @@
 
 - Fixed the resource table keeping the rows of the previously selected namespace after switching to All namespaces. Rows now belong to the scope (cluster, resource, namespace selection) they were loaded for and are cleared before the request is awaited when that scope changes, and silent watch-driven refreshes coalesce into one trailing refresh instead of aborting a running load of the same scope.
 - Fixed the running Windows application showing the default Electron icon in the window, taskbar and Alt+Tab while the artifact itself carried the KubeDeck icon: the window now loads the bundled icon, the icons ship with the payload, rcedit stays enabled for the packaged executable, and Windows gets the dev.kubedeck.app AppUserModelID.
+- Added cluster kubeconfig editing in Settings: the file opens in a YAML editor, is validated before it is written, keeps a .bak copy of the previous version and requires typing the cluster name to save. Saving closes the cluster's watch, port-forward, terminal and SSH sessions and clears its caches, because the API server or context may have changed. The content never reaches logs, the audit trail, persisted UI state or the LLM. Adds GET and PUT /clusters/{cluster_id}/kubeconfig (Node 56 / Python 0).
 - Clusters are now switched from a vertical icon rail left of the resource navigation instead of the topbar dropdown; the rail shows active, opening and unavailable clusters, supports arrow-key navigation and carries the kubeconfig import button.
 
 ## 2.10.3 - Performance and memory-leak fixes
