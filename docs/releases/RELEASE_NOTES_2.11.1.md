@@ -82,6 +82,28 @@ The order is recomputed only when the menu opens — never while it is on
 screen — so no row moves under the cursor. Recency is tracked per cluster and
 is not persisted across restarts.
 
+## Sorting by the Usage column did nothing
+
+The cell of a usage column holds several bars, so there is no single value its
+header could sort by. It sorted pods on `podResources`, a field that does not
+exist on a row, and nodes on `nodeResources`, the formatted multi-line string
+behind the tooltip — neither produced a useful order.
+
+Clicking the header now asks which value to sort by:
+
+- nodes: CPU %, RAM % or Disk %, as a share of what the node has;
+- pods: CPU or RAM, as absolute usage;
+- namespaces: CPU, RAM or Storage, as absolute usage.
+
+Pods and namespaces compare on absolute usage on purpose: a percentage needs a
+limit or a quota, and most of them have neither. Picking the value that is
+already active flips the direction, so the header behaves like every other one
+once a choice is made, and the choice stays visible in the header.
+
+Rows with no reading — a node whose kubelet did not answer, a pod without
+metrics — now sort to the low end together instead of scattering through the
+order as text, so sorting descending puts them last.
+
 ## Pods without a CPU limit showed no CPU usage
 
 CPU limits are omitted far more often than memory limits, and the pod usage

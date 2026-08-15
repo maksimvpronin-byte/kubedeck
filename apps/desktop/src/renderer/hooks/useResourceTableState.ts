@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from "react";
 import type { ResourceRow } from "../types";
 import { loadUiState, saveUiState } from "../uiState";
+import { sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
 import { parseTimestamp } from "../utils/time";
 
 export interface ResourceTableColumn {
@@ -57,11 +58,18 @@ export function resourceTablePreferencePatch(stateKey: string, columns: Resource
   };
 }
 
-function compareRows(left: ResourceRow, right: ResourceRow, key: string) {
+export function compareRows(left: ResourceRow, right: ResourceRow, key: string) {
   if (key === "createdAt") return parseTimestamp(left.createdAt) - parseTimestamp(right.createdAt);
   const leftValue = key === "phase" ? canonicalPhase(left) : left[key];
   const rightValue = key === "phase" ? canonicalPhase(right) : right[key];
-  if (typeof leftValue === "number" && typeof rightValue === "number") return leftValue - rightValue;
+  // A usage metric is missing whenever metrics-server or the kubelet did not
+  // answer for that row. Comparing it as text would scatter those rows through
+  // the order; they belong at the low end, so descending puts them last.
+  if (typeof leftValue === "number" || typeof rightValue === "number") {
+    if (typeof leftValue !== "number") return typeof rightValue === "number" ? -1 : 0;
+    if (typeof rightValue !== "number") return 1;
+    return leftValue - rightValue;
+  }
   return String(leftValue ?? "").localeCompare(String(rightValue ?? ""), undefined, { numeric: true, sensitivity: "base" });
 }
 
@@ -146,7 +154,10 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
   }, [userVisibleColumns, compact, narrow]);
 
   useEffect(() => {
-    if (visibleColumns.length && !visibleColumns.some((column) => column.key === sortKey)) setSortKey(visibleColumns.find((column) => column.key === "name")?.key ?? visibleColumns[0].key);
+    // A usage column sorts on one of its metrics, which is not a column key of
+    // its own, so hiding an unrelated column must not reset the sort.
+    if (visibleColumns.length && !visibleColumns.some((column) => sortKeyBelongsToColumn(column.key, sortKey)))
+      setSortKey(visibleColumns.find((column) => column.key === "name")?.key ?? visibleColumns[0].key);
   }, [visibleColumns, sortKey]);
   useEffect(() => {
     const timer = window.setTimeout(() => {

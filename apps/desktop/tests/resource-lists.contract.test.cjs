@@ -52,6 +52,9 @@ test("node list metrics use one top command regardless of node count", async () 
   assert.equal(rows[0].cpuUsageRaw, "100m");
   assert.equal(rows[119].memoryUsage, "512 MiB");
   assert.equal(rows[119].memoryUsageRaw, "512Mi");
+  // The table sorts on these; the displayed values are formatted strings.
+  assert.equal(rows[0].cpuUsagePercentValue, 5);
+  assert.equal(rows[0].memoryUsagePercentValue, 25);
   assert.equal(
     commands.some((command) => command.args.some((arg) => arg.includes("/stats/summary"))),
     false,
@@ -221,6 +224,11 @@ test("pods without a limit fall back to their request, unclamped", async () => {
   assert.equal(rows[2].podCpuRequestPercent, null);
   assert.equal(rows[2].podMemoryRequestPercent, null);
   assert.equal(rows[2].cpuUsage, "10m");
+
+  // Absolute usage is what the table sorts pods by, and it is available even
+  // when neither a limit nor a request makes a percentage possible.
+  assert.equal(rows[2].podCpuUsageValue, 10);
+  assert.equal(rows[2].podMemoryUsageValue, 32 * 1024 ** 2);
 });
 
 test("deployment conditions preserve simultaneous Lens-style labels", () => {

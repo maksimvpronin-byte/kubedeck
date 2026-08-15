@@ -76,6 +76,7 @@
   "resources.pageSize": "Page size",
   "resources.columns": "Columns",
   "resources.resetColumns": "Reset columns",
+  "resources.sortBy": "Sort by",
   "pagination.first": "First",
   "pagination.prev": "Prev",
   "pagination.next": "Next",

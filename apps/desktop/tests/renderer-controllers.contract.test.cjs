@@ -817,6 +817,77 @@ test("namespace selections are isolated and reconciled per cluster", () => {
   assert.deepEqual(model.reconcileClusterNamespaceSelection(["_cluster"], ["default"]), ["all"]);
 });
 
+test("a usage header sorts on a chosen metric instead of its formatted cell", () => {
+  const metrics = loadTypeScript("utils/resourceTableSortMetrics.ts");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const menu = fs.readFileSync(path.join(rendererRoot, "components/ResourceTableSortMenu.tsx"), "utf8");
+
+  // Every usage column offers the values its bars show, and nothing else does.
+  assert.deepEqual(
+    metrics.columnSortMetrics("nodeResources").map((metric) => metric.key),
+    ["cpuUsagePercentValue", "memoryUsagePercentValue", "diskUsagePercent"],
+  );
+  assert.deepEqual(
+    metrics.columnSortMetrics("podResources").map((metric) => metric.key),
+    ["podCpuUsageValue", "podMemoryUsageValue"],
+  );
+  assert.deepEqual(
+    metrics.columnSortMetrics("namespaceResources").map((metric) => metric.key),
+    ["namespaceCpuUsedValue", "namespaceMemoryUsedValue", "namespaceStorageUsedValue"],
+  );
+  assert.deepEqual(metrics.columnSortMetrics("name"), []);
+
+  // The active sort keeps the owning column marked even though the sort key is
+  // not a column of its own.
+  assert.equal(metrics.sortKeyBelongsToColumn("podResources", "podCpuUsageValue"), true);
+  assert.equal(metrics.sortKeyBelongsToColumn("podResources", "podMemoryUsageValue"), true);
+  assert.equal(metrics.sortKeyBelongsToColumn("podResources", "cpuUsagePercentValue"), false);
+  assert.equal(metrics.sortKeyBelongsToColumn("name", "name"), true);
+  assert.equal(metrics.activeSortMetric("nodeResources", "diskUsagePercent").label, "Disk %");
+  assert.equal(metrics.activeSortMetric("nodeResources", "name"), null);
+
+  // The header renders the menu instead of a plain sort button, and reuses
+  // changeSort so picking the active value flips the direction.
+  assert.match(table, /columnSortMetrics\(column\.key\)\.length \? \(/);
+  assert.match(table, /<ResourceTableSortMenu/);
+  assert.match(menu, /onSelect\(metric\.key\)/);
+
+  // A hidden or reordered column must not reset a metric sort.
+  const state = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
+  assert.match(state, /!visibleColumns\.some\(\(column\) => sortKeyBelongsToColumn\(column\.key, sortKey\)\)/);
+});
+
+test("rows without a usage metric sort to the low end instead of scattering", () => {
+  const model = loadTypeScript("hooks/useResourceTableState.ts", {
+    "../utils/resourceTableSortMetrics": { sortKeyBelongsToColumn: () => true },
+    "../utils/time": { parseTimestamp: () => 0 },
+    "../uiState": { loadUiState: () => ({}), saveUiState: () => undefined },
+  });
+  const rows = [
+    { uid: "a", name: "a", podCpuUsageValue: 25 },
+    { uid: "b", name: "b" },
+    { uid: "c", name: "c", podCpuUsageValue: 300 },
+    { uid: "d", name: "d", podCpuUsageValue: 4 },
+  ];
+
+  const ascending = [...rows].sort((left, right) => model.compareRows(left, right, "podCpuUsageValue"));
+  assert.deepEqual(
+    ascending.map((row) => row.name),
+    ["b", "d", "a", "c"],
+  );
+
+  // Descending is the interesting direction — the busiest first, the rows with
+  // no reading last rather than at the top.
+  const descending = [...rows].sort((left, right) => model.compareRows(left, right, "podCpuUsageValue") * -1);
+  assert.deepEqual(
+    descending.map((row) => row.name),
+    ["c", "a", "d", "b"],
+  );
+
+  // Text columns still compare as text.
+  assert.ok(model.compareRows({ name: "a" }, { name: "b" }, "name") < 0);
+});
+
 test("pod usage falls back from limit to request to the raw reading", () => {
   const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
   const bar = fs.readFileSync(path.join(rendererRoot, "components/ResourceUsageBar.tsx"), "utf8");

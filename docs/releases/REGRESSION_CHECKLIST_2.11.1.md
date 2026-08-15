@@ -76,6 +76,22 @@ someone runs them on a real cluster.
 - [ ] The column stays readable at a narrow window width and in light,
   midnight and steel-graphite themes.
 
+## Usage column sorting
+
+- [ ] Nodes: the Usage header opens a menu with CPU %, RAM % and Disk %, and
+  each one orders the table correctly in both directions.
+- [ ] Clicking the value that is already active flips the direction; the
+  header shows the chosen value and the direction.
+- [ ] Pods: the menu offers CPU and RAM, and ordering matches the readings in
+  the cells, including pods with no limit.
+- [ ] Namespaces: the menu offers CPU, RAM and Storage.
+- [ ] Nodes whose disk metrics have not arrived yet sort to the bottom when
+  sorting by Disk % descending, and the order settles once they load.
+- [ ] Hiding or reordering other columns does not reset the chosen value.
+- [ ] The menu closes on Escape, on an outside click, and is not covered by
+  the columns to its right.
+- [ ] Other headers still sort on a single click, with no menu.
+
 ## Product regression
 
 - [ ] Cluster import, switching, rename, removal and refresh work.

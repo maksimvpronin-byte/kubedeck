@@ -712,6 +712,84 @@
   cursor: grab;
 }
 
+/* Every header cell is sticky with the same z-index, so the columns to the
+   right would paint over an open menu without this. */
+.resource-table th:has(.table-sort-menu [aria-expanded="true"]) {
+  z-index: 4;
+}
+
+/* A usage header opens a menu asking which of its values to sort by, so it
+   anchors a popover the way the column chooser does. */
+.table-sort-menu {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.table-sort-metric {
+  flex: 0 0 auto;
+  color: var(--muted-strong);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.table-sort-caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.table-sort-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 148px;
+  padding: 6px;
+  border: 1px solid var(--border-strong, #334251);
+  border-radius: 8px;
+  background: var(--panel, #151b22);
+  box-shadow: var(--shadow-menu, 0 14px 30px rgba(0, 0, 0, 0.35));
+}
+
+.table-sort-popover-header {
+  padding: 2px 6px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.table-sort-popover button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.table-sort-popover button:hover,
+.table-sort-popover button:focus-visible {
+  background: var(--surface-hover);
+}
+
+.table-sort-popover button.is-active {
+  color: var(--focus-ring);
+  font-weight: 700;
+}
+
 .resource-table th.dragging-column {
   opacity: 0.58;
 }

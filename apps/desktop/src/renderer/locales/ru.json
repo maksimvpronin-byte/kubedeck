@@ -76,6 +76,7 @@
   "resources.pageSize": "Размер страницы",
   "resources.columns": "Колонки",
   "resources.resetColumns": "Сбросить колонки",
+  "resources.sortBy": "Сортировать по",
   "pagination.first": "В начало",
   "pagination.prev": "Назад",
   "pagination.next": "Вперёд",

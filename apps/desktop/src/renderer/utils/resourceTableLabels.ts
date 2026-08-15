@@ -17,5 +17,6 @@ export function createResourceTableLabels(t: (key: string) => string) {
     clearFilter: t("resources.clearFilter"),
     columns: t("resources.columns"),
     resetColumns: t("resources.resetColumns"),
+    sortBy: t("resources.sortBy"),
   };
 }
