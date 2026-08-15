@@ -119,6 +119,7 @@ export function App() {
     setNamespaces,
     selectedNamespaces,
     selectedNamespacesByClusterId,
+    namespaceUsage,
     setNamespaceSelection,
     restoreNamespacedSelection,
     importKubeconfig,
@@ -629,6 +630,7 @@ export function App() {
             clusterScopedLabel={t("resources.clusterScoped")}
             searchLabel={t("resources.namespaceSearch")}
             emptySearchLabel={t("resources.namespaceSearchEmpty")}
+            recentUsage={namespaceUsage}
             onChange={setNamespaceSelection}
           />
           <label className="global-search" title="Ctrl+K">

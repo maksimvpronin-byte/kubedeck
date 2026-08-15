@@ -68,8 +68,15 @@ again to be re-checked.
 
 Every namespace touched while the menu is open now stays in the block at the
 top, checked or not, with a divider between that block and the alphabetical
-rest. Closing and reopening the menu is the reset point: the block starts as
-whatever is actually selected, so it never grows across sessions.
+rest.
+
+The block also survives closing the menu: a namespace stays in it for 15
+minutes after it was last part of the selection, most recently used first, so
+coming back to re-pick something from a few minutes ago does not mean scrolling
+through hundreds of names. After that it ages out and returns to alphabetical
+order. The order is recomputed only when the menu opens — never while it is on
+screen — so no row moves under the cursor. Recency is tracked per cluster and
+is not persisted across restarts.
 
 ## Pods without a CPU limit showed no CPU usage
 

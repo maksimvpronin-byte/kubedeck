@@ -1,5 +1,6 @@
 import { ChevronDown, Search, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { recentNamespaceOrder } from "../utils/namespaceUsage";
 
 export function NamespaceSelector({
   namespaces,
@@ -9,6 +10,7 @@ export function NamespaceSelector({
   clusterScopedLabel,
   searchLabel,
   emptySearchLabel,
+  recentUsage,
   onChange,
 }: {
   namespaces: string[];
@@ -18,18 +20,22 @@ export function NamespaceSelector({
   clusterScopedLabel?: string;
   searchLabel: string;
   emptySearchLabel: string;
+  /** When each namespace was last part of the selection, for the active cluster. */
+  recentUsage?: Record<string, number>;
   onChange: (next: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  // Every namespace touched while the menu is open stays in the block at the
-  // top, checked or not. Unchecking one used to drop it straight back into the
-  // alphabetical list, so re-checking it meant hunting for it again.
+  // The block held at the top of the menu: recently used namespaces, plus
+  // anything touched during this session. Frozen while the menu is open so no
+  // row ever moves under the cursor.
   const [pinned, setPinned] = useState<string[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const selectionRef = useRef(selected);
+  const recentUsageRef = useRef(recentUsage);
   selectionRef.current = selected;
+  recentUsageRef.current = recentUsage;
   const normalized = normalizeNamespaceSelection(selected);
   const pinnedVisible = useMemo(() => pinnedNamespaces(namespaces, selected, pinned), [namespaces, selected, pinned]);
   const filteredNamespaces = useMemo(() => filterNamespaces(namespaces, selected, query, pinned), [namespaces, selected, query, pinned]);
@@ -40,9 +46,10 @@ export function NamespaceSelector({
   useEffect(() => {
     if (!open) return;
     setQuery("");
-    // Reopening the menu is the reset point: the block starts as whatever is
-    // actually selected, so it never grows across sessions.
-    setPinned(normalizeNamespaceSelection(selectionRef.current).filter((item) => item !== "all" && item !== "_cluster"));
+    // Recomputed on every open, which is also where entries that aged out are
+    // dropped: what has not been used for a while returns to alphabetical order.
+    const selectedNamespaced = normalizeNamespaceSelection(selectionRef.current).filter((item) => item !== "all" && item !== "_cluster");
+    setPinned(recentNamespaceOrder(recentUsageRef.current, selectedNamespaced, Date.now()));
     window.requestAnimationFrame(() => searchRef.current?.focus());
     const closeOnOutsideClick = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);

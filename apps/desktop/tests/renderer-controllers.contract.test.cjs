@@ -118,6 +118,39 @@ test("an unchecked namespace keeps its place at the top of the open menu", () =>
   assert.deepEqual(model.pinnedNamespaces(namespaces, ["netshoot"]), ["netshoot"]);
 });
 
+test("recently used namespaces stay on top until the retention window passes", () => {
+  const model = loadTypeScript("utils/namespaceUsage.ts");
+  const minute = 60_000;
+  const start = 1_800_000_000_000;
+
+  // Both sides of a change count as used: what stays selected and what was
+  // just removed, so unchecking starts the countdown rather than ending it.
+  let usage = model.rememberNamespaceUsage({}, ["payments"], start);
+  usage = model.rememberNamespaceUsage(usage, ["payments", "netshoot"], start + 2 * minute);
+  usage = model.rememberNamespaceUsage(usage, ["netshoot"], start + 5 * minute);
+
+  // Most recent first, and `all`/`_cluster` are never recorded.
+  usage = model.rememberNamespaceUsage(usage, ["all", "_cluster", ""], start + 6 * minute);
+  assert.deepEqual(model.recentNamespaceOrder(usage, [], start + 6 * minute), ["netshoot", "payments"]);
+
+  // Fourteen minutes after `payments` was last used it is still on top; two
+  // minutes later it has aged out while `netshoot` has not.
+  assert.deepEqual(model.recentNamespaceOrder(usage, [], start + 16 * minute), ["netshoot", "payments"]);
+  assert.deepEqual(model.recentNamespaceOrder(usage, [], start + 18 * minute), ["netshoot"]);
+
+  // Past the window everything falls back to the alphabetical list, except the
+  // current selection, which is always reachable at the top.
+  assert.deepEqual(model.recentNamespaceOrder(usage, [], start + 21 * minute), []);
+  assert.deepEqual(model.recentNamespaceOrder(usage, ["production"], start + 21 * minute), ["production"]);
+
+  // Writing prunes expired entries instead of letting the map grow.
+  const pruned = model.rememberNamespaceUsage(usage, ["production"], start + 21 * minute);
+  assert.deepEqual(Object.keys(pruned), ["production"]);
+
+  // A missing map is treated as no history.
+  assert.deepEqual(model.recentNamespaceOrder(undefined, ["netshoot"], start), ["netshoot"]);
+});
+
 test("manifest compare scrolls inside the modal and uses themed controls", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");

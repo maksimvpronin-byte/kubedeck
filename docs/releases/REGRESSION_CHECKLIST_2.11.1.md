@@ -50,7 +50,12 @@ someone runs them on a real cluster.
   to `All namespaces` on the next refresh.
 - [ ] Uncheck a namespace with the menu open: it stays at the top, above the
   divider, and can be re-checked without scrolling.
-- [ ] Close and reopen the menu: the top block holds only what is selected.
+- [ ] Close and reopen the menu: namespaces used in the last 15 minutes are
+  still on top, most recently used first, checked or not.
+- [ ] Wait out the window (or use a namespace not touched for 15 minutes):
+  it returns to its alphabetical position on the next open.
+- [ ] Switch clusters: the top block is that cluster's own recent list.
+- [ ] Restart the app: the block holds only the current selection.
 - [ ] Typing in the search box still keeps the top block reachable, and
   selecting `All namespaces` does not clear it.
 

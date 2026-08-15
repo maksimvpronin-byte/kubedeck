@@ -3,9 +3,14 @@ import type { ApiClient } from "../api";
 import type { ErrorInfo, Settings } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { arraysEqual, normalizeNamespaceSelection } from "../utils/kubeResources";
+import { rememberNamespaceUsage, type NamespaceUsage } from "../utils/namespaceUsage";
 import { getAutoRefreshIntervalSeconds } from "../utils/refresh";
 
 export type ClusterNamespaceSelections = Record<string, string[]>;
+
+// A stable identity, so a cluster without recorded usage does not hand the
+// selector a new object on every render.
+const EMPTY_NAMESPACE_USAGE: NamespaceUsage = {};
 
 export function normalizeClusterNamespaceSelections(value: unknown): ClusterNamespaceSelections {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -47,8 +52,11 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
   const [namespaces, setNamespaces] = useState<string[]>([]);
   const [selectedNamespaces, setSelectedNamespaces] = useState<string[]>(initialSelectedNamespaces);
   const [selectedNamespacesByClusterId, setSelectedNamespacesByClusterId] = useState<ClusterNamespaceSelections>(() => normalizeClusterNamespaceSelections(initialSelectedNamespacesByClusterId));
+  const [namespaceUsageByClusterId, setNamespaceUsageByClusterId] = useState<Record<string, NamespaceUsage>>({});
   const selectionsRef = useRef(selectedNamespacesByClusterId);
+  const usageRef = useRef(namespaceUsageByClusterId);
   const selectedNamespacesRef = useRef(selectedNamespaces);
+  usageRef.current = namespaceUsageByClusterId;
   const namespaceLoadAbortRef = useRef<AbortController | null>(null);
   const namespaceLoadSeqRef = useRef(0);
   selectedNamespacesRef.current = selectedNamespaces;
@@ -82,6 +90,13 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
   );
 
   const forgetClusterNamespaces = useCallback((clusterId: string) => {
+    if (clusterId in usageRef.current) {
+      setNamespaceUsageByClusterId((current) => {
+        const next = { ...current };
+        delete next[clusterId];
+        return next;
+      });
+    }
     const current = selectionsRef.current;
     if (!(clusterId in current)) return;
     const next = { ...current };
@@ -142,8 +157,15 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
     (next: string | string[]) => {
       const normalized = normalizeNamespaceSelection(next);
       const selection = normalized.length ? normalized : ["all"];
+      const previous = selectedNamespacesRef.current;
       setSelectedNamespaces(selection);
-      if (activeClusterId && !selection.includes("_cluster")) rememberClusterSelection(activeClusterId, selection);
+      if (!activeClusterId || selection.includes("_cluster")) return;
+      rememberClusterSelection(activeClusterId, selection);
+      // Both sides of the change count as used: stamping what is still selected
+      // keeps it at the top, and stamping what was just removed starts its
+      // countdown now rather than when it was first picked.
+      const at = Date.now();
+      setNamespaceUsageByClusterId((current) => ({ ...current, [activeClusterId]: rememberNamespaceUsage(current[activeClusterId] ?? {}, [...previous, ...selection], at) }));
     },
     [activeClusterId, rememberClusterSelection],
   );
@@ -186,6 +208,7 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
     setNamespaces,
     selectedNamespaces,
     selectedNamespacesByClusterId,
+    namespaceUsage: (activeClusterId ? namespaceUsageByClusterId[activeClusterId] : undefined) ?? EMPTY_NAMESPACE_USAGE,
     setSelectedNamespaces,
     setNamespaceSelection,
     activateClusterNamespaces,
