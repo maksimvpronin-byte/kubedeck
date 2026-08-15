@@ -59,6 +59,18 @@ selector to that object's namespace and remembered it, collapsing an
 `All namespaces` or multi-namespace selection to a single namespace for good.
 It now narrows only when the current scope cannot show the target.
 
+## Unchecking a namespace moved it back into the list
+
+Selected namespaces are held at the top of the selector menu. Unchecking one
+returned it to its alphabetical position immediately, which on a cluster with
+many namespaces means it disappears from under the cursor and has to be found
+again to be re-checked.
+
+Every namespace touched while the menu is open now stays in the block at the
+top, checked or not, with a divider between that block and the alphabetical
+rest. Closing and reopening the menu is the reset point: the block starts as
+whatever is actually selected, so it never grows across sessions.
+
 ## Pods without a CPU limit showed no CPU usage
 
 CPU limits are omitted far more often than memory limits, and the pod usage

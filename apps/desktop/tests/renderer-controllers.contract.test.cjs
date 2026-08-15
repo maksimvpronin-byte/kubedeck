@@ -93,6 +93,31 @@ test("namespace search keeps selected namespaces visible", () => {
   assert.deepEqual(model.filterNamespaces(namespaces, [], "missing"), []);
 });
 
+test("an unchecked namespace keeps its place at the top of the open menu", () => {
+  const model = loadTypeScript("components/NamespaceSelector.tsx", {
+    "lucide-react": { ChevronDown: () => null, Search: () => null, X: () => null },
+  });
+  const namespaces = ["default", "netshoot", "payments", "production"];
+
+  // Touched during this session, in the order they were touched — `production`
+  // is still pinned after being unchecked, so re-checking it does not mean
+  // hunting through the alphabetical list again.
+  assert.deepEqual(model.pinnedNamespaces(namespaces, ["netshoot"], ["production", "netshoot"]), ["production", "netshoot"]);
+  assert.deepEqual(model.filterNamespaces(namespaces, ["netshoot"], "", ["production", "netshoot"]), ["production", "netshoot", "default", "payments"]);
+
+  // A selection that changed while the menu was open is still held at the top.
+  assert.deepEqual(model.pinnedNamespaces(namespaces, ["payments"], ["netshoot"]), ["netshoot", "payments"]);
+
+  // Selecting All keeps the block, so the previous choice stays one click away.
+  assert.deepEqual(model.pinnedNamespaces(namespaces, ["all"], ["netshoot"]), ["netshoot"]);
+
+  // Namespaces that no longer exist drop out, and the block never duplicates.
+  assert.deepEqual(model.pinnedNamespaces(namespaces, ["netshoot"], ["removed", "netshoot", "netshoot"]), ["netshoot"]);
+
+  // Without a pinned list the order is the plain selection, as before.
+  assert.deepEqual(model.pinnedNamespaces(namespaces, ["netshoot"]), ["netshoot"]);
+});
+
 test("manifest compare scrolls inside the modal and uses themed controls", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");

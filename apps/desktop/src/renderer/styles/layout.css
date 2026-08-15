@@ -388,6 +388,14 @@ input {
   font-size: 13px;
 }
 
+/* Separates the namespaces held at the top of the menu from the alphabetical
+   rest, so an unchecked row that stays pinned does not look misplaced. */
+.namespace-menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
 .namespace-menu label {
   display: flex;
   align-items: center;

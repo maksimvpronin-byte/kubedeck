@@ -48,6 +48,11 @@ someone runs them on a real cluster.
 - [ ] Switch clusters back and forth: each cluster keeps its own selection.
 - [ ] Delete a namespace that is currently selected: the selection falls back
   to `All namespaces` on the next refresh.
+- [ ] Uncheck a namespace with the menu open: it stays at the top, above the
+  divider, and can be re-checked without scrolling.
+- [ ] Close and reopen the menu: the top block holds only what is selected.
+- [ ] Typing in the search box still keeps the top block reachable, and
+  selecting `All namespaces` does not clear it.
 
 ## Pod usage column
 
