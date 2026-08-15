@@ -79,13 +79,15 @@
 .node-resource-usage {
   display: grid;
   gap: 2px;
-  min-width: 190px;
+  min-width: 198px;
   white-space: nowrap;
 }
 
+/* The reading column also carries raw usage ("512Mi") and ratios above 100%
+   when a pod has no limit, so it is wider than a bare percentage needs. */
 .resource-usage-bar {
   display: grid;
-  grid-template-columns: 30px minmax(70px, 1fr) 34px;
+  grid-template-columns: 30px minmax(70px, 1fr) 42px;
   gap: 5px;
   align-items: center;
   min-width: 0;
@@ -118,6 +120,23 @@
 
 .resource-usage-bar.is-disk .resource-usage-track > span {
   background: var(--warning-text);
+}
+
+/* A bar measured against a request rather than a hard limit. The stripes keep it
+   readable as a softer baseline that usage is allowed to exceed. */
+.resource-usage-bar.is-soft .resource-usage-track > span {
+  background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / 30%) 0 3px, transparent 3px 6px);
+  opacity: 0.85;
+}
+
+.resource-usage-bar.is-soft.is-over .resource-usage-track > span {
+  background-color: var(--warning-text);
+  opacity: 1;
+}
+
+.resource-usage-bar.is-soft.is-over small {
+  color: var(--warning-text);
+  font-weight: 700;
 }
 
 .resource-usage-bar small {

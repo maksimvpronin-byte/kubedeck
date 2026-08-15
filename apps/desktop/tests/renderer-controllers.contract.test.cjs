@@ -732,6 +732,49 @@ test("namespace selections are isolated and reconciled per cluster", () => {
   assert.deepEqual(model.reconcileClusterNamespaceSelection(["_cluster"], ["default"]), ["all"]);
 });
 
+test("pod usage falls back from limit to request to the raw reading", () => {
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const bar = fs.readFileSync(path.join(rendererRoot, "components/ResourceUsageBar.tsx"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
+
+  // The three tiers, in order.
+  const cell = table.slice(table.indexOf("function PodUsageBar"), table.indexOf("function unclampedPercent"));
+  assert.ok(cell.indexOf('denominatorLabel="limit"') < cell.indexOf('denominatorLabel="request"'), "a limit must win over a request");
+  assert.match(cell, /unavailableLabel=\{usedText \|\| "N\/A"\}/);
+  assert.doesNotMatch(cell, /"No limit"/);
+
+  // A request ratio may exceed 100%: the track clamps, the reading does not.
+  assert.match(bar, /width: `\$\{Math\.min\(100, percent\)\}%`/);
+  assert.match(bar, /<small>\{percent === null \? unavailableLabel : `\$\{percent\}%`\}<\/small>/);
+  assert.match(bar, /const over = percent !== null && percent > 100;/);
+  assert.match(styles, /\.resource-usage-bar\.is-soft\.is-over/);
+});
+
+test("a namespace refresh cannot erase the selection a cluster-scoped resource hides", () => {
+  const refresh = fs.readFileSync(path.join(rendererRoot, "hooks/useNamespaceRefresh.ts"), "utf8");
+  const navigation = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceNavigation.ts"), "utf8");
+
+  // The poll returns before it can remember anything for a cluster that is no
+  // longer active or while `_cluster` is the visible scope.
+  assert.match(refresh, /if \(clusterId !== activeClusterId\) return;/);
+  assert.match(refresh, /if \(current\.includes\("_cluster"\)\) return;\s*/);
+  const pollBody = refresh.slice(refresh.indexOf("const loadNamespaces"), refresh.indexOf("const setNamespaceSelection"));
+  assert.ok(
+    pollBody.indexOf('if (current.includes("_cluster")) return;') < pollBody.indexOf("rememberClusterSelection(clusterId, reconciled)"),
+    "the cluster-scoped guard must run before the poll writes the remembered selection",
+  );
+
+  // Restoring falls back to the scope on screen, never to all namespaces.
+  assert.match(refresh, /const restored = stored\.length \? stored : current\.length \? current : \["all"\];/);
+  assert.doesNotMatch(refresh, /const remembered = rememberedNamespacesForCluster\(selectionsRef\.current, clusterId\);\s*setSelectedNamespaces\(remembered\);/s);
+
+  // Opening a resource from Search, Events or Related keeps a scope that already
+  // covers the target instead of narrowing it to one namespace.
+  assert.match(navigation, /const needsNarrowerScope = /);
+  assert.match(navigation, /!activeSelection\.includes\("all"\) && !activeSelection\.includes\(target\.namespace\)/);
+  assert.match(navigation, /if \(target\.clusterScoped \|\| lookupCoversSelection\) setRows\(/);
+});
+
 test("App keeps drawer selection atomic and persists namespace scope by cluster", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const persistence = fs.readFileSync(path.join(rendererRoot, "hooks/usePersistUiState.ts"), "utf8");
@@ -1259,7 +1302,7 @@ test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contra
   const nodeDiskUsage = fs.readFileSync(path.join(rendererRoot, "hooks/useNodeDiskUsage.ts"), "utf8");
   assert.match(tableColumns, /key: "podResources", label: "Usage"/);
   assert.match(app, /onVisibleNodeRows=\{loadVisibleNodeDisk\}/);
-  assert.match(nodeDiskUsage, /Promise\.all\(\[worker\(\), worker\(\)\]\)/);
+  assert.match(nodeDiskUsage, /Promise\.all\(Array\.from\(\{ length: Math\.min\(NODE_DISK_CONCURRENCY, queue\.length\) \}, worker\)\)/);
   assert.match(table, /label="Storage"/);
   assert.match(table, /label="Disk"/);
   assert.match(table, /function PodResourceUsage/);

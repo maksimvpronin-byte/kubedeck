@@ -7,7 +7,17 @@ import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { normalizeResourceItems } from "../resources/normalizers";
-import { applyNamespaceMetrics, applyNodeMetrics, applyPodMetrics } from "../resources/metrics";
+import {
+  applyNamespaceMetricsSnapshot,
+  applyNodeMetricsSnapshot,
+  applyPodMetricsSnapshot,
+  fetchNamespaceMetrics,
+  fetchNodeMetrics,
+  fetchPodMetrics,
+  type NamespaceMetricsSnapshot,
+  type NodeMetricsSnapshot,
+  type PodMetricsSnapshot,
+} from "../resources/metrics";
 import { decodePathPart, parseBooleanQuery, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
@@ -91,6 +101,44 @@ async function verifyClusterReadiness(configStore: ConfigStore, runner: KubectlR
   await runner.run(clusterCommand(configStore, clusterId, ["get", "--raw=/readyz"], READINESS_TIMEOUT_SECONDS, READINESS_MAX_OUTPUT_BYTES));
 }
 
+type PendingListMetrics =
+  | { kind: "pods"; snapshot: Promise<PodMetricsSnapshot | null> }
+  | { kind: "nodes"; snapshot: Promise<NodeMetricsSnapshot> }
+  | { kind: "namespaces"; snapshot: Promise<NamespaceMetricsSnapshot> }
+  | null;
+
+function startListMetrics(target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner): PendingListMetrics {
+  const pending = startListMetricsCommand(target, configStore, runner);
+  // The list request can reject before the snapshot is awaited. Observing the
+  // rejection here keeps a failing metrics command from surfacing as an
+  // unhandled rejection; `applyListMetrics` still rethrows it when reached.
+  pending?.snapshot.catch(() => undefined);
+  return pending;
+}
+
+function startListMetricsCommand(target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner): PendingListMetrics {
+  if (target.resource === "pods" || target.resource === "pod") {
+    return { kind: "pods", snapshot: fetchPodMetrics(configStore, runner, target.clusterId, target.namespace) };
+  }
+
+  if (target.resource === "nodes" || target.resource === "node") {
+    return { kind: "nodes", snapshot: fetchNodeMetrics(configStore, runner, target.clusterId) };
+  }
+
+  if (target.resource === "namespaces" || target.resource === "namespace" || target.resource === "ns") {
+    return { kind: "namespaces", snapshot: fetchNamespaceMetrics(configStore, runner, target.clusterId) };
+  }
+
+  return null;
+}
+
+async function applyListMetrics(pending: PendingListMetrics, rows: ReturnType<typeof normalizeResourceItems>): Promise<void> {
+  if (!pending) return;
+  if (pending.kind === "pods") applyPodMetricsSnapshot(await pending.snapshot, rows);
+  else if (pending.kind === "nodes") applyNodeMetricsSnapshot(await pending.snapshot, rows);
+  else applyNamespaceMetricsSnapshot(await pending.snapshot, rows);
+}
+
 async function loadResources(response: ServerResponse, target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner, cache: ResourceSnapshotCache): Promise<void> {
   if (target.useCache && !target.forceRefresh) {
     const cached = cache.get(target.clusterId, target.resource, target.namespace);
@@ -108,23 +156,19 @@ async function loadResources(response: ServerResponse, target: ResourceListTarge
     }
   }
 
+  // `kubectl top` and the resource quota lookup do not depend on the list, so
+  // they run alongside `kubectl get` instead of after it. The usage bars used to
+  // wait for two kubectl round trips in sequence, which is what made the node and
+  // pod usage columns appear long after the table itself.
+  const metrics = startListMetrics(target, configStore, runner);
+
   try {
     const data = await runner.runJson(clusterCommand(configStore, target.clusterId, resourceArgs(target), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES));
 
     const rawItems = asItems(data);
     const rows = normalizeResourceItems(target.resource, rawItems);
 
-    if (target.resource === "pods" || target.resource === "pod") {
-      await applyPodMetrics(configStore, runner, target.clusterId, target.namespace, rows);
-    }
-
-    if (target.resource === "nodes" || target.resource === "node") {
-      await applyNodeMetrics(configStore, runner, target.clusterId, rows);
-    }
-
-    if (target.resource === "namespaces" || target.resource === "namespace" || target.resource === "ns") {
-      await applyNamespaceMetrics(configStore, runner, target.clusterId, rows);
-    }
+    await applyListMetrics(metrics, rows);
 
     const result = cache.set(target.clusterId, target.resource, target.namespace, {
       items: rows,

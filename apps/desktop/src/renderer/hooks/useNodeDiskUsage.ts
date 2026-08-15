@@ -3,6 +3,8 @@ import type { Dispatch, SetStateAction } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ResourceRow } from "../types";
 
+const NODE_DISK_CONCURRENCY = 6;
+
 interface Options {
   api: ApiClient | null;
   activeCluster: Cluster | null;
@@ -46,6 +48,29 @@ export function useNodeDiskUsage({ api, activeCluster, resourceTab, setRows }: O
       }));
 
       let index = 0;
+      const rowUpdates = new Map<string, ResourceRow>();
+      let flushHandle: number | null = null;
+      // One setRows per node meant one full table re-render per node, on top of
+      // the per-node request. Updates are coalesced into a single frame so a
+      // wide cluster paints its disk bars in batches instead of row by row.
+      const flush = () => {
+        flushHandle = null;
+        if (!rowUpdates.size) return;
+        const updates = new Map(rowUpdates);
+        rowUpdates.clear();
+        setRows((current) => ({
+          ...current,
+          nodes: (current.nodes ?? []).map((item) => {
+            const update = updates.get(String(item.uid || item.name));
+            return update ? { ...item, ...update, uid: item.uid, name: item.name } : item;
+          }),
+        }));
+      };
+      const scheduleUpdate = (identity: string, patch: ResourceRow) => {
+        rowUpdates.set(identity, patch);
+        if (flushHandle === null) flushHandle = window.setTimeout(flush, 0);
+      };
+
       const worker = async () => {
         while (index < queue.length) {
           const row = queue[index++];
@@ -55,23 +80,20 @@ export function useNodeDiskUsage({ api, activeCluster, resourceTab, setRows }: O
             const data = await api.resourceMetrics(clusterId, "nodes", "_cluster", String(row.name));
             nodeDiskCacheRef.current.set(cacheKey, { at: Date.now(), data });
             if (activeClusterIdRef.current !== clusterId) continue;
-            setRows((current) => ({
-              ...current,
-              nodes: (current.nodes ?? []).map((item) => (String(item.uid || item.name) === identity ? { ...item, ...data, uid: item.uid, name: item.name, diskLoading: false } : item)),
-            }));
+            scheduleUpdate(identity, { ...data, diskLoading: false });
           } catch {
             nodeDiskCacheRef.current.set(cacheKey, { at: Date.now(), data: { uid: "", name: String(row.name), diskMetricsUnavailable: true } });
             if (activeClusterIdRef.current !== clusterId) continue;
-            setRows((current) => ({
-              ...current,
-              nodes: (current.nodes ?? []).map((item) => (String(item.uid || item.name) === identity ? { ...item, diskLoading: false, diskMetricsUnavailable: true } : item)),
-            }));
+            scheduleUpdate(identity, { uid: "", name: String(row.name), diskLoading: false, diskMetricsUnavailable: true });
           } finally {
             nodeDiskPendingRef.current.delete(cacheKey);
           }
         }
       };
-      void Promise.all([worker(), worker()]);
+      // Each node costs its own `kubectl get --raw .../stats/summary` process, so
+      // two workers made a cluster with many nodes fill its disk bars in long
+      // sequential rounds. The backend already fans out to six.
+      void Promise.all(Array.from({ length: Math.min(NODE_DISK_CONCURRENCY, queue.length) }, worker));
     },
     [activeCluster, api, resourceTab, setRows],
   );

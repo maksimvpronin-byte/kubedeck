@@ -1,4 +1,4 @@
-# KubeDeck 2.11.0
+# KubeDeck 2.11.1
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -153,7 +153,7 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.11.0-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.11.1-x64.exe
 ```
 
 ## macOS Apple Silicon build
@@ -165,8 +165,8 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.11.0-arm64.dmg
-apps/desktop/release/KubeDeck-2.11.0-arm64.zip
+apps/desktop/release/KubeDeck-2.11.1-arm64.dmg
+apps/desktop/release/KubeDeck-2.11.1-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
@@ -180,7 +180,7 @@ npm run package:linux
 Output:
 
 ```text
-apps/desktop/release/KubeDeck-2.11.0-x86_64.AppImage
+apps/desktop/release/KubeDeck-2.11.1-x86_64.AppImage
 ```
 
 The builder runs the full source gate, rebuilds `node-pty` for Electron, produces the AppImage, and validates the release payload. The AppImage is not signed.
@@ -266,8 +266,8 @@ Linux:
 
 ## Documentation
 
-- [Release notes 2.11.0](./docs/releases/RELEASE_NOTES_2.11.0.md)
-- [Regression checklist 2.11.0](./docs/releases/REGRESSION_CHECKLIST_2.11.0.md)
+- [Release notes 2.11.1](./docs/releases/RELEASE_NOTES_2.11.1.md)
+- [Regression checklist 2.11.1](./docs/releases/REGRESSION_CHECKLIST_2.11.1.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)
 - [Third-party notices](./docs/third-party-notices.md)
 

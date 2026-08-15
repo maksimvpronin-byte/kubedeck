@@ -6,7 +6,7 @@ import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { buildOverviewSnapshot } from "../overview/overviewEngine";
-import { applyNodeDiskMetrics, applyNodeMetrics } from "../resources/metrics";
+import { applyNodeDiskMetrics, applyNodeMetricsSnapshot, fetchNodeMetrics } from "../resources/metrics";
 import { normalizeResourceItems } from "../resources/normalizers";
 import { RequestValidationError, validateIdentifier } from "../validation";
 
@@ -40,10 +40,17 @@ async function loadSource(configStore: ConfigStore, runner: KubectlRunner, clust
     else args.push("-n", namespaces[0]);
   }
   args.push("-o", "json");
+  // `kubectl top nodes` does not need the node list, so it runs alongside the
+  // `kubectl get` instead of after it.
+  const nodeMetrics = resource === "nodes" ? fetchNodeMetrics(configStore, runner, clusterId) : null;
+  nodeMetrics?.catch(() => undefined);
   const data = await runner.runJson(clusterCommand(configStore, clusterId, args, 45, 64 * 1024 * 1024));
   const items = data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).items) ? (data as { items: unknown[] }).items : [];
   const rows = normalizeResourceItems(resource, items);
-  if (resource === "nodes") await Promise.all([applyNodeMetrics(configStore, runner, clusterId, rows), applyNodeDiskMetrics(configStore, runner, clusterId, rows)]);
+  if (nodeMetrics) {
+    const [snapshot] = await Promise.all([nodeMetrics, applyNodeDiskMetrics(configStore, runner, clusterId, rows)]);
+    applyNodeMetricsSnapshot(snapshot, rows);
+  }
   return rows;
 }
 

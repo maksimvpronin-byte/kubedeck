@@ -160,6 +160,34 @@ test("pod metrics use limits as denominator and keep unbounded pods percentage-f
   assert.equal(rows[1].podMemoryUsagePercent, null);
 });
 
+test("pods without a limit fall back to their request, unclamped", async () => {
+  const rows = [
+    // A limit wins over the request, and its ratio stays clamped.
+    { uid: "p1", name: "api", namespace: "tools", podCpuLimitValue: 500, podCpuRequestValue: 100, podMemoryLimitValue: 1024 ** 3, podMemoryRequestValue: 256 * 1024 ** 2 },
+    // No CPU limit: 125m against a 50m request is 250%, which must not be clamped.
+    { uid: "p2", name: "worker", namespace: "tools", podCpuLimitValue: null, podCpuRequestValue: 50, podMemoryLimitValue: null, podMemoryRequestValue: 512 * 1024 ** 2 },
+    // Neither limit nor request leaves both ratios undefined.
+    { uid: "p3", name: "bare", namespace: "tools" },
+  ];
+  const runner = {
+    async run() {
+      return { stdout: "tools api 125m 256Mi\ntools worker 125m 256Mi\ntools bare 10m 32Mi\n" };
+    },
+  };
+  await applyPodMetrics(fakeConfigStore(), runner, "cluster-1", "all", rows);
+
+  assert.equal(rows[0].podCpuUsagePercent, 25);
+  assert.equal(rows[0].podCpuRequestPercent, 125);
+
+  assert.equal(rows[1].podCpuUsagePercent, null);
+  assert.equal(rows[1].podCpuRequestPercent, 250);
+  assert.equal(rows[1].podMemoryRequestPercent, 50);
+
+  assert.equal(rows[2].podCpuRequestPercent, null);
+  assert.equal(rows[2].podMemoryRequestPercent, null);
+  assert.equal(rows[2].cpuUsage, "10m");
+});
+
 test("deployment conditions preserve simultaneous Lens-style labels", () => {
   const row = deploymentSummary({
     metadata: { uid: "d1", name: "web", namespace: "default", generation: 4 },
@@ -512,7 +540,10 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
   assert.equal(fresh.rawCount, 1);
   assert.equal(fresh.items[0].cpuUsage, "25m");
   assert.equal(fresh.items[0].memoryUsage, "64Mi");
-  assert.deepEqual(commands[0].args, ["get", "pods", "-n", "default", "-o", "json"]);
+  // The list and its `kubectl top` enrichment run concurrently, so the contract
+  // is that both commands are issued, not the order they are issued in.
+  assert.ok(commands.some((command) => command.args.join(" ") === "get pods -n default -o json"));
+  assert.ok(commands.some((command) => command.args.join(" ") === "top pods --no-headers -n default"));
 
   const cachedResponse = await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&useCache=true`);
   assert.equal(cachedResponse.status, 200);

@@ -48,8 +48,10 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
   const [selectedNamespaces, setSelectedNamespaces] = useState<string[]>(initialSelectedNamespaces);
   const [selectedNamespacesByClusterId, setSelectedNamespacesByClusterId] = useState<ClusterNamespaceSelections>(() => normalizeClusterNamespaceSelections(initialSelectedNamespacesByClusterId));
   const selectionsRef = useRef(selectedNamespacesByClusterId);
+  const selectedNamespacesRef = useRef(selectedNamespaces);
   const namespaceLoadAbortRef = useRef<AbortController | null>(null);
   const namespaceLoadSeqRef = useRef(0);
+  selectedNamespacesRef.current = selectedNamespaces;
 
   useEffect(() => {
     selectionsRef.current = selectedNamespacesByClusterId;
@@ -100,26 +102,30 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
       try {
         const result = await api.namespaces(clusterId, controller.signal);
         if (namespaceLoadSeqRef.current !== requestId) return;
+        // A poll that was started for a cluster the user has already left must not
+        // publish that cluster's namespace list, and must not touch any selection.
+        if (clusterId !== activeClusterId) return;
         const nextNamespaces = Array.from(new Set((result.items ?? []).map((item) => item.metadata?.name).filter((name): name is string => Boolean(name)))).sort((left, right) =>
           left.localeCompare(right),
         );
 
         setNamespaces((current) => (arraysEqual(current, nextNamespaces) ? current : nextNamespaces));
-        const remembered = rememberedNamespacesForCluster(selectionsRef.current, clusterId);
-        const reconciled = reconcileClusterNamespaceSelection(remembered, nextNamespaces);
+
+        const current = normalizeNamespaceSelection(selectedNamespacesRef.current);
+
+        // `_cluster` is the temporary scope of a cluster-scoped resource such as
+        // Nodes. The namespaced selection it hides is exactly what has to survive
+        // that detour, so a background refresh may not rewrite it either.
+        if (current.includes("_cluster")) return;
+
+        // Namespace refresh must never widen an explicit user selection to "all".
+        // During pod restart/delete flows the namespace list can be temporarily stale or empty,
+        // and falling back to all namespaces makes the resource table suddenly show every pod.
+        if (!nextNamespaces.length) return;
+
+        const reconciled = reconcileClusterNamespaceSelection(current, nextNamespaces);
         rememberClusterSelection(clusterId, reconciled);
-        setSelectedNamespaces((current) => {
-          if (clusterId !== activeClusterId || current.includes("_cluster")) return current;
-          const normalized = normalizeNamespaceSelection(current);
-          if (normalized.includes("all") || normalized.includes("_cluster")) return current;
-
-          // Namespace refresh must never widen an explicit user selection to "all".
-          // During pod restart/delete flows the namespace list can be temporarily stale or empty,
-          // and falling back to all namespaces makes the resource table suddenly show every pod.
-          if (!nextNamespaces.length) return current;
-
-          return arraysEqual(normalized, reconciled) ? current : reconciled;
-        });
+        if (!arraysEqual(current, reconciled)) setSelectedNamespaces(reconciled);
       } catch (err) {
         if (isAbortError(err) || namespaceLoadSeqRef.current !== requestId) return;
         if (!silent) onError(asErrorInfo(err));
@@ -144,9 +150,18 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
 
   const restoreNamespacedSelection = useCallback(
     (clusterId = activeClusterId) => {
-      const remembered = rememberedNamespacesForCluster(selectionsRef.current, clusterId);
-      setSelectedNamespaces(remembered);
-      return remembered;
+      // An absent entry must stay absent: `normalizeNamespaceSelection([])` is
+      // `["all"]`, which would look like a remembered "all namespaces" choice.
+      const rawStored = (clusterId ? selectionsRef.current[clusterId] : undefined) ?? [];
+      const stored = rawStored.length ? normalizeNamespaceSelection(rawStored).filter((item) => item !== "_cluster") : [];
+      // Without a stored selection there is nothing to restore, and falling back
+      // to "all" would throw away the scope that is already on screen — which is
+      // how the selector reset itself whenever the cluster id was momentarily
+      // unknown. Only a cluster-scoped selection has no namespaced value to keep.
+      const current = normalizeNamespaceSelection(selectedNamespacesRef.current).filter((item) => item !== "_cluster");
+      const restored = stored.length ? stored : current.length ? current : ["all"];
+      setSelectedNamespaces((previous) => (arraysEqual(previous, restored) ? previous : restored));
+      return restored;
     },
     [activeClusterId],
   );

@@ -403,30 +403,88 @@ function NamespaceResourceUsage({ row }: { row: ResourceRow }) {
 }
 
 function PodResourceUsage({ row }: { row: ResourceRow }) {
-  const cpuLimit = formatCpuValue(row.podCpuLimitValue);
-  const memoryLimit = formatByteValue(row.podMemoryLimitValue);
   return (
     <span className="node-resource-usage">
-      <ResourceUsageBar
+      <PodUsageBar
         label="CPU"
         tone="cpu"
-        percent={metricPercent(row.podCpuUsagePercent)}
         used={row.cpuUsage}
-        denominator={cpuLimit}
-        denominatorLabel="limit"
-        unavailableLabel={row.cpuUsage ? "No limit" : "N/A"}
+        limitPercent={row.podCpuUsagePercent}
+        requestPercent={row.podCpuRequestPercent}
+        limit={formatCpuValue(row.podCpuLimitValue)}
+        request={formatCpuValue(row.podCpuRequestValue)}
       />
-      <ResourceUsageBar
+      <PodUsageBar
         label="RAM"
         tone="memory"
-        percent={metricPercent(row.podMemoryUsagePercent)}
         used={row.memoryUsage}
-        denominator={memoryLimit}
-        denominatorLabel="limit"
-        unavailableLabel={row.memoryUsage ? "No limit" : "N/A"}
+        limitPercent={row.podMemoryUsagePercent}
+        requestPercent={row.podMemoryRequestPercent}
+        limit={formatByteValue(row.podMemoryLimitValue)}
+        request={formatByteValue(row.podMemoryRequestValue)}
       />
     </span>
   );
+}
+
+// CPU limits are omitted far more often than memory limits, so a limit-only bar
+// left most pods with no visible CPU reading at all. The request is the next
+// meaningful baseline, and when neither is set the raw usage is shown instead of
+// an empty bar — the number is what the reader came for.
+function PodUsageBar({
+  label,
+  tone,
+  used,
+  limitPercent,
+  requestPercent,
+  limit,
+  request,
+}: {
+  label: string;
+  tone: string;
+  used: unknown;
+  limitPercent: unknown;
+  requestPercent: unknown;
+  limit: string;
+  request: string;
+}) {
+  const usedText = String(used ?? "");
+  const againstLimit = metricPercent(limitPercent);
+  if (againstLimit !== null) {
+    return <ResourceUsageBar label={label} tone={tone} percent={againstLimit} used={used} denominator={limit} denominatorLabel="limit" />;
+  }
+
+  const againstRequest = unclampedPercent(requestPercent);
+  if (againstRequest !== null) {
+    return (
+      <ResourceUsageBar
+        label={label}
+        tone={tone}
+        variant="soft"
+        percent={againstRequest}
+        used={used}
+        denominator={request}
+        denominatorLabel="request"
+        details={`${label}: ${usedText || "—"} used · ${request} request · ${againstRequest}% of request · no limit set`}
+      />
+    );
+  }
+
+  return (
+    <ResourceUsageBar
+      label={label}
+      tone={tone}
+      percent={null}
+      used={used}
+      unavailableLabel={usedText || "N/A"}
+      details={usedText ? `${label}: ${usedText} used · no limit or request set` : `${label}: metrics N/A`}
+    />
+  );
+}
+
+function unclampedPercent(value: unknown): number | null {
+  const parsed = Number.parseFloat(String(value ?? "").replace("%", ""));
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
 }
 
 function formatCpuValue(value: unknown) {

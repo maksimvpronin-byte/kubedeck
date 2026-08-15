@@ -137,19 +137,30 @@ export function useResourceNavigation(options: Options) {
       keepSelectionRef.current = true;
       setResourceTab(target.resource);
       setSelectedTarget({ clusterId: activeCluster.id, resource: target.resource, row: locator });
-      if (target.clusterScoped) {
-        setNamespaceSelection("_cluster");
-      } else if (target.namespace !== "all") {
-        setNamespaceSelection(target.namespace);
-      } else if (selectedNamespaces.includes("_cluster")) {
-        setNamespaceSelection(rememberedNamespaces.length ? rememberedNamespaces : ["all"]);
-      }
+
+      // The namespaced scope that is on screen — or the one hidden behind a
+      // cluster-scoped resource — is what the user picked in the selector.
+      const activeSelection = selectedNamespaces.includes("_cluster") ? (rememberedNamespaces.length ? rememberedNamespaces : ["all"]) : selectedNamespaces;
+      // Opening a resource from Search, Events or Related narrows the selector
+      // only when the current scope cannot show the target. Narrowing on every
+      // jump silently replaced an "All namespaces" or multi-namespace selection
+      // with a single namespace, and that replacement was then remembered.
+      const needsNarrowerScope = !target.clusterScoped && target.namespace !== "all" && !activeSelection.includes("all") && !activeSelection.includes(target.namespace);
+      const nextSelection = needsNarrowerScope ? [target.namespace] : activeSelection;
+      if (target.clusterScoped) setNamespaceSelection("_cluster");
+      else if (needsNarrowerScope || selectedNamespaces.includes("_cluster")) setNamespaceSelection(nextSelection);
+
+      // The lookup only has to find the target row. Its rows may replace the
+      // table when they cover the same scope the selector ends up showing;
+      // otherwise the scope-aware loader fills the table for the full selection.
+      const lookupNamespace = nextSelection.includes("all") ? "all" : nextSelection.length === 1 ? nextSelection[0] : target.namespace;
+      const lookupCoversSelection = nextSelection.includes("all") || (nextSelection.length === 1 && nextSelection[0] === lookupNamespace);
 
       try {
-        const response = await api.resources(activeCluster.id, target.resource, target.namespace, controller.signal);
+        const response = await api.resources(activeCluster.id, target.resource, target.clusterScoped ? target.namespace : lookupNamespace, controller.signal);
         if (controller.signal.aborted || navigationRequestRef.current !== requestId) return;
         const found = response.items.find((item) => sameResourceIdentity(locator, item));
-        setRows((current) => ({ ...current, [target.resource]: response.items }));
+        if (target.clusterScoped || lookupCoversSelection) setRows((current) => ({ ...current, [target.resource]: response.items }));
         if (found) {
           setSelectedTarget((current) => {
             if (!current || current.clusterId !== activeCluster.id || current.resource !== target.resource || !sameResourceIdentity(current.row, locator)) return current;
