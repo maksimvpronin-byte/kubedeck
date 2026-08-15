@@ -151,6 +151,33 @@ test("recently used namespaces stay on top until the retention window passes", (
   assert.deepEqual(model.recentNamespaceOrder(undefined, ["netshoot"], start), ["netshoot"]);
 });
 
+test("the recent namespace block is capped without hiding the selection", () => {
+  const model = loadTypeScript("utils/namespaceUsage.ts");
+  const minute = 60_000;
+  const start = 1_800_000_000_000;
+  const eight = ["ns-1", "ns-2", "ns-3", "ns-4", "ns-5", "ns-6", "ns-7", "ns-8"];
+
+  // Used one minute apart, so ns-8 is the most recent.
+  let usage = {};
+  eight.forEach((namespace, index) => {
+    usage = model.rememberNamespaceUsage(usage, [namespace], start + index * minute);
+  });
+  const now = start + 8 * minute;
+
+  // Only the five most recent are held above the alphabetical list.
+  assert.deepEqual(model.recentNamespaceOrder(usage, [], now), ["ns-8", "ns-7", "ns-6", "ns-5", "ns-4"]);
+
+  // A selected namespace is always held there, even past the cap, and does not
+  // push a recent one out of its five slots.
+  assert.deepEqual(model.recentNamespaceOrder(usage, ["ns-1"], now), ["ns-8", "ns-7", "ns-6", "ns-5", "ns-4", "ns-1"]);
+
+  // Selecting more than the cap keeps every selected namespace visible.
+  assert.deepEqual(model.recentNamespaceOrder(usage, eight, now), [...eight].reverse());
+
+  // A selection with no recorded usage trails the recent ones.
+  assert.deepEqual(model.recentNamespaceOrder(usage, ["fresh"], now), ["ns-8", "ns-7", "ns-6", "ns-5", "ns-4", "fresh"]);
+});
+
 test("manifest compare scrolls inside the modal and uses themed controls", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");

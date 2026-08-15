@@ -52,6 +52,10 @@ someone runs them on a real cluster.
   divider, and can be re-checked without scrolling.
 - [ ] Close and reopen the menu: namespaces used in the last 15 minutes are
   still on top, most recently used first, checked or not.
+- [ ] Touch more than five namespaces, then reopen: only the five most recent
+  are held above the divider.
+- [ ] Select more than five namespaces: every one of them stays visible at the
+  top, alongside the recent ones.
 - [ ] Wait out the window (or use a namespace not touched for 15 minutes):
   it returns to its alphabetical position on the next open.
 - [ ] Switch clusters: the top block is that cluster's own recent list.

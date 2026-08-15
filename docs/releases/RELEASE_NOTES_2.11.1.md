@@ -70,11 +70,15 @@ Every namespace touched while the menu is open now stays in the block at the
 top, checked or not, with a divider between that block and the alphabetical
 rest.
 
-The block also survives closing the menu: a namespace stays in it for 15
-minutes after it was last part of the selection, most recently used first, so
-coming back to re-pick something from a few minutes ago does not mean scrolling
-through hundreds of names. After that it ages out and returns to alphabetical
-order. The order is recomputed only when the menu opens — never while it is on
+The block also survives closing the menu: up to five namespaces stay in it for
+15 minutes after they were last part of the selection, most recently used
+first, so coming back to re-pick something from a few minutes ago does not mean
+scrolling through hundreds of names. After that they age out and return to
+alphabetical order. Whatever is currently selected is always held there too and
+does not count against the five, so checking eight namespaces never pushes one
+of them out of sight.
+
+The order is recomputed only when the menu opens — never while it is on
 screen — so no row moves under the cursor. Recency is tracked per cluster and
 is not persisted across restarts.
 
