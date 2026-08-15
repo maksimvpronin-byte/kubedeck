@@ -5,11 +5,12 @@ import type { ResourceRow } from "../types";
 import { useUiClock } from "../hooks/useUiClock";
 import { canonicalPhase, PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
 import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
-import { columnSortMetrics } from "../utils/resourceTableSortMetrics";
+import { columnSortMetrics, sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
 import { formatElapsed } from "../utils/time";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTableSortMenu } from "./ResourceTableSortMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
+import { SortDirectionArrow } from "./SortDirectionArrow";
 import type { AsyncActionLabels } from "./AsyncActionButton";
 import { metricPercent, ResourceUsageBar } from "./ResourceUsageBar";
 
@@ -236,6 +237,9 @@ export function ResourceTable({
                 <th
                   key={column.key}
                   draggable
+                  // The direction is drawn as an arrow, so the cell carries it
+                  // for anyone who cannot see the arrow.
+                  aria-sort={sortKeyBelongsToColumn(column.key, sortKey) ? (sortDirection === 1 ? "ascending" : "descending") : undefined}
                   className={`${draggedColumn === column.key ? "dragging-column" : ""} ${dragOverColumn === column.key && draggedColumn !== column.key ? "drag-over-column" : ""}`.trim()}
                   onDragStart={(event) => startColumnDrag(event, column)}
                   onDragOver={(event) => {
@@ -255,11 +259,7 @@ export function ResourceTable({
                   ) : (
                     <button type="button" className="table-sort-button" draggable={false} onClick={() => changeSort(column.key)}>
                       <span className="table-sort-label">{column.label}</span>
-                      {sortKey === column.key ? (
-                        <span className="table-sort-indicator" aria-hidden="true">
-                          {sortDirection === 1 ? "ASC" : "DESC"}
-                        </span>
-                      ) : null}
+                      {sortKey === column.key ? <SortDirectionArrow direction={sortDirection} /> : null}
                     </button>
                   )}
                   <span className="column-resizer" draggable={false} onDragStart={(event) => event.preventDefault()} onMouseDown={(event) => startColumnResize(event, column)} />

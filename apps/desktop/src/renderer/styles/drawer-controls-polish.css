@@ -15,16 +15,10 @@
 }
 
 .table-sort-indicator {
+  display: inline-flex;
   flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, var(--primary-border) 70%, transparent);
-  border-radius: 999px;
-  padding: 1px 5px;
+  align-items: center;
   color: var(--focus-ring);
-  background: var(--primary-soft);
-  font-size: 9px;
-  font-weight: 800;
-  line-height: 1.35;
-  letter-spacing: 0.04em;
 }
 
 /* KubeDeck 1.1.0 drawer button and copy icon polish */

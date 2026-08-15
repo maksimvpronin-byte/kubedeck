@@ -100,6 +100,10 @@ limit or a quota, and most of them have neither. Picking the value that is
 already active flips the direction, so the header behaves like every other one
 once a choice is made, and the choice stays visible in the header.
 
+Sort direction is drawn as an arrow on the header rather than an ASC/DESC
+badge, on every sortable column. The direction moves onto the header cell as
+`aria-sort`, so removing the text does not remove the information.
+
 Rows with no reading — a node whose kubelet did not answer, a pod without
 metrics — now sort to the low end together instead of scattering through the
 order as text, so sorting descending puts them last.

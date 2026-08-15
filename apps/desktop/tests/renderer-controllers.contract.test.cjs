@@ -856,6 +856,14 @@ test("a usage header sorts on a chosen metric instead of its formatted cell", ()
   const state = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
   assert.match(state, /!visibleColumns\.some\(\(column\) => sortKeyBelongsToColumn\(column\.key, sortKey\)\)/);
 
+  // The direction is an arrow, not an ASC/DESC badge, and the header cell
+  // carries it for anyone who cannot see the arrow.
+  const arrow = fs.readFileSync(path.join(rendererRoot, "components/SortDirectionArrow.tsx"), "utf8");
+  assert.match(arrow, /ArrowUp/);
+  assert.match(arrow, /ArrowDown/);
+  assert.match(table, /aria-sort=\{sortKeyBelongsToColumn\(column\.key, sortKey\)/);
+  for (const source of [table, menu]) assert.doesNotMatch(source, /"ASC" : "DESC"/);
+
   // Header cells clip their content and are sticky at the same depth, so an
   // open menu is invisible without both of these — it renders and is clicked,
   // but nothing is shown.

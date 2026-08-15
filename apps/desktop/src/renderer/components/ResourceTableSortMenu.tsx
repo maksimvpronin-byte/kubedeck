@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ColumnSortMetric } from "../utils/resourceTableSortMetrics";
+import { SortDirectionArrow } from "./SortDirectionArrow";
 
 interface Props {
   label: string;
@@ -49,9 +50,7 @@ export function ResourceTableSortMenu({ label, metrics, sortKey, sortDirection, 
         {active ? (
           <>
             <span className="table-sort-metric">{active.label}</span>
-            <span className="table-sort-indicator" aria-hidden="true">
-              {sortDirection === 1 ? "ASC" : "DESC"}
-            </span>
+            <SortDirectionArrow direction={sortDirection} />
           </>
         ) : (
           <ChevronDown className="table-sort-caret" size={12} aria-hidden="true" />
@@ -71,7 +70,7 @@ export function ResourceTableSortMenu({ label, metrics, sortKey, sortDirection, 
               }}
             >
               <span>{metric.label}</span>
-              {metric.key === sortKey ? <span aria-hidden="true">{sortDirection === 1 ? "ASC" : "DESC"}</span> : null}
+              {metric.key === sortKey ? <SortDirectionArrow direction={sortDirection} /> : null}
             </button>
           ))}
         </div>
