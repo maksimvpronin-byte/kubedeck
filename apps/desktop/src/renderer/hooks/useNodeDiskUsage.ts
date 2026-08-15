@@ -3,7 +3,10 @@ import type { Dispatch, SetStateAction } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ResourceRow } from "../types";
 
-const NODE_DISK_CONCURRENCY = 6;
+const NODE_DISK_CONCURRENCY = 12;
+// Matches the backend cache window: node filesystems fill over hours, and a
+// shorter window only buys a kubelet round trip per node on every visit.
+const NODE_DISK_CACHE_TTL_MS = 300_000;
 
 interface Options {
   api: ApiClient | null;
@@ -26,7 +29,7 @@ export function useNodeDiskUsage({ api, activeCluster, resourceTab, setRows }: O
       const queue = visibleRows.filter((row) => {
         const key = `${clusterId}:${String(row.uid || row.name)}`;
         const cached = nodeDiskCacheRef.current.get(key);
-        if (cached && now - cached.at < 60_000) {
+        if (cached && now - cached.at < NODE_DISK_CACHE_TTL_MS) {
           if (row.diskUsage !== cached.data.diskUsage) {
             setRows((current) => ({
               ...current,

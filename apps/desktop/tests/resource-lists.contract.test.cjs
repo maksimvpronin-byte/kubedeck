@@ -80,13 +80,48 @@ test("node disk metrics are cached per node for a TTL, then refetched, and can b
   assert.equal(calls, 1, "second lookup within the TTL must reuse the cached value");
   assert.equal(second.diskUsagePercent, 10);
 
-  clock += 31_000;
+  clock += 301_000;
   await loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock);
   assert.equal(calls, 2, "lookup past the TTL must refetch");
 
   clearNodeDiskMetricsCache(clusterId);
   await loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock);
   assert.equal(calls, 3, "clearNodeDiskMetricsCache must force a refetch on the next lookup");
+});
+
+test("concurrent lookups of the same node share one kubectl process", async () => {
+  const clusterId = "cluster-disk-inflight";
+  clearNodeDiskMetricsCache(clusterId);
+  const clock = 4_000_000_000_000;
+  let calls = 0;
+  let release = () => {};
+  const started = new Promise((resolve) => {
+    release = resolve;
+  });
+  const runner = {
+    async runJson() {
+      calls += 1;
+      await started;
+      return { node: { fs: { usedBytes: "1000", availableBytes: "9000", capacityBytes: "10000" } } };
+    },
+  };
+  const configStore = fakeConfigStore();
+
+  // The nodes table, the overview and the list warm-up can all ask at once.
+  const pending = [
+    loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock),
+    loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock),
+    loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock),
+  ];
+  release();
+  const results = await Promise.all(pending);
+
+  assert.equal(calls, 1, "overlapping lookups of one node must not spawn one kubectl process each");
+  for (const result of results) assert.equal(result.diskUsagePercent, 10);
+
+  // Once settled, the entry is served from the cache rather than a stale promise.
+  await loadNodeDiskMetrics(configStore, runner, clusterId, "worker-1", () => clock);
+  assert.equal(calls, 1);
 });
 
 test("applyNodeDiskMetrics reuses the per-node cache across a bulk overview poll", async () => {

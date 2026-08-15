@@ -18,11 +18,25 @@ do not depend on the list, so they now run alongside it; the same applies to
 `kubectl top nodes` in the cluster overview.
 
 Per-node disk usage is a separate `kubectl get --raw
-/api/v1/nodes/<node>/proxy/stats/summary` process for every node, and the
-renderer ran two of them at a time — on a cluster with many nodes that is a
-long sequence of rounds. The renderer now fans out to six, matching the
-backend's bulk path, and coalesces the resulting row updates into one table
-update instead of re-rendering the table once per node.
+/api/v1/nodes/<node>/proxy/stats/summary` process for every node — the
+kubelet summary endpoint is slow and the process is not cheap — and the
+renderer ran two of them at a time, so a cluster with many nodes filled its
+disk bars in a long sequence of rounds. Four changes:
+
+- the fan-out went from two to twelve concurrent requests, on both the
+  renderer and the backend bulk path;
+- serving the nodes list now starts the disk fetches in the background
+  instead of waiting for the table to ask for them, so the kubelet round
+  trips begin while the table is still painting;
+- overlapping lookups of the same node — nodes table, cluster overview and
+  that background warm-up — share one in-flight request instead of starting a
+  kubectl process each;
+- the cache window moved from 30 seconds to 5 minutes on both sides. Node
+  filesystems fill over hours, and the short window meant paying the full
+  per-node cost again on practically every visit to the table.
+
+Row updates are also coalesced into one table update instead of re-rendering
+the table once per node.
 
 ## The namespace selector lost the selected namespace
 

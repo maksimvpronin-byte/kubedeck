@@ -22,6 +22,12 @@ someone runs them on a real cluster.
   the table, and disk bars fill noticeably faster than in 2.11.0.
 - [ ] Leave Nodes open across several auto-refresh cycles: no repeated burst
   of per-node requests, and the bars do not flicker.
+- [ ] Leave Nodes, go elsewhere and come back within five minutes: the disk
+  bars are there immediately, with no `…` placeholder.
+- [ ] Open the cluster overview and the Nodes table at the same time: the
+  disk values appear once, without doubling the per-node kubectl calls.
+- [ ] Edit the kubeconfig of the active cluster while disk metrics are
+  loading: the new endpoint's values are shown, not the old ones.
 - [ ] Switch away from Nodes while disk metrics are still loading: no stale
   rows and no update of another cluster's table.
 - [ ] Open the cluster overview: node cards show CPU, RAM and disk.

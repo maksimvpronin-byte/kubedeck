@@ -14,6 +14,7 @@ import {
   fetchNamespaceMetrics,
   fetchNodeMetrics,
   fetchPodMetrics,
+  warmNodeDiskMetrics,
   type NamespaceMetricsSnapshot,
   type NodeMetricsSnapshot,
   type PodMetricsSnapshot,
@@ -132,11 +133,17 @@ function startListMetricsCommand(target: ResourceListTarget, configStore: Config
   return null;
 }
 
-async function applyListMetrics(pending: PendingListMetrics, rows: ReturnType<typeof normalizeResourceItems>): Promise<void> {
+async function applyListMetrics(pending: PendingListMetrics, rows: ReturnType<typeof normalizeResourceItems>, configStore: ConfigStore, runner: KubectlRunner, clusterId: string): Promise<void> {
   if (!pending) return;
   if (pending.kind === "pods") applyPodMetricsSnapshot(await pending.snapshot, rows);
-  else if (pending.kind === "nodes") applyNodeMetricsSnapshot(await pending.snapshot, rows);
-  else applyNamespaceMetricsSnapshot(await pending.snapshot, rows);
+  else if (pending.kind === "namespaces") applyNamespaceMetricsSnapshot(await pending.snapshot, rows);
+  else {
+    applyNodeMetricsSnapshot(await pending.snapshot, rows);
+    // Disk usage is one kubelet round trip per node and is fetched separately
+    // by the table, so it is started here rather than awaited: the response
+    // stays as fast as it is now and the bars have a head start.
+    warmNodeDiskMetrics(configStore, runner, clusterId, rows);
+  }
 }
 
 async function loadResources(response: ServerResponse, target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner, cache: ResourceSnapshotCache): Promise<void> {
@@ -168,7 +175,7 @@ async function loadResources(response: ServerResponse, target: ResourceListTarge
     const rawItems = asItems(data);
     const rows = normalizeResourceItems(target.resource, rawItems);
 
-    await applyListMetrics(metrics, rows);
+    await applyListMetrics(metrics, rows, configStore, runner, target.clusterId);
 
     const result = cache.set(target.clusterId, target.resource, target.namespace, {
       items: rows,
