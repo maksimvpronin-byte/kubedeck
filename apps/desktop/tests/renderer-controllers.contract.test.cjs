@@ -855,6 +855,15 @@ test("a usage header sorts on a chosen metric instead of its formatted cell", ()
   // A hidden or reordered column must not reset a metric sort.
   const state = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
   assert.match(state, /!visibleColumns\.some\(\(column\) => sortKeyBelongsToColumn\(column\.key, sortKey\)\)/);
+
+  // Header cells clip their content and are sticky at the same depth, so an
+  // open menu is invisible without both of these — it renders and is clicked,
+  // but nothing is shown.
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
+  const openHeader = styles.match(/\.resource-table th:has\(\.table-sort-menu \[aria-expanded="true"\]\)\s*\{[^}]*\}/);
+  assert.ok(openHeader, "the open sort menu needs a rule on its header cell");
+  assert.match(openHeader[0], /overflow: visible;/);
+  assert.match(openHeader[0], /z-index: [1-9]/);
 });
 
 test("rows without a usage metric sort to the low end instead of scattering", () => {

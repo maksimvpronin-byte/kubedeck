@@ -712,9 +712,12 @@
   cursor: grab;
 }
 
-/* Every header cell is sticky with the same z-index, so the columns to the
-   right would paint over an open menu without this. */
+/* Header cells clip their content so long labels ellipsize, and every one of
+   them is sticky with the same z-index. Both would hide an open sort menu: the
+   first clips it to the height of the header, the second lets the columns to
+   the right paint over it. The header label keeps its own ellipsis. */
 .resource-table th:has(.table-sort-menu [aria-expanded="true"]) {
+  overflow: visible;
   z-index: 4;
 }
 

@@ -88,6 +88,8 @@ someone runs them on a real cluster.
 - [ ] Nodes whose disk metrics have not arrived yet sort to the bottom when
   sorting by Disk % descending, and the order settles once they load.
 - [ ] Hiding or reordering other columns does not reset the chosen value.
+- [ ] The menu is actually visible when opened: header cells clip their
+  content, so it must not be cut off at the header's height.
 - [ ] The menu closes on Escape, on an outside click, and is not covered by
   the columns to its right.
 - [ ] Other headers still sort on a single click, with no menu.
