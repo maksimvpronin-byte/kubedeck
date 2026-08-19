@@ -59,7 +59,6 @@ function resourceRequest(overrides = {}) {
     kind: "Pod",
     namespace: "default",
     name: "api-0",
-    language: "ru",
     resourceObject: {
       kind: "Pod",
       metadata: { name: "api-0", namespace: "default" },
@@ -518,4 +517,69 @@ test("PUT /settings rejects a replace when secret storage is unavailable, withou
   const onDisk = JSON.parse(fs.readFileSync(configStore.paths.config, "utf8"));
   assert.equal(onDisk.settings.llm.apiKeyConfigured, false);
   assert.equal(JSON.stringify(onDisk).includes("should-not-be-saved"), false);
+});
+
+test("the analysis always answers in Russian and never translates Kubernetes terms", async (t) => {
+  const { SYSTEM_PROMPT, DEFAULT_USER_REQUEST } = require("../dist/main/backend/llm/prompts.js");
+  const { buildLlmPrompt } = require("../dist/main/backend/routes/llm.js");
+
+  // The answer language is not a request field any more: a UI set to English
+  // used to send language "system", which the prompt did not define, so the
+  // model fell through to answering in English.
+  assert.doesNotMatch(SYSTEM_PROMPT, /when context language is|language is en/i);
+  assert.match(SYSTEM_PROMPT, /Write every JSON value in Russian/);
+  assert.match(SYSTEM_PROMPT, /Never answer in English/);
+
+  // Russian is the language of the prose around the terms, not of the terms.
+  assert.match(SYSTEM_PROMPT, /Keep Kubernetes and infrastructure terminology in its original English form/);
+  assert.match(SYSTEM_PROMPT, /Do not translate and do not transliterate/);
+  for (const term of ["CrashLoopBackOff", "ImagePullBackOff", "readinessProbe", "imagePullSecrets", "Deployment", "Running"]) {
+    assert.ok(SYSTEM_PROMPT.includes(term), `system prompt must name ${term} as a term to keep`);
+  }
+  assert.match(SYSTEM_PROMPT, /Pod в состоянии CrashLoopBackOff/, "the prompt shows the expected mixed-language style");
+  assert.match(SYSTEM_PROMPT, /never do this/i, "the prompt shows what a translated term looks like");
+  assert.match(DEFAULT_USER_REQUEST, /оставляй Kubernetes-термины/);
+
+  const settings = { ...llmSettings("http://127.0.0.1:1"), maxContextChars: 60000 };
+  const built = buildLlmPrompt(settings, resourceRequest());
+  const systemPrompt = built.messages.find((message) => message.role === "system").content;
+  const userPrompt = built.messages.find((message) => message.role === "user").content;
+  assert.equal(systemPrompt, SYSTEM_PROMPT);
+  assert.match(userPrompt, /Write every JSON value in Russian, keeping Kubernetes terms/);
+
+  // A request that still carries a language field must not change the prompt,
+  // and must not leak that value into the context.
+  for (const language of ["en", "system", "de"]) {
+    const withLanguage = buildLlmPrompt(settings, resourceRequest({ language }));
+    assert.equal(withLanguage.messages.find((message) => message.role === "system").content, SYSTEM_PROMPT, `language ${language} must not change the prompt`);
+    assert.doesNotMatch(withLanguage.context, /^language:/m, `language ${language} must not reach the context`);
+  }
+
+  // The backend renders the sections itself, so they stay Russian regardless of
+  // what the model returned.
+  const server = http.createServer(async (request, response) => {
+    await readBody(request);
+    response.setHeader("Content-Type", "application/json");
+    response.end(
+      JSON.stringify({
+        model: "served-model",
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: '<kubedeck_final>{"conclusion":["Pod в состоянии Running"],"facts":["Phase: Running"],"risks":[],"nextChecks":[],"missing":[]}</kubedeck_final>' },
+          },
+        ],
+      }),
+    );
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+
+  const completion = await chatCompletion(resolvedSettings(baseUrl), [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: buildUserPrompt(buildResourceContext(resourceRequest({ language: "en" }), 60000).context) },
+  ]);
+  assert.match(completion.answer, /1\. Короткий вывод\n- Pod в состоянии Running/);
+  assert.match(completion.answer, /3\. Проблемы \/ риски\n- Активных проблем не выявлено\./);
+  assert.doesNotMatch(completion.answer, /Short conclusion|No active problems/);
 });

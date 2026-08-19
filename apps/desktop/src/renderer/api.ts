@@ -20,6 +20,7 @@ import type {
   SecretKeysResponse,
   SecretRevealResponse,
   ServiceEndpointsResponse,
+  UsageHistoryResponse,
   Settings,
   DeploymentLogTargetsResponse,
   ResourceCacheStatus,
@@ -246,6 +247,13 @@ export class ApiClient {
   serviceEndpoints(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {
     return this.request<ServiceEndpointsResponse>(
       `/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/endpoints`,
+      { signal },
+    );
+  }
+
+  usageHistory(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {
+    return this.request<UsageHistoryResponse>(
+      `/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/usage-history`,
       { signal },
     );
   }

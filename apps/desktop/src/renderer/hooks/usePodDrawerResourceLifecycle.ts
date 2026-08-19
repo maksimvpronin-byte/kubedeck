@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiClient } from "../api";
-import type { ErrorInfo, RelatedLink, ResourceRow, ServiceEndpointsResponse } from "../types";
+import type { ErrorInfo, RelatedLink, ResourceRow, ServiceEndpointsResponse, UsageHistoryResponse } from "../types";
 import type { DrawerTab } from "../components/PodDrawerChrome";
 import { isAbortError } from "../components/podDrawerHelpers";
 import { toErrorInfo } from "../utils/errors";
@@ -38,11 +38,16 @@ export function drawerResourceResetSnapshot() {
     relatedErrors: [] as Array<ErrorInfo & { resource?: string; namespace?: string }>,
     metrics: {} as ResourceRow,
     serviceEndpoints: null as ServiceEndpointsResponse | null,
+    usageHistory: null as UsageHistoryResponse | null,
   };
 }
 
 export function isServiceResource(resource: string): boolean {
   return ["service", "services", "svc"].includes(resource.toLocaleLowerCase());
+}
+
+export function isPodResource(resource: string): boolean {
+  return ["pod", "pods", "po"].includes(resource.toLocaleLowerCase());
 }
 
 export function drawerResourceIdentity(clusterId: string, resource: string, row: ResourceRow | null) {
@@ -58,6 +63,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   const requestGuardRef = useRef(createDrawerRequestGuard());
   const metricsRequestRef = useRef(0);
   const endpointsRequestRef = useRef(0);
+  const usageHistoryRequestRef = useRef(0);
   const [content, setContent] = useState("");
   const [describeContent, setDescribeContent] = useState("");
   const [yamlBaseline, setYamlBaseline] = useState("");
@@ -70,6 +76,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [metrics, setMetrics] = useState<ResourceRow>({ uid: "", name: "" });
   const [serviceEndpoints, setServiceEndpoints] = useState<ServiceEndpointsResponse | null>(null);
+  const [usageHistory, setUsageHistory] = useState<UsageHistoryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [snapshotObjectKey, setSnapshotObjectKey] = useState(currentObjectKey);
@@ -82,6 +89,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     requestGuardRef.current.invalidate();
     metricsRequestRef.current += 1;
     endpointsRequestRef.current += 1;
+    usageHistoryRequestRef.current += 1;
     const reset = drawerResourceResetSnapshot();
     setContent(reset.content);
     setDescribeContent(reset.describeContent);
@@ -94,6 +102,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     setRelatedErrors(reset.relatedErrors);
     setMetrics(reset.metrics);
     setServiceEndpoints(reset.serviceEndpoints);
+    setUsageHistory(reset.usageHistory);
     setRelatedLoading(false);
     setLoading(false);
     setError(null);
@@ -193,6 +202,25 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     };
   }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
 
+  // Usage history is recorded by KubeDeck itself, so this reads what has
+  // already been sampled and never touches the cluster. It is also loaded for
+  // the LLM tab, which sends the same numbers along for the analysis.
+  useEffect(() => {
+    if (!currentObjectKey || (tab !== "summary" && tab !== "llm") || !isPodResource(resource)) return;
+    const controller = new AbortController();
+    const requestGeneration = ++usageHistoryRequestRef.current;
+    api
+      .usageHistory(clusterId, resource, podNamespace, podName, controller.signal)
+      .then((response) => {
+        if (!controller.signal.aborted && requestGeneration === usageHistoryRequestRef.current) setUsageHistory(response);
+      })
+      .catch(() => undefined);
+    return () => {
+      controller.abort();
+      usageHistoryRequestRef.current += 1;
+    };
+  }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
+
   useEffect(() => {
     if (!currentObjectKey || tab !== "related") return;
     const controller = new AbortController();
@@ -243,6 +271,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     setRelatedLoading,
     metrics: snapshotIsCurrent ? metrics : { uid: "", name: "" },
     serviceEndpoints: snapshotIsCurrent ? serviceEndpoints : null,
+    usageHistory: snapshotIsCurrent ? usageHistory : null,
     loading: snapshotIsCurrent && loading,
     setLoading,
     error: snapshotIsCurrent ? error : null,

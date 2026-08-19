@@ -32,8 +32,8 @@ export interface LlmAnalyzeResourceRequest {
   events?: ResourceRow[];
   describe?: string;
   relatedResources?: RelatedLink[];
+  usageHistory?: UsageHistoryResponse | null;
   userRequest?: string;
-  language?: string;
 }
 
 export interface LlmAnalyzeResourceResponse {
@@ -294,6 +294,45 @@ export interface ServiceEndpointsResponse {
   notReady: number;
   total: number;
   truncated: boolean;
+}
+
+export interface UsageStat {
+  avg: number | null;
+  p50: number | null;
+  p95: number | null;
+  max: number | null;
+}
+
+export interface UsageAggregate {
+  samples: number;
+  buckets: number;
+  windowStart: number;
+  windowEnd: number;
+  firstSampleAt: number | null;
+  lastSampleAt: number | null;
+  coverage: number;
+  cpu: UsageStat;
+  memory: UsageStat;
+}
+
+export interface UsageHistoryPoint {
+  start: number;
+  cpuAvg: number | null;
+  cpuMax: number | null;
+  memoryAvg: number | null;
+  memoryMax: number | null;
+  samples: number;
+}
+
+export interface UsageHistoryResponse {
+  pod: UsageAggregate | null;
+  workload: UsageAggregate | null;
+  workloadKey: string;
+  workloadExact: boolean;
+  workloadPods: number;
+  points: UsageHistoryPoint[];
+  bucketMs: number;
+  retentionMs: number;
 }
 
 export interface SecretKeyInfo {

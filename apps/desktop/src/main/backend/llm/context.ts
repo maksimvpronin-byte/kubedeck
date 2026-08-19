@@ -128,7 +128,6 @@ function resourceIdentity(request: LlmAnalyzeResourceRequest): string {
     `kind: ${request.kind || request.resource || ""}`,
     `namespace: ${request.namespace || "_cluster"}`,
     `name: ${request.name ?? ""}`,
-    `language: ${request.language || "ru"}`,
   ].join("\n");
 }
 
@@ -304,6 +303,66 @@ function yamlExcerpt(request: LlmAnalyzeResourceRequest): string {
   return compactText(jsonExcerpt(request.resourceObject), 4000);
 }
 
+function asObject(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+function formatCpu(value: unknown): string {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "unknown";
+  return number >= 1000 ? `${Math.round((number / 1000) * 100) / 100} cores` : `${Math.round(number * 10) / 10}m`;
+}
+
+function formatMemory(value: unknown): string {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "unknown";
+  const units: Array<[string, number]> = [
+    ["Gi", 1024 ** 3],
+    ["Mi", 1024 ** 2],
+    ["Ki", 1024],
+  ];
+  const [suffix, divisor] = units.find(([, threshold]) => number >= threshold) ?? ["B", 1];
+  return `${Math.round((number / divisor) * 10) / 10}${suffix}`;
+}
+
+function usageStatLine(label: string, stat: unknown, format: (value: unknown) => string): string {
+  const values = asObject(stat);
+  return `${label}: p50 ${format(values.p50)}, p95 ${format(values.p95)}, max ${format(values.max)}, avg ${format(values.avg)}`;
+}
+
+// Usage history is sampled by KubeDeck while it runs; there is no Prometheus
+// behind it. Coverage is stated first so a conclusion drawn from twenty
+// minutes of data is not presented as if it came from a full day.
+function usageHistorySection(request: LlmAnalyzeResourceRequest): string {
+  const history = asObject(request.usageHistory);
+  const pod = asObject(history.pod);
+  if (!Number.isFinite(Number(pod.samples)) || Number(pod.samples) <= 0) {
+    return "No usage history recorded yet. Do not infer anything about request/limit sizing from absent history.";
+  }
+
+  const resourceObject = asObject(request.resourceObject);
+  const lines = [
+    `window: last 24h, sampled only while KubeDeck was running`,
+    `coverage: ${Math.round(Number(history.pod && pod.coverage) * 100)}% of the window, ${pod.samples} samples in ${pod.buckets} five-minute buckets`,
+    usageStatLine("pod cpu", pod.cpu, formatCpu),
+    usageStatLine("pod memory", pod.memory, formatMemory),
+    `pod cpu request: ${formatCpu(resourceObject.podCpuRequestValue)}, cpu limit: ${formatCpu(resourceObject.podCpuLimitValue)}`,
+    `pod memory request: ${formatMemory(resourceObject.podMemoryRequestValue)}, memory limit: ${formatMemory(resourceObject.podMemoryLimitValue)}`,
+  ];
+
+  const workload = asObject(history.workload);
+  if (Number(workload.samples) > 0) {
+    lines.push(
+      `workload ${String(history.workloadKey ?? "")} across ${String(history.workloadPods ?? 0)} pods${history.workloadExact === false ? " (workload inferred from pod name)" : ""}`,
+      usageStatLine("workload cpu", workload.cpu, formatCpu),
+      usageStatLine("workload memory", workload.memory, formatMemory),
+    );
+  }
+
+  lines.push("how to read this: p50/p95 are percentiles of five-minute averages (sustained load, what a request should cover); max is the highest five-minute peak (what a limit must survive).");
+  return lines.join("\n");
+}
+
 export interface ResourceContextResult {
   context: string;
   contextChars: number;
@@ -320,6 +379,7 @@ export function buildResourceContext(request: LlmAnalyzeResourceRequest, maxChar
     ["CONTEXT COVERAGE", contextCoverage(request)],
     ["STATUS / CONDITIONS", statusConditions(request.resourceObject ?? {})],
     ["CONTAINERS", containers(request)],
+    ["USAGE HISTORY (recorded by KubeDeck, not by Prometheus)", usageHistorySection(request)],
     ["EVENTS (warnings first; if <none>, events are already checked and empty)", eventsExcerpt(request.events) || eventsFromDescribe(describe)],
     ["LOG CONTEXT POLICY", "Kubernetes log streams are not collected or sent to LLM providers by KubeDeck due to security policy."],
     ["DESCRIBE FULL ALREADY PROVIDED", sanitizeText(describe)],

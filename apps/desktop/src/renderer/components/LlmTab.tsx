@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ApiClient } from "../api";
 import { toErrorInfo } from "../utils/errors";
-import type { ErrorInfo, LlmAnalyzeResourceRequest, RelatedLink, ResourceRow, Settings } from "../types";
+import type { ErrorInfo, LlmAnalyzeResourceRequest, RelatedLink, ResourceRow, Settings, UsageHistoryResponse } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   describe: string;
   events: ResourceRow[];
   relatedLinks: RelatedLink[];
+  usageHistory?: UsageHistoryResponse | null;
   loading: boolean;
   answer: string;
   model: string;
@@ -39,6 +40,7 @@ export function LlmTab({
   describe,
   events,
   relatedLinks,
+  usageHistory = null,
   loading,
   answer,
   model,
@@ -82,7 +84,7 @@ export function LlmTab({
       events: freshEvents,
       describe: freshDescribe,
       relatedResources: freshRelated,
-      language: settings?.language,
+      usageHistory,
     };
   }
 

@@ -76,10 +76,10 @@ function normalizeAnalyzeRequest(value: unknown): LlmAnalyzeResourceRequest {
     events: Array.isArray(value.events) ? value.events : undefined,
     describe: asString(value.describe),
     relatedResources: Array.isArray(value.relatedResources) ? value.relatedResources : undefined,
+    usageHistory: isRecord(value.usageHistory) ? value.usageHistory : undefined,
     relatedLinks: Array.isArray(value.relatedLinks) ? value.relatedLinks : undefined,
     related: Array.isArray(value.related) ? value.related : undefined,
     userRequest: userRequest || undefined,
-    language: asString(value.language).trim() || "ru",
   };
 }
 

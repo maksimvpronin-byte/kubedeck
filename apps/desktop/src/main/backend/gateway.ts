@@ -27,6 +27,7 @@ import { writeMigrationStatus } from "./routes/migrationStatus";
 import { handleResourceDetailsRequest } from "./routes/resourceDetails";
 import { clearResourceDefinitionCache, handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscoveryEvents";
 import { clearNodeDiskMetricsCache } from "./resources/metrics";
+import { UsageHistorySampler } from "./resources/usageHistorySampler";
 import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
 import { handleYamlRequest } from "./routes/yaml";
 import { handleSecretRequest } from "./routes/secrets";
@@ -52,6 +53,7 @@ interface GatewayServices {
   kubectlRunner: KubectlRunner;
   resourceCache: ResourceSnapshotCache;
   watchManager: WatchManager;
+  usageHistory: UsageHistorySampler;
   portForwardManager: PortForwardManager;
   terminalWebSocket: PodTerminalWebSocketServer;
   sshWebSocket: NodeSshWebSocketServer;
@@ -95,6 +97,7 @@ function decodePathPart(value: string, response: ServerResponse): string | null 
 async function releaseClusterRuntime(services: GatewayServices, clusterId: string, reason: string): Promise<void> {
   await Promise.all([
     services.watchManager.stopCluster(clusterId),
+    services.usageHistory.stopCluster(clusterId),
     services.portForwardManager.stopCluster(clusterId),
     services.terminalWebSocket.stopCluster(clusterId),
     services.sshWebSocket.stopCluster(clusterId),
@@ -303,7 +306,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
   if (handleRelatedResourcesRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
     return;
   }
-  if (handleResourceListRequest(request, response, pathname, services.configStore, services.kubectlRunner, services.resourceCache, clearResourceDefinitionCache, options.log)) {
+  if (handleResourceListRequest(request, response, pathname, services.configStore, services.kubectlRunner, services.resourceCache, clearResourceDefinitionCache, services.usageHistory, options.log)) {
     return;
   }
 
@@ -341,7 +344,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
     return;
   }
 
-  if (handleResourceDetailsRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
+  if (handleResourceDetailsRequest(request, response, pathname, services.configStore, services.kubectlRunner, services.usageHistory, options.log)) {
     return;
   }
 
@@ -395,12 +398,14 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     hostKeyDecisionTimeoutMs: options.sshHostKeyDecisionTimeoutMs,
   });
   const secretStore = options.secretStore ?? new MemorySecretStore();
+  const usageHistory = new UsageHistorySampler(configStore, kubectlRunner, options.log);
   const services: GatewayServices = {
     configStore,
     auditStore,
     kubectlRunner,
     resourceCache,
     watchManager,
+    usageHistory,
     portForwardManager,
     terminalWebSocket,
     sshWebSocket,
@@ -449,6 +454,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
         await services.terminalWebSocket.close();
         await services.portForwardManager.close();
         await services.watchManager.close();
+        services.usageHistory.close();
         watchWebSocket.close();
         await services.kubectlRunner.close();
 

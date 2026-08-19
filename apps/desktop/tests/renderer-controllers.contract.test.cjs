@@ -70,6 +70,17 @@ test("LLM renderer never fetches or submits Kubernetes logs", () => {
   assert.doesNotMatch(source, /logs\s*:/);
 });
 
+test("the LLM answer language does not follow the UI language", () => {
+  const source = fs.readFileSync(path.join(rendererRoot, "components/LlmTab.tsx"), "utf8");
+  const types = fs.readFileSync(path.join(rendererRoot, "types.ts"), "utf8");
+  // The analysis is always written in Russian. Sending the UI preference made
+  // the answer switch to English, because "system" - the default - matched
+  // neither branch of the prompt's language rule.
+  assert.doesNotMatch(source, /language\s*:/);
+  const request = types.slice(types.indexOf("export interface LlmAnalyzeResourceRequest"), types.indexOf("export interface LlmAnalyzeResourceResponse"));
+  assert.doesNotMatch(request, /language/);
+});
+
 test("namespace selector keeps complete long names readable", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/NamespaceSelector.tsx"), "utf8");
   const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
@@ -1086,6 +1097,7 @@ test("drawer request generations reject stale responses and reset resource data"
     relatedErrors: [],
     metrics: {},
     serviceEndpoints: null,
+    usageHistory: null,
   });
 
   const firstRow = { uid: "pod-uid", name: "pod-a", namespace: "tools", status: "Running" };

@@ -123,6 +123,7 @@ export function PodDrawer({
     setError,
     metrics,
     serviceEndpoints,
+    usageHistory,
   } = usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey });
   const yamlChanged = yamlDraft !== yamlBaseline;
   const now = useUiClock(Boolean(pod), 1000);
@@ -385,7 +386,7 @@ export function PodDrawer({
           </section>
         ) : null}
         {tab === "summary" ? (
-          <ResourceSummary row={{ ...pod, ...metrics, uid: pod.uid, name: pod.name }} resource={resource} now={now} events={events} serviceEndpoints={serviceEndpoints} />
+          <ResourceSummary row={{ ...pod, ...metrics, uid: pod.uid, name: pod.name }} resource={resource} now={now} events={events} serviceEndpoints={serviceEndpoints} usageHistory={usageHistory} />
         ) : tab === "llm" ? (
           <LlmTab
             api={api}
@@ -397,6 +398,7 @@ export function PodDrawer({
             describe={describeContent}
             events={events}
             relatedLinks={relatedLinks}
+            usageHistory={usageHistory}
             loading={llmLoading}
             answer={llmAnswer}
             model={llmModel}

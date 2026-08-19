@@ -1,0 +1,179 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { UsageHistoryStore, USAGE_BUCKET_MS, USAGE_RETENTION_MS, MAX_SERIES_PER_CLUSTER } = require("../dist/main/backend/resources/usageHistoryStore.js");
+const { UsageHistorySampler, samplesFromTopOutput, parseCpuMillicoresValue, parseMemoryBytesValue } = require("../dist/main/backend/resources/usageHistorySampler.js");
+const { workloadKeyForPod, formatWorkloadKey, inferWorkloadFromPodName } = require("../dist/main/backend/resources/workloadKey.js");
+const { buildResourceContext } = require("../dist/main/backend/llm/context.js");
+
+function deploymentPod(hash, suffix) {
+  return {
+    name: `api-${hash}-${suffix}`,
+    namespace: "default",
+    labels: { "pod-template-hash": hash },
+    ownerReferences: [{ kind: "ReplicaSet", name: `api-${hash}`, controller: true }],
+  };
+}
+
+test("the workload key survives a redeploy, which is what makes request sizing possible", () => {
+  // A ReplicaSet name carries the pod-template-hash and therefore changes on
+  // every rollout; keying history on it would reset the history exactly when
+  // before/after comparison matters.
+  const before = formatWorkloadKey(workloadKeyForPod(deploymentPod("8db54c48d", "hw9zw")));
+  const after = formatWorkloadKey(workloadKeyForPod(deploymentPod("99f7c4b21", "abcde")));
+  assert.equal(before, "Deployment/api");
+  assert.equal(after, before);
+
+  assert.equal(formatWorkloadKey(workloadKeyForPod({ name: "db-0", ownerReferences: [{ kind: "StatefulSet", name: "db" }] })), "StatefulSet/db");
+  assert.equal(formatWorkloadKey(workloadKeyForPod({ name: "node-exporter-abcde", ownerReferences: [{ kind: "DaemonSet", name: "node-exporter" }] })), "DaemonSet/node-exporter");
+  // Jobs created by a CronJob are as ephemeral as a ReplicaSet.
+  assert.equal(formatWorkloadKey(workloadKeyForPod({ name: "backup-1700000000-xyz", ownerReferences: [{ kind: "Job", name: "backup-1700000000" }] })), "CronJob/backup");
+
+  // The sampler sees only kubectl top output, so a name-only fallback exists
+  // and is reported as inexact.
+  assert.deepEqual(inferWorkloadFromPodName("web-7d9f8c6b5-2xk9p"), { kind: "Deployment", name: "web", exact: false });
+  assert.equal(workloadKeyForPod({ name: "standalone" }), null);
+  assert.equal(workloadKeyForPod(deploymentPod("8db54c48d", "hw9zw")).exact, true);
+});
+
+test("kubectl top output becomes samples in every unit metrics-server emits", () => {
+  assert.equal(parseCpuMillicoresValue("250m"), 250);
+  assert.equal(parseCpuMillicoresValue("2"), 2000);
+  assert.equal(parseCpuMillicoresValue("1500000n"), 1.5);
+  assert.equal(parseCpuMillicoresValue(""), null);
+  assert.equal(parseMemoryBytesValue("512Mi"), 512 * 1024 * 1024);
+  assert.equal(parseMemoryBytesValue("2Gi"), 2 * 1024 ** 3);
+  assert.equal(parseMemoryBytesValue("nonsense"), null);
+
+  const samples = samplesFromTopOutput("kube-system   coredns-8db54c48d-hw9zw   3m    21Mi\ndefault   api-1   250m   512Mi", true, "");
+  assert.deepEqual(samples[0], { namespace: "kube-system", pod: "coredns-8db54c48d-hw9zw", cpuMillicores: 3, memoryBytes: 22020096 });
+  assert.equal(samples[1].namespace, "default");
+  // Without -A the namespace is absent from the output and has to be supplied.
+  assert.equal(samplesFromTopOutput("api-1   250m   512Mi", false, "prod")[0].namespace, "prod");
+});
+
+test("percentiles separate sustained load from peaks, which is the request/limit distinction", () => {
+  let now = 1_700_000_000_000;
+  const store = new UsageHistoryStore(() => now);
+  // Two replicas, steady 100m with a spike every 30 minutes.
+  for (let index = 0; index < 120; index += 1) {
+    const spike = index % 30 === 0;
+    store.record("c1", [
+      { namespace: "default", pod: "api-a", cpuMillicores: spike ? 400 : 100, memoryBytes: 50 * 1024 * 1024 },
+      { namespace: "default", pod: "api-b", cpuMillicores: spike ? 380 : 90, memoryBytes: 48 * 1024 * 1024 },
+    ]);
+    now += 60_000;
+  }
+  store.attribute("c1", "default", "api-a", "Deployment/api");
+  store.attribute("c1", "default", "api-b", "Deployment/api");
+
+  const history = store.history("c1", "default", "api-a");
+  assert.equal(history.pod.samples, 120);
+  // p95 runs over five-minute averages (sustained), max over the peaks.
+  assert.ok(history.pod.cpu.p95 < history.pod.cpu.max, "a spike must not drag the sustained percentile up to the peak");
+  assert.equal(history.pod.cpu.max, 400);
+  assert.equal(history.pod.cpu.p50, 100);
+
+  // The workload pools per-pod values rather than summing replicas: a request
+  // is sized per pod, so summing would inflate it by the replica count.
+  assert.equal(history.workloadKey, "Deployment/api");
+  assert.equal(history.workloadPods, 2);
+  assert.equal(history.workload.samples, 240);
+  assert.ok(history.workload.cpu.max <= 400, "pooling must not sum replicas");
+
+  // Coverage counts wall-clock slots, so two replicas do not double it.
+  assert.ok(history.pod.coverage > 0 && history.pod.coverage < 0.2);
+  assert.equal(history.workload.coverage, history.pod.coverage);
+  assert.equal(history.bucketMs, USAGE_BUCKET_MS);
+});
+
+test("history is bounded by retention and by series count", () => {
+  let now = 1_700_000_000_000;
+  const store = new UsageHistoryStore(() => now);
+  store.record("c1", [{ namespace: "default", pod: "old", cpuMillicores: 10, memoryBytes: 10 }]);
+  now += USAGE_RETENTION_MS + USAGE_BUCKET_MS;
+  store.record("c1", [{ namespace: "default", pod: "new", cpuMillicores: 10, memoryBytes: 10 }]);
+  assert.equal(store.history("c1", "default", "old").pod, null, "samples past the retention window are dropped");
+  assert.ok(store.history("c1", "default", "new").pod);
+
+  const many = new UsageHistoryStore(() => now);
+  for (let index = 0; index < MAX_SERIES_PER_CLUSTER + 50; index += 1) {
+    now += 1;
+    many.record("c1", [{ namespace: "default", pod: `pod-${index}`, cpuMillicores: 1, memoryBytes: 1 }]);
+  }
+  assert.equal(many.seriesCount("c1"), MAX_SERIES_PER_CLUSTER);
+  assert.equal(many.history("c1", "default", "pod-0").pod, null, "the least recently sampled series is evicted first");
+});
+
+test("history survives a restart and is removed with the cluster", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-usage-"));
+  const configStore = { paths: { metrics: path.join(root, "metrics") } };
+  const runner = {
+    run() {
+      throw new Error("the sampler must not reach kubectl in this test");
+    },
+  };
+  let now = 1_700_000_000_000;
+
+  try {
+    const first = new UsageHistorySampler(configStore, runner, () => {}, { now: () => now, persist: true });
+    for (let index = 0; index < 30; index += 1) {
+      first.ingest("c1", samplesFromTopOutput("default api-8db54c48d-hw9zw 120m 400Mi", true, ""));
+      now += 60_000;
+    }
+    first.attributePods("c1", [deploymentPod("8db54c48d", "hw9zw")]);
+    first.close();
+
+    const second = new UsageHistorySampler(configStore, runner, () => {}, { now: () => now, persist: true });
+    const restored = second.history("c1", "default", "api-8db54c48d-hw9zw");
+    assert.equal(restored.pod.samples, 30, "samples must come back after a restart");
+    // Attribution is persisted too, so the rollup works without re-browsing pods.
+    assert.equal(restored.workloadKey, "Deployment/api");
+
+    second.forgetCluster("c1");
+    assert.equal(fs.existsSync(path.join(root, "metrics", "c1.json")), false, "removing a cluster removes its recorded history");
+    second.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the LLM context states coverage and how to read the percentiles", () => {
+  let now = 1_700_000_000_000;
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  for (let index = 0; index < 120; index += 1) {
+    sampler.ingest("c1", samplesFromTopOutput("default api-8db54c48d-hw9zw 120m 400Mi", true, ""));
+    now += 60_000;
+  }
+  const history = sampler.history("c1", "default", "api-8db54c48d-hw9zw");
+
+  const context = buildResourceContext(
+    {
+      clusterId: "c1",
+      resource: "pods",
+      kind: "Pod",
+      namespace: "default",
+      name: "api-8db54c48d-hw9zw",
+      resourceObject: { podCpuRequestValue: 500, podCpuLimitValue: 1000, podMemoryRequestValue: 1073741824, podMemoryLimitValue: 2147483648 },
+      usageHistory: history,
+    },
+    60000,
+  ).context;
+
+  assert.match(context, /USAGE HISTORY \(recorded by KubeDeck, not by Prometheus\)/);
+  assert.match(context, /sampled only while KubeDeck was running/);
+  // A conclusion drawn from two hours must not read as if it covered a day.
+  assert.match(context, /coverage: \d+% of the window, 120 samples/);
+  assert.match(context, /pod cpu: p50 120m/);
+  assert.match(context, /pod cpu request: 500m, cpu limit: 1 cores/);
+  assert.match(context, /pod memory request: 1Gi, memory limit: 2Gi/);
+  assert.match(context, /p50\/p95 are percentiles of five-minute averages \(sustained load, what a request should cover\)/);
+  assert.match(context, /max is the highest five-minute peak \(what a limit must survive\)/);
+
+  // Absent history must not be silently treated as low usage.
+  const empty = buildResourceContext({ clusterId: "c1", resource: "pods", name: "x", resourceObject: {} }, 60000).context;
+  assert.match(empty, /No usage history recorded yet\. Do not infer anything about request\/limit sizing from absent history\./);
+  sampler.close();
+});

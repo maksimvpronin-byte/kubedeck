@@ -277,6 +277,15 @@ test("node labels prioritize readable system labels and deduplicate beta aliases
 const { handleResourceListRequest, matchResourceListRoute } = require("../dist/main/backend/routes/resourceLists.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
+function fakeUsageHistory() {
+  return {
+    ensureCluster() {},
+    ingest() {},
+    attributePods() {},
+    history: () => ({ pod: null, workload: null, workloadKey: "", workloadExact: false, workloadPods: 0, points: [], bucketMs: 300000, retentionMs: 86400000 }),
+  };
+}
+
 function listen(server) {
   return new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -565,6 +574,7 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
       runner,
       cache,
       (clusterId) => discoveryClears.push(clusterId),
+      fakeUsageHistory(),
       () => {},
     );
     if (!handled) {
@@ -635,6 +645,7 @@ test("cached rows are discarded when cluster readiness fails", async (t) => {
       runner,
       cache,
       () => {},
+      fakeUsageHistory(),
       () => {},
     );
   });

@@ -1,4 +1,4 @@
-# KubeDeck 2.11.2
+# KubeDeck 2.12.0
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -20,7 +20,8 @@ KubeDeck uses a **Node-only runtime inside Electron**. It does not start or pack
 - delete, restart, redeploy, scale, cordon, uncordon, and drain actions;
 - protected Kubernetes Secret viewing;
 - metrics and resource snapshot caching;
-- optional OpenAI-compatible local LLM analysis that never receives Kubernetes logs;
+- pod CPU and memory usage history, recorded while KubeDeck runs and charted against requests and limits;
+- optional OpenAI-compatible local LLM analysis, given the recorded usage history to judge request/limit sizing, that never receives Kubernetes logs;
 - English and Russian UI;
 - Midnight Blue, Nord Frost, Forest Teal, Plum Graphite, Warm Mocha, Steel Graphite, Light, and System themes.
 
@@ -154,7 +155,7 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.11.2-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.12.0-x64.exe
 ```
 
 ## macOS Apple Silicon build
@@ -166,8 +167,8 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.11.2-arm64.dmg
-apps/desktop/release/KubeDeck-2.11.2-arm64.zip
+apps/desktop/release/KubeDeck-2.12.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.12.0-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
@@ -181,7 +182,7 @@ npm run package:linux
 Output:
 
 ```text
-apps/desktop/release/KubeDeck-2.11.2-x86_64.AppImage
+apps/desktop/release/KubeDeck-2.12.0-x86_64.AppImage
 ```
 
 The builder runs the full source gate, rebuilds `node-pty` for Electron, produces the AppImage, and validates the release payload. The AppImage is not signed.
@@ -267,8 +268,8 @@ Linux:
 
 ## Documentation
 
-- [Release notes 2.11.2](./docs/releases/RELEASE_NOTES_2.11.2.md)
-- [Regression checklist 2.11.2](./docs/releases/REGRESSION_CHECKLIST_2.11.2.md)
+- [Release notes 2.12.0](./docs/releases/RELEASE_NOTES_2.12.0.md)
+- [Regression checklist 2.12.0](./docs/releases/REGRESSION_CHECKLIST_2.12.0.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)
 - [Third-party notices](./docs/third-party-notices.md)
 

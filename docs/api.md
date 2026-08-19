@@ -37,7 +37,7 @@ ws://127.0.0.1:<port>/clusters/<cluster>/pods/<namespace>/<pod>/terminal?token=<
 
 - application/config: health, app info, migration status, config, audit;
 - clusters/kubectl: import, persistent manual ordering (`PUT /clusters/order`), rename, remove, open, namespaces, kubectl status, чтение и запись kubeconfig кластера (`GET`/`PUT /clusters/{cluster_id}/kubeconfig`);
-- resources: discovery, lists, YAML, Describe, Events, logs, endpoints сервиса и related resources;
+- resources: discovery, lists, YAML, Describe, Events, logs, endpoints сервиса, история потребления и related resources;
 - mutations: YAML dry-run/apply, resource actions и Pod exec;
 - diagnostics: Problems, Global Search, cache и watch status;
 - sensitive data: Secret keys/reveal/copy;
@@ -52,7 +52,8 @@ ws://127.0.0.1:<port>/clusters/<cluster>/pods/<namespace>/<pod>/terminal?token=<
 
 - `yaml` и `describe` возвращают `text/plain` вывод kubectl;
 - `metrics` возвращает JSON и допустим только для nodes (`UNSUPPORTED_RESOURCE_METRICS`);
-- `endpoints` возвращает JSON и допустим только для services в конкретном namespace (`UNSUPPORTED_RESOURCE_ENDPOINTS`). Endpoints читаются из `EndpointSlice` через label selector `kubernetes.io/service-name`, поэтому API server возвращает срезы одного сервиса. Ответ содержит точные счётчики `ready`/`notReady`/`total` и список `items`, ограниченный 100 записями с флагом `truncated`.
+- `endpoints` возвращает JSON и допустим только для services в конкретном namespace (`UNSUPPORTED_RESOURCE_ENDPOINTS`). Endpoints читаются из `EndpointSlice` через label selector `kubernetes.io/service-name`, поэтому API server возвращает срезы одного сервиса. Ответ содержит точные счётчики `ready`/`notReady`/`total` и список `items`, ограниченный 100 записями с флагом `truncated`;
+- `usage-history` возвращает JSON и допустим только для pods в конкретном namespace (`UNSUPPORTED_USAGE_HISTORY`). Единственная операция, которая не обращается к kubectl: она отдаёт то, что KubeDeck уже насэмплил. Ответ содержит агрегаты по поду и по воркоаду (`p50`/`p95`/`max`/`avg`), `coverage` как долю покрытого 24-часового окна и `points` — пятиминутные бакеты для графика.
 
 ### Related resources и discovery
 

@@ -8,6 +8,7 @@ export interface AppPaths {
   kubeconfigs: string;
   knownHosts: string;
   logs: string;
+  metrics: string;
 }
 
 export function defaultAppDataRoot(): string {
@@ -19,8 +20,9 @@ export function ensureAppPaths(rootOverride?: string): AppPaths {
   const root = path.resolve(rootOverride || defaultAppDataRoot());
   const kubeconfigs = path.join(root, "kubeconfigs");
   const logs = path.join(root, "logs");
+  const metrics = path.join(root, "metrics");
 
-  for (const directory of [root, kubeconfigs, logs]) {
+  for (const directory of [root, kubeconfigs, logs, metrics]) {
     fs.mkdirSync(directory, { recursive: true });
   }
 
@@ -30,5 +32,6 @@ export function ensureAppPaths(rootOverride?: string): AppPaths {
     kubeconfigs,
     knownHosts: path.join(root, "hostkeys.json"),
     logs,
+    metrics,
   };
 }

@@ -19,6 +19,8 @@ import {
   type NodeMetricsSnapshot,
   type PodMetricsSnapshot,
 } from "../resources/metrics";
+import type { UsageHistorySampler } from "../resources/usageHistorySampler";
+import { samplesFromPodMetrics } from "../resources/usageHistorySampler";
 import { decodePathPart, parseBooleanQuery, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
@@ -133,10 +135,26 @@ function startListMetricsCommand(target: ResourceListTarget, configStore: Config
   return null;
 }
 
-async function applyListMetrics(pending: PendingListMetrics, rows: ReturnType<typeof normalizeResourceItems>, configStore: ConfigStore, runner: KubectlRunner, clusterId: string): Promise<void> {
+async function applyListMetrics(
+  pending: PendingListMetrics,
+  rows: ReturnType<typeof normalizeResourceItems>,
+  configStore: ConfigStore,
+  runner: KubectlRunner,
+  target: ResourceListTarget,
+  usageHistory: UsageHistorySampler,
+): Promise<void> {
+  const clusterId = target.clusterId;
   if (!pending) return;
-  if (pending.kind === "pods") applyPodMetricsSnapshot(await pending.snapshot, rows);
-  else if (pending.kind === "namespaces") applyNamespaceMetricsSnapshot(await pending.snapshot, rows);
+  if (pending.kind === "pods") {
+    const snapshot = await pending.snapshot;
+    applyPodMetricsSnapshot(snapshot, rows);
+    // These metrics were fetched for the table anyway, so recording them costs
+    // nothing and fills the history for whatever the user is looking at.
+    if (snapshot) usageHistory.ingest(clusterId, samplesFromPodMetrics(snapshot.metrics, snapshot.allNamespaces, target.namespace));
+    // A pod list is the only place the workload behind a pod name is visible,
+    // so it is also where the background sampler's rows get attributed.
+    usageHistory.attributePods(clusterId, rows);
+  } else if (pending.kind === "namespaces") applyNamespaceMetricsSnapshot(await pending.snapshot, rows);
   else {
     applyNodeMetricsSnapshot(await pending.snapshot, rows);
     // Disk usage is one kubelet round trip per node and is fetched separately
@@ -146,7 +164,19 @@ async function applyListMetrics(pending: PendingListMetrics, rows: ReturnType<ty
   }
 }
 
-async function loadResources(response: ServerResponse, target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner, cache: ResourceSnapshotCache): Promise<void> {
+async function loadResources(
+  response: ServerResponse,
+  target: ResourceListTarget,
+  configStore: ConfigStore,
+  runner: KubectlRunner,
+  cache: ResourceSnapshotCache,
+  usageHistory: UsageHistorySampler,
+): Promise<void> {
+  // Browsing a cluster is what starts its usage history: sampling every
+  // configured cluster regardless of use would spend kubectl processes on
+  // endpoints the user never opened.
+  usageHistory.ensureCluster(target.clusterId);
+
   if (target.useCache && !target.forceRefresh) {
     const cached = cache.get(target.clusterId, target.resource, target.namespace);
 
@@ -175,7 +205,7 @@ async function loadResources(response: ServerResponse, target: ResourceListTarge
     const rawItems = asItems(data);
     const rows = normalizeResourceItems(target.resource, rawItems);
 
-    await applyListMetrics(metrics, rows, configStore, runner, target.clusterId);
+    await applyListMetrics(metrics, rows, configStore, runner, target, usageHistory);
 
     const result = cache.set(target.clusterId, target.resource, target.namespace, {
       items: rows,
@@ -219,6 +249,7 @@ export function handleResourceListRequest(
   runner: KubectlRunner,
   cache: ResourceSnapshotCache,
   clearDiscoveryCache: (clusterId?: string) => void,
+  usageHistory: UsageHistorySampler,
   log: (message: string) => void,
 ): boolean {
   try {
@@ -229,7 +260,7 @@ export function handleResourceListRequest(
     const target = matchResourceListRoute(request.method, pathname, request.url);
     if (!target) return false;
 
-    void loadResources(response, target, configStore, runner, cache).catch((error) =>
+    void loadResources(response, target, configStore, runner, cache, usageHistory).catch((error) =>
       writeRouteError(response, error, log, { label: "resource list", fallbackCode: "RESOURCE_LIST_FAILED", fallbackMessage: "Unable to load Kubernetes resources" }),
     );
 

@@ -372,3 +372,108 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+/* Usage history recorded by KubeDeck itself */
+.usage-history .resource-summary-section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.usage-history-scope {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.usage-history-metric {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.usage-history-metric-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.usage-history-metric-head span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.usage-history-plot {
+  position: relative;
+  height: 56px;
+  padding: 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* request and limit are drawn across the plot so a bar can be read against
+   them at a glance instead of by comparing numbers in the legend */
+.usage-history-marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed var(--focus-ring);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.usage-history-marker.is-limit {
+  border-top-color: var(--warning-border);
+}
+
+.usage-history-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 100%;
+}
+
+.usage-history-bar {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 2px;
+  height: 100%;
+}
+
+.usage-history-bar-peak,
+.usage-history-bar-avg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 1px 1px 0 0;
+}
+
+.usage-history-bar-peak {
+  background: color-mix(in srgb, var(--focus-ring) 30%, transparent);
+}
+
+.usage-history-bar-avg {
+  background: var(--focus-ring);
+}
+
+.usage-history-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.usage-history-workload {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}

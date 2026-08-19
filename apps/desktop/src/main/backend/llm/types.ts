@@ -18,10 +18,10 @@ export interface LlmAnalyzeResourceRequest {
   events?: unknown[];
   describe?: string;
   relatedResources?: unknown[];
+  usageHistory?: unknown;
   relatedLinks?: unknown[];
   related?: unknown[];
   userRequest?: string;
-  language?: string;
 }
 
 export interface LlmCompletion {

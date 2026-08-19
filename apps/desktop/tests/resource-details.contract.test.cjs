@@ -15,6 +15,15 @@ function listen(server) {
   });
 }
 
+function fakeUsageHistory() {
+  return {
+    ensureCluster() {},
+    ingest() {},
+    attributePods() {},
+    history: () => ({ pod: null, workload: null, workloadKey: "", workloadExact: false, workloadPods: 0, points: [], bucketMs: 300000, retentionMs: 86400000 }),
+  };
+}
+
 function fakeConfigStore() {
   return {
     load: () => ({ settings: { kubectlPath: "kubectl" } }),
@@ -108,7 +117,7 @@ test("resource details HTTP handler", async (t) => {
 
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
-    const handled = handleResourceDetailsRequest(request, response, pathname, configStore, runner, () => {});
+    const handled = handleResourceDetailsRequest(request, response, pathname, configStore, runner, fakeUsageHistory(), () => {});
 
     if (!handled) {
       response.statusCode = 404;
@@ -218,7 +227,7 @@ test("service endpoints operation reads only the slices of one service", async (
   };
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    const handled = handleResourceDetailsRequest(request, response, pathname, fakeConfigStore(), runner, () => {});
+    const handled = handleResourceDetailsRequest(request, response, pathname, fakeConfigStore(), runner, fakeUsageHistory(), () => {});
     if (!handled) {
       response.statusCode = 404;
       response.end();

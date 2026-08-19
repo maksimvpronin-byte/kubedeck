@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import type { ResourceRow, ServiceEndpointsResponse } from "../types";
+import type { ResourceRow, ServiceEndpointsResponse, UsageHistoryResponse } from "../types";
+import { UsageHistoryChart } from "./UsageHistoryChart";
 import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { formatAge } from "../utils/time";
 import { metricPercent, ResourceUsageBar } from "./ResourceUsageBar";
@@ -10,12 +11,13 @@ interface Props {
   now: number;
   events?: ResourceRow[];
   serviceEndpoints?: ServiceEndpointsResponse | null;
+  usageHistory?: UsageHistoryResponse | null;
 }
 
 type Tone = "default" | "neutral" | "pending" | "warning" | "danger" | "success";
 type Fact = { label: string; value: ReactNode; tone?: Tone };
 
-export function ResourceSummary({ row, resource, now, events = [], serviceEndpoints = null }: Props) {
+export function ResourceSummary({ row, resource, now, events = [], serviceEndpoints = null, usageHistory = null }: Props) {
   const facts = summaryFacts(row, resource, now, serviceEndpoints);
   const containers = isPod(resource) ? containerRows(row) : [];
   const failures = isPod(resource) ? restartFailures(row) : [];
@@ -32,6 +34,16 @@ export function ResourceSummary({ row, resource, now, events = [], serviceEndpoi
       </section>
 
       {serviceEndpoints ? <ServiceEndpoints data={serviceEndpoints} /> : null}
+
+      {isPod(resource) && usageHistory ? (
+        <UsageHistoryChart
+          history={usageHistory}
+          cpuRequest={numeric(row.podCpuRequestValue)}
+          cpuLimit={numeric(row.podCpuLimitValue)}
+          memoryRequest={numeric(row.podMemoryRequestValue)}
+          memoryLimit={numeric(row.podMemoryLimitValue)}
+        />
+      ) : null}
 
       {workloadConditions.length ? (
         <section className="resource-summary-section" aria-label="Workload conditions">
@@ -480,6 +492,11 @@ function baseResource(resource: string) {
   if (value.endsWith("s")) return value.slice(0, -1);
   return value;
 }
+function numeric(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
 function isPod(resource: string) {
   return baseResource(resource) === "pod";
 }
