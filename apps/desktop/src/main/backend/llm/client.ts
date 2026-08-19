@@ -175,6 +175,18 @@ function healthyPodContext(context: string): boolean {
   return running && ready && zeroRestarts && noEvents;
 }
 
+// Four prompt revisions failed to make the model volunteer that a thin window
+// cannot support a target value, so the caveat is attached here instead. The
+// verdict stays the model's; only the reminder of what it rests on is ours.
+const THIN_COVERAGE_PERCENT = 20;
+
+function thinCoverageNote(context: string): string {
+  const match = context.match(/coverage:\s*(\d+)%\s*of the window/i);
+  const coverage = match ? Number.parseInt(match[1], 10) : Number.NaN;
+  if (!Number.isFinite(coverage) || coverage >= THIN_COVERAGE_PERCENT) return "";
+  return `Наблюдения покрывают ${coverage}% окна: этого хватает на направление вердикта, но мало, чтобы называть конкретные целевые значения.`;
+}
+
 function renderStandardAnswer(answer: string, messages: LlmMessage[]): string {
   const parsed = parseJsonAnswer(answer);
   if (!parsed) return sanitizeText(answer).trim();
@@ -209,7 +221,9 @@ function renderStandardAnswer(answer: string, messages: LlmMessage[]): string {
   // should not carry an empty section explaining that it is empty.
   const resources = asStringItems(parsed.resources, 2);
   if (resources.length > 0) {
-    rendered.push(`6. Request / limit по истории\n${resources.map((item) => `- ${item}`).join("\n")}`);
+    const note = thinCoverageNote(extractContext(messages));
+    const items = note ? [...resources, note] : resources;
+    rendered.push(`6. Request / limit по истории\n${items.map((item) => `- ${item}`).join("\n")}`);
   }
 
   return rendered.join("\n\n");

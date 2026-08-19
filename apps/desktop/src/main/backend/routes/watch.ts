@@ -75,6 +75,7 @@ export function handleWatchRequest(
   pathname: string,
   configStore: ConfigStore,
   watchManager: WatchManager,
+  isConnected: (clusterId: string) => boolean,
   log: (message: string) => void,
 ): boolean {
   try {
@@ -94,6 +95,14 @@ export function handleWatchRequest(
     const startMatch = pathname.match(/^\/clusters\/([^/]+)\/watches$/);
     if (request.method === "POST" && startMatch) {
       const clusterId = validateIdentifier(decodePathPart(startMatch[1], "cluster_id"), "cluster_id", 128);
+      // A watch is a long-lived kubectl process against the cluster, which is
+      // exactly what disconnecting is meant to stop. The renderer also checks,
+      // but the guarantee cannot rest on the caller: a reconnecting socket or
+      // a stale view would otherwise bring the cluster back up on its own.
+      if (!isConnected(clusterId)) {
+        writeError(response, 409, "CLUSTER_NOT_CONNECTED", "Cluster is disconnected. Connect it before starting a watch.");
+        return true;
+      }
       void startWatch(request, response, clusterId, configStore, watchManager).catch((error) => writeWatchError(response, error, log));
       return true;
     }

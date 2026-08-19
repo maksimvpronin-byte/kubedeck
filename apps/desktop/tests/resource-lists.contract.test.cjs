@@ -576,6 +576,7 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
       cache,
       (clusterId) => discoveryClears.push(clusterId),
       fakeUsageHistory(),
+      () => true,
       () => {},
     );
     if (!handled) {
@@ -647,6 +648,7 @@ test("cached rows are discarded when cluster readiness fails", async (t) => {
       cache,
       () => {},
       fakeUsageHistory(),
+      () => true,
       () => {},
     );
   });
@@ -672,4 +674,50 @@ test("resource route matcher validates query and scope", () => {
   });
 
   assert.equal(matchResourceListRoute("POST", "/clusters/cluster-1/resources/nodes", "/clusters/cluster-1/resources/nodes"), null);
+});
+
+test("browsing a disconnected cluster does not restart its usage sampling", async (t) => {
+  const started = [];
+  const usageHistory = { ...fakeUsageHistory(), ensureCluster: (clusterId) => started.push(clusterId) };
+  const cache = new ResourceSnapshotCache();
+  const runner = {
+    async run(command) {
+      const args = command.args.join(" ");
+      if (args.startsWith("get pods")) return { stdout: JSON.stringify({ items: [] }), stderr: "", commandPreview: args, returnCode: 0 };
+      return { stdout: "", stderr: "", commandPreview: args, returnCode: 0 };
+    },
+  };
+
+  let connected = false;
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    const handled = handleResourceListRequest(
+      request,
+      response,
+      pathname,
+      fakeConfigStore(),
+      runner,
+      cache,
+      () => {},
+      usageHistory,
+      () => connected,
+      () => {},
+    );
+    if (!handled) {
+      response.statusCode = 404;
+      response.end();
+    }
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+
+  // Disconnecting has to stick. A resource list load is the one place that
+  // starts sampling, so if it ignored the connection state the user's
+  // disconnect would silently undo itself the moment they looked at a table.
+  await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&forceRefresh=true`);
+  assert.deepEqual(started, [], "a disconnected cluster must not be sampled");
+
+  connected = true;
+  await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&forceRefresh=true`);
+  assert.deepEqual(started, ["cluster-1"], "a connected cluster still starts sampling on first browse");
 });

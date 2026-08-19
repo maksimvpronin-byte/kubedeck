@@ -3,11 +3,12 @@ import { ApiClient } from "../api";
 import type { ErrorInfo, RelatedLink, ResourceRow, ServiceEndpointsResponse, UsageHistoryResponse } from "../types";
 import type { DrawerTab } from "../components/PodDrawerChrome";
 import { isAbortError } from "../components/podDrawerHelpers";
+import { setAlignedInterval } from "../utils/alignedInterval";
 import { toErrorInfo } from "../utils/errors";
 
 // Matches the sampling interval: refreshing faster only re-reads the same
 // numbers, refreshing slower leaves a visible lag behind the recorded data.
-const USAGE_HISTORY_REFRESH_MS = 30_000;
+const USAGE_HISTORY_REFRESH_MS = 15_000;
 
 interface Options {
   api: ApiClient;
@@ -213,8 +214,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   // samples yet" message for a pod whose first samples have since arrived.
   useEffect(() => {
     if (!currentObjectKey || (tab !== "summary" && tab !== "llm") || !isPodResource(resource)) return;
-    const timer = setInterval(() => setUsageHistoryTick((current) => current + 1), USAGE_HISTORY_REFRESH_MS);
-    return () => clearInterval(timer);
+    return setAlignedInterval(() => setUsageHistoryTick((current) => current + 1), USAGE_HISTORY_REFRESH_MS);
   }, [currentObjectKey, tab, resource]);
 
   // Usage history is recorded by KubeDeck itself, so this reads what has

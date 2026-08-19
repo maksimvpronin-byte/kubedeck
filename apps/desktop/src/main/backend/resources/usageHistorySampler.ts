@@ -10,7 +10,11 @@ import { formatWorkloadKey, workloadKeyForPod } from "./workloadKey";
 
 const SAMPLE_TIMEOUT_SECONDS = 20;
 const SAMPLE_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
-const DEFAULT_INTERVAL_MS = 30_000;
+// metrics-server scrapes kubelets every --metric-resolution, 15s by default,
+// and keeps no history: polling slower than that simply throws readings away.
+// Landing on the same scrape twice is handled by the timestamp it reports.
+const DEFAULT_INTERVAL_MS = 15_000;
+const METRICS_API_PODS = "/apis/metrics.k8s.io/v1beta1/pods";
 const BACKFILL_MAX_AGE_MS = 2 * 60_000;
 
 type JsonObject = Record<string, unknown>;
@@ -84,6 +88,53 @@ export function samplesFromTopOutput(stdout: string, allNamespaces: boolean, fal
   return samplesFromPodMetrics(parsePodMetrics(stdout, allNamespaces), allNamespaces, fallbackNamespace);
 }
 
+// `kubectl top` renders the same Metrics API response as a table, rounding CPU
+// to whole millicores and dropping the scrape timestamp. For a pod using 3.47m
+// that rounding is a seventh of the reading, and it is always downward - which
+// matters most for exactly the pods whose request is oversized. Reading the
+// API response instead keeps the nanocores and the timestamp.
+export function samplesFromMetricsApi(stdout: string): UsageSample[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    return [];
+  }
+  const items = (parsed as { items?: unknown })?.items;
+  if (!Array.isArray(items)) return [];
+
+  const samples: UsageSample[] = [];
+  for (const item of items) {
+    const entry = item as { metadata?: { name?: unknown; namespace?: unknown }; timestamp?: unknown; containers?: unknown };
+    const pod = text(entry.metadata?.name);
+    if (!pod) continue;
+    const containers = Array.isArray(entry.containers) ? entry.containers : [];
+
+    // Pod usage is the sum over its containers, which is what `kubectl top pod`
+    // shows. A container missing one metric must not zero out the other.
+    let cpuMillicores: number | null = null;
+    let memoryBytes: number | null = null;
+    for (const container of containers) {
+      const usage = (container as { usage?: { cpu?: unknown; memory?: unknown } })?.usage;
+      const cpu = parseCpuMillicoresValue(text(usage?.cpu));
+      const memory = parseMemoryBytesValue(text(usage?.memory));
+      if (cpu !== null) cpuMillicores = (cpuMillicores ?? 0) + cpu;
+      if (memory !== null) memoryBytes = (memoryBytes ?? 0) + memory;
+    }
+    if (cpuMillicores === null && memoryBytes === null) continue;
+
+    const sampledAt = Date.parse(text(entry.timestamp));
+    samples.push({
+      namespace: text(entry.metadata?.namespace),
+      pod,
+      cpuMillicores,
+      memoryBytes,
+      sampledAt: Number.isFinite(sampledAt) ? sampledAt : null,
+    });
+  }
+  return samples;
+}
+
 // History lives for one run of the application: it is held in memory, dropped
 // when KubeDeck exits, and bounded by the retention window while it runs. There
 // is no Prometheus behind it to backfill from, so a fresh start means a fresh
@@ -129,8 +180,8 @@ export class UsageHistorySampler {
 
   private async sample(clusterId: string): Promise<void> {
     try {
-      const result = await this.runner.run(clusterCommand(this.configStore, clusterId, ["top", "pods", "-A", "--no-headers"], SAMPLE_TIMEOUT_SECONDS, SAMPLE_MAX_OUTPUT_BYTES));
-      this.ingest(clusterId, samplesFromTopOutput(result.stdout, true, ""));
+      const result = await this.runner.run(clusterCommand(this.configStore, clusterId, ["get", "--raw", METRICS_API_PODS], SAMPLE_TIMEOUT_SECONDS, SAMPLE_MAX_OUTPUT_BYTES));
+      this.ingest(clusterId, samplesFromMetricsApi(result.stdout));
     } catch (error) {
       // A cluster without metrics-server, or one that went away, must not turn
       // into a repeating error: the next tick simply tries again.

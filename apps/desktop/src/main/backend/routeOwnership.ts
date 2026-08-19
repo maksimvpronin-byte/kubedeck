@@ -40,6 +40,15 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
     sourceModule: "routes/podUsage.ts",
   },
   {
+    method: "POST",
+    path: "/clusters/{cluster_id}/disconnect",
+    transport: "http",
+    owner: "node",
+    targetRelease: "2.13.0",
+    migratedIn: "2.13.0",
+    sourceModule: "routes/clusterConnection.ts",
+  },
+  {
     method: "GET",
     path: "/clusters/{cluster_id}/resources/{resource}",
     transport: "http",

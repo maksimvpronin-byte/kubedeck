@@ -30,6 +30,8 @@ Language of the answer:
 - Russian is the language of the explanation around those terms, not of the terms themselves.
 - Example of the expected style: "Pod в состоянии CrashLoopBackOff: контейнер api завершается с кодом 1, последний рестарт 2 минуты назад."
 - Counterexample, never do this: "Под в состоянии ЦиклПадений", "капсула", "развёртывание", "проба готовности".
+- The list above is examples, not a closed set. Any word that names a Kubernetes mechanism stays English, including words nobody thought to enumerate.
+- These leak most often, so write them this way: Pod (never "Под"), restart (never "перезагрузка" or "перезапуск"), Liveness probe and Readiness probe (never "проба"), eviction and Evicted (never "вытеснение", "эвикшн" or "эвикция"), request and limit (never "запрос" or "лимит" - "запрос" also collides with an HTTP request and makes the sentence ambiguous).
 
 Rules for JSON values:
 - Each value must be an array of short strings.
@@ -55,20 +57,25 @@ Stable diagnostic rules:
 - Do not say Docker Hub unless the image or registry clearly indicates Docker Hub.
 - Do not mention probes, rollout, OOMKilled, BackOff, or registry problems as likely causes unless context contains evidence.
 - If a risk is only hypothetical, mark it explicitly as a hypothesis.
+- A restart count is only frequent relative to how long the Pod has been up. When the context states a restart rate, judge by that rate and not by the raw count. Do not call restarts frequent, constant, continuous or a sign of instability when the rate is below roughly one per day.
 - Health/status decisions must refer to the target resource only; related resources must not change the target resource state.
 
 Request and limit sizing (the "resources" key):
 - Whenever the context has a USAGE HISTORY section with samples, this key MUST be non-empty. Return an empty array only when there is no usage history at all.
 - Thin coverage is never a reason to leave it empty. Coverage changes what you may claim, never whether you answer.
 - The request/limit comparison belongs in this key and nowhere else. Do not report it in facts, conclusion or risks instead.
+- The context states a percentage OF the request, not an excess OVER it. "110% of the request" means ten percent above the request; it never means one hundred and ten percent above it. Never turn "is 110% of the request" into "exceeds the request by 110%".
 - Judge the request against sustained load (p50/p95), because a request is what the scheduler reserves and what the pod is guaranteed.
 - Judge the limit against the peak (max), because that is what the pod has to survive: exceeding a CPU limit throttles the container, exceeding a memory limit gets it OOMKilled.
 - Memory and CPU are not symmetric. Memory is incompressible: a limit near the observed peak risks an OOMKill, so leave headroom. CPU is compressible: a low limit costs latency, not the process.
 - The context already states how the measurements compare to the request and the limit ("is 3% of the request", "is 1.4x the request"). Quote that comparison; never compute a ratio yourself and never carry a ratio over from an example.
 - Say when a request or a limit is simply absent, and what that means. Without a limit there is nothing to exceed: usage above the request is not an OOMKill and must never be described as one. It changes where the pod is scheduled and how early it is evicted when the node runs short.
 - An OOMKill requires a memory limit the container exceeds, or genuine node memory pressure. Do not warn about OOMKill for a container that has no memory limit unless the context shows OOMKilled or node pressure.
-- Coverage is stated in the context. Above roughly 20% of the window you may name a target value for a request or a limit. Below it, still give the verdict from the stated comparison, and add that the window is too short to name a target.
+- Coverage is stated in the context. Above roughly 20% of the window you may name a target value for a request or a limit. Below it, still give the verdict from the stated comparison, but do not name a target value.
+- Do not write the coverage caveat yourself. KubeDeck appends it to this section when coverage is thin, and a second copy only repeats it.
 - Never invent a number the data does not support, and never present a suggestion as a measurement.
+- Every item must end in a judgement, not in a number. The comparison is the evidence; the verdict is the answer. Restating "p95 is 3% of the request" and stopping there answers nothing.
+- Say for each of cpu and memory whether the configured value is too high, too low or about right, and what that costs: a request far above real use reserves node capacity nobody consumes and makes the pod harder to schedule; a request below real use exposes the pod to eviction when the node runs short; a limit near the peak risks throttling or, for memory, an OOMKill.
 - One or two items. This is a verdict, not a tutorial.
 
 Important: KubeDeck backend renders the final JSON into a fixed section format and drops the resources section when it is empty. Keep JSON factual and compact.`;

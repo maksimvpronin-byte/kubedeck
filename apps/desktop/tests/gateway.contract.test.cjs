@@ -320,8 +320,8 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
     headers: authHeaders,
   });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.totalExisting, 57);
-  assert.equal(migration.routes.nodeOwned, 57);
+  assert.equal(migration.routes.totalExisting, 58);
+  assert.equal(migration.routes.nodeOwned, 58);
   assert.equal(migration.routes.pythonOwned, 0);
 
   const kubectlStatus = await fetch(`${gateway.baseUrl}/kubectl/status`, {
@@ -570,4 +570,71 @@ test("Node kubectl runtime enforces timeout, output limit, and shutdown", async 
   assert.equal(abortState.kills, 1);
   assert.equal(abortRunner.activeCount(), 0);
   await abortRunner.close();
+});
+
+test("a cluster stays disconnected until asked, and disconnecting names the sessions it would close", async (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-cluster-connect-"));
+  const source = path.join(appDataRoot, "source.yaml");
+  fs.writeFileSync(source, "apiVersion: v1\n", "utf8");
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+
+  const cluster = new ConfigStore(appDataRoot).importCluster(source, "connect-test");
+
+  const gateway = await startGateway({
+    sessionToken: TOKEN,
+    appDataRoot,
+    appVersion: "2.13.0",
+    log: () => {},
+    spawnKubectl: fakeKubectlSpawn,
+  });
+  t.after(async () => {
+    await gateway.close();
+  });
+
+  const headers = { "Content-Type": "application/json", "X-KubeDeck-Token": TOKEN };
+  const readConnected = async () => (await (await fetch(`${gateway.baseUrl}/config`, { headers })).json()).connectedClusterIds;
+
+  // Importing a kubeconfig must not start anything: the load a user notices
+  // comes from clusters KubeDeck talks to on its own.
+  assert.deepEqual(await readConnected(), [], "an imported cluster is not connected");
+
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
+  assert.deepEqual(await readConnected(), [cluster.id], "opening a cluster connects it");
+
+  // Nothing is open, so this needs no confirmation.
+  const quiet = await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/disconnect`, { method: "POST", headers });
+  assert.equal(quiet.status, 200);
+  assert.deepEqual((await quiet.json()).stopped, { watches: 0, portForwards: 0, terminals: 0, sshSessions: 0 });
+  assert.deepEqual(await readConnected(), [], "disconnecting clears the state");
+
+  // Disconnecting something already disconnected is not an error: the rail can
+  // fire it twice and the second call is simply a no-op.
+  assert.equal((await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/disconnect`, { method: "POST", headers })).status, 200);
+
+  const missing = await fetch(`${gateway.baseUrl}/clusters/does-not-exist/disconnect`, { method: "POST", headers });
+  assert.equal(missing.status, 404);
+
+  // The complaint this guard answers: a disconnected cluster still listed its
+  // resources and still offered every action on them. One guard covers all of
+  // /clusters/{id}/... so the next route added cannot forget to check.
+  for (const [method, route] of [
+    ["GET", "resources/pods?namespace=default"],
+    ["GET", "pod-usage"],
+    ["GET", "namespaces"],
+    ["GET", "overview"],
+    ["GET", "problems"],
+    ["POST", "watches"],
+  ]) {
+    const refused = await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/${route}`, { method, headers, body: method === "POST" ? "{}" : undefined });
+    assert.equal(refused.status, 409, `${method} ${route} must be refused while disconnected`);
+    assert.equal((await refused.json()).detail.code, "CLUSTER_NOT_CONNECTED");
+  }
+
+  // The kubeconfig stays reachable: a cluster you cannot reach is exactly the
+  // one whose kubeconfig you need to edit.
+  assert.equal((await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/kubeconfig`, { headers })).status, 200);
+
+  // And connecting brings it all back.
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
+  assert.notEqual((await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/namespaces`, { headers })).status, 409);
 });

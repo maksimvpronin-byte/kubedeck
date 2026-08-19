@@ -596,7 +596,7 @@ test("the analysis is asked to judge request and limit against the recorded hist
   assert.match(SYSTEM_PROMPT, /Memory is incompressible/);
   assert.match(SYSTEM_PROMPT, /OOMKilled/);
   // Guard rails: no numbers invented, none recommended off a thin window.
-  assert.match(SYSTEM_PROMPT, /Below it, still give the verdict from the stated comparison, and add that the window is too short to name a target/);
+  assert.match(SYSTEM_PROMPT, /Below it, still give the verdict from the stated comparison, but do not name a target value/);
   assert.match(SYSTEM_PROMPT, /Never invent a number the data does not support/);
   assert.match(SYSTEM_PROMPT, /"resources": \["\.\.\."\]/, "the key has to be in the schema the model is given");
   assert.match(DEFAULT_USER_REQUEST, /оцени, верно ли выставлены request и limit/);
@@ -729,5 +729,64 @@ test("a thin observation window changes the sizing verdict, it does not remove i
   // Low coverage still forbids naming a target, which is the claim the data
   // cannot support.
   assert.match(SYSTEM_PROMPT, /Above roughly 20% of the window you may name a target value/);
-  assert.match(SYSTEM_PROMPT, /Below it, still give the verdict from the stated comparison, and add that the window is too short to name a target/);
+  assert.match(SYSTEM_PROMPT, /Below it, still give the verdict from the stated comparison, but do not name a target value/);
+});
+
+test("a thin observation window is disclosed by KubeDeck, because four prompt revisions could not make the model disclose it", async (t) => {
+  const { SYSTEM_PROMPT, buildUserPrompt } = require("../dist/main/backend/llm/prompts.js");
+  const { UsageHistorySampler, samplesFromTopOutput } = require("../dist/main/backend/resources/usageHistorySampler.js");
+
+  const contextFor = (steps) => {
+    let now = 1_700_000_000_000;
+    const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
+    for (let index = 0; index < steps; index += 1) {
+      sampler.ingest("c1", samplesFromTopOutput("kube-system metrics-server-x 3m 77Mi", true, ""));
+      now += 30_000;
+    }
+    const history = sampler.history("c1", "kube-system", "metrics-server-x");
+    sampler.close();
+    return buildResourceContext(
+      { clusterId: "c1", resource: "pods", name: "metrics-server-x", namespace: "kube-system", resourceObject: { podMemoryRequestValue: 73400320 }, usageHistory: history },
+      60000,
+    ).context;
+  };
+
+  let reply;
+  const server = http.createServer(async (request, response) => {
+    await readBody(request);
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify({ model: "served", choices: [{ finish_reason: "stop", message: { content: `<kubedeck_final>${JSON.stringify(reply)}</kubedeck_final>` } }] }));
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+
+  reply = { conclusion: ["Pod в состоянии Running"], facts: [], risks: [], nextChecks: [], missing: [], resources: ["Memory: request 70Mi слишком низок для потребления 77Mi."] };
+
+  // Half an hour of samples cannot support a target value, and the answer must
+  // say so even though the model did not.
+  const thin = await chatCompletion(resolvedSettings(baseUrl), [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: buildUserPrompt(contextFor(60)) },
+  ]);
+  assert.match(thin.answer, /Memory: request 70Mi слишком низок/, "the model's verdict survives untouched");
+  assert.match(thin.answer, /Наблюдения покрывают \d+% окна: этого хватает на направление вердикта, но мало, чтобы называть конкретные целевые значения\./);
+
+  // Five hours clears the threshold, and a caveat there would only be noise.
+  const wide = await chatCompletion(resolvedSettings(baseUrl), [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: buildUserPrompt(contextFor(620)) },
+  ]);
+  assert.match(wide.answer, /Memory: request 70Mi слишком низок/);
+  assert.doesNotMatch(wide.answer, /Наблюдения покрывают/);
+
+  // The caveat belongs to the sizing verdict; without one there is no section
+  // to attach it to.
+  reply = { conclusion: ["Service работает"], facts: [], risks: [], nextChecks: [], missing: [] };
+  const noVerdict = await chatCompletion(resolvedSettings(baseUrl), [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: buildUserPrompt(contextFor(60)) },
+  ]);
+  assert.doesNotMatch(noVerdict.answer, /Наблюдения покрывают/);
+
+  assert.match(SYSTEM_PROMPT, /Do not write the coverage caveat yourself/, "the model must not add a second copy");
 });

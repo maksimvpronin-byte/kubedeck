@@ -52,6 +52,22 @@ function createWatchSpawn(state) {
       });
       return true;
     };
+    // Only watch commands are long-lived. Everything else - the namespace list
+    // behind `/clusters/{id}/open`, for one - has to finish, or the request
+    // sits there until the runner's timeout. They are recorded separately so
+    // the watch assertions can keep indexing `state.commands` from zero.
+    if (!args.includes("--watch-only=true")) {
+      (state.otherCommands ??= []).push({ executable, args: [...args] });
+      process.nextTick(() => {
+        child.emit("spawn");
+        child.stdout.end(JSON.stringify({ items: [] }));
+        child.stderr.end();
+        child.exitCode = 0;
+        child.emit("close", 0, null);
+      });
+      return child;
+    }
+
     state.commands.push({ executable, args: [...args] });
     state.children.push(child);
     process.nextTick(() => child.emit("spawn"));
@@ -321,6 +337,10 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
   assert.equal(importedResponse.status, 200);
   const cluster = await importedResponse.json();
 
+  // Watches are only started for a connected cluster, so opening it is now
+  // part of getting to one.
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
+
   const statusBefore = await fetch(`${gateway.baseUrl}/watches/status`, { headers });
   assert.equal(statusBefore.status, 200);
   assert.equal((await statusBefore.json()).running, 0);
@@ -376,7 +396,7 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
     headers,
   });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.nodeOwned, 57);
+  assert.equal(migration.routes.nodeOwned, 58);
   assert.equal(migration.routes.pythonOwned, 0);
   assert.equal(migration.processes.watches, 1);
   assert.equal(migration.processes.source, "node");
@@ -421,4 +441,49 @@ test("invalid watch WebSocket origin is rejected with policy violation", async (
     });
   });
   assert.equal(code, 1008);
+});
+
+test("disconnecting a cluster stops its watch processes and refuses to start new ones", async (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-watch-disconnect-"));
+  const source = path.join(appDataRoot, "cluster.yaml");
+  fs.writeFileSync(source, ["apiVersion: v1", "clusters: []", "contexts: []", ""].join("\n"), "utf8");
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+
+  const state = { commands: [], children: [], kills: [] };
+  const gateway = await startGateway({
+    sessionToken: TOKEN,
+    appDataRoot,
+    appVersion: "2.13.0",
+    log: () => {},
+    spawnKubectl: createWatchSpawn(state),
+  });
+  t.after(async () => {
+    await gateway.close();
+  });
+
+  const headers = { "Content-Type": "application/json", "X-KubeDeck-Token": TOKEN };
+  const cluster = await (await fetch(`${gateway.baseUrl}/clusters/import`, { method: "POST", headers, body: JSON.stringify({ sourcePath: source, displayName: "Disconnect me" }) })).json();
+  const startWatch = () => fetch(`${gateway.baseUrl}/clusters/${cluster.id}/watches`, { method: "POST", headers, body: JSON.stringify({ resource: "pods", namespace: "all" }) });
+  const activeWatches = async () => (await (await fetch(`${gateway.baseUrl}/watches/status`, { headers })).json()).running;
+
+  // A watch is a long-lived kubectl process. The renderer checks the connection
+  // state too, but the guarantee cannot rest on the caller: a reconnecting
+  // socket or a stale view would otherwise bring the cluster back up by itself.
+  const refused = await startWatch();
+  assert.equal(refused.status, 409);
+  assert.equal((await refused.json()).detail.code, "CLUSTER_NOT_CONNECTED");
+  assert.equal(state.commands.length, 0, "a refused watch must not spawn kubectl");
+
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
+  assert.equal((await startWatch()).status, 200);
+  assert.equal(await activeWatches(), 1);
+
+  // Every viewed table has watches, so they must not put a confirmation in
+  // front of an ordinary disconnect - only sessions a person holds open do.
+  const disconnected = await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/disconnect`, { method: "POST", headers });
+  assert.equal(disconnected.status, 200, "an open watch alone must not require confirmation");
+  assert.equal((await disconnected.json()).stopped.watches, 1, "the watch is still reported as stopped");
+
+  assert.equal(await activeWatches(), 0, "the kubectl watch process is gone");
+  assert.equal((await startWatch()).status, 409, "and it stays gone");
 });

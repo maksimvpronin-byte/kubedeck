@@ -12,6 +12,8 @@ import { AppResourceTable } from "./components/AppResourceTable";
 import { ResourceWorkspaceTabs } from "./components/ResourceWorkspaceTabs";
 import type { DrawerTab } from "./components/PodDrawerChrome";
 import { PlaceholderSection } from "./components/PlaceholderSection";
+import { DisconnectClusterModal } from "./components/DisconnectClusterModal";
+import { DisconnectedClusterPanel } from "./components/DisconnectedClusterPanel";
 import { RenameClusterModal } from "./components/RenameClusterModal";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
 import { useAppPreferences } from "./hooks/useAppPreferences";
@@ -33,13 +35,14 @@ import { canDeleteResource, findResourceDefinition, groupCrds, normalizeNamespac
 import { applyPodUsage } from "./utils/podUsagePatch";
 import type { ApiKeyUpdate, ErrorInfo, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
+import { setAlignedInterval } from "./utils/alignedInterval";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
 
 // Matches the sampling interval: the table cannot show anything newer than the
 // samples behind it.
-const POD_USAGE_REFRESH_MS = 30_000;
+const POD_USAGE_REFRESH_MS = 15_000;
 
 function isPodResourceTab(resource: string): boolean {
   return ["pods", "pod", "po"].includes(resource);
@@ -138,6 +141,11 @@ export function App() {
     confirmRenameCluster,
     removeCluster,
     reorderClusters,
+    connectedClusterIds,
+    disconnectCluster,
+    disconnectTarget,
+    disconnecting,
+    cancelDisconnectCluster,
   } = useClusterController({
     initialSelectedNamespaces,
     initialSelectedNamespacesByClusterId: initialUiState.namespaceSelectionVersion === 2 ? initialUiState.selectedNamespacesByClusterId : undefined,
@@ -246,13 +254,16 @@ export function App() {
   const selectedDefinition = findResourceDefinition(resourceDefinitions, resourceTab);
   const isClusterScoped = selectedDefinition?.namespaced === false || namespace === "_cluster";
   const isResourceTableView = !["overview", "help", "about", "settings", "problems", "audit", "port-forwards"].includes(section) && !isPlaceholderSection(section);
+  const activeClusterConnected = Boolean(activeCluster && connectedClusterIds.includes(activeCluster.id));
   const watchHealthy = useResourceWatch({
     api,
     clusterId: activeCluster?.id,
     resource: resourceTab,
     namespaces: selectedNamespaces,
     clusterScoped: isClusterScoped,
-    enabled: isResourceTableView,
+    // A watch is a long-lived kubectl process, so a disconnected cluster must
+    // not have one opened for it - and the backend refuses anyway.
+    enabled: isResourceTableView && activeClusterConnected,
     refresh: loadResources,
   });
   const { openResourceLocator, openRelatedResource, consumeKeepSelection, keepCurrentSelection, cancelResourceNavigation } = useResourceNavigation({
@@ -299,13 +310,14 @@ export function App() {
   useEffect(() => {
     if (!activeCluster || !api || isPlaceholderSection(section) || section === "overview" || section === "settings" || section === "help" || section === "port-forwards" || section === "problems")
       return;
+    if (!connectedClusterIds.includes(activeCluster.id)) return;
     const intervalSeconds = getAutoRefreshIntervalSeconds(settings);
     if (!shouldPollResources(intervalSeconds, watchHealthy)) return;
     const timer = window.setInterval(() => {
       loadResources(activeCluster.id, resourceTab, selectedNamespaces, true);
     }, intervalSeconds * 1000);
     return () => window.clearInterval(timer);
-  }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources, watchHealthy]);
+  }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources, watchHealthy, connectedClusterIds]);
 
   // A pods table driven by watch events is not reloaded while nothing about
   // the pods changes, so its usage column would keep whatever the last list
@@ -313,7 +325,9 @@ export function App() {
   // yet. This refreshes only the usage, from samples KubeDeck already
   // recorded, so it costs no kubectl call.
   useEffect(() => {
-    if (!api || !activeCluster || !isPodResourceTab(resourceTab)) return;
+    // A disconnected cluster has no samples left to read, so this would poll
+    // the store for an empty answer every tick.
+    if (!api || !activeCluster || !isPodResourceTab(resourceTab) || !connectedClusterIds.includes(activeCluster.id)) return;
     const namespace = normalizeNamespaceSelection(selectedNamespaces).join(",") || "all";
     let cancelled = false;
 
@@ -334,12 +348,15 @@ export function App() {
     };
 
     void refresh();
-    const timer = window.setInterval(() => void refresh(), POD_USAGE_REFRESH_MS);
+    // Aligned rather than free-running: the drawer's usage panel reads the same
+    // recorded samples on the same interval, and two unaligned timers make the
+    // table and the drawer disagree about a pod whose usage is moving.
+    const stop = setAlignedInterval(() => void refresh(), POD_USAGE_REFRESH_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stop();
     };
-  }, [api, activeCluster?.id, resourceTab, selectedNamespaces]);
+  }, [api, activeCluster?.id, resourceTab, selectedNamespaces, connectedClusterIds]);
 
   async function saveSettings(next: Settings, apiKeyUpdate?: ApiKeyUpdate) {
     if (!api) return;
@@ -581,16 +598,35 @@ export function App() {
         activeClusterId={activeCluster?.id}
         unavailableClusterId={unavailableCluster?.id}
         openingClusterId={openingClusterId}
+        connectedClusterIds={connectedClusterIds}
         railLabel={t("clusters.title")}
         importLabel={t("clusters.import")}
         emptyLabel={t("clusters.empty")}
         openingLabel={t("clusters.opening")}
+        connectLabel={t("clusters.connect")}
+        disconnectLabel={t("clusters.disconnect.action")}
+        connectedLabel={t("clusters.connected")}
+        disconnectedLabel={t("clusters.disconnected")}
         onSelect={(cluster) => {
-          if (cluster.id === activeCluster?.id) return;
+          // A cluster can be active and disconnected at once, when it was
+          // disconnected while being viewed. Clicking it then reconnects.
+          if (cluster.id === activeCluster?.id && connectedClusterIds.includes(cluster.id)) return;
           if (confirmDrawerNavigation()) void openCluster(cluster);
+        }}
+        onDisconnect={(cluster) => {
+          void disconnectCluster(cluster);
         }}
         onImport={() => {
           void importKubeconfig().catch(() => undefined);
+        }}
+      />
+      <DisconnectClusterModal
+        target={disconnectTarget}
+        disconnecting={disconnecting}
+        t={t}
+        onCancel={cancelDisconnectCluster}
+        onConfirm={() => {
+          if (disconnectTarget) void disconnectCluster(disconnectTarget.cluster, true);
         }}
       />
       <aside className="sidebar">
@@ -824,7 +860,16 @@ export function App() {
                       if (unavailableCluster) void removeClusterWorkspace(unavailableCluster);
                     }}
                   />
-                  {activeCluster ? (
+                  <DisconnectedClusterPanel
+                    visible={Boolean(activeCluster) && !activeClusterConnected && !unavailableCluster}
+                    displayName={activeCluster?.displayName ?? ""}
+                    connecting={Boolean(activeCluster && openingClusterId === activeCluster.id)}
+                    t={t}
+                    onConnect={() => {
+                      if (activeCluster) void openCluster(activeCluster);
+                    }}
+                  />
+                  {activeCluster && activeClusterConnected ? (
                     <AppResourceTable
                       title={sectionTitle(section, resourceTab, t)}
                       rows={activeRows}

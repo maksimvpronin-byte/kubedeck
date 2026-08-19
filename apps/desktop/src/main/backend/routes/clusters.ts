@@ -145,13 +145,16 @@ export async function writeRemoveCluster(response: ServerResponse, clusterId: st
   }
 }
 
-export async function writeOpenLastCluster(response: ServerResponse, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
+export async function writeOpenLastCluster(response: ServerResponse, configStore: ConfigStore, runner: KubectlRunner, onOpen?: (clusterId: string) => void): Promise<void> {
   const cluster = configStore.lastOpenedCluster();
   if (!cluster) {
     writeJson(response, { cluster: null });
     return;
   }
 
+  // Restoring the last cluster on startup is a connection like any other, so
+  // the rail shows it green and a disconnect can stop it.
+  onOpen?.(cluster.id);
   await writeOpenCluster(response, cluster.id, configStore, runner);
 }
 

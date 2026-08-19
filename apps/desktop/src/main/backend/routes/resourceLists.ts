@@ -20,7 +20,6 @@ import {
   type PodMetricsSnapshot,
 } from "../resources/metrics";
 import type { UsageHistorySampler } from "../resources/usageHistorySampler";
-import { samplesFromPodMetrics } from "../resources/usageHistorySampler";
 import { decodePathPart, parseBooleanQuery, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
@@ -148,11 +147,14 @@ async function applyListMetrics(
   if (pending.kind === "pods") {
     const snapshot = await pending.snapshot;
     if (snapshot) {
-      // These metrics were fetched for the table anyway, so recording them
-      // costs nothing and fills the history for whatever the user is looking
-      // at. Recording happens before the backfill so a value this call did not
-      // return is never fed back in as if it had been sampled now.
-      usageHistory.ingest(clusterId, samplesFromPodMetrics(snapshot.metrics, snapshot.allNamespaces, target.namespace));
+      // The list's own `kubectl top` reading is deliberately NOT recorded any
+      // more. It is rounded to whole millicores and carries no scrape
+      // timestamp, so it can neither be deduplicated against the background
+      // sampler nor match its precision - and a table on a short auto-refresh
+      // would contribute more of these rounded points than the sampler
+      // contributes real ones. The sampler polls cluster-wide at the rate
+      // metrics-server publishes, so nothing is missed by leaving it out.
+      //
       // A pod that metrics-server only started reporting after this list call
       // was issued would otherwise show N/A in the table while the drawer
       // shows a recorded reading for the very same pod.
@@ -181,11 +183,13 @@ async function loadResources(
   runner: KubectlRunner,
   cache: ResourceSnapshotCache,
   usageHistory: UsageHistorySampler,
+  isConnected: (clusterId: string) => boolean,
 ): Promise<void> {
-  // Browsing a cluster is what starts its usage history: sampling every
-  // configured cluster regardless of use would spend kubectl processes on
-  // endpoints the user never opened.
-  usageHistory.ensureCluster(target.clusterId);
+  // Browsing a connected cluster is what starts its usage history: sampling
+  // every configured cluster regardless of use would spend kubectl processes
+  // on endpoints the user never opened, and a disconnected one must not be
+  // revived from here either - the rail's left click connects first.
+  if (isConnected(target.clusterId)) usageHistory.ensureCluster(target.clusterId);
 
   if (target.useCache && !target.forceRefresh) {
     const cached = cache.get(target.clusterId, target.resource, target.namespace);
@@ -260,6 +264,7 @@ export function handleResourceListRequest(
   cache: ResourceSnapshotCache,
   clearDiscoveryCache: (clusterId?: string) => void,
   usageHistory: UsageHistorySampler,
+  isConnected: (clusterId: string) => boolean,
   log: (message: string) => void,
 ): boolean {
   try {
@@ -270,7 +275,7 @@ export function handleResourceListRequest(
     const target = matchResourceListRoute(request.method, pathname, request.url);
     if (!target) return false;
 
-    void loadResources(response, target, configStore, runner, cache, usageHistory).catch((error) =>
+    void loadResources(response, target, configStore, runner, cache, usageHistory, isConnected).catch((error) =>
       writeRouteError(response, error, log, { label: "resource list", fallbackCode: "RESOURCE_LIST_FAILED", fallbackMessage: "Unable to load Kubernetes resources" }),
     );
 

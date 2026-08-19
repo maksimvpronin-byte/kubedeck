@@ -48,6 +48,17 @@ function createPortForwardSpawn(state, mode = "ready") {
       });
       return true;
     };
+    if (!args.includes("port-forward")) {
+      (state.otherCommands ??= []).push({ executable, args: [...args] });
+      process.nextTick(() => {
+        child.emit("spawn");
+        child.stdout.end(JSON.stringify({ items: [] }));
+        child.stderr.end();
+        child.exitCode = 0;
+        child.emit("close", 0, null);
+      });
+      return child;
+    }
     state.commands.push({ executable, args: [...args] });
     state.children.push(child);
     process.nextTick(() => {
@@ -227,6 +238,9 @@ test("Node Gateway owns Port Forward HTTP contracts and reports process count", 
   });
   assert.equal(importedResponse.status, 200);
   const cluster = await importedResponse.json();
+  // Cluster routes require a connected cluster, so opening it is part of
+  // reaching them now.
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
 
   const emptyList = await fetch(`${gateway.baseUrl}/port-forwards`, { headers });
   assert.deepEqual(await emptyList.json(), { items: [] });
@@ -266,7 +280,7 @@ test("Node Gateway owns Port Forward HTTP contracts and reports process count", 
     headers,
   });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.nodeOwned, 57);
+  assert.equal(migration.routes.nodeOwned, 58);
   assert.equal(migration.routes.pythonOwned, 0);
   assert.equal(migration.processes.portForwards, 1);
 

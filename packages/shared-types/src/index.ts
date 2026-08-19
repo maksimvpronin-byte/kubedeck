@@ -57,6 +57,10 @@ export interface Cluster {
 export interface AppConfig {
   clusters: Cluster[];
   settings: Settings;
+  // Runtime state, not persisted configuration: which clusters KubeDeck is
+  // currently allowed to talk to on its own. Absent on responses that predate
+  // the connect/disconnect control.
+  connectedClusterIds?: string[];
 }
 
 export interface ErrorInfo {

@@ -36,6 +36,8 @@ import { handlePodExecRequest } from "./routes/podExec";
 import { handleResourceListRequest } from "./routes/resourceLists";
 import { handleWatchRequest } from "./routes/watch";
 import { handlePortForwardRequest } from "./routes/portForward";
+import { ClusterConnectionRegistry } from "./clusterConnections";
+import { handleClusterDisconnectRequest, type ClusterLiveSessions } from "./routes/clusterConnection";
 import { handlePodUsageRequest } from "./routes/podUsage";
 import { handleProblemsRequest } from "./routes/problems";
 import { handleOverviewRequest } from "./routes/overview";
@@ -60,6 +62,7 @@ interface GatewayServices {
   sshWebSocket: NodeSshWebSocketServer;
   sshHostKeys: SshHostKeyStore;
   secretStore: SecretStore;
+  connections: ClusterConnectionRegistry;
 }
 
 function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -95,10 +98,22 @@ function decodePathPart(value: string, response: ServerResponse): string | null 
 // Everything that is bound to a cluster endpoint: live sessions and cached
 // data become invalid as soon as the cluster is removed or its kubeconfig is
 // rewritten.
+function clusterLiveSessions(services: GatewayServices, clusterId: string): ClusterLiveSessions {
+  return {
+    watches: services.watchManager.clusterSessionCount(clusterId),
+    portForwards: services.portForwardManager.clusterSessionCount(clusterId),
+    terminals: services.terminalWebSocket.clusterSessionCount(clusterId),
+    sshSessions: services.sshWebSocket.clusterSessionCount(clusterId),
+  };
+}
+
 async function releaseClusterRuntime(services: GatewayServices, clusterId: string, reason: string): Promise<void> {
+  // The registry is cleared first so a list load racing with the teardown
+  // cannot start a fresh sampler behind it.
+  services.connections.disconnect(clusterId);
   await Promise.all([
     services.watchManager.stopCluster(clusterId),
-    services.usageHistory.stopCluster(clusterId),
+    services.usageHistory.forgetCluster(clusterId),
     services.portForwardManager.stopCluster(clusterId),
     services.terminalWebSocket.stopCluster(clusterId),
     services.sshWebSocket.stopCluster(clusterId),
@@ -106,6 +121,34 @@ async function releaseClusterRuntime(services: GatewayServices, clusterId: strin
   services.resourceCache.clear(clusterId, reason);
   clearResourceDefinitionCache(clusterId);
   clearNodeDiskMetricsCache(clusterId);
+}
+
+// A disconnected cluster must be unreachable, not merely unwatched. Gating
+// each route separately would work until the next route was added and nobody
+// remembered, so everything under /clusters/{id}/... is refused by default and
+// the exceptions are named here.
+//
+// `open` is how a cluster is connected in the first place, `disconnect` has to
+// stay idempotent, and the kubeconfig is exactly what someone edits while the
+// cluster is not reachable.
+const CONNECTION_EXEMPT_SEGMENTS = new Set(["open", "disconnect", "kubeconfig"]);
+
+export function clusterRouteRequiringConnection(pathname: string): string | null {
+  const match = pathname.match(/^\/clusters\/([^/]+)\/([^/?]+)/);
+  if (!match) return null;
+  const [, clusterId, segment] = match;
+  if (clusterId === "last" || clusterId === "import" || clusterId === "order") return null;
+  if (CONNECTION_EXEMPT_SEGMENTS.has(segment)) return null;
+  return decodeURIComponent(clusterId);
+}
+
+function clusterExists(services: GatewayServices, clusterId: string): boolean {
+  try {
+    services.configStore.getCluster(clusterId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function handleRequest(request: IncomingMessage, response: ServerResponse, options: GatewayOptions, services: GatewayServices): void {
@@ -126,6 +169,15 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
 
   if (!isAuthorized(requestToken(request), options.sessionToken)) {
     writeError(response, 401, "UNAUTHORIZED", "KubeDeck session token is missing or invalid");
+    return;
+  }
+
+  const guardedCluster = clusterRouteRequiringConnection(pathname);
+  // A cluster that does not exist is not connected either, but answering
+  // "disconnected" for a typo hides the real problem. Unknown ids fall through
+  // so the route itself can report CLUSTER_NOT_FOUND.
+  if (guardedCluster !== null && clusterExists(services, guardedCluster) && !services.connections.isConnected(guardedCluster)) {
+    writeError(response, 409, "CLUSTER_NOT_CONNECTED", "Cluster is disconnected. Connect it before using this cluster.");
     return;
   }
 
@@ -156,7 +208,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
 
   if (request.method === "GET" && pathname === "/config") {
     try {
-      writeConfig(response, services.configStore);
+      writeConfig(response, services.configStore, services.connections.list());
     } catch (error) {
       options.log(`gateway config read failed: ${String(error)}`);
       writeError(response, 500, "CONFIG_READ_FAILED", "Unable to read application config");
@@ -216,7 +268,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
   }
 
   if (request.method === "POST" && pathname === "/clusters/last/open") {
-    void writeOpenLastCluster(response, services.configStore, services.kubectlRunner).catch((error) => {
+    void writeOpenLastCluster(response, services.configStore, services.kubectlRunner, (clusterId) => services.connections.connect(clusterId)).catch((error) => {
       options.log(`gateway last cluster open failed: ${String(error)}`);
       writeError(response, 500, "CLUSTER_OPEN_FAILED", "Unable to open last cluster");
     });
@@ -228,6 +280,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
     const clusterId = decodePathPart(openClusterMatch[1], response);
     if (clusterId === null) return;
 
+    services.connections.connect(clusterId);
     void writeOpenCluster(response, clusterId, services.configStore, services.kubectlRunner).catch((error) => {
       options.log(`gateway cluster open failed cluster=${clusterId}: ${String(error)}`);
       writeError(response, 500, "CLUSTER_OPEN_FAILED", "Unable to open cluster");
@@ -276,6 +329,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
 
     void (async () => {
       await releaseClusterRuntime(services, clusterId, "cluster.remove");
+      services.connections.forget(clusterId);
       await writeRemoveCluster(response, clusterId, services.configStore, services.auditStore);
     })().catch((error) => {
       options.log(`gateway cluster remove failed: ${String(error)}`);
@@ -288,7 +342,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
     return;
   }
 
-  if (handleWatchRequest(request, response, pathname, services.configStore, services.watchManager, options.log)) {
+  if (handleWatchRequest(request, response, pathname, services.configStore, services.watchManager, (clusterId) => services.connections.isConnected(clusterId), options.log)) {
     return;
   }
 
@@ -311,7 +365,36 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
     return;
   }
 
-  if (handleResourceListRequest(request, response, pathname, services.configStore, services.kubectlRunner, services.resourceCache, clearResourceDefinitionCache, services.usageHistory, options.log)) {
+  if (
+    handleClusterDisconnectRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      {
+        countSessions: (clusterId) => clusterLiveSessions(services, clusterId),
+        release: (clusterId) => releaseClusterRuntime(services, clusterId, "cluster.disconnect"),
+      },
+      options.log,
+    )
+  ) {
+    return;
+  }
+
+  if (
+    handleResourceListRequest(
+      request,
+      response,
+      pathname,
+      services.configStore,
+      services.kubectlRunner,
+      services.resourceCache,
+      clearResourceDefinitionCache,
+      services.usageHistory,
+      (clusterId) => services.connections.isConnected(clusterId),
+      options.log,
+    )
+  ) {
     return;
   }
 
@@ -364,6 +447,7 @@ function handleUpgrade(
   watchWebSocket: ResourceWatchWebSocketServer,
   terminalWebSocket: PodTerminalWebSocketServer,
   sshWebSocket: NodeSshWebSocketServer,
+  isConnected: (clusterId: string) => boolean,
 ): void {
   const origin = requestOrigin(request);
 
@@ -374,6 +458,18 @@ function handleUpgrade(
 
   if (!isAuthorized(websocketToken(request), options.sessionToken)) {
     writePolicyViolation(request, socket, "Unauthorized");
+    return;
+  }
+
+  // Node SSH is deliberately outside this check. It reaches the node over its
+  // own credentials rather than through the kubeconfig, so "connected" says
+  // nothing about whether it can work - and in practice it is unreachable
+  // anyway, because the node list that leads to it is gated. Sessions already
+  // open are still closed when the cluster is disconnected.
+  const upgradePath = requestPath(request);
+  const guardedCluster = upgradePath.endsWith("/ssh") ? null : clusterRouteRequiringConnection(upgradePath);
+  if (guardedCluster !== null && !isConnected(guardedCluster)) {
+    writePolicyViolation(request, socket, "Cluster is disconnected");
     return;
   }
 
@@ -404,6 +500,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   });
   const secretStore = options.secretStore ?? new MemorySecretStore();
   const usageHistory = new UsageHistorySampler(configStore, kubectlRunner, options.log);
+  const connections = new ClusterConnectionRegistry();
   const services: GatewayServices = {
     configStore,
     auditStore,
@@ -416,6 +513,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     sshWebSocket,
     sshHostKeys,
     secretStore,
+    connections,
   };
 
   const sockets = new Set<Socket>();
@@ -427,7 +525,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   });
 
   server.on("upgrade", (request, socket, head) => {
-    handleUpgrade(request, socket, head, options, watchWebSocket, terminalWebSocket, sshWebSocket);
+    handleUpgrade(request, socket, head, options, watchWebSocket, terminalWebSocket, sshWebSocket, (clusterId) => connections.isConnected(clusterId));
   });
 
   await new Promise<void>((resolve, reject) => {

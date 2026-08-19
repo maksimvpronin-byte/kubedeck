@@ -345,3 +345,178 @@ test("the pod-usage route serves recorded samples without touching kubectl", asy
   assert.deepEqual((await (await fetch(`${baseUrl}/clusters/c1/pod-usage?namespace=all`)).json()).items, []);
   sampler.close();
 });
+
+test("a restart count is turned into a rate, because four restarts mean opposite things at two hours and at five weeks", () => {
+  const build = (ageMs, restarts) => {
+    const started = new Date(Date.now() - ageMs).toISOString();
+    return buildResourceContext(
+      {
+        clusterId: "c1",
+        resource: "pods",
+        kind: "Pod",
+        namespace: "kube-system",
+        name: "metrics-server-7d9c6b4f8-abcde",
+        resourceObject: { status: { phase: "Running", startTime: started, qosClass: "Burstable" } },
+        describe: `Restart Count:  ${restarts}\nStart Time:  ${started}\n`,
+      },
+      60000,
+    ).context;
+  };
+
+  // The count alone reads as instability; the rate is what makes it judgeable.
+  assert.match(build(37 * 86_400_000, 4), /restart rate: 4 restarts over 37d of uptime, about one every 9 days/);
+  assert.match(build(2 * 3_600_000, 4), /restart rate: 4 restarts over 2h of uptime, about 48\.0 per day/);
+
+  // A Pod that never restarted has no rate to state, and an unknown start time
+  // must not produce an invented one.
+  assert.doesNotMatch(build(37 * 86_400_000, 0), /restart rate:/);
+  const noStart = buildResourceContext({ clusterId: "c1", resource: "pods", kind: "Pod", name: "x", resourceObject: {}, describe: "Restart Count:  4\n" }, 60000).context;
+  assert.doesNotMatch(noStart, /restart rate:/);
+});
+
+test("memory readings are shown at the unit a reader thinks in, not the one kubectl happened to print", () => {
+  const { formatMemory } = require("../dist/main/backend/resources/metrics.js");
+  const ki = (value) => formatMemory(value * 1024);
+
+  // The unit follows magnitude. Picking it by exact division instead kept
+  // 403840Ki as "403840Ki", because it divides by 1024 evenly.
+  assert.equal(ki(403840), "394.4Mi");
+  assert.equal(ki(10880), "10.6Mi");
+  assert.equal(ki(40704), "39.8Mi");
+
+  // Below a megabyte there is nothing to promote to.
+  assert.equal(ki(128), "128Ki");
+  assert.equal(ki(512), "512Ki");
+
+  // Exactness still decides the decimals, so round values stay round.
+  assert.equal(ki(1024), "1Mi");
+  assert.equal(ki(1048576), "1Gi");
+  assert.equal(ki(2097152), "2Gi");
+
+  assert.equal(formatMemory(512), "512B");
+  assert.equal(formatMemory(0), "0Mi");
+  assert.equal(formatMemory(null), "N/A");
+});
+
+test("the Metrics API response keeps the precision and the scrape time that kubectl top throws away", () => {
+  const { samplesFromMetricsApi } = require("../dist/main/backend/resources/usageHistorySampler.js");
+
+  const [sample] = samplesFromMetricsApi(
+    JSON.stringify({
+      kind: "PodMetricsList",
+      items: [
+        {
+          metadata: { name: "metrics-server-x", namespace: "kube-system" },
+          timestamp: "2026-08-19T12:00:00Z",
+          window: "15s",
+          containers: [
+            { name: "server", usage: { cpu: "3470000n", memory: "80281600" } },
+            { name: "sidecar", usage: { cpu: "530000n", memory: "1048576" } },
+          ],
+        },
+      ],
+    }),
+  );
+
+  // `kubectl top` would render this pod as "4m". A request sized against 4m
+  // instead of 4.0m is fine; one sized against a value rounded down by a
+  // seventh, as happens at 3.47m, is not.
+  assert.equal(sample.cpuMillicores, 4);
+  assert.equal(sample.memoryBytes, 80281600 + 1048576);
+  assert.equal(sample.namespace, "kube-system");
+  assert.equal(sample.sampledAt, Date.parse("2026-08-19T12:00:00Z"));
+
+  // Anything unusable must drop out rather than land as a zero reading.
+  assert.deepEqual(samplesFromMetricsApi("not json"), []);
+  assert.deepEqual(samplesFromMetricsApi(JSON.stringify({ items: [{ metadata: { name: "p" }, containers: [] }] })), []);
+
+  // A pod with no timestamp still records; it just cannot be deduplicated.
+  const [undated] = samplesFromMetricsApi(JSON.stringify({ items: [{ metadata: { name: "p", namespace: "ns" }, containers: [{ usage: { cpu: "1m", memory: "1Mi" } }] }] }));
+  assert.equal(undated.sampledAt, null);
+});
+
+test("polling faster than metrics-server scrapes records one sample per scrape, not one per poll", () => {
+  const { samplesFromMetricsApi } = require("../dist/main/backend/resources/usageHistorySampler.js");
+  const scrape = (iso, cpu) => samplesFromMetricsApi(JSON.stringify({ items: [{ metadata: { name: "api", namespace: "default" }, timestamp: iso, containers: [{ usage: { cpu, memory: "1Mi" } }] }] }));
+
+  let now = 1_700_000_000_000;
+  const store = new UsageHistoryStore(() => now);
+  // Our timer and theirs are not phase-locked, so the same scrape comes back
+  // several times before a new one appears.
+  for (let index = 0; index < 3; index += 1) {
+    store.record("c1", scrape("2026-08-19T12:00:00Z", "3470000n"));
+    now += 15_000;
+  }
+  store.record("c1", scrape("2026-08-19T12:00:15Z", "9000000n"));
+
+  const history = store.history("c1", "default", "api");
+  assert.equal(history.pod.samples, 2, "three deliveries of one scrape are one measurement");
+  // Counting the repeats would drag the average toward 4.85 - the value that
+  // happened to repeat - instead of the true 6.235.
+  assert.equal(history.pod.cpu.avg, 6.235);
+});
+
+test("the fine grid feeds the chart and never the percentiles", () => {
+  const { USAGE_BUCKET_MS, USAGE_FINE_BUCKET_MS, USAGE_FINE_RETENTION_MS, USAGE_RETENTION_MS } = require("../dist/main/backend/resources/usageHistoryStore.js");
+  assert.equal(USAGE_FINE_BUCKET_MS, 15_000);
+  assert.equal(USAGE_FINE_RETENTION_MS, 60 * 60_000);
+
+  let now = Math.floor(1_700_000_000_000 / USAGE_BUCKET_MS) * USAGE_BUCKET_MS;
+  const store = new UsageHistoryStore(() => now);
+  // Two hours of 15-second samples: longer than the fine window, shorter than
+  // the coarse one.
+  const total = (2 * 60 * 60_000) / 15_000;
+  for (let index = 0; index < total; index += 1) {
+    store.record("c1", [{ namespace: "default", pod: "api", cpuMillicores: 10, memoryBytes: 1024 * 1024, sampledAt: now }]);
+    now += 15_000;
+  }
+
+  const history = store.history("c1", "default", "api");
+  assert.equal(history.bucketMs, USAGE_BUCKET_MS);
+  assert.equal(history.fineBucketMs, USAGE_FINE_BUCKET_MS);
+  assert.equal(history.retentionMs, USAGE_RETENTION_MS);
+
+  // Every sample is stored twice, once per grid, and must still be counted
+  // once: the aggregate reads the coarse grid alone.
+  assert.equal(history.pod.samples, total);
+  assert.equal(history.points.length, 24, "two hours of five-minute buckets");
+  // The fine grid expires an hour in, so it holds the tail and not the whole run.
+  assert.ok(history.finePoints.length <= USAGE_FINE_RETENTION_MS / USAGE_FINE_BUCKET_MS + 1, `fine points bounded, got ${history.finePoints.length}`);
+  assert.ok(history.finePoints.length >= 200, `fine points cover the last hour, got ${history.finePoints.length}`);
+  assert.ok(history.finePoints[0].start >= history.points[0].start, "the fine tail starts later than the coarse history");
+
+  // Coverage is a property of the 24 h window and must not be inflated by the
+  // 240 extra fine buckets sitting inside the same two hours.
+  assert.equal(history.pod.coverage, Math.round((24 / (USAGE_RETENTION_MS / USAGE_BUCKET_MS)) * 1000) / 1000);
+});
+
+test("the sampler reads the Metrics API rather than the table kubectl top prints", async () => {
+  const { UsageHistorySampler: Sampler } = require("../dist/main/backend/resources/usageHistorySampler.js");
+  const commands = [];
+  const runner = {
+    run: async (command) => {
+      commands.push(command);
+      return {
+        stdout: JSON.stringify({ items: [{ metadata: { name: "api", namespace: "default" }, timestamp: "2026-08-19T12:00:00Z", containers: [{ usage: { cpu: "2m", memory: "5Mi" } }] }] }),
+        stderr: "",
+      };
+    },
+  };
+  const configStore = {
+    paths: { metrics: "" },
+    load: () => ({ settings: { kubectlPath: "kubectl" } }),
+    getCluster: () => ({ id: "c1", kubeconfigPath: "kubeconfig" }),
+    listClusters: () => [],
+  };
+  const sampler = new Sampler(configStore, runner, () => {}, { purgeOnStart: false });
+  sampler.ensureCluster("c1");
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  sampler.close();
+
+  assert.ok(commands.length > 0, "a tick must issue a kubectl call");
+  const args = commands[0].args ?? commands[0].arguments ?? [];
+  assert.ok(args.includes("--raw"), `expected a raw API read, got ${JSON.stringify(args)}`);
+  assert.ok(args.includes("/apis/metrics.k8s.io/v1beta1/pods"), `expected the pod metrics endpoint, got ${JSON.stringify(args)}`);
+  assert.ok(!args.includes("top"), "kubectl top rounds the reading and drops the scrape time");
+});

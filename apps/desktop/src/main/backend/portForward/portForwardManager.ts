@@ -407,6 +407,10 @@ export class PortForwardManager {
     return this.view(session);
   }
 
+  clusterSessionCount(clusterId: string): number {
+    return [...this.sessions.values()].filter((session) => session.clusterId === clusterId).length;
+  }
+
   async stopCluster(clusterId: string): Promise<number> {
     const prefix = `${clusterId}\u0000`;
     const pending = [...this.pendingStarts.entries()].filter(([key]) => key.startsWith(prefix)).map(([, operation]) => operation);

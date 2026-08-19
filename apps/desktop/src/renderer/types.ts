@@ -346,6 +346,11 @@ export interface UsageHistoryResponse {
   points: UsageHistoryPoint[];
   bucketMs: number;
   retentionMs: number;
+  // The last hour on the 15-second grid metrics-server publishes on. Drawing
+  // only - every aggregate above is computed from `points`.
+  finePoints: UsageHistoryPoint[];
+  fineBucketMs: number;
+  fineRetentionMs: number;
 }
 
 export interface SecretKeyInfo {
@@ -500,3 +505,14 @@ export interface WatchStatus {
   watches: WatchSession[];
   note?: string;
 }
+
+export interface ClusterLiveSessions {
+  watches: number;
+  portForwards: number;
+  terminals: number;
+  sshSessions: number;
+}
+
+// Disconnect either succeeds and reports what it closed, or refuses and reports
+// what it would have closed. The caller confirms and retries with force.
+export type DisconnectClusterResult = { ok: true; stopped: ClusterLiveSessions } | { ok: false; sessions: ClusterLiveSessions };

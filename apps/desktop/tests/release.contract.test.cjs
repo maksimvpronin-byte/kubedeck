@@ -52,8 +52,6 @@ test("KubeDeck release metadata stays synchronized", () => {
   const lock = readJson("package-lock.json");
   const readme = read("README.md");
   const readmeRu = read("README.ru.md");
-  const changelog = read("CHANGELOG.md");
-  const progress = read("NODE_MIGRATION_PROGRESS.md");
   const notes = read(`docs/releases/RELEASE_NOTES_${expectedVersion}.md`);
   const checklist = read(`docs/releases/REGRESSION_CHECKLIST_${expectedVersion}.md`);
   const helpPanel = read("apps/desktop/src/renderer/components/HelpPanel.tsx");
@@ -71,8 +69,13 @@ test("KubeDeck release metadata stays synchronized", () => {
   assert.match(desktopPackage.scripts["test:gateway"], /--test-concurrency=1/);
   assert.match(desktopPackage.scripts["test:gateway"], /release\.contract\.test\.cjs/);
 
-  for (const document of [readme, readmeRu, changelog, progress, notes, checklist]) {
-    assert.ok(document.includes(expectedVersion));
+  // Driven by the contract rather than a hand-kept list: the packaging
+  // verifier walks `requiredDocuments`, and a document listed there but missing
+  // here passed the gate and failed the build instead.
+  assert.ok(contract.requiredDocuments.length > 0, "the contract must name the documents a release has to update");
+  for (const entry of contract.requiredDocuments) {
+    const documentPath = entry.replace("{version}", expectedVersion);
+    assert.ok(read(documentPath).includes(expectedVersion), `${documentPath} must mention ${expectedVersion}`);
   }
 
   for (const document of [readme, readmeRu]) {
@@ -83,11 +86,11 @@ test("KubeDeck release metadata stays synchronized", () => {
   assert.match(helpPanel, /appVersion/);
   assert.doesNotMatch(helpPanel, /<dd>\d+\.\d+\.\d+<\/dd>/);
   assert.match(notes, /Node-only/);
-  assert.match(notes, /57/);
-  assert.match(checklist, /Node 57 \/ Python 0/);
+  assert.match(notes, /58/);
+  assert.match(checklist, /Node 58 \/ Python 0/);
   assert.match(checklist, /cluster/i);
   assert.match(checklist, /LLM/);
-  assert.equal(contract.nodeRoutes, 57);
+  assert.equal(contract.nodeRoutes, 58);
   assert.equal(contract.pythonRoutes, 0);
   assert.match(windowsVersionScript, /vite\.config\.mts/);
   assert.doesNotMatch(windowsVersionScript, /packages\\ui|apps\\backend|vite\.config\.ts/);

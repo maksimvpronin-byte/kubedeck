@@ -1006,3 +1006,99 @@ tr.selected td:first-child {
 .select-col {
   width: 38px;
 }
+
+/* Connection state gets its own badge instead of a ring on the button.
+   A ring lost to `.cluster-rail-item.is-active`, which sets its own box-shadow
+   and comes later in this file - so the one cluster being looked at showed no
+   state at all. A badge cannot collide with anything the button already uses. */
+.cluster-rail-item {
+  position: relative;
+}
+
+.cluster-rail-state {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  /* Border in the rail's own background so the badge reads as punched out of
+     the button rather than drawn on top of it. */
+  border: 2px solid var(--sidebar-bg);
+  background: var(--muted);
+}
+
+.cluster-rail-item.is-connected .cluster-rail-state {
+  background: var(--success-text, #22c55e);
+}
+
+.cluster-rail-item.is-failed .cluster-rail-state {
+  background: var(--danger-text, #ef4444);
+}
+
+/* Colour alone is a weak signal on a column of small buttons, so a
+   disconnected cluster also loses its accent and most of its contrast: the
+   connected ones should be findable without reading anything. */
+.cluster-rail-item.is-disconnected {
+  filter: grayscale(0.9);
+  opacity: 0.55;
+}
+
+.cluster-rail-item.is-disconnected:hover,
+.cluster-rail-item.is-disconnected:focus-visible {
+  filter: none;
+  opacity: 1;
+}
+
+.cluster-rail-menu {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  min-width: 168px;
+  padding: 4px;
+  gap: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-menu);
+}
+
+.cluster-rail-menu button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cluster-rail-menu button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.cluster-rail-menu button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* The disconnected workspace replaces the table rather than sitting above it,
+   so it carries the explanation and the one action that helps. */
+.unavailable-panel.is-disconnected {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--muted-strong);
+}
+
+.unavailable-panel.is-disconnected h2 {
+  margin: 4px 0 0;
+}
+
+.unavailable-panel-hint {
+  max-width: 46ch;
+  color: var(--muted);
+  font-size: 12px;
+}

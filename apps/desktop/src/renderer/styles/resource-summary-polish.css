@@ -387,10 +387,47 @@
   font-weight: 400;
 }
 
+.usage-history-range {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  /* The title row aligns on the baseline, which would hang the buttons low. */
+  align-self: center;
+}
+
+.usage-history-range button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+}
+
+.usage-history-range button:hover {
+  color: var(--text);
+}
+
+.usage-history-range button.is-active {
+  background: var(--surface-2);
+  border-color: var(--primary-border);
+  color: var(--text);
+}
+
 .usage-history-metric {
   display: grid;
   gap: 4px;
   margin-top: 8px;
+}
+
+/* "over the whole window" sits next to the percentiles and must read as a
+   qualifier, not as another number. */
+.usage-history-metric-head em {
+  color: var(--muted);
+  font-style: normal;
+  opacity: 0.75;
 }
 
 .usage-history-metric-head {

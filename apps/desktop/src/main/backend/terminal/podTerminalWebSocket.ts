@@ -279,6 +279,10 @@ export class PodTerminalWebSocketServer {
     return this.sessions.size;
   }
 
+  clusterSessionCount(clusterId: string): number {
+    return [...this.sessions.values()].filter((session) => session.target.clusterId === clusterId).length;
+  }
+
   async stopCluster(clusterId: string): Promise<number> {
     const sessions = [...this.sessions.values()].filter((session) => session.target.clusterId === clusterId);
     await Promise.all(sessions.map((session) => session.stop("Cluster was removed")));

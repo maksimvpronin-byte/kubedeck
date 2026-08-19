@@ -1,7 +1,7 @@
 {
   "name": "@kubedeck/desktop",
   "productName": "KubeDeck",
-  "version": "2.12.1",
+  "version": "2.13.0",
   "private": true,
   "license": "Apache-2.0",
   "main": "dist/main/main.js",
@@ -40,7 +40,7 @@
   "description": "KubeDeck desktop Kubernetes IDE",
   "author": "KubeDeck",
   "dependencies": {
-    "@kubedeck/shared-types": "2.12.1",
+    "@kubedeck/shared-types": "2.13.0",
     "diff": "^9.0.0",
     "node-pty": "1.1.0",
     "ssh2": "1.17.0",

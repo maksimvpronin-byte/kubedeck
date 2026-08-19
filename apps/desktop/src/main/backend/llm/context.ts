@@ -155,6 +155,27 @@ function healthSummary(request: LlmAnalyzeResourceRequest): string {
   return dedupe(lines).join("\n");
 }
 
+// Four restarts is alarming for a Pod that started an hour ago and unremarkable
+// for one that has been up for a month. The raw count was consistently read as
+// "frequent", so the rate is computed here instead of left to the model.
+function restartRateLine(combined: string, object: Record<string, unknown>, countText: string): string {
+  const count = Number.parseInt(countText.trim(), 10);
+  if (!Number.isFinite(count) || count <= 0) return "";
+
+  const status = isRecord(object.status) ? object.status : {};
+  const startText = String(status.startTime ?? "").trim() || firstMatch(combined, /^\s*startTime:\s*["']?([^"'\n]+)["']?\s*$/im) || firstMatch(combined, /^\s*Start Time:\s*(.+)$/im) || "";
+  const started = Date.parse(startText);
+  if (!Number.isFinite(started)) return "";
+
+  const days = (Date.now() - started) / 86_400_000;
+  if (!(days > 0)) return "";
+
+  const perDay = count / days;
+  const uptime = days >= 1 ? `${Math.round(days)}d` : `${Math.max(1, Math.round(days * 24))}h`;
+  const cadence = perDay >= 1 ? `about ${perDay.toFixed(1)} per day` : `about one every ${Math.round(1 / perDay)} days`;
+  return `restart rate: ${count} restarts over ${uptime} of uptime, ${cadence}`;
+}
+
 function diagnosticSignals(request: LlmAnalyzeResourceRequest): string {
   const describe = request.describe ?? "";
   const yaml = request.yaml ?? "";
@@ -162,7 +183,12 @@ function diagnosticSignals(request: LlmAnalyzeResourceRequest): string {
   const lines: string[] = [];
 
   const restarts = firstMatch(combined, /^\s*Restart Count:\s*(.+)$/im) || firstMatch(combined, /^\s*restartCount:\s*(.+)$/im);
-  if (restarts) lines.push(`restartCount: ${restarts}`);
+  if (restarts) {
+    lines.push(`restartCount: ${restarts}`);
+    const value = sanitizeValue(request.resourceObject ?? {});
+    const rate = restartRateLine(combined, isRecord(value) ? value : {}, restarts);
+    if (rate) lines.push(rate);
+  }
 
   const lastState = snippetAround(combined, /^\s*(Last State:\s*.+|lastState:\s*)$/im, 0, 8);
   if (lastState) lines.push(`lastState/status snippet:\n${sanitizeText(lastState)}`);

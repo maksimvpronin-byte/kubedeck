@@ -1,3 +1,24 @@
+## 2.13.0 - Clusters connect on request, and usage is read at source
+
+Clusters no longer stay connected forever. Every cluster that had been opened
+left a usage sampler and one `kubectl get --watch` process per viewed resource
+kind running against it, and none of it stopped when the user moved on. The
+rail now carries the switch: left click connects and opens, right click offers
+Connect and Disconnect, and a ring says which state the cluster is in - green
+connected, dim grey not connected, red for a failed connection. Disconnecting
+releases watches, the sampler, port forwards, pod terminals, node SSH and the
+cached snapshots, and keeps them released. Sessions someone may be using are
+named and counted before they are closed.
+
+Usage sampling now reads `/apis/metrics.k8s.io/v1beta1/pods` instead of the
+table `kubectl top` prints, keeping nanocore precision and the scrape
+timestamp. Sampling moves to 15 seconds to match `--metric-resolution`, and a
+scrape already recorded is discarded so polling at that rate cannot count one
+measurement twice. The chart gained a 15-second view of the last hour; every
+percentile still comes from the five-minute grid covering 24 hours.
+
+Adds `POST /clusters/{cluster_id}/disconnect`. Node-only ownership moves to
+Node 58 / Python 0.
 ## 2.12.1 - The pod Usage column shows usage again
 
 - Fixed the Usage column showing `N/A` for a pod that had usage, and keeping it. Three causes. A reading of zero was discarded: the store decided whether a metric was present by testing its sum against zero, so an idle pod reporting `0m` CPU had no CPU history at all. CPU and memory now carry their own sample counts, which also corrects their averages - metrics-server reports memory from its first scrape but needs two before it can derive a CPU rate, so a bucket can hold more memory readings than CPU ones, and dividing both by the shared count deflated whichever arrived late. Files written by 2.12.0 are migrated on load.

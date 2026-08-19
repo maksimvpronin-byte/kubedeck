@@ -353,6 +353,12 @@ export class WatchManager {
     return { ok: true, found: true, id, watch: this.view(session) };
   }
 
+  // What a disconnect would stop, counted without stopping it: the
+  // confirmation has to name the sessions before they are taken away.
+  clusterSessionCount(clusterId: string): number {
+    return [...this.sessions.values()].filter((session) => session.key.clusterId === clusterId && (session.status === "running" || session.status === "stopping")).length;
+  }
+
   async stopCluster(clusterId: string): Promise<number> {
     const sessions = [...this.sessions.values()].filter((session) => session.key.clusterId === clusterId && (session.status === "running" || session.status === "stopping"));
     await Promise.all(sessions.map((session) => this.stopSession(session, false)));

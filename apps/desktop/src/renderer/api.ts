@@ -33,6 +33,8 @@ import type {
   LlmPromptPreviewResponse,
   LlmStatus,
   LlmTestResponse,
+  ClusterLiveSessions,
+  DisconnectClusterResult,
 } from "./types";
 
 export class ApiError extends Error {
@@ -185,6 +187,23 @@ export class ApiClient {
 
   openCluster(id: string) {
     return this.request<{ cluster: Cluster; namespaces: Array<{ metadata: { name: string } }> }>(`/clusters/${id}/open`, { method: "POST" });
+  }
+
+  // Disconnect answers 409 with the sessions it would have closed, and the
+  // generic error path drops that payload, so this one reads the body itself.
+  // Check and teardown are the same request: nothing can start in between.
+  async disconnectCluster(id: string, force = false): Promise<DisconnectClusterResult> {
+    const response = await fetch(`${this.baseUrl}/clusters/${id}/disconnect${force ? "?force=true" : ""}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-KubeDeck-Token": this.token },
+    });
+    if (response.status === 409) {
+      const body = (await response.json()) as { sessions?: ClusterLiveSessions };
+      return { ok: false, sessions: body.sessions ?? { watches: 0, portForwards: 0, terminals: 0, sshSessions: 0 } };
+    }
+    if (!response.ok) throw new ApiError(await parseApiErrorResponse(response));
+    const body = (await response.json()) as { stopped?: ClusterLiveSessions };
+    return { ok: true, stopped: body.stopped ?? { watches: 0, portForwards: 0, terminals: 0, sshSessions: 0 } };
   }
 
   openLastCluster() {

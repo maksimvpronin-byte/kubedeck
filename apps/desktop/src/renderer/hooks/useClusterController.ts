@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { ApiClient } from "../api";
-import type { AppConfig, Cluster, ErrorInfo, ResourceDefinition, ResourceRow } from "../types";
+import type { AppConfig, Cluster, ClusterLiveSessions, ErrorInfo, ResourceDefinition, ResourceRow } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { normalizeSettingsSsh } from "../utils/sshDefaults";
 import { useNamespaceRefresh } from "./useNamespaceRefresh";
@@ -37,6 +37,8 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [reorderingClusters, setReorderingClusters] = useState(false);
+  const [disconnectTarget, setDisconnectTarget] = useState<{ cluster: Cluster; sessions: ClusterLiveSessions } | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
   const clusterOpenSequenceRef = useRef(0);
 
   const settings = config?.settings;
@@ -93,6 +95,10 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
             setActiveCluster(result.cluster);
             setUnavailableCluster(null);
             setResourceDefinitions(definitions.items);
+            // The config fetch above races this open, so it can answer before
+            // the cluster is marked connected. Without this re-read the rail
+            // would show the restored cluster as disconnected.
+            setConfig(normalizeConfig(await client.config()));
           })
           .catch((error) => {
             if (!cancelled && clusterOpenSequenceRef.current === requestId) setError(asErrorInfo(error));
@@ -258,6 +264,38 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
     [api, config, reorderingClusters, setError],
   );
 
+  // Disconnecting stops the background work this cluster leaves behind - a
+  // usage sampler on a timer and one kubectl watch process per resource kind
+  // being viewed - which is what makes a rail of many clusters expensive. The
+  // first attempt is never forced: if sessions someone may be using are open,
+  // the backend refuses and names them, and the confirmation retries.
+  const disconnectCluster = useCallback(
+    async (cluster: Cluster, force = false) => {
+      if (!api) return;
+      setDisconnecting(true);
+      try {
+        const result = await api.disconnectCluster(cluster.id, force);
+        if (!result.ok) {
+          setDisconnectTarget({ cluster, sessions: result.sessions });
+          return;
+        }
+        setDisconnectTarget(null);
+        if (cluster.id === activeCluster?.id) {
+          setRows({});
+          setSelectedRow(null);
+        }
+        await reloadConfig();
+      } catch (error) {
+        setError(asErrorInfo(error));
+      } finally {
+        setDisconnecting(false);
+      }
+    },
+    [api, reloadConfig, setError, activeCluster?.id, setRows, setSelectedRow],
+  );
+
+  const cancelDisconnectCluster = useCallback(() => setDisconnectTarget(null), []);
+
   return {
     api,
     config,
@@ -286,6 +324,11 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
     confirmRenameCluster,
     removeCluster,
     reorderClusters,
+    connectedClusterIds: config?.connectedClusterIds ?? [],
+    disconnectCluster,
+    disconnectTarget,
+    disconnecting,
+    cancelDisconnectCluster,
     ...namespaceController,
   };
 }

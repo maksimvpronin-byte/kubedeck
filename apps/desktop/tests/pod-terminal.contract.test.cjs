@@ -52,6 +52,14 @@ function createChild(state, mode) {
   };
   process.nextTick(() => {
     child.emit("spawn");
+    if (mode === "list") {
+      child.stdout.end(JSON.stringify({ items: [] }));
+      child.stderr.end();
+      child.stdin.end();
+      child.exitCode = 0;
+      child.emit("close", 0, null);
+      return;
+    }
     if (mode === "auth-yes") {
       child.stdout.end("yes\n");
       child.stderr.end();
@@ -74,8 +82,15 @@ function createChild(state, mode) {
 
 function createTerminalSpawn(state, authorize = true) {
   return (executable, args) => {
-    state.commands.push({ executable, args: [...args] });
+    // Only the exec and auth commands belong to this test. Anything else - the
+    // namespace list behind `/clusters/{id}/open`, for one - has to finish, or
+    // the request sits there until the runner's timeout.
     const auth = args.includes("auth") && args.includes("can-i");
+    if (!auth && !args.includes("exec")) {
+      (state.otherCommands ??= []).push({ executable, args: [...args] });
+      return createChild(state, "list");
+    }
+    state.commands.push({ executable, args: [...args] });
     return createChild(state, auth ? (authorize ? "auth-yes" : "auth-no") : "terminal");
   };
 }
@@ -243,6 +258,9 @@ test("Node Pod Terminal uses PTY input and resize when ConPTY is available", asy
     body: JSON.stringify({ sourcePath: source, displayName: "PTY cluster" }),
   });
   const cluster = await imported.json();
+  // Cluster routes require a connected cluster, so opening it is part of
+  // reaching them now.
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
   const socket = new WebSocket(terminalUrl(gateway.baseUrl, cluster.id, "bash", TOKEN, { cols: 132, rows: 31 }), {
     origin: "http://127.0.0.1:5173",
   });
@@ -316,6 +334,9 @@ test("Node Gateway rejects Pod Terminal when PTY is unavailable", async (t) => {
   });
   assert.equal(importedResponse.status, 200);
   const cluster = await importedResponse.json();
+  // Cluster routes require a connected cluster, so opening it is part of
+  // reaching them now.
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
 
   const socket = new WebSocket(terminalUrl(gateway.baseUrl, cluster.id), {
     origin: "http://127.0.0.1:5173",
@@ -328,7 +349,7 @@ test("Node Gateway rejects Pod Terminal when PTY is unavailable", async (t) => {
 
   const migrationResponse = await fetch(`${gateway.baseUrl}/migration/status`, { headers });
   const migration = await migrationResponse.json();
-  assert.equal(migration.routes.nodeOwned, 57);
+  assert.equal(migration.routes.nodeOwned, 58);
   assert.equal(migration.routes.pythonOwned, 0);
   assert.equal(migration.processes.terminals, 0);
   assert.equal(state.kills.length, 0);
@@ -371,6 +392,9 @@ test("Pod Terminal rejects denied kubectl auth and invalid shell", async (t) => 
     body: JSON.stringify({ sourcePath: source, displayName: "Denied cluster" }),
   });
   const cluster = await imported.json();
+  // Cluster routes require a connected cluster, so opening it is part of
+  // reaching them now.
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
 
   const denied = new WebSocket(terminalUrl(gateway.baseUrl, cluster.id), {
     origin: "http://127.0.0.1:5173",

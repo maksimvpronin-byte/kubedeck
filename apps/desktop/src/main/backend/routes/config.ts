@@ -66,8 +66,11 @@ function applyApiKeyUpdate(secretStore: SecretStore, update: ApiKeyUpdate): void
   }
 }
 
-export function writeConfig(response: ServerResponse, configStore: ConfigStore): void {
-  writeJson(response, configStore.load());
+// `connectedClusterIds` is runtime state, not configuration: it rides along on
+// this response because the rail already re-reads it after every change, and it
+// is never written back to disk.
+export function writeConfig(response: ServerResponse, configStore: ConfigStore, connectedClusterIds: string[] = []): void {
+  writeJson(response, { ...configStore.load(), connectedClusterIds });
 }
 
 export async function writeSettings(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore, auditStore: AuditStore, secretStore: SecretStore): Promise<void> {

@@ -1765,14 +1765,21 @@ test("the usage history panel refreshes itself instead of freezing on its first 
   // other dependencies ever change, so without a tick the panel would keep
   // showing its first read - including "no samples yet" for a pod whose
   // samples have since arrived.
-  assert.match(lifecycle, /const USAGE_HISTORY_REFRESH_MS = 30_000;/);
-  assert.match(lifecycle, /setInterval\(\(\) => setUsageHistoryTick\(\(current\) => current \+ 1\), USAGE_HISTORY_REFRESH_MS\)/);
+  assert.match(lifecycle, /const USAGE_HISTORY_REFRESH_MS = 15_000;/);
+  assert.match(lifecycle, /setAlignedInterval\(\(\) => setUsageHistoryTick\(\(current\) => current \+ 1\), USAGE_HISTORY_REFRESH_MS\)/);
+
+  // Free-running timers leave the table and the drawer up to a full interval
+  // apart, which reads as the two panels disagreeing about one pod.
+  const aligned = fs.readFileSync(path.join(rendererRoot, "utils/alignedInterval.ts"), "utf8");
+  assert.match(aligned, /intervalMs - \(Date\.now\(\) % intervalMs\)/);
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  assert.match(app, /setAlignedInterval\(\(\) => void refresh\(\), POD_USAGE_REFRESH_MS\)/);
   const fetchEffect = lifecycle.slice(lifecycle.indexOf("Usage history is recorded by KubeDeck itself"), lifecycle.indexOf('tab !== "related"'));
   assert.match(fetchEffect, /usageHistoryTick\]/, "the fetch must depend on the tick or it never runs again");
   assert.match(fetchEffect, /requestGeneration === usageHistoryRequestRef\.current/, "a stale response must not land on another pod");
 
   // The empty state has to explain the two reasons it can be empty.
-  assert.match(chart, /metrics-server needs a minute or two/);
+  assert.match(chart, /metrics-server itself needs two scrapes/);
   assert.match(chart, /refreshes on its own/);
 });
 
@@ -1842,12 +1849,98 @@ test("the pods table refreshes usage from recorded samples rather than reloading
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   // A table driven by watch events is not reloaded while the pods do not
   // change, so its usage column froze at whatever the last list load caught.
-  assert.match(app, /const POD_USAGE_REFRESH_MS = 30_000;/);
+  assert.match(app, /const POD_USAGE_REFRESH_MS = 15_000;/);
   assert.match(app, /api\.podUsage\(activeCluster\.id/);
   assert.match(app, /applyPodUsage\(rows, response\.items\)/);
-  // Reloading the list would mean another `kubectl get pods` every 30 seconds,
-  // which is what moving from polling to watch was avoiding.
-  const effect = app.slice(app.indexOf("A pods table driven by watch events"), app.indexOf("}, [api, activeCluster?.id, resourceTab, selectedNamespaces]);"));
+  // Reloading the list would mean another `kubectl get pods` every tick, which
+  // is what moving from polling to watch was avoiding.
+  const effectStart = app.indexOf("A pods table driven by watch events");
+  const effectEnd = app.indexOf("}, [api, activeCluster?.id, resourceTab, selectedNamespaces, connectedClusterIds]);");
+  assert.ok(effectStart >= 0 && effectEnd > effectStart, "the usage refresh effect must still be recognisable");
+  const effect = app.slice(effectStart, effectEnd);
   assert.doesNotMatch(effect, /loadResources/);
   assert.match(effect, /return next === rows \? current :/, "an unchanged refresh must not replace the rows");
+
+  // A disconnected cluster has nothing recorded to read, and polling it would
+  // undo half of what disconnecting is for.
+  assert.match(effect, /connectedClusterIds\.includes\(activeCluster\.id\)/);
+});
+
+test("the usage chart can be read at the rate metrics-server publishes without losing the day view", () => {
+  const chart = fs.readFileSync(path.join(rendererRoot, "components/UsageHistoryChart.tsx"), "utf8");
+
+  // The live tail is what the panel is opened for, so it is the default.
+  assert.match(chart, /useState<Range>\("fine"\)/);
+  assert.match(chart, /range === "fine" && fineAvailable \? finePoints : history\.points/);
+
+  // A response without the field must not blank the drawer.
+  assert.match(chart, /history\.finePoints \?\? \[\]/);
+
+  // The toggle only appears once there is something finer to show.
+  assert.match(chart, /fineAvailable \?\s*\(/);
+
+  // The percentiles describe the whole recorded window whichever view is on
+  // screen; two different p95 values for one pod would be worse than none.
+  assert.match(chart, /over the whole window/);
+  assert.match(chart, /points=\{points\}/);
+});
+
+test("a bar holding one scrape reports one number instead of the same number twice", () => {
+  const chart = fs.readFileSync(path.join(rendererRoot, "components/UsageHistoryChart.tsx"), "utf8");
+
+  // "avg 3 GiB · max 3 GiB" is what a 15-second bucket produces, because after
+  // deduplication it holds exactly one measurement.
+  assert.match(chart, /if \(point\.samples <= 1\) return `\$\{time\} · \$\{average\}`;/);
+  assert.match(chart, /avg \$\{average\} · max \$\{peak\} · \$\{point\.samples\} samples/);
+  assert.match(chart, /title=\{pointTitle\(point, format\(average\), format\(peak\)\)\}/);
+});
+
+test("a disconnected cluster is left alone, including by the polling fallback", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const rail = fs.readFileSync(path.join(rendererRoot, "components/ClusterRail.tsx"), "utf8");
+
+  // Polling exists for when watches are down. Disconnecting takes them down on
+  // purpose, so without this guard a disconnect would be answered with a full
+  // `kubectl get` on a timer - louder than what the user asked to stop.
+  const pollEffect = app.slice(app.indexOf("const intervalSeconds = getAutoRefreshIntervalSeconds(settings);") - 400, app.indexOf("shouldPollResources(intervalSeconds, watchHealthy)"));
+  assert.match(pollEffect, /connectedClusterIds\.includes\(activeCluster\.id\)/);
+
+  // A watch is a long-lived kubectl process, so a disconnected cluster must not
+  // have one opened for it. This was the hole that made disconnect look like it
+  // had not worked: watches came straight back and kept talking to the cluster.
+  assert.match(app, /const activeClusterConnected = Boolean\(activeCluster && connectedClusterIds\.includes\(activeCluster\.id\)\)/);
+  assert.match(app, /enabled: isResourceTableView && activeClusterConnected/);
+
+  // The table used to keep showing rows loaded before the disconnect, with
+  // every action still on offer against a cluster the gateway now refuses.
+  assert.match(app, /\{activeCluster && activeClusterConnected \? \(/);
+  assert.match(app, /<DisconnectedClusterPanel/);
+
+  // Left click connects, right click offers the menu.
+  assert.match(rail, /onContextMenu=\{\(event\) => \{/);
+  assert.match(rail, /connected\.has\(cluster\.id\) \? "connected" : "disconnected"/);
+
+  // The state is a badge rather than a ring on the button. A ring lost to
+  // `.cluster-rail-item.is-active`, which sets its own box-shadow later in the
+  // stylesheet, so the one cluster being looked at showed no state at all.
+  assert.match(rail, /<span className="cluster-rail-state"/);
+  const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
+  assert.doesNotMatch(layout, /\.cluster-rail-item\.is-connected \{\s*box-shadow/, "a ring here would be overridden by is-active");
+  assert.match(layout, /\.cluster-rail-item\.is-connected \.cluster-rail-state/);
+  assert.match(layout, /\.cluster-rail-item\.is-disconnected \{[^}]*grayscale/, "colour alone is too weak on a column of small buttons");
+  assert.match(rail, /disabled=\{connected\.has\(menu\.cluster\.id\)\}/, "Connect is unavailable for an already connected cluster");
+  assert.match(rail, /disabled=\{!connected\.has\(menu\.cluster\.id\)\}/, "Disconnect is unavailable for a disconnected one");
+
+  // A cluster can be active and disconnected at the same time; clicking it then
+  // has to reconnect rather than being treated as already open.
+  assert.match(app, /cluster\.id === activeCluster\?\.id && connectedClusterIds\.includes\(cluster\.id\)/);
+
+  // Disconnect is never forced on the first attempt.
+  const controller = fs.readFileSync(path.join(rendererRoot, "hooks/useClusterController.ts"), "utf8");
+  assert.match(controller, /api\.disconnectCluster\(cluster\.id, force\)/);
+  assert.match(controller, /setDisconnectTarget\(\{ cluster, sessions: result\.sessions \}\)/);
+
+  // Rows loaded before the disconnect are stale by definition, and an open
+  // drawer would keep offering actions the gateway now refuses.
+  assert.match(controller, /if \(cluster\.id === activeCluster\?\.id\) \{\s*setRows\(\{\}\);\s*setSelectedRow\(null\);/);
 });
