@@ -282,6 +282,7 @@ function fakeUsageHistory() {
     ensureCluster() {},
     ingest() {},
     attributePods() {},
+    backfillPodMetrics() {},
     history: () => ({ pod: null, workload: null, workloadKey: "", workloadExact: false, workloadPods: 0, points: [], bucketMs: 300000, retentionMs: 86400000 }),
   };
 }

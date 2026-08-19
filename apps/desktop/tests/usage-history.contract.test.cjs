@@ -177,3 +177,38 @@ test("the LLM context states coverage and how to read the percentiles", () => {
   assert.match(empty, /No usage history recorded yet\. Do not infer anything about request\/limit sizing from absent history\./);
   sampler.close();
 });
+
+test("a pod metrics-server started reporting after the list call still shows usage in the table", () => {
+  const { applyPodMetricsSnapshot, parsePodMetrics } = require("../dist/main/backend/resources/metrics.js");
+  let now = 1_700_000_000_000;
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+
+  // The background sampler saw the pod; the table's own kubectl top call was
+  // issued earlier, when metrics-server did not know about it yet.
+  sampler.ingest("c1", samplesFromTopOutput("default nginx-dc4f957d7-kvv7c 2m 4Mi", true, ""));
+  const rows = [
+    { name: "nginx-dc4f957d7-kvv7c", namespace: "default" },
+    { name: "coredns-8db54c48d-hw9zw", namespace: "kube-system" },
+  ];
+  const metrics = parsePodMetrics("kube-system coredns-8db54c48d-hw9zw 4m 43Mi", true);
+  assert.equal(metrics.has("default/nginx-dc4f957d7-kvv7c"), false);
+
+  sampler.backfillPodMetrics("c1", metrics, rows, true, "default");
+  applyPodMetricsSnapshot({ metrics, allNamespaces: true }, rows);
+  assert.equal(rows[0].cpuUsage, "2m", "the row must show what was recorded rather than N/A");
+  assert.equal(rows[0].memoryUsage, "4Mi");
+  // A backfilled row goes through the same math as one kubectl returned.
+  assert.equal(rows[0].podCpuUsageValue, 2);
+  assert.equal(rows[1].cpuUsage, "4m", "rows kubectl did return are untouched");
+
+  // A pod that stopped reporting must go back to blank rather than keep its
+  // last reading forever.
+  now += 5 * 60_000;
+  const stale = [{ name: "nginx-dc4f957d7-kvv7c", namespace: "default" }];
+  const empty = new Map();
+  sampler.backfillPodMetrics("c1", empty, stale, true, "default");
+  applyPodMetricsSnapshot({ metrics: empty, allNamespaces: true }, stale);
+  assert.equal(stale[0].cpuUsage, "");
+  assert.equal(stale[0].memoryUsage, "");
+  sampler.close();
+});

@@ -147,10 +147,20 @@ async function applyListMetrics(
   if (!pending) return;
   if (pending.kind === "pods") {
     const snapshot = await pending.snapshot;
+    if (snapshot) {
+      // These metrics were fetched for the table anyway, so recording them
+      // costs nothing and fills the history for whatever the user is looking
+      // at. Recording happens before the backfill so a value this call did not
+      // return is never fed back in as if it had been sampled now.
+      usageHistory.ingest(clusterId, samplesFromPodMetrics(snapshot.metrics, snapshot.allNamespaces, target.namespace));
+      // A pod that metrics-server only started reporting after this list call
+      // was issued would otherwise show N/A in the table while the drawer
+      // shows a recorded reading for the very same pod.
+      usageHistory.backfillPodMetrics(clusterId, snapshot.metrics, rows, snapshot.allNamespaces, target.namespace);
+    }
+    // Applied last so the backfilled entries go through the same percentage
+    // and sorting math as the ones kubectl returned.
     applyPodMetricsSnapshot(snapshot, rows);
-    // These metrics were fetched for the table anyway, so recording them costs
-    // nothing and fills the history for whatever the user is looking at.
-    if (snapshot) usageHistory.ingest(clusterId, samplesFromPodMetrics(snapshot.metrics, snapshot.allNamespaces, target.namespace));
     // A pod list is the only place the workload behind a pod name is visible,
     // so it is also where the background sampler's rows get attributed.
     usageHistory.attributePods(clusterId, rows);

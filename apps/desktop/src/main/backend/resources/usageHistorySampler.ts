@@ -4,7 +4,7 @@ import type { ConfigStore } from "../config/configStore";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { parsePodMetrics } from "./metrics";
+import { formatCpu, formatMemory, parsePodMetrics } from "./metrics";
 import { UsageHistoryStore, type UsageHistoryResult, type UsageSample } from "./usageHistoryStore";
 import { formatWorkloadKey, workloadKeyForPod } from "./workloadKey";
 
@@ -14,6 +14,7 @@ const DEFAULT_INTERVAL_MS = 30_000;
 // History is worth little if it is lost on a crash, and worth nothing if
 // writing it stalls the app: the store is flushed on a timer, not per sample.
 const FLUSH_INTERVAL_MS = 5 * 60_000;
+const BACKFILL_MAX_AGE_MS = 2 * 60_000;
 
 type JsonObject = Record<string, unknown>;
 
@@ -196,6 +197,25 @@ export class UsageHistorySampler {
     this.timers.set(clusterId, timer);
     this.scheduleFlush();
     void this.sample(clusterId);
+  }
+
+  // Fills a table row whose `kubectl top` call predates the pod appearing in
+  // metrics-server. Two minutes is generous next to the sampling interval and
+  // still short enough that a pod which stopped reporting goes back to blank.
+  backfillPodMetrics(clusterId: string, metrics: Map<string, { cpu: string; memory: string }>, rows: JsonObject[], allNamespaces: boolean, fallbackNamespace: string): void {
+    for (const row of rows) {
+      const pod = text(row.name);
+      if (!pod) continue;
+      const namespace = text(row.namespace) || fallbackNamespace;
+      const key = allNamespaces ? `${namespace}/${pod}` : pod;
+      if (metrics.has(key)) continue;
+      const recorded = this.store.latestSample(clusterId, namespace, pod, BACKFILL_MAX_AGE_MS);
+      if (!recorded) continue;
+      metrics.set(key, {
+        cpu: formatCpu(recorded.cpuMillicores === null ? null : Math.round(recorded.cpuMillicores)),
+        memory: formatMemory(recorded.memoryBytes === null ? null : Math.round(recorded.memoryBytes)),
+      });
+    }
   }
 
   history(clusterId: string, namespace: string, pod: string, podRow: JsonObject | null = null): UsageHistoryResult {
