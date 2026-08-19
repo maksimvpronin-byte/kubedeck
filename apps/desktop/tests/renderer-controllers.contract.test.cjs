@@ -1757,6 +1757,25 @@ test("the drawer tab is remembered per resource and dropped for kinds that lack 
   assert.match(drawer, /useEffect\(\(\) => setTab\(resolvedInitialTab\), \[currentObjectKey, resolvedInitialTab\]\);/);
 });
 
+test("the usage history panel refreshes itself instead of freezing on its first read", () => {
+  const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
+  const chart = fs.readFileSync(path.join(rendererRoot, "components/UsageHistoryChart.tsx"), "utf8");
+
+  // History keeps growing while the drawer is open, but none of the fetch's
+  // other dependencies ever change, so without a tick the panel would keep
+  // showing its first read - including "no samples yet" for a pod whose
+  // samples have since arrived.
+  assert.match(lifecycle, /const USAGE_HISTORY_REFRESH_MS = 30_000;/);
+  assert.match(lifecycle, /setInterval\(\(\) => setUsageHistoryTick\(\(current\) => current \+ 1\), USAGE_HISTORY_REFRESH_MS\)/);
+  const fetchEffect = lifecycle.slice(lifecycle.indexOf("Usage history is recorded by KubeDeck itself"), lifecycle.indexOf('tab !== "related"'));
+  assert.match(fetchEffect, /usageHistoryTick\]/, "the fetch must depend on the tick or it never runs again");
+  assert.match(fetchEffect, /requestGeneration === usageHistoryRequestRef\.current/, "a stale response must not land on another pod");
+
+  // The empty state has to explain the two reasons it can be empty.
+  assert.match(chart, /metrics-server needs a minute or two/);
+  assert.match(chart, /refreshes on its own/);
+});
+
 test("the service summary renders endpoints loaded outside the Service object", () => {
   const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
   const endpointsEffect = lifecycle.slice(lifecycle.indexOf("isServiceResource(resource)"), lifecycle.indexOf('tab !== "related"'));

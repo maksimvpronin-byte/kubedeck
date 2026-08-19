@@ -10,7 +10,7 @@ import { formatWorkloadKey, workloadKeyForPod } from "./workloadKey";
 
 const SAMPLE_TIMEOUT_SECONDS = 20;
 const SAMPLE_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
-const DEFAULT_INTERVAL_MS = 60_000;
+const DEFAULT_INTERVAL_MS = 30_000;
 // History is worth little if it is lost on a crash, and worth nothing if
 // writing it stalls the app: the store is flushed on a timer, not per sample.
 const FLUSH_INTERVAL_MS = 5 * 60_000;

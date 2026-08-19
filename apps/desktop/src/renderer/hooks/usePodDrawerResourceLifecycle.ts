@@ -5,6 +5,10 @@ import type { DrawerTab } from "../components/PodDrawerChrome";
 import { isAbortError } from "../components/podDrawerHelpers";
 import { toErrorInfo } from "../utils/errors";
 
+// Matches the sampling interval: refreshing faster only re-reads the same
+// numbers, refreshing slower leaves a visible lag behind the recorded data.
+const USAGE_HISTORY_REFRESH_MS = 30_000;
+
 interface Options {
   api: ApiClient;
   clusterId: string;
@@ -77,6 +81,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   const [metrics, setMetrics] = useState<ResourceRow>({ uid: "", name: "" });
   const [serviceEndpoints, setServiceEndpoints] = useState<ServiceEndpointsResponse | null>(null);
   const [usageHistory, setUsageHistory] = useState<UsageHistoryResponse | null>(null);
+  const [usageHistoryTick, setUsageHistoryTick] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [snapshotObjectKey, setSnapshotObjectKey] = useState(currentObjectKey);
@@ -202,10 +207,23 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     };
   }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
 
+  // History grows while the drawer stays open, and none of the fetch's other
+  // dependencies ever change, so without this tick the panel would keep
+  // showing whatever it read when the tab was opened - including the "no
+  // samples yet" message for a pod whose first samples have since arrived.
+  useEffect(() => {
+    if (!currentObjectKey || (tab !== "summary" && tab !== "llm") || !isPodResource(resource)) return;
+    const timer = setInterval(() => setUsageHistoryTick((current) => current + 1), USAGE_HISTORY_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [currentObjectKey, tab, resource]);
+
   // Usage history is recorded by KubeDeck itself, so this reads what has
   // already been sampled and never touches the cluster. It is also loaded for
   // the LLM tab, which sends the same numbers along for the analysis.
   useEffect(() => {
+    // The tick is a re-run trigger, not an input: reading it here is what keeps
+    // it an honest dependency rather than one the linter treats as redundant.
+    void usageHistoryTick;
     if (!currentObjectKey || (tab !== "summary" && tab !== "llm") || !isPodResource(resource)) return;
     const controller = new AbortController();
     const requestGeneration = ++usageHistoryRequestRef.current;
@@ -219,7 +237,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
       controller.abort();
       usageHistoryRequestRef.current += 1;
     };
-  }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
+  }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey, usageHistoryTick]);
 
   useEffect(() => {
     if (!currentObjectKey || tab !== "related") return;

@@ -114,7 +114,10 @@ export function UsageHistoryChart({ history, cpuRequest, cpuLimit, memoryRequest
     return (
       <section className="resource-summary-section" aria-label="Usage history">
         <div className="resource-summary-section-title">Usage history</div>
-        <p className="resource-summary-empty">No samples recorded yet. KubeDeck collects usage while it is running, so the first points appear within a few minutes.</p>
+        <p className="resource-summary-empty">
+          No samples recorded yet. KubeDeck records usage every 30 seconds while it runs, and metrics-server needs a minute or two before it reports a freshly created pod, so the first points appear
+          shortly. This panel refreshes on its own.
+        </p>
       </section>
     );
   }
