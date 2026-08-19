@@ -446,6 +446,7 @@ export function App() {
     closeDisplayedResource,
     closeTransientDrawerFromBackground,
     removeClusterResourceTabs,
+    rememberResourceDrawerTab,
   } = useResourceWorkspaceTabs({
     api,
     activeCluster,
@@ -852,12 +853,13 @@ export function App() {
                         void bulkActions.requestNodeAction(action, targetRows);
                       }}
                       initialTab={displayedResourceWorkspaceTab.drawerTab as DrawerTab}
-                      onTabChange={(drawerTab) =>
+                      onTabChange={(drawerTab) => {
+                        rememberResourceDrawerTab(displayedResourceWorkspaceTab.resource, drawerTab);
                         setResourceWorkspaceTabs((current) => {
                           const target = current.find((tab) => tab.id === displayedResourceWorkspaceTab.id);
                           return !target || target.drawerTab === drawerTab ? current : current.map((tab) => (tab.id === target.id ? { ...tab, drawerTab } : tab));
-                        })
-                      }
+                        });
+                      }}
                       onDirtyChange={(dirty) => {
                         drawerDirtyRef.current = dirty;
                       }}

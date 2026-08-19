@@ -370,6 +370,7 @@ export function podSummary(item: JsonObject): ResourceRow {
     ready: `${ready}/${desiredContainers}`,
     restarts,
     node: text(spec.nodeName),
+    nodeIp: text(status.hostIP),
     serviceAccountName: text(spec.serviceAccountName, "default"),
     podIp: text(status.podIP),
     reason: text(status.reason),

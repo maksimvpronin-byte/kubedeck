@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ResourceRow } from "../types";
+import type { ResourceRow, ServiceEndpointsResponse } from "../types";
 import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { formatAge } from "../utils/time";
 import { metricPercent, ResourceUsageBar } from "./ResourceUsageBar";
@@ -9,13 +9,14 @@ interface Props {
   resource: string;
   now: number;
   events?: ResourceRow[];
+  serviceEndpoints?: ServiceEndpointsResponse | null;
 }
 
 type Tone = "default" | "neutral" | "pending" | "warning" | "danger" | "success";
 type Fact = { label: string; value: ReactNode; tone?: Tone };
 
-export function ResourceSummary({ row, resource, now, events = [] }: Props) {
-  const facts = summaryFacts(row, resource, now);
+export function ResourceSummary({ row, resource, now, events = [], serviceEndpoints = null }: Props) {
+  const facts = summaryFacts(row, resource, now, serviceEndpoints);
   const containers = isPod(resource) ? containerRows(row) : [];
   const failures = isPod(resource) ? restartFailures(row) : [];
   const warnings = warningEvents(events).slice(0, 5);
@@ -29,6 +30,8 @@ export function ResourceSummary({ row, resource, now, events = [] }: Props) {
           <SummaryTile key={item.label} {...item} />
         ))}
       </section>
+
+      {serviceEndpoints ? <ServiceEndpoints data={serviceEndpoints} /> : null}
 
       {workloadConditions.length ? (
         <section className="resource-summary-section" aria-label="Workload conditions">
@@ -108,7 +111,7 @@ export function ResourceSummary({ row, resource, now, events = [] }: Props) {
   );
 }
 
-function summaryFacts(row: ResourceRow, resource: string, now: number): Fact[] {
+function summaryFacts(row: ResourceRow, resource: string, now: number, serviceEndpoints: ServiceEndpointsResponse | null): Fact[] {
   const kind = baseResource(resource);
   const status = primaryStatus(row);
   const facts: Fact[] = [];
@@ -119,6 +122,7 @@ function summaryFacts(row: ResourceRow, resource: string, now: number): Fact[] {
     addFact(facts, "Ready", row.ready, readyTone(row.ready));
     addFact(facts, "Restarts", nonZero(row.restarts), "warning");
     addFact(facts, "Node", row.node);
+    addFact(facts, "Node IP", row.nodeIp);
     addFact(facts, "Pod IP", row.podIp);
     if (String(row.serviceAccountName || "") !== "default") addFact(facts, "Service account", row.serviceAccountName);
     addFact(facts, "Owner", ownerText(row.ownerReferences));
@@ -140,7 +144,10 @@ function summaryFacts(row: ResourceRow, resource: string, now: number): Fact[] {
     addFact(facts, "External", row.externalIp ?? row.externalAddress);
     addFact(facts, "Ports", row.ports);
     addFact(facts, "Selector", row.selectorText);
-    addFact(facts, "Ready endpoints", row.readyEndpoints, Number(row.readyEndpoints) === 0 ? "warning" : undefined);
+    if (serviceEndpoints) {
+      addFact(facts, "Ready endpoints", `${serviceEndpoints.ready} / ${serviceEndpoints.total}`, serviceEndpoints.ready === 0 ? "warning" : "success");
+      addFact(facts, "Not ready", nonZero(serviceEndpoints.notReady), "warning");
+    }
     return facts;
   }
 
@@ -264,6 +271,39 @@ function summaryFacts(row: ResourceRow, resource: string, now: number): Fact[] {
 
   addFact(facts, "Type", row.type);
   return facts;
+}
+
+function ServiceEndpoints({ data }: { data: ServiceEndpointsResponse }) {
+  return (
+    <section className="resource-summary-section" aria-label="Service endpoints">
+      <div className="resource-summary-section-title">Endpoints</div>
+      {data.total === 0 ? (
+        <p className="resource-summary-empty">No endpoints back this service. Check the selector and whether the target pods are ready.</p>
+      ) : (
+        <div className="summary-endpoint-list">
+          {data.items.map((endpoint, index) => (
+            <div
+              className={`summary-endpoint-row${endpoint.ready ? "" : " is-not-ready"}`}
+              title={[endpoint.node ? `node ${endpoint.node}` : "", endpoint.zone ? `zone ${endpoint.zone}` : ""].filter(Boolean).join(" · ")}
+              key={`${endpoint.address}:${endpoint.target}:${index}`}
+            >
+              <div className="summary-endpoint-main">
+                <strong>{endpoint.address}</strong>
+                <em>{endpoint.ready ? "Ready" : "Not ready"}</em>
+              </div>
+              {endpoint.ports || endpoint.target ? (
+                <div className="summary-endpoint-detail">
+                  {endpoint.ports ? <span>{endpoint.ports}</span> : null}
+                  {endpoint.target ? <span>{endpoint.target}</span> : null}
+                </div>
+              ) : null}
+            </div>
+          ))}
+          {data.truncated ? <p className="resource-summary-empty">+{data.total - data.items.length} more endpoints not listed.</p> : null}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function SummaryTile({ label, value, tone = "default" }: Fact) {

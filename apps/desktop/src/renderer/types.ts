@@ -279,6 +279,23 @@ export interface ResourceEventsResponse {
   rawCount: number;
 }
 
+export interface ServiceEndpointEntry {
+  address: string;
+  ports: string;
+  target: string;
+  node: string;
+  zone: string;
+  ready: boolean;
+}
+
+export interface ServiceEndpointsResponse {
+  items: ServiceEndpointEntry[];
+  ready: number;
+  notReady: number;
+  total: number;
+  truncated: boolean;
+}
+
 export interface SecretKeyInfo {
   key: string;
   encodedBytes: number;

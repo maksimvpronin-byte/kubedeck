@@ -12,6 +12,19 @@ export interface ResourceWorkspaceTab {
   status?: "ready" | "loading" | "not-found" | "unavailable";
 }
 
+// The drawer tab is remembered per resource, so walking from pod to pod keeps
+// YAML open while switching to another kind starts on Summary again.
+export type DrawerTabMemory = Record<string, string>;
+
+export function rememberDrawerTab(memory: DrawerTabMemory, resource: string, drawerTab: string): DrawerTabMemory {
+  if (!resource || !drawerTab || memory[resource] === drawerTab) return memory;
+  return { ...memory, [resource]: drawerTab };
+}
+
+export function drawerTabForResource(memory: DrawerTabMemory, resource: string): string {
+  return memory[resource] || "summary";
+}
+
 export function resourceWorkspaceTabId(clusterId: string, resource: string, row: ResourceRow) {
   return [clusterId, resource, String(row.namespace || "_cluster"), row.name, row.uid || "no-uid"].join("\u0000");
 }

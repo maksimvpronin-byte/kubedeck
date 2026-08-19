@@ -1,4 +1,4 @@
-# KubeDeck 2.11.1
+# KubeDeck 2.11.2
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -11,8 +11,9 @@ KubeDeck использует **Node-only runtime внутри Electron**. Пр�
 - несколько kubeconfig-файлов и кластеров с сохраняемым ручным порядком;
 - фильтрация по namespace и глобальный поиск;
 - стандартные Kubernetes-ресурсы и CRD;
-- просмотр, редактирование, dry-run и применение YAML;
-- Describe, Events, Related Resources и Problems;
+- редактирование YAML со сворачиваемыми секциями, dry-run и применение;
+- Describe, Events, Problems и Related Resources с поддержкой Ingress, Traefik IngressRoute и маршрутов Gateway API;
+- эндпоинты сервиса из EndpointSlice в сводке ресурса;
 - логи Pod и Deployment;
 - общая сохраняемая нижняя рабочая область с изменяемой высотой для Pod Terminal и Node SSH;
 - Port Forward;
@@ -153,7 +154,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.11.1-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.11.2-x64.exe
 ```
 
 ## Сборка для macOS Apple Silicon
@@ -165,8 +166,8 @@ npm run package:mac
 Результаты:
 
 ```text
-apps/desktop/release/KubeDeck-2.11.1-arm64.dmg
-apps/desktop/release/KubeDeck-2.11.1-arm64.zip
+apps/desktop/release/KubeDeck-2.11.2-arm64.dmg
+apps/desktop/release/KubeDeck-2.11.2-arm64.zip
 ```
 
 macOS-сборка не подписана Apple Developer ID и не notarized. При первом запуске используйте Finder → Applications → Control-click по KubeDeck → Open.
@@ -180,7 +181,7 @@ npm run package:linux
 Результат:
 
 ```text
-apps/desktop/release/KubeDeck-2.11.1-x86_64.AppImage
+apps/desktop/release/KubeDeck-2.11.2-x86_64.AppImage
 ```
 
 Сборщик запускает полный source gate, пересобирает `node-pty` под Electron, создаёт AppImage и проверяет release payload. AppImage не подписан.
@@ -266,8 +267,8 @@ Linux:
 
 ## Документация
 
-- [Release notes 2.11.1](./docs/releases/RELEASE_NOTES_2.11.1.md)
-- [Regression checklist 2.11.1](./docs/releases/REGRESSION_CHECKLIST_2.11.1.md)
+- [Release notes 2.11.2](./docs/releases/RELEASE_NOTES_2.11.2.md)
+- [Regression checklist 2.11.2](./docs/releases/REGRESSION_CHECKLIST_2.11.2.md)
 - [Статус миграции на Node](./NODE_MIGRATION_PROGRESS.md)
 - [Лицензии сторонних компонентов](./docs/third-party-notices.md)
 

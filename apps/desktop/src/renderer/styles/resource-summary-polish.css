@@ -312,3 +312,63 @@
     text-align: left;
   }
 }
+
+/* Service endpoints list in the summary tab */
+.summary-endpoint-list {
+  display: grid;
+  gap: 6px;
+}
+
+.summary-endpoint-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.summary-endpoint-row.is-not-ready {
+  border-color: var(--warning-border);
+}
+
+.summary-endpoint-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.summary-endpoint-main strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-endpoint-main em {
+  flex: none;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.summary-endpoint-row.is-not-ready .summary-endpoint-main em {
+  color: var(--warning-text);
+}
+
+.summary-endpoint-detail {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  row-gap: 2px;
+}
+
+.summary-endpoint-detail span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

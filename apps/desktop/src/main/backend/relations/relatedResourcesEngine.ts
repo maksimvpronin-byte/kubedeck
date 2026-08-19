@@ -4,6 +4,18 @@ import { endpointAddressLinks, endpointSliceAddressDetail, endpointSliceAddressL
 import { bindingHasServiceAccountSubject, roleRefDetail, roleReferenceLinks, serviceAccountSecretLinks, subjectLinks, subjectsDetail } from "./relatedRbacLinks";
 import { podUsesConfigResource, podUsesPvc } from "./relatedPodUsage";
 import { ownerReferenceLinksForPod, podReferenceLinks } from "./relatedPodLinks";
+import {
+  apiGroupOf,
+  gatewayReferenceLinks,
+  httpRouteParentRefs,
+  httpRouteReferenceLinks,
+  httpRouteServiceMatches,
+  ingressTlsSecretNames,
+  routeCatalog,
+  traefikMiddlewareRefs,
+  traefikRouteReferenceLinks,
+  traefikRouteServiceMatches,
+} from "./relatedRouteLinks";
 import { metadata, metadataName, metadataNamespace, record, records, type SafeLoad, text, type UnknownRecord } from "./relatedResourceValues";
 
 export { deduplicateRelatedLinks, relatedLink } from "./relatedResourceLinks";
@@ -22,6 +34,10 @@ export interface RelatedResourcesContext {
   namespace: string;
   targetRaw: Record<string, unknown>;
   loadItems: (resource: string, namespace: string) => Promise<Array<Record<string, unknown>>>;
+  // Fully qualified names ("ingressroutes.traefik.io") the cluster serves. Route
+  // CRDs are only scanned when discovery listed them, so clusters without
+  // Traefik or Gateway API never pay for a failing kubectl call.
+  availableResources?: readonly string[];
 }
 
 function selectorFromWorkload(spec: UnknownRecord): UnknownRecord {
@@ -79,6 +95,7 @@ function errorInfo(error: unknown, resource: string, namespace: string): Record<
 
 export async function buildRelatedResources(context: RelatedResourcesContext): Promise<RelatedResourcesResult> {
   const resource = context.resource.toLocaleLowerCase();
+  const baseResource = resource.split(".")[0] ?? resource;
   const namespace = context.namespace;
   const targetRaw = context.targetRaw;
   const targetMetadata = metadata(targetRaw);
@@ -111,6 +128,46 @@ export async function buildRelatedResources(context: RelatedResourcesContext): P
     return pending;
   };
 
+  const targetGroup = apiGroupOf(targetRaw);
+  const catalog = routeCatalog(new Set(context.availableResources ?? []));
+
+  // Ingress, Traefik IngressRoute and Gateway API HTTPRoute all point at a
+  // Service, so pods and services reach every router through the same scan.
+  // Ingress backends must live in the Ingress's own namespace (the API
+  // enforces this), but Traefik and Gateway API both allow a route to
+  // reference a Service in another namespace, so those sources are scanned
+  // cluster-wide rather than scoped to the target's namespace.
+  const routeLinksForServices = async (serviceNames: Set<string>, relation: string, describe: (matched: string[]) => string): Promise<RelatedLink[]> => {
+    if (!targetNamespace || serviceNames.size === 0) return [];
+    const sources: Array<{ resource: string; kind: string; crossNamespace: boolean; match: (item: UnknownRecord, routeNamespace: string) => string[] }> = [
+      { resource: "ingresses", kind: "Ingress", crossNamespace: false, match: (item) => ingressBackendServices(item.spec).filter((service) => serviceNames.has(service)) },
+      { resource: catalog.ingressRoutes, kind: "IngressRoute", crossNamespace: true, match: (item, routeNamespace) => traefikRouteServiceMatches(item, routeNamespace, serviceNames, targetNamespace) },
+      {
+        resource: catalog.ingressRouteTcps,
+        kind: "IngressRouteTCP",
+        crossNamespace: true,
+        match: (item, routeNamespace) => traefikRouteServiceMatches(item, routeNamespace, serviceNames, targetNamespace),
+      },
+      {
+        resource: catalog.ingressRouteUdps,
+        kind: "IngressRouteUDP",
+        crossNamespace: true,
+        match: (item, routeNamespace) => traefikRouteServiceMatches(item, routeNamespace, serviceNames, targetNamespace),
+      },
+      { resource: catalog.httpRoutes, kind: "HTTPRoute", crossNamespace: true, match: (item, routeNamespace) => httpRouteServiceMatches(item, routeNamespace, serviceNames, targetNamespace) },
+    ];
+    const routeLinks: RelatedLink[] = [];
+    for (const source of sources) {
+      if (!source.resource) continue;
+      for (const item of await safeLoad(source.resource, source.crossNamespace ? "all" : targetNamespace)) {
+        const routeNamespace = metadataNamespace(item, targetNamespace);
+        const matched = source.match(item, routeNamespace);
+        if (matched.length > 0) routeLinks.push(relatedLink(source.resource, routeNamespace, metadataName(item), source.kind, relation, describe(matched)));
+      }
+    }
+    return routeLinks;
+  };
+
   if (["pods", "pod"].includes(resource)) {
     const nodeName = text(spec.nodeName);
     if (nodeName) links.push(relatedLink("nodes", "_cluster", nodeName, "Node", "scheduled on"));
@@ -120,12 +177,15 @@ export async function buildRelatedResources(context: RelatedResourcesContext): P
     }
     links.push(...podReferenceLinks(targetRaw, targetNamespace));
     links.push(...(await ownerReferenceLinksForPod(targetRaw, targetNamespace, safeLoad)));
+    const selectingServices = new Set<string>();
     for (const service of await safeLoad("services", targetNamespace)) {
       const serviceSelector = record(record(service.spec).selector);
       if (selectorMatches(labels, serviceSelector)) {
+        selectingServices.add(metadataName(service));
         links.push(relatedLink("services", targetNamespace, metadataName(service), "Service", "selects this pod", selectorDetail(serviceSelector)));
       }
     }
+    links.push(...(await routeLinksForServices(selectingServices, "routes to pod", (matched) => `via service ${matched.join(", ")}`)));
   }
 
   const workloads = new Set([
@@ -177,11 +237,7 @@ export async function buildRelatedResources(context: RelatedResourcesContext): P
       }
     }
     if (targetNamespace) {
-      for (const ingress of await safeLoad("ingresses", targetNamespace)) {
-        if (ingressBackendServices(ingress.spec).includes(name)) {
-          links.push(relatedLink("ingresses", targetNamespace, metadataName(ingress), "Ingress", "routes to service"));
-        }
-      }
+      links.push(...(await routeLinksForServices(new Set([name]), "routes to service", () => "")));
       for (const endpoints of await safeLoad("endpoints", targetNamespace)) {
         if (metadataName(endpoints) === name) {
           links.push(relatedLink("endpoints", targetNamespace, name, "Endpoints", "backing endpoints"));
@@ -213,6 +269,55 @@ export async function buildRelatedResources(context: RelatedResourcesContext): P
   if (["ingresses", "ingress", "ingresses.networking.k8s.io"].includes(resource)) {
     for (const serviceName of ingressBackendServices(spec)) {
       links.push(relatedLink("services", targetNamespace, serviceName, "Service", "used by ingress"));
+    }
+    for (const secretName of ingressTlsSecretNames(targetRaw)) {
+      links.push(relatedLink("secrets", targetNamespace, secretName, "Secret", "tls certificate"));
+    }
+  }
+
+  const traefikTarget = targetGroup === "" || targetGroup.startsWith("traefik.");
+  const gatewayApiTarget = targetGroup === "" || targetGroup === "gateway.networking.k8s.io";
+
+  if (traefikTarget && ["ingressroutes", "ingressroute", "ingressroutetcps", "ingressroutetcp", "ingressrouteudps", "ingressrouteudp"].includes(baseResource)) {
+    links.push(...traefikRouteReferenceLinks(targetRaw, targetNamespace, baseResource.startsWith("ingressroutetcp") ? "middlewaretcps" : "middlewares"));
+  }
+
+  if (traefikTarget && ["middlewares", "middleware", "middlewaretcps", "middlewaretcp"].includes(baseResource) && targetNamespace) {
+    const tcp = baseResource.startsWith("middlewaretcp");
+    const routeResource = tcp ? catalog.ingressRouteTcps : catalog.ingressRoutes;
+    if (routeResource) {
+      // A route can reference a Middleware in another namespace, so routes are
+      // scanned cluster-wide rather than scoped to the Middleware's namespace.
+      for (const route of await safeLoad(routeResource, "all")) {
+        const routeNamespace = metadataNamespace(route, targetNamespace);
+        if (traefikMiddlewareRefs(route, routeNamespace).some((ref) => ref.name === name && ref.namespace === targetNamespace)) {
+          links.push(relatedLink(routeResource, routeNamespace, metadataName(route), tcp ? "IngressRouteTCP" : "IngressRoute", "uses this middleware"));
+        }
+      }
+    }
+  }
+
+  if (gatewayApiTarget && ["httproutes", "httproute"].includes(baseResource)) {
+    links.push(...httpRouteReferenceLinks(targetRaw, targetNamespace));
+  }
+
+  if (gatewayApiTarget && ["gateways", "gateway"].includes(baseResource)) {
+    links.push(...gatewayReferenceLinks(targetRaw, targetNamespace));
+    if (catalog.httpRoutes) {
+      for (const route of await safeLoad(catalog.httpRoutes, "all")) {
+        const routeNamespace = metadataNamespace(route, "");
+        if (httpRouteParentRefs(route, routeNamespace).some((ref) => ref.name === name && ref.namespace === targetNamespace)) {
+          links.push(relatedLink(catalog.httpRoutes, routeNamespace, metadataName(route), "HTTPRoute", "attached to this gateway"));
+        }
+      }
+    }
+  }
+
+  if (gatewayApiTarget && ["gatewayclasses", "gatewayclass"].includes(baseResource) && catalog.gateways) {
+    for (const gateway of await safeLoad(catalog.gateways, "all")) {
+      if (text(record(gateway.spec).gatewayClassName) === name) {
+        links.push(relatedLink(catalog.gateways, metadataNamespace(gateway, ""), metadataName(gateway), "Gateway", "uses this gateway class"));
+      }
     }
   }
 

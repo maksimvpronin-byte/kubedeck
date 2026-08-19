@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiClient } from "../api";
-import type { ErrorInfo, RelatedLink, ResourceRow } from "../types";
+import type { ErrorInfo, RelatedLink, ResourceRow, ServiceEndpointsResponse } from "../types";
 import type { DrawerTab } from "../components/PodDrawerChrome";
 import { isAbortError } from "../components/podDrawerHelpers";
 import { toErrorInfo } from "../utils/errors";
@@ -37,7 +37,12 @@ export function drawerResourceResetSnapshot() {
     relatedSources: {} as Record<string, number>,
     relatedErrors: [] as Array<ErrorInfo & { resource?: string; namespace?: string }>,
     metrics: {} as ResourceRow,
+    serviceEndpoints: null as ServiceEndpointsResponse | null,
   };
+}
+
+export function isServiceResource(resource: string): boolean {
+  return ["service", "services", "svc"].includes(resource.toLocaleLowerCase());
 }
 
 export function drawerResourceIdentity(clusterId: string, resource: string, row: ResourceRow | null) {
@@ -52,6 +57,7 @@ function drawerError(error: unknown): ErrorInfo {
 export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey }: Options) {
   const requestGuardRef = useRef(createDrawerRequestGuard());
   const metricsRequestRef = useRef(0);
+  const endpointsRequestRef = useRef(0);
   const [content, setContent] = useState("");
   const [describeContent, setDescribeContent] = useState("");
   const [yamlBaseline, setYamlBaseline] = useState("");
@@ -63,6 +69,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
   const [relatedErrors, setRelatedErrors] = useState<Array<ErrorInfo & { resource?: string; namespace?: string }>>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [metrics, setMetrics] = useState<ResourceRow>({ uid: "", name: "" });
+  const [serviceEndpoints, setServiceEndpoints] = useState<ServiceEndpointsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [snapshotObjectKey, setSnapshotObjectKey] = useState(currentObjectKey);
@@ -74,6 +81,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     void currentObjectKey;
     requestGuardRef.current.invalidate();
     metricsRequestRef.current += 1;
+    endpointsRequestRef.current += 1;
     const reset = drawerResourceResetSnapshot();
     setContent(reset.content);
     setDescribeContent(reset.describeContent);
@@ -85,6 +93,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     setRelatedSources(reset.relatedSources);
     setRelatedErrors(reset.relatedErrors);
     setMetrics(reset.metrics);
+    setServiceEndpoints(reset.serviceEndpoints);
     setRelatedLoading(false);
     setLoading(false);
     setError(null);
@@ -165,6 +174,25 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     };
   }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
 
+  // Endpoints live in EndpointSlices rather than on the Service itself, so the
+  // summary asks for them separately. A cluster that refuses the lookup (RBAC,
+  // no EndpointSlice API) leaves the rest of the summary intact.
+  useEffect(() => {
+    if (!currentObjectKey || tab !== "summary" || !isServiceResource(resource)) return;
+    const controller = new AbortController();
+    const requestGeneration = ++endpointsRequestRef.current;
+    api
+      .serviceEndpoints(clusterId, resource, podNamespace, podName, controller.signal)
+      .then((response) => {
+        if (!controller.signal.aborted && requestGeneration === endpointsRequestRef.current) setServiceEndpoints(response);
+      })
+      .catch(() => undefined);
+    return () => {
+      controller.abort();
+      endpointsRequestRef.current += 1;
+    };
+  }, [api, clusterId, podName, podNamespace, resource, tab, currentObjectKey]);
+
   useEffect(() => {
     if (!currentObjectKey || tab !== "related") return;
     const controller = new AbortController();
@@ -214,6 +242,7 @@ export function usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, t
     relatedLoading: snapshotIsCurrent && relatedLoading,
     setRelatedLoading,
     metrics: snapshotIsCurrent ? metrics : { uid: "", name: "" },
+    serviceEndpoints: snapshotIsCurrent ? serviceEndpoints : null,
     loading: snapshotIsCurrent && loading,
     setLoading,
     error: snapshotIsCurrent ? error : null,

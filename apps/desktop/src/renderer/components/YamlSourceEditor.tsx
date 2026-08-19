@@ -6,13 +6,16 @@ interface YamlSourceEditorProps {
   readOnly?: boolean;
   ariaLabel?: string;
   editorRef?: MutableRefObject<HTMLTextAreaElement | null>;
+  // Line numbers displayed start here instead of 1. Used when this editor only
+  // holds one visible slice of a larger document (the grouped YAML editor).
+  startLineNumber?: number;
   onChange: (value: string) => void;
   onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 }
 
 // Shared between the resource drawer YAML tab and the kubeconfig editor so both
 // use one highlighting implementation.
-export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef, onChange, onKeyDown }: YamlSourceEditorProps) {
+export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef, startLineNumber = 1, onChange, onKeyDown }: YamlSourceEditorProps) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const highlightRef = useRef<HTMLPreElement | null>(null);
   const textareaRef = editorRef ?? localRef;
@@ -20,7 +23,7 @@ export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef
   return (
     <div className="yaml-ide-editor">
       <pre className="yaml-editor yaml-highlight-layer" ref={highlightRef} aria-hidden="true">
-        {highlightYaml(value)}
+        {highlightYaml(value, startLineNumber)}
       </pre>
       <textarea
         ref={textareaRef}
@@ -44,11 +47,11 @@ export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef
   );
 }
 
-export function highlightYaml(value: string): ReactNode[] {
+export function highlightYaml(value: string, startLineNumber = 1): ReactNode[] {
   const lines = value.split("\n");
   return lines.map((line, index) => (
     <span className="yaml-line" key={index}>
-      <span className="yaml-line-number">{index + 1}</span>
+      <span className="yaml-line-number">{startLineNumber + index}</span>
       <span className="yaml-line-code">{highlightYamlLine(line)}</span>
       {index < lines.length - 1 ? "\n" : ""}
     </span>

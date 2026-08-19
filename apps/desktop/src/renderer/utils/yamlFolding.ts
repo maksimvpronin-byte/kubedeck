@@ -50,3 +50,46 @@ export function visibleYamlLines(source: string, regions: YamlFoldRegion[], coll
   }
   return result;
 }
+
+export type YamlEditSegment = { kind: "text"; startLine: number; text: string } | { kind: "folded"; region: YamlFoldRegion; text: string };
+
+// Splits the source into runs of editable text, cut only where a collapsed
+// region hides a range of lines. A region nested inside a run that is itself
+// not collapsed stays part of that run's text (and is still detected while
+// editing, since the underlying fold regions are recomputed from the live
+// draft) - only ancestors that are actually collapsed remove their content
+// from the editable surface.
+export function yamlEditSegments(source: string, regions: YamlFoldRegion[], collapsed: ReadonlySet<string>): YamlEditSegment[] {
+  const lines = source.split("\n");
+  const byStart = new Map(regions.filter((region) => collapsed.has(region.path)).map((region) => [region.startLine, region]));
+  const segments: YamlEditSegment[] = [];
+  let pending: string[] = [];
+  let pendingStart = 1;
+
+  const flush = () => {
+    if (pending.length === 0) return;
+    segments.push({ kind: "text", startLine: pendingStart, text: pending.join("\n") });
+    pending = [];
+  };
+
+  for (let lineNumber = 1; lineNumber <= lines.length; lineNumber += 1) {
+    const region = byStart.get(lineNumber);
+    if (region) {
+      flush();
+      segments.push({ kind: "folded", region, text: lines.slice(region.startLine - 1, region.endLine).join("\n") });
+      lineNumber = region.endLine;
+      pendingStart = lineNumber + 1;
+      continue;
+    }
+    if (pending.length === 0) pendingStart = lineNumber;
+    pending.push(lines[lineNumber - 1] ?? "");
+  }
+  flush();
+  return segments;
+}
+
+// Reassembles segments back into the exact source they were split from -
+// segments never drop or duplicate a line, so a plain join reproduces it.
+export function joinYamlEditSegments(segments: YamlEditSegment[]): string {
+  return segments.map((segment) => segment.text).join("\n");
+}

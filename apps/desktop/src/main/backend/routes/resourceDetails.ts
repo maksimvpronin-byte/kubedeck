@@ -3,6 +3,7 @@ import { type ConfigStore } from "../config/configStore";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import type { KubectlRunner } from "../kubectl/runner";
 import { loadNodeDiskMetrics } from "../resources/metrics";
+import { normalizeServiceEndpoints } from "../resources/serviceEndpoints";
 import { RequestValidationError, decodePathPart, normalizeTailLines, parseBooleanQuery, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
@@ -10,7 +11,9 @@ const TEXT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const LOGS_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const LOGS_FULL_MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
 
-type DetailOperation = "yaml" | "describe" | "logs" | "metrics";
+type DetailOperation = "yaml" | "describe" | "logs" | "metrics" | "endpoints";
+
+const SERVICE_RESOURCES = new Set(["service", "services", "svc"]);
 
 export interface ResourceDetailsTarget {
   clusterId: string;
@@ -38,7 +41,7 @@ export function matchResourceDetailsPath(pathname: string): ResourceDetailsTarge
     };
   }
 
-  const resourceMatch = pathname.match(/^\/clusters\/([^/]+)\/resources\/([^/]+)\/([^/]+)\/([^/]+)\/(yaml|describe|metrics)$/);
+  const resourceMatch = pathname.match(/^\/clusters\/([^/]+)\/resources\/([^/]+)\/([^/]+)\/([^/]+)\/(yaml|describe|metrics|endpoints)$/);
   if (!resourceMatch) return null;
 
   const namespaceRaw = decodePathPart(resourceMatch[3], "namespace");
@@ -54,6 +57,22 @@ export function matchResourceDetailsPath(pathname: string): ResourceDetailsTarge
 }
 
 export function buildResourceDetailsInvocation(target: ResourceDetailsTarget, requestUrl: string): ResourceDetailsInvocation {
+  if (target.operation === "endpoints") {
+    if (!SERVICE_RESOURCES.has(target.resource)) {
+      throw new RequestValidationError(400, "UNSUPPORTED_RESOURCE_ENDPOINTS", "Resource endpoints are only available for services");
+    }
+    if (target.namespace === "_cluster") {
+      throw new RequestValidationError(400, "UNSUPPORTED_RESOURCE_ENDPOINTS", "Resource endpoints require a namespace");
+    }
+    // The label selector keeps the payload to the slices of this one service
+    // instead of every slice in the namespace.
+    return {
+      args: ["get", "endpointslices", "-n", target.namespace, "-l", `kubernetes.io/service-name=${target.name}`, "-o", "json"],
+      timeoutSeconds: 15,
+      maxOutputBytes: 8 * 1024 * 1024,
+    };
+  }
+
   if (target.operation === "metrics") {
     if (!["node", "nodes"].includes(target.resource)) {
       throw new RequestValidationError(400, "UNSUPPORTED_RESOURCE_METRICS", "Resource metrics are only available for nodes");
@@ -132,6 +151,13 @@ async function executeResourceDetails(request: IncomingMessage, response: Server
     return;
   }
   const invocation = buildResourceDetailsInvocation(target, request.url ?? "/");
+  if (target.operation === "endpoints") {
+    const payload = await runner.runJson(clusterCommand(configStore, target.clusterId, invocation.args, invocation.timeoutSeconds, invocation.maxOutputBytes));
+    response.statusCode = 200;
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.end(JSON.stringify(normalizeServiceEndpoints(payload)));
+    return;
+  }
   const result = await runner.run(clusterCommand(configStore, target.clusterId, invocation.args, invocation.timeoutSeconds, invocation.maxOutputBytes));
   writePlainText(response, result.stdout);
 }

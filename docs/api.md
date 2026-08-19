@@ -37,7 +37,7 @@ ws://127.0.0.1:<port>/clusters/<cluster>/pods/<namespace>/<pod>/terminal?token=<
 
 - application/config: health, app info, migration status, config, audit;
 - clusters/kubectl: import, persistent manual ordering (`PUT /clusters/order`), rename, remove, open, namespaces, kubectl status, чтение и запись kubeconfig кластера (`GET`/`PUT /clusters/{cluster_id}/kubeconfig`);
-- resources: discovery, lists, YAML, Describe, Events, logs и related resources;
+- resources: discovery, lists, YAML, Describe, Events, logs, endpoints сервиса и related resources;
 - mutations: YAML dry-run/apply, resource actions и Pod exec;
 - diagnostics: Problems, Global Search, cache и watch status;
 - sensitive data: Secret keys/reveal/copy;
@@ -45,6 +45,18 @@ ws://127.0.0.1:<port>/clusters/<cluster>/pods/<namespace>/<pod>/terminal?token=<
 - LLM: status, connection test, prompt preview и resource analysis.
 
 Полный публичный shape каждого маршрута защищён соответствующим файлом `apps/desktop/tests/*.contract.test.cjs`. При изменении API необходимо обновить shared type и contract test в одном изменении.
+
+### Resource details operations
+
+`GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/{operation}` обслуживает несколько операций одним маршрутом:
+
+- `yaml` и `describe` возвращают `text/plain` вывод kubectl;
+- `metrics` возвращает JSON и допустим только для nodes (`UNSUPPORTED_RESOURCE_METRICS`);
+- `endpoints` возвращает JSON и допустим только для services в конкретном namespace (`UNSUPPORTED_RESOURCE_ENDPOINTS`). Endpoints читаются из `EndpointSlice` через label selector `kubernetes.io/service-name`, поэтому API server возвращает срезы одного сервиса. Ответ содержит точные счётчики `ready`/`notReady`/`total` и список `items`, ограниченный 100 записями с флагом `truncated`.
+
+### Related resources и discovery
+
+`GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related` перед сбором связей читает кэш `kubectl api-resources` (общий с Global Search и resource discovery) и опрашивает роутовые CRD только если кластер их обслуживает: `IngressRoute`, `IngressRouteTCP`, `IngressRouteUDP`, `Middleware` (группы `traefik.io` и `traefik.containo.us`), `HTTPRoute`, `Gateway`, `GatewayClass` (группа `gateway.networking.k8s.io`). Оттуда же берётся признак namespaced для custom resources. Недоступность discovery не является ошибкой: маршрут возвращает встроенные связи.
 
 ## Transport rules
 

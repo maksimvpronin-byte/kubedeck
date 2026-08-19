@@ -266,9 +266,20 @@ function resourceForKind(kind: unknown) {
   return map[String(kind ?? "")];
 }
 
+// Route CRDs carry camel case kinds that title casing would flatten.
+const RESOURCE_LABELS: Record<string, string> = {
+  ingressroutes: "IngressRoutes",
+  ingressroutetcps: "IngressRouteTCPs",
+  ingressrouteudps: "IngressRouteUDPs",
+  middlewares: "Middlewares",
+  middlewaretcps: "MiddlewareTCPs",
+  traefikservices: "TraefikServices",
+  httproutes: "HTTPRoutes",
+  gateways: "Gateways",
+  gatewayclasses: "GatewayClasses",
+};
+
 function displayResource(resource: string) {
-  return resource
-    .split(".")[0]
-    .replace(/-/g, " ")
-    .replace(/(^|\s)\S/g, (part) => part.toUpperCase());
+  const plural = resource.split(".")[0];
+  return RESOURCE_LABELS[plural] ?? plural.replace(/-/g, " ").replace(/(^|\s)\S/g, (part) => part.toUpperCase());
 }

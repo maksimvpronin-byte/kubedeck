@@ -356,7 +356,7 @@ test("2.7.4 resource surfaces stay compact and operational", () => {
   const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
 
   assert.doesNotMatch(chrome, /\["events" as const\]/);
-  assert.match(drawer, /setTab\(initialTab === "events" \? "summary" : initialTab\)/);
+  assert.match(drawer, /const resolvedInitialTab: DrawerTab = drawerTabs\.includes\(initialTab\) \? initialTab : "summary";/);
   assert.match(drawer, /copyText\(pod\.name, "Name copied"\)/);
   assert.doesNotMatch(drawer, /copyText\(`\$\{resource\}\/\$\{pod\.name\}/);
   assert.match(chrome, /drawer-header-actions/);
@@ -1085,6 +1085,7 @@ test("drawer request generations reject stale responses and reset resource data"
     relatedSources: {},
     relatedErrors: [],
     metrics: {},
+    serviceEndpoints: null,
   });
 
   const firstRow = { uid: "pod-uid", name: "pod-a", namespace: "tools", status: "Running" };
@@ -1114,7 +1115,7 @@ test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results",
   assert.match(lifecycle, /content: snapshotIsCurrent \? content : ""/);
   assert.match(drawer, /drawerResourceIdentity\(clusterId, resource, pod\)/);
   assert.doesNotMatch(drawer, /<div key=\{currentObjectKey\} className=/);
-  assert.match(drawer, /setTab\(initialTab === "events" \? "summary" : initialTab\)/);
+  assert.match(drawer, /const resolvedInitialTab: DrawerTab = drawerTabs\.includes\(initialTab\) \? initialTab : "summary";/);
   assert.match(yamlActions, /setYamlStatus\(t\("yaml\.dryRunPassed"\)\)/);
   assert.match(yamlActions, /setYamlStatus\(t\("yaml\.applied"\)\)/);
   assert.match(yaml, /className="apply-result" role="status" aria-live="polite"/);
@@ -1568,6 +1569,126 @@ test("YAML folding preserves full source and hides only collection descendants",
   assert.deepEqual(model.yamlFoldRegions("metadata:\n  name: ["), []);
 });
 
+test("YAML edit segments stay editable around a fold and always reconstruct the exact source", () => {
+  const model = loadTypeScript("utils/yamlFolding.ts", { yaml: require("yaml") });
+  const source =
+    "apiVersion: v1\nkind: Pod\nmetadata:\n  name: demo\n  labels:\n    app: demo\n    tier: backend\nspec:\n  containers:\n    - name: app\n      image: nginx\nstatus:\n  phase: Running\n";
+  const regions = model.yamlFoldRegions(source);
+  const metadata = regions.find((region) => region.label === "metadata");
+  const labels = regions.find((region) => region.label === "labels");
+
+  // Nothing collapsed: the whole document is one editable run.
+  const flat = model.yamlEditSegments(source, regions, new Set());
+  assert.deepEqual(
+    flat.map((segment) => segment.kind),
+    ["text"],
+  );
+  assert.equal(model.joinYamlEditSegments(flat), source);
+
+  // Collapsing "metadata" hides it behind a summary but keeps editing on both
+  // sides of it, and a round trip through join must reproduce the source
+  // untouched, including the lines a summary row never shows.
+  const withMetadataFolded = model.yamlEditSegments(source, regions, new Set([metadata.path]));
+  assert.deepEqual(
+    withMetadataFolded.map((segment) => segment.kind),
+    ["text", "folded", "text"],
+  );
+  const editableText = withMetadataFolded
+    .filter((segment) => segment.kind === "text")
+    .map((segment) => segment.text)
+    .join("\n");
+  assert.equal(editableText.includes("name: demo"), false, "a collapsed region's lines must not be part of any editable segment");
+  assert.equal(model.joinYamlEditSegments(withMetadataFolded), source);
+
+  // Collapsing only the nested "labels" region leaves its parent "metadata"
+  // editable, so "name: demo" (a sibling of labels) stays editable while
+  // "app: demo" (inside labels) is hidden.
+  const withLabelsFolded = model.yamlEditSegments(source, regions, new Set([labels.path]));
+  const editableWithLabelsFolded = withLabelsFolded
+    .filter((segment) => segment.kind === "text")
+    .map((segment) => segment.text)
+    .join("\n");
+  assert.equal(editableWithLabelsFolded.includes("name: demo"), true);
+  assert.equal(editableWithLabelsFolded.includes("app: demo"), false);
+  assert.equal(model.joinYamlEditSegments(withLabelsFolded), source);
+
+  // Collapsing every top-level section (what "Collapse top-level groups" does)
+  // still reconstructs the exact source; "apiVersion"/"kind" before the first
+  // section and the trailing newline after the last stay their own editable runs.
+  const minimumDepth = Math.min(...regions.map((region) => region.depth));
+  const allTopLevel = new Set(regions.filter((region) => region.depth === minimumDepth).map((region) => region.path));
+  const collapsedAll = model.yamlEditSegments(source, regions, allTopLevel);
+  assert.deepEqual(
+    collapsedAll.map((segment) => segment.kind),
+    ["text", "folded", "folded", "folded", "text"],
+  );
+  assert.equal(model.joinYamlEditSegments(collapsedAll), source);
+
+  // Editing one segment's text and rejoining must only change that segment,
+  // leaving a folded region's original text (and everything else) untouched.
+  const edited = withMetadataFolded.map((segment, index) => (index === 0 ? { ...segment, text: "apiVersion: v2\nkind: Pod" } : segment));
+  assert.equal(model.joinYamlEditSegments(edited), source.replace("apiVersion: v1", "apiVersion: v2"));
+});
+
+test("the YAML tab is editable immediately, with no separate fold-view mode to switch out of", () => {
+  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+  const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
+
+  // The old "Edit full YAML" toggle (and the state it flipped) is gone -
+  // there is nothing to click before the manifest becomes editable.
+  assert.doesNotMatch(yamlTab, /useState\(false\)[^;]*editing|\[editing, setEditing\]/);
+  assert.doesNotMatch(yamlTab, /Edit full YAML|Open fold view|<Pencil/);
+  assert.doesNotMatch(yamlTab, /function FoldedYamlView/);
+
+  // Collapsing/expanding groups is always available, not just in a read-only mode.
+  assert.doesNotMatch(yamlTab, /disabled=\{editing/);
+  assert.match(yamlTab, /disabled=\{collapsed\.size === 0\}/);
+
+  // Collapse replaces the whole set, so it must also grey out once everything
+  // it would collapse is already collapsed - not only when the manifest has no
+  // groups at all, which left it lit up after a click that changed nothing.
+  assert.match(yamlTab, /disabled=\{collapseIsNoOp\}/);
+  assert.doesNotMatch(yamlTab, /disabled=\{foldRegions\.length === 0\}/);
+  assert.match(yamlTab, /collapsed\.size === topLevelFoldPaths\.length && topLevelFoldPaths\.every\(\(path\) => collapsed\.has\(path\)\)/);
+
+  // A collapsed region renders as a summary row; everything else is one of
+  // possibly several editable text blocks, each its own YamlSourceEditor.
+  assert.match(yamlTab, /function FoldedYamlEditor/);
+  assert.match(yamlTab, /yamlEditSegments\(value, regions, collapsed\)/);
+  assert.match(yamlTab, /segment\.kind === "folded"/);
+  assert.match(yamlTab, /<YamlSourceEditor value=\{segment\.text\}/);
+  assert.match(yamlTab, /joinYamlEditSegments\(next\)/);
+
+  // A nested region that is still expanded gets its own fold toggle inside
+  // the shared text block instead of losing the ability to be collapsed.
+  assert.match(yamlTab, /yaml-fold-gutter-button-nested/);
+
+  // The searched-for match forces every fold open before selecting into the
+  // (now single) text block, rather than switching some separate raw mode.
+  const jumpMatch = yamlTab.slice(yamlTab.indexOf("function jumpMatch"), yamlTab.indexOf("function toggleFold"));
+  assert.match(jumpMatch, /setCollapsed\(new Set\(\)\)/);
+  assert.doesNotMatch(jumpMatch, /setEditing/);
+
+  // .yaml-line's own `display: inline` (defined later in the stylesheet, same
+  // specificity as a bare .yaml-fold-summary-line rule) would otherwise win
+  // the cascade and silently break the summary row's flex layout.
+  assert.match(drawerStyles, /\.yaml-line\.yaml-fold-summary-line\s*\{[^}]*display:\s*inline-flex;/s);
+
+  // Only the outer .yaml-fold-view scrolls. Sizing a segment from a line count
+  // times a line height put a second scrollbar inside every segment, because a
+  // fractional line box (12px * 1.35) rounds up per line and the accumulated
+  // overflow re-armed the inner `overflow: auto`. The highlight layer is put
+  // back in normal flow so it, not arithmetic, sizes the box.
+  assert.doesNotMatch(yamlTab, /--yaml-segment-lines/, "a segment must not be sized from a hand-computed line count");
+  assert.doesNotMatch(drawerStyles, /--yaml-segment-lines/);
+  assert.match(drawerStyles, /--yaml-line-height:\s*\d+px;/, "the fold gutter steps by an exact pixel line height, not a rounding-prone ratio");
+  assert.match(drawerStyles, /\.yaml-segment-editor \.yaml-ide-editor\s*\{[^}]*overflow:\s*hidden;/s);
+  assert.match(drawerStyles, /\.yaml-segment-editor \.yaml-highlight-layer\s*\{[^}]*position:\s*relative;/s);
+  // The caret layer is absolute with inset: 0, so it must not also carry
+  // .yaml-editor's content-box `width: 100%`, which adds its padding on top.
+  assert.match(drawerStyles, /\.yaml-segment-editor \.yaml-editor-input\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;/s);
+});
+
 test("lazy panel boundary resets its failure after navigation", () => {
   class Component {
     constructor(props) {
@@ -1600,4 +1721,48 @@ test("renderer error normalizer preserves ApiError fields and redacts sensitive 
   assert.equal(fallback.message, "Sensitive error details were redacted");
   assert.doesNotMatch(JSON.stringify(fallback), /super-secret-token/);
   assert.equal(model.toErrorInfo({ message: "timeout", rawStderr: "password=hunter2" }).rawStderr, "Sensitive error details were redacted");
+});
+
+test("the drawer tab is remembered per resource and dropped for kinds that lack it", () => {
+  const model = loadTypeScript("utils/workspaceTabs.ts");
+  assert.equal(model.drawerTabForResource({}, "pods"), "summary");
+  const afterYaml = model.rememberDrawerTab({}, "pods", "yaml");
+  assert.equal(model.drawerTabForResource(afterYaml, "pods"), "yaml");
+  assert.equal(model.drawerTabForResource(afterYaml, "services"), "summary");
+  assert.equal(model.rememberDrawerTab(afterYaml, "pods", "yaml"), afterYaml, "an unchanged tab must not produce a new object");
+  assert.equal(model.rememberDrawerTab(afterYaml, "", "yaml"), afterYaml);
+  assert.equal(model.drawerTabForResource(model.rememberDrawerTab(afterYaml, "secrets", "secret"), "secrets"), "secret");
+
+  const hook = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWorkspaceTabs.ts"), "utf8");
+  assert.match(hook, /drawerTab: drawerTabForResource\(drawerTabMemory, currentSelectedTarget\.resource\)/);
+  assert.match(hook, /drawerTab: drawerTabForResource\(drawerTabMemory, selectedTarget\.resource\)/);
+
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  assert.match(app, /rememberResourceDrawerTab\(displayedResourceWorkspaceTab\.resource, drawerTab\);/);
+
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  assert.match(drawer, /const resolvedInitialTab: DrawerTab = drawerTabs\.includes\(initialTab\) \? initialTab : "summary";/);
+  assert.match(drawer, /useEffect\(\(\) => setTab\(resolvedInitialTab\), \[currentObjectKey, resolvedInitialTab\]\);/);
+});
+
+test("the service summary renders endpoints loaded outside the Service object", () => {
+  const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
+  const endpointsEffect = lifecycle.slice(lifecycle.indexOf("isServiceResource(resource)"), lifecycle.indexOf('tab !== "related"'));
+  assert.match(endpointsEffect, /api\s*\.serviceEndpoints\(clusterId, resource, podNamespace, podName, controller\.signal\)/);
+  assert.match(endpointsEffect, /requestGeneration === endpointsRequestRef\.current/, "a stale response must not land on another object");
+  assert.match(endpointsEffect, /\.catch\(\(\) => undefined\)/, "a refused endpoint lookup must not replace the summary with an error");
+  assert.match(lifecycle, /serviceEndpoints: snapshotIsCurrent \? serviceEndpoints : null/);
+
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  assert.match(drawer, /<ResourceSummary [^>]*serviceEndpoints=\{serviceEndpoints\}/);
+
+  const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
+  assert.match(summary, /addFact\(facts, "Ready endpoints", `\$\{serviceEndpoints\.ready\} \/ \$\{serviceEndpoints\.total\}`/);
+  assert.match(summary, /\{serviceEndpoints \? <ServiceEndpoints data=\{serviceEndpoints\} \/> : null\}/);
+  assert.match(summary, /No endpoints back this service/);
+  assert.match(summary, /\+\{data\.total - data\.items\.length\} more endpoints not listed/);
+
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-summary-polish.css"), "utf8");
+  assert.match(styles, /\.summary-endpoint-main \{/);
+  assert.match(styles, /\.summary-endpoint-detail \{/);
 });

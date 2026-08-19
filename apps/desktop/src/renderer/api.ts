@@ -19,6 +19,7 @@ import type {
   ResourceRow,
   SecretKeysResponse,
   SecretRevealResponse,
+  ServiceEndpointsResponse,
   Settings,
   DeploymentLogTargetsResponse,
   ResourceCacheStatus,
@@ -240,6 +241,13 @@ export class ApiClient {
 
   resourceMetrics(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {
     return this.request<ResourceRow>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/metrics`, { signal });
+  }
+
+  serviceEndpoints(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {
+    return this.request<ServiceEndpointsResponse>(
+      `/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/endpoints`,
+      { signal },
+    );
   }
 
   resourceEvents(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {

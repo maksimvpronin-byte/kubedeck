@@ -15,6 +15,13 @@ function listen(server) {
   });
 }
 
+function fakeConfigStore() {
+  return {
+    load: () => ({ settings: { kubectlPath: "kubectl" } }),
+    getCluster: () => ({ kubeconfigPath: String.raw`C:\KubeDeck\demo.yaml` }),
+  };
+}
+
 function close(server) {
   return new Promise((resolve) => server.close(resolve));
 }
@@ -154,4 +161,76 @@ test("resource details HTTP handler", async (t) => {
   const missingResponse = await fetch(`${baseUrl}/clusters/demo/pods/default/missing-pod/yaml`);
   assert.equal(missingResponse.status, 502);
   assert.equal((await missingResponse.json()).detail.code, "NOT_FOUND");
+});
+
+test("service endpoints operation reads only the slices of one service", async (t) => {
+  const { normalizeServiceEndpoints, MAX_SERVICE_ENDPOINT_ITEMS } = require("../dist/main/backend/resources/serviceEndpoints.js");
+
+  const target = matchResourceDetailsPath("/clusters/demo/resources/services/default/api/endpoints");
+  assert.ok(target);
+  assert.deepEqual(buildResourceDetailsInvocation(target, "/ignored"), {
+    args: ["get", "endpointslices", "-n", "default", "-l", "kubernetes.io/service-name=api", "-o", "json"],
+    timeoutSeconds: 15,
+    maxOutputBytes: 8 * 1024 * 1024,
+  });
+
+  const nonService = matchResourceDetailsPath("/clusters/demo/resources/deployments/default/web/endpoints");
+  assert.throws(() => buildResourceDetailsInvocation(nonService, "/ignored"), /UNSUPPORTED_RESOURCE_ENDPOINTS|only available for services/);
+  const clusterScoped = matchResourceDetailsPath("/clusters/demo/resources/services/_cluster/api/endpoints");
+  assert.throws(() => buildResourceDetailsInvocation(clusterScoped, "/ignored"), /require a namespace/);
+
+  const summary = normalizeServiceEndpoints({
+    items: [
+      {
+        ports: [{ name: "http", port: 8080, protocol: "TCP" }],
+        endpoints: [
+          { addresses: ["10.0.0.10"], conditions: { ready: true }, targetRef: { kind: "Pod", name: "api-0" }, nodeName: "worker-1", zone: "eu-1a" },
+          { addresses: ["10.0.0.11"], conditions: { ready: false }, targetRef: { kind: "Pod", name: "api-1" } },
+          { addresses: ["10.0.0.12"], targetRef: { kind: "Pod", name: "api-2" } },
+        ],
+      },
+    ],
+  });
+  assert.equal(summary.total, 3);
+  assert.equal(summary.ready, 2, "an absent ready condition counts as ready");
+  assert.equal(summary.notReady, 1);
+  assert.equal(summary.truncated, false);
+  assert.deepEqual(summary.items[0], { address: "10.0.0.10", ports: "http 8080/TCP", target: "api-0", node: "worker-1", zone: "eu-1a", ready: true });
+  assert.equal(summary.items[1].ready, false);
+  assert.deepEqual(normalizeServiceEndpoints({}), { items: [], ready: 0, notReady: 0, total: 0, truncated: false });
+
+  const many = normalizeServiceEndpoints({
+    items: [{ ports: [], endpoints: Array.from({ length: MAX_SERVICE_ENDPOINT_ITEMS + 5 }, (_, index) => ({ addresses: [`10.0.1.${index}`] })) }],
+  });
+  assert.equal(many.total, MAX_SERVICE_ENDPOINT_ITEMS + 5);
+  assert.equal(many.items.length, MAX_SERVICE_ENDPOINT_ITEMS);
+  assert.equal(many.truncated, true);
+
+  const commands = [];
+  const runner = {
+    async run() {
+      throw new Error("endpoints must be read as JSON");
+    },
+    async runJson(command) {
+      commands.push(command.args);
+      return { items: [{ ports: [{ port: 80, protocol: "TCP" }], endpoints: [{ addresses: ["10.0.0.10"], targetRef: { kind: "Pod", name: "api-0" } }] }] };
+    },
+  };
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    const handled = handleResourceDetailsRequest(request, response, pathname, fakeConfigStore(), runner, () => {});
+    if (!handled) {
+      response.statusCode = 404;
+      response.end();
+    }
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+  const response = await fetch(`${baseUrl}/clusters/demo/resources/services/default/api/endpoints`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /application\/json/);
+  const body = await response.json();
+  assert.equal(body.ready, 1);
+  assert.equal(body.items[0].address, "10.0.0.10");
+  assert.deepEqual(commands[0], ["get", "endpointslices", "-n", "default", "-l", "kubernetes.io/service-name=api", "-o", "json"]);
 });

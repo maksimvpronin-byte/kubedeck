@@ -4,7 +4,15 @@ import type { ApiClient } from "../api";
 import type { SelectedResourceTarget } from "./useResourceNavigation";
 import type { Cluster, ErrorInfo, ResourceRow, Section } from "../types";
 import { asErrorInfo } from "../utils/errors";
-import { closeResourceWorkspaceTab, resourceWorkspaceTabId, upsertResourceWorkspaceTab, type ResourceWorkspaceTab } from "../utils/workspaceTabs";
+import {
+  closeResourceWorkspaceTab,
+  type DrawerTabMemory,
+  drawerTabForResource,
+  rememberDrawerTab,
+  resourceWorkspaceTabId,
+  upsertResourceWorkspaceTab,
+  type ResourceWorkspaceTab,
+} from "../utils/workspaceTabs";
 
 interface Options {
   api: ApiClient | null;
@@ -45,6 +53,7 @@ export function useResourceWorkspaceTabs({
 }: Options) {
   const [resourceWorkspaceTabs, setResourceWorkspaceTabs] = useState<ResourceWorkspaceTab[]>([]);
   const [activeResourceTabId, setActiveResourceTabId] = useState<string | null>(null);
+  const [drawerTabMemory, setDrawerTabMemory] = useState<DrawerTabMemory>({});
   const resourceActivationRef = useRef(0);
 
   const activeResourceWorkspaceTab = resourceWorkspaceTabs.find((tab) => tab.id === activeResourceTabId) ?? null;
@@ -59,7 +68,7 @@ export function useResourceWorkspaceTabs({
           resource: currentSelectedTarget.resource,
           namespace: String(currentSelectedTarget.row.namespace || "_cluster"),
           row: currentSelectedTarget.row,
-          drawerTab: "summary",
+          drawerTab: drawerTabForResource(drawerTabMemory, currentSelectedTarget.resource),
           status: "ready",
         }
       : null);
@@ -77,7 +86,7 @@ export function useResourceWorkspaceTabs({
       resource: selectedTarget.resource,
       namespace: String(selectedTarget.row.namespace || "_cluster"),
       row: selectedTarget.row,
-      drawerTab: "summary",
+      drawerTab: drawerTabForResource(drawerTabMemory, selectedTarget.resource),
       status: "ready",
     };
     setResourceWorkspaceTabs((current) => {
@@ -159,6 +168,10 @@ export function useResourceWorkspaceTabs({
     setActiveResourceTabId((current) => (remaining.some((tab) => tab.id === current) ? current : (remaining[0]?.id ?? null)));
   }
 
+  const rememberResourceDrawerTab = useCallback((resource: string, drawerTab: string) => {
+    setDrawerTabMemory((current) => rememberDrawerTab(current, resource, drawerTab));
+  }, []);
+
   return {
     resourceWorkspaceTabs,
     setResourceWorkspaceTabs,
@@ -171,5 +184,6 @@ export function useResourceWorkspaceTabs({
     closeDisplayedResource,
     closeTransientDrawerFromBackground,
     removeClusterResourceTabs,
+    rememberResourceDrawerTab,
   };
 }

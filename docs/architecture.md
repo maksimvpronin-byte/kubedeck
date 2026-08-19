@@ -55,7 +55,8 @@ Resource Snapshot Cache, watch events, terminal, SSH и port-forward sessions х
 - `terminal/` — интерактивные Pod Terminal sessions через `node-pty`;
 - `ssh/` — Node SSH sessions через `ssh2`;
 - `portForward/` — registry и lifecycle управляемых `kubectl port-forward`;
-- `search/`, `problems/`, `relations/` — diagnostic engines;
+- `resources/` — нормализация строк таблиц, метрики и кэш `kubectl api-resources`, из которого берутся доступные ресурсы и их scope;
+- `search/`, `problems/`, `relations/` — diagnostic engines; `relations/` строит связи от целевого объекта по манифесту и обратные связи через discovery, поэтому CRD-маршруты (Traefik, Gateway API) опрашиваются только на кластерах, где они установлены;
 - `llm/` — sanitization, context, prompts и OpenAI-compatible client;
 - `audit/` — bounded metadata audit без содержимого Secret.
 

@@ -4,6 +4,10 @@ import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import type { KubectlRunner } from "../kubectl/runner";
 import { buildRelatedResources, type RelatedLink } from "../relations/relatedResourcesEngine";
+import { getApiResourcesOutput } from "../resources/apiResourcesCache";
+// The search parser splits the API version into a bare group, which is the form
+// kubectl accepts as "<plural>.<group>".
+import { parseApiResources } from "../search/searchEngine";
 import { decodePathPart, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
@@ -60,18 +64,51 @@ export function matchRelatedResourcesRoute(method: string | undefined, pathname:
   };
 }
 
-function targetArgs(target: RelatedTarget): string[] {
+interface ResourceCatalog {
+  available: string[];
+  clusterScoped: Set<string>;
+}
+
+const EMPTY_CATALOG: ResourceCatalog = { available: [], clusterScoped: new Set() };
+
+// Discovery tells the engine which route CRDs exist and which of them are
+// cluster scoped. A cluster that cannot be discovered still works: it just
+// falls back to the built-in resources.
+async function loadResourceCatalog(configStore: ConfigStore, runner: KubectlRunner, clusterId: string): Promise<ResourceCatalog> {
+  try {
+    const { stdout } = await getApiResourcesOutput(configStore, runner, clusterId);
+    const available: string[] = [];
+    const clusterScoped = new Set<string>();
+    for (const definition of parseApiResources(stdout)) {
+      const qualified = definition.apiGroup ? `${definition.name}.${definition.apiGroup}` : definition.name;
+      available.push(qualified);
+      if (!definition.namespaced) {
+        clusterScoped.add(qualified);
+        clusterScoped.add(definition.name);
+      }
+    }
+    return { available, clusterScoped };
+  } catch {
+    return EMPTY_CATALOG;
+  }
+}
+
+function isClusterScoped(resource: string, catalog: ResourceCatalog): boolean {
+  return CLUSTER_SCOPED_RESOURCES.has(resource) || catalog.clusterScoped.has(resource);
+}
+
+function targetArgs(target: RelatedTarget, catalog: ResourceCatalog): string[] {
   const args = ["get", target.resource, target.name];
-  if (target.namespace !== "_cluster" && !CLUSTER_SCOPED_RESOURCES.has(target.resource)) {
+  if (target.namespace !== "_cluster" && !isClusterScoped(target.resource, catalog)) {
     args.push("-n", target.namespace);
   }
   args.push("-o", "json");
   return args;
 }
 
-function sourceArgs(resource: string, namespace: string): string[] {
+function sourceArgs(resource: string, namespace: string, catalog: ResourceCatalog): string[] {
   const args = ["get", resource];
-  if (!CLUSTER_SCOPED_RESOURCES.has(resource)) {
+  if (!isClusterScoped(resource, catalog)) {
     if (namespace === "all") args.push("-A");
     else if (namespace && namespace !== "_cluster") args.push("-n", namespace);
   }
@@ -90,13 +127,22 @@ export async function buildRelatedResourcesResponse(
 }> {
   const config = configStore.load();
   configStore.getCluster(target.clusterId, config);
-  const targetRaw = asRecord(await runner.runJson(clusterCommand(configStore, target.clusterId, targetArgs(target), TARGET_TIMEOUT_SECONDS, TARGET_MAX_OUTPUT_BYTES)));
+  // The caller already resolves cluster-scoped resources to namespace "_cluster"
+  // before requesting related resources (it has its own discovery), so the
+  // target fetch never actually depends on this route's own catalog lookup in
+  // practice; building its args from the static set lets it run alongside the
+  // catalog fetch instead of waiting on it.
+  const [catalog, targetRaw] = await Promise.all([
+    loadResourceCatalog(configStore, runner, target.clusterId),
+    runner.runJson(clusterCommand(configStore, target.clusterId, targetArgs(target, EMPTY_CATALOG), TARGET_TIMEOUT_SECONDS, TARGET_MAX_OUTPUT_BYTES)).then(asRecord),
+  ]);
   const result = await buildRelatedResources({
     resource: target.resource,
     namespace: target.namespace,
     targetRaw,
+    availableResources: catalog.available,
     loadItems: async (resource, namespace) => {
-      const data = await runner.runJson(clusterCommand(configStore, target.clusterId, sourceArgs(resource, namespace), SOURCE_TIMEOUT_SECONDS, SOURCE_MAX_OUTPUT_BYTES));
+      const data = await runner.runJson(clusterCommand(configStore, target.clusterId, sourceArgs(resource, namespace, catalog), SOURCE_TIMEOUT_SECONDS, SOURCE_MAX_OUTPUT_BYTES));
       return asItems(data);
     },
   });

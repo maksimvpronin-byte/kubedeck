@@ -5,6 +5,7 @@ const { buildRelatedResources, deduplicateRelatedLinks, relatedLink, selectorMat
 const { buildRelatedResourcesResponse, handleRelatedResourcesRequest, matchRelatedResourcesRoute } = require("../dist/main/backend/routes/relatedResources.js");
 const { ClusterNotFoundError } = require("../dist/main/backend/config/configStore.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
+const { clearApiResourcesCache } = require("../dist/main/backend/resources/apiResourcesCache.js");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -71,6 +72,46 @@ function podTarget() {
           ],
         },
       ],
+    },
+  };
+}
+
+const ROUTE_RESOURCES = [
+  "ingressroutes.traefik.io",
+  "middlewares.traefik.io",
+  "httproutes.gateway.networking.k8s.io",
+  "gateways.gateway.networking.k8s.io",
+  "gatewayclasses.gateway.networking.k8s.io",
+];
+
+function traefikRoute() {
+  return {
+    apiVersion: "traefik.io/v1alpha1",
+    kind: "IngressRoute",
+    metadata: { name: "api-route", namespace: "default" },
+    spec: {
+      entryPoints: ["websecure"],
+      routes: [
+        {
+          match: "Host(`api.example.com`)",
+          kind: "Rule",
+          services: [{ name: "api", port: 80 }],
+          middlewares: [{ name: "api-auth" }],
+        },
+      ],
+      tls: { secretName: "api-cert" },
+    },
+  };
+}
+
+function httpRoute() {
+  return {
+    apiVersion: "gateway.networking.k8s.io/v1",
+    kind: "HTTPRoute",
+    metadata: { name: "api-http", namespace: "default" },
+    spec: {
+      parentRefs: [{ name: "public", namespace: "traefik", sectionName: "websecure" }],
+      rules: [{ backendRefs: [{ name: "api", port: 80 }] }],
     },
   };
 }
@@ -166,6 +207,8 @@ function fixtureItems(resource) {
         subjects: [{ kind: "ServiceAccount", name: "api-sa", namespace: "default" }],
       },
     ],
+    "ingressroutes.traefik.io": [traefikRoute()],
+    "httproutes.gateway.networking.k8s.io": [httpRoute()],
   };
   return values[resource] || [];
 }
@@ -363,4 +406,253 @@ test("related route validates matcher and missing cluster before kubectl", async
   assert.equal(response.status, 404);
   assert.equal((await response.json()).detail.code, "CLUSTER_NOT_FOUND");
   assert.equal(calls, 0);
+});
+
+test("service and pod relations reach Traefik IngressRoutes and Gateway API HTTPRoutes", async () => {
+  const scanned = [];
+  const loadItems = async (resource, namespace) => {
+    scanned.push(`${resource}:${namespace}`);
+    return fixtureItems(resource);
+  };
+
+  const service = await buildRelatedResources({
+    resource: "services",
+    namespace: "default",
+    targetRaw: { apiVersion: "v1", kind: "Service", metadata: { name: "api", namespace: "default" }, spec: { selector: { app: "api" } } },
+    availableResources: ROUTE_RESOURCES,
+    loadItems,
+  });
+  const serviceRoute = service.items.find((item) => item.resource === "ingressroutes.traefik.io");
+  assert.equal(serviceRoute.name, "api-route");
+  assert.equal(serviceRoute.kind, "IngressRoute");
+  assert.equal(serviceRoute.relation, "routes to service");
+  assert.ok(service.items.some((item) => item.resource === "httproutes.gateway.networking.k8s.io" && item.relation === "routes to service"));
+  assert.ok(service.items.some((item) => item.resource === "ingresses" && item.name === "api-ingress"));
+  assert.equal(service.errors.length, 0);
+
+  const pod = await buildRelatedResources({
+    resource: "pods",
+    namespace: "default",
+    targetRaw: podTarget(),
+    availableResources: ROUTE_RESOURCES,
+    loadItems,
+  });
+  const podRoute = pod.items.find((item) => item.resource === "ingressroutes.traefik.io");
+  assert.equal(podRoute.relation, "routes to pod");
+  assert.equal(podRoute.detail, "via service api");
+  assert.ok(pod.items.some((item) => item.resource === "ingresses" && item.relation === "routes to pod"));
+  assert.ok(pod.items.some((item) => item.resource === "httproutes.gateway.networking.k8s.io" && item.relation === "routes to pod"));
+  // Traefik and Gateway API allow a route to reference a Service in another
+  // namespace, so these are scanned cluster-wide rather than scoped to the
+  // target's own namespace (unlike vanilla Ingress, which cannot cross namespaces).
+  assert.ok(scanned.includes("ingressroutes.traefik.io:all"));
+  assert.ok(scanned.includes("ingresses:default"));
+});
+
+test("route CRDs are only scanned when discovery lists them", async () => {
+  const scanned = [];
+  const result = await buildRelatedResources({
+    resource: "services",
+    namespace: "default",
+    targetRaw: { apiVersion: "v1", kind: "Service", metadata: { name: "api", namespace: "default" }, spec: { selector: { app: "api" } } },
+    async loadItems(resource, namespace) {
+      scanned.push(`${resource}:${namespace}`);
+      return fixtureItems(resource);
+    },
+  });
+  assert.ok(!scanned.some((entry) => entry.includes("traefik") || entry.includes("gateway.networking")));
+  assert.equal(result.errors.length, 0);
+  assert.ok(result.items.some((item) => item.resource === "ingresses"));
+});
+
+test("cross-namespace Traefik and Gateway API routes are still found from the Service they target", async () => {
+  // The IngressRoute/HTTPRoute/Middleware live in "ingress-ns" and reference a
+  // Service (and, for the middleware case, a Middleware) in "app-ns" via an
+  // explicit namespace override - a real pattern where routing objects are
+  // centralized in one namespace instead of living alongside every workload.
+  const crossNamespaceRoute = {
+    apiVersion: "traefik.io/v1alpha1",
+    kind: "IngressRoute",
+    metadata: { name: "shared-route", namespace: "ingress-ns" },
+    spec: {
+      routes: [{ services: [{ name: "api", namespace: "app-ns" }], middlewares: [{ name: "shared-auth", namespace: "app-ns" }] }],
+    },
+  };
+  const crossNamespaceHttpRoute = {
+    apiVersion: "gateway.networking.k8s.io/v1",
+    kind: "HTTPRoute",
+    metadata: { name: "shared-http-route", namespace: "ingress-ns" },
+    spec: { rules: [{ backendRefs: [{ name: "api", namespace: "app-ns" }] }] },
+  };
+
+  const service = await buildRelatedResources({
+    resource: "services",
+    namespace: "app-ns",
+    targetRaw: { apiVersion: "v1", kind: "Service", metadata: { name: "api", namespace: "app-ns" }, spec: {} },
+    availableResources: ROUTE_RESOURCES,
+    async loadItems(resource, namespace) {
+      assert.equal(namespace, "all", `cross-namespace-capable source "${resource}" must be scanned cluster-wide, not scoped to the service's namespace`);
+      if (resource === "ingressroutes.traefik.io") return [crossNamespaceRoute];
+      if (resource === "httproutes.gateway.networking.k8s.io") return [crossNamespaceHttpRoute];
+      return [];
+    },
+  });
+  const routeLink = service.items.find((item) => item.resource === "ingressroutes.traefik.io");
+  assert.ok(routeLink, "an IngressRoute living in another namespace must still be found by its cross-namespace service ref");
+  assert.equal(routeLink.namespace, "ingress-ns", "the link must point at the route's own namespace, not the service's");
+  assert.ok(service.items.some((item) => item.resource === "httproutes.gateway.networking.k8s.io" && item.namespace === "ingress-ns"));
+
+  const middleware = await buildRelatedResources({
+    resource: "middlewares.traefik.io",
+    namespace: "app-ns",
+    targetRaw: { apiVersion: "traefik.io/v1alpha1", kind: "Middleware", metadata: { name: "shared-auth", namespace: "app-ns" } },
+    availableResources: ROUTE_RESOURCES,
+    async loadItems(resource, namespace) {
+      if (resource === "ingressroutes.traefik.io") {
+        assert.equal(namespace, "all", "routes referencing a middleware in another namespace must be scanned cluster-wide");
+        return [crossNamespaceRoute];
+      }
+      return [];
+    },
+  });
+  const middlewareLink = middleware.items.find((item) => item.resource === "ingressroutes.traefik.io");
+  assert.ok(middlewareLink, "an IngressRoute in another namespace referencing this Middleware must still be found");
+  assert.equal(middlewareLink.namespace, "ingress-ns");
+});
+
+test("Traefik route targets link services, middleware and TLS secret", async () => {
+  const route = await buildRelatedResources({
+    resource: "ingressroutes.traefik.io",
+    namespace: "default",
+    targetRaw: traefikRoute(),
+    availableResources: ROUTE_RESOURCES,
+    async loadItems(resource) {
+      return fixtureItems(resource);
+    },
+  });
+  const keys = new Set(route.items.map((item) => `${item.resource}/${item.name}/${item.relation}`));
+  assert.ok(keys.has("services/api/used by route"));
+  assert.ok(keys.has("middlewares.traefik.io/api-auth/uses middleware"));
+  assert.ok(keys.has("secrets/api-cert/tls certificate"));
+  assert.equal(route.items.find((item) => item.resource === "services").detail, "port 80");
+
+  const middleware = await buildRelatedResources({
+    resource: "middlewares.traefik.io",
+    namespace: "default",
+    targetRaw: { apiVersion: "traefik.io/v1alpha1", kind: "Middleware", metadata: { name: "api-auth", namespace: "default" } },
+    availableResources: ROUTE_RESOURCES,
+    async loadItems(resource) {
+      return fixtureItems(resource);
+    },
+  });
+  assert.ok(middleware.items.some((item) => item.resource === "ingressroutes.traefik.io" && item.relation === "uses this middleware"));
+});
+
+test("Gateway API targets link backends, parent gateways and certificates", async () => {
+  const route = await buildRelatedResources({
+    resource: "httproutes.gateway.networking.k8s.io",
+    namespace: "default",
+    targetRaw: httpRoute(),
+    availableResources: ROUTE_RESOURCES,
+    async loadItems(resource) {
+      return fixtureItems(resource);
+    },
+  });
+  assert.ok(route.items.some((item) => item.resource === "services" && item.name === "api" && item.relation === "used by route"));
+  const parent = route.items.find((item) => item.resource === "gateways.gateway.networking.k8s.io");
+  assert.equal(parent.namespace, "traefik");
+  assert.equal(parent.detail, "listener websecure");
+
+  const gateway = await buildRelatedResources({
+    resource: "gateways.gateway.networking.k8s.io",
+    namespace: "traefik",
+    targetRaw: {
+      apiVersion: "gateway.networking.k8s.io/v1",
+      kind: "Gateway",
+      metadata: { name: "public", namespace: "traefik" },
+      spec: {
+        gatewayClassName: "traefik",
+        listeners: [{ name: "websecure", tls: { certificateRefs: [{ kind: "Secret", name: "wildcard-cert" }] } }],
+      },
+    },
+    availableResources: ROUTE_RESOURCES,
+    async loadItems(resource) {
+      return resource === "httproutes.gateway.networking.k8s.io" ? [httpRoute()] : fixtureItems(resource);
+    },
+  });
+  const keys = new Set(gateway.items.map((item) => `${item.resource}/${item.name}/${item.relation}`));
+  assert.ok(keys.has("gatewayclasses.gateway.networking.k8s.io/traefik/gateway class"));
+  assert.ok(keys.has("secrets/wildcard-cert/tls certificate"));
+  assert.ok(keys.has("httproutes.gateway.networking.k8s.io/api-http/attached to this gateway"));
+});
+
+test("ingress targets expose their TLS secrets", async () => {
+  const result = await buildRelatedResources({
+    resource: "ingresses",
+    namespace: "default",
+    targetRaw: {
+      apiVersion: "networking.k8s.io/v1",
+      kind: "Ingress",
+      metadata: { name: "api-ingress", namespace: "default" },
+      spec: {
+        tls: [{ hosts: ["api.example.com"], secretName: "api-tls" }],
+        rules: [{ http: { paths: [{ backend: { service: { name: "api" } } }] } }],
+      },
+    },
+    async loadItems(resource) {
+      return fixtureItems(resource);
+    },
+  });
+  assert.ok(result.items.some((item) => item.resource === "secrets" && item.name === "api-tls" && item.relation === "tls certificate"));
+  assert.ok(result.items.some((item) => item.resource === "services" && item.name === "api"));
+});
+
+test("related route scans route CRDs that api-resources reports", async (t) => {
+  clearApiResourcesCache();
+  t.after(() => clearApiResourcesCache());
+  const commands = [];
+  const runner = {
+    async run(command) {
+      commands.push(command.args);
+      return {
+        stdout: [
+          "NAME SHORTNAMES APIVERSION NAMESPACED KIND VERBS",
+          "services svc v1 true Service [get list watch]",
+          "ingressroutes traefik.io/v1alpha1 true IngressRoute [get list watch]",
+          "httproutes gateway.networking.k8s.io/v1 true HTTPRoute [get list watch]",
+          "gatewayclasses gc gateway.networking.k8s.io/v1 false GatewayClass [get list watch]",
+        ].join("\n"),
+      };
+    },
+    async runJson(command) {
+      commands.push(command.args);
+      const resource = command.args[1];
+      const hasName = command.args[2] && !String(command.args[2]).startsWith("-");
+      if (hasName) return { apiVersion: "v1", kind: "Service", metadata: { name: "api", namespace: "default" }, spec: { selector: { app: "api" } } };
+      return { items: fixtureItems(resource) };
+    },
+  };
+
+  const body = await buildRelatedResourcesResponse(fakeConfigStore(), runner, {
+    clusterId: "cluster-1",
+    resource: "services",
+    namespace: "default",
+    name: "api",
+  });
+  assert.ok(commands.some((args) => args.join(" ") === "api-resources --verbs=list -o wide"));
+  // Traefik routes can reference a Service in another namespace, so this is
+  // scanned cluster-wide (-A) rather than scoped to the service's namespace.
+  assert.ok(commands.some((args) => args.join(" ") === "get ingressroutes.traefik.io -A -o json"));
+  assert.ok(body.items.some((item) => item.resource === "ingressroutes.traefik.io" && item.name === "api-route"));
+  assert.ok(body.items.some((item) => item.resource === "httproutes.gateway.networking.k8s.io"));
+  assert.equal(body.errors.length, 0);
+
+  const gatewayClass = await buildRelatedResourcesResponse(fakeConfigStore(), runner, {
+    clusterId: "cluster-1",
+    resource: "gatewayclasses.gateway.networking.k8s.io",
+    namespace: "_cluster",
+    name: "traefik",
+  });
+  assert.ok(Array.isArray(gatewayClass.items));
+  assert.ok(!commands.some((args) => args[1] === "gatewayclasses.gateway.networking.k8s.io" && args.includes("-n")));
 });

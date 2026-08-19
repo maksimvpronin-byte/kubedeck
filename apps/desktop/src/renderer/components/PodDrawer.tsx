@@ -122,6 +122,7 @@ export function PodDrawer({
     error,
     setError,
     metrics,
+    serviceEndpoints,
   } = usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey });
   const yamlChanged = yamlDraft !== yamlBaseline;
   const now = useUiClock(Boolean(pod), 1000);
@@ -169,8 +170,13 @@ export function PodDrawer({
     onActionComplete,
   });
 
+  // A remembered tab carries over between objects of the same resource, so it
+  // has to be dropped when this resource does not offer it.
+  const drawerTabs = availableDrawerTabs(resource, canLogs);
+  const resolvedInitialTab: DrawerTab = drawerTabs.includes(initialTab) ? initialTab : "summary";
+
   useEffect(() => onTabChangeRef.current?.(tab), [tab]);
-  useEffect(() => setTab(initialTab === "events" ? "summary" : initialTab), [currentObjectKey, initialTab]);
+  useEffect(() => setTab(resolvedInitialTab), [currentObjectKey, resolvedInitialTab]);
   useEffect(() => {
     onDirtyChangeRef.current?.(yamlChanged);
     return () => onDirtyChangeRef.current?.(false);
@@ -319,7 +325,6 @@ export function PodDrawer({
   const namespaceText = String(pod.namespace || "_cluster");
   const involvedTarget = resource === "events" ? eventTargetForOpen(pod) : null;
   const yamlReadOnly = isCrdDefinitionResource;
-  const drawerTabs = availableDrawerTabs(resource, canLogs);
   return (
     <aside className="drawer" style={{ width }}>
       <div
@@ -380,7 +385,7 @@ export function PodDrawer({
           </section>
         ) : null}
         {tab === "summary" ? (
-          <ResourceSummary row={{ ...pod, ...metrics, uid: pod.uid, name: pod.name }} resource={resource} now={now} events={events} />
+          <ResourceSummary row={{ ...pod, ...metrics, uid: pod.uid, name: pod.name }} resource={resource} now={now} events={events} serviceEndpoints={serviceEndpoints} />
         ) : tab === "llm" ? (
           <LlmTab
             api={api}
