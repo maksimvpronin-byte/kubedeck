@@ -583,3 +583,67 @@ test("the analysis always answers in Russian and never translates Kubernetes ter
   assert.match(completion.answer, /3\. Проблемы \/ риски\n- Активных проблем не выявлено\./);
   assert.doesNotMatch(completion.answer, /Short conclusion|No active problems/);
 });
+
+test("the analysis is asked to judge request and limit against the recorded history", async (t) => {
+  const { SYSTEM_PROMPT, DEFAULT_USER_REQUEST } = require("../dist/main/backend/llm/prompts.js");
+  const { UsageHistorySampler, samplesFromTopOutput } = require("../dist/main/backend/resources/usageHistorySampler.js");
+
+  // The numbers already reached the prompt; what was missing was the task.
+  assert.match(SYSTEM_PROMPT, /Request and limit sizing \(the "resources" key\)/);
+  assert.match(SYSTEM_PROMPT, /Judge the request against sustained load \(p50\/p95\)/);
+  assert.match(SYSTEM_PROMPT, /Judge the limit against the peak \(max\)/);
+  // A request and a limit fail differently, and so must the advice.
+  assert.match(SYSTEM_PROMPT, /Memory is incompressible/);
+  assert.match(SYSTEM_PROMPT, /OOMKilled/);
+  // Guard rails: no numbers invented, none recommended off a thin window.
+  assert.match(SYSTEM_PROMPT, /Below roughly 20% of the window, do not recommend concrete values/);
+  assert.match(SYSTEM_PROMPT, /Never invent a number the data does not support/);
+  assert.match(SYSTEM_PROMPT, /"resources": \["\.\.\."\]/, "the key has to be in the schema the model is given");
+  assert.match(DEFAULT_USER_REQUEST, /оцени, верно ли выставлены request и limit/);
+
+  let now = 1_700_000_000_000;
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
+  for (let index = 0; index < 60; index += 1) {
+    sampler.ingest("c1", samplesFromTopOutput("default api-x 120m 400Mi", true, ""));
+    now += 30_000;
+  }
+  const context = buildResourceContext(
+    {
+      clusterId: "c1",
+      resource: "pods",
+      name: "api-x",
+      namespace: "default",
+      resourceObject: { podCpuRequestValue: 500, podCpuLimitValue: 1000 },
+      usageHistory: sampler.history("c1", "default", "api-x"),
+    },
+    60000,
+  ).context;
+  // The verdict needs both halves in front of it: what was measured and what
+  // was configured.
+  assert.match(context, /pod cpu: p50 120m/);
+  assert.match(context, /pod cpu request: 500m, cpu limit: 1 cores/);
+
+  let reply;
+  const server = http.createServer(async (request, response) => {
+    await readBody(request);
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify({ model: "served", choices: [{ finish_reason: "stop", message: { content: `<kubedeck_final>${JSON.stringify(reply)}</kubedeck_final>` } }] }));
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: buildUserPrompt(context) },
+  ];
+
+  reply = { conclusion: ["Pod в состоянии Running"], facts: ["Phase: Running"], risks: [], nextChecks: [], missing: [], resources: ["request 500m при p95 120m — зарезервировано вчетверо больше."] };
+  const withVerdict = await chatCompletion(resolvedSettings(baseUrl), messages);
+  assert.match(withVerdict.answer, /6\. Request \/ limit по истории\n- request 500m при p95 120m/);
+
+  // A resource with no usage history must not carry an empty section saying so.
+  reply = { conclusion: ["Service работает"], facts: ["Type: ClusterIP"], risks: [], nextChecks: [], missing: [] };
+  const withoutVerdict = await chatCompletion(resolvedSettings(baseUrl), messages);
+  assert.doesNotMatch(withoutVerdict.answer, /Request \/ limit/);
+  assert.match(withoutVerdict.answer, /5\. Чего не хватает/, "the other five sections still render");
+  sampler.close();
+});

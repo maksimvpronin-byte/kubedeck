@@ -15,7 +15,8 @@ The JSON schema is fixed:
   "facts": ["..."],
   "risks": ["..."],
   "nextChecks": ["..."],
-  "missing": ["..."]
+  "missing": ["..."],
+  "resources": ["..."]
 }
 
 Language of the answer:
@@ -56,12 +57,24 @@ Stable diagnostic rules:
 - If a risk is only hypothetical, mark it explicitly as a hypothesis.
 - Health/status decisions must refer to the target resource only; related resources must not change the target resource state.
 
-Important: KubeDeck backend renders the final JSON into a fixed 5-section format. Keep JSON factual and compact.`;
+Request and limit sizing (the "resources" key):
+- Fill it only when the context has a USAGE HISTORY section with samples. Otherwise return an empty array: the section is then not shown at all.
+- Judge the request against sustained load (p50/p95), because a request is what the scheduler reserves and what the pod is guaranteed.
+- Judge the limit against the peak (max), because that is what the pod has to survive: exceeding a CPU limit throttles the container, exceeding a memory limit gets it OOMKilled.
+- Memory and CPU are not symmetric. Memory is incompressible: a limit near the observed peak risks an OOMKill, so leave headroom. CPU is compressible: a low limit costs latency, not the process.
+- State the verdict in terms of the numbers you were given, for example "request 500m при p95 120m — зарезервировано вчетверо больше используемого".
+- Say when a request or a limit is simply absent, and what that means: no request means the scheduler places the pod blind, no memory limit means the node decides who dies under pressure.
+- Coverage is stated in the context. Below roughly 20% of the window, do not recommend concrete values: say the observation is too short and what would make it conclusive.
+- Never invent a number the data does not support, and never present a suggestion as a measurement.
+- One or two items. This is a verdict, not a tutorial.
+
+Important: KubeDeck backend renders the final JSON into a fixed section format and drops the resources section when it is empty. Keep JSON factual and compact.`;
 
 export const DEFAULT_USER_REQUEST = `Проанализируй Kubernetes-ресурс по предоставленному контексту.
 Верни только финальный JSON внутри <kubedeck_final>...</kubedeck_final>.
 Не добавляй Markdown вне JSON.
 Не придумывай конкретные теги образов; используй только факты из контекста.
+Если в контексте есть история потребления — оцени, верно ли выставлены request и limit.
 Пиши по-русски, но оставляй Kubernetes-термины, статусы, имена и поля манифеста в исходном виде.`;
 
 export function buildUserPrompt(context: string, userRequest?: string): string {
@@ -76,7 +89,7 @@ ${request}
 FINAL CONTRACT
 Return exactly one <kubedeck_final>...</kubedeck_final> block.
 Inside the block return valid JSON with exactly these keys:
-conclusion, facts, risks, nextChecks, missing.
+conclusion, facts, risks, nextChecks, missing, resources.
 Do not include reasoning/thinking in the final block.
 Write every JSON value in Russian, keeping Kubernetes terms, statuses, resource names and manifest fields in their original form.
 For healthy Running/Ready Pod with restarts=0 and Events=<none>, use stable healthy wording and do not invent preventive checks.

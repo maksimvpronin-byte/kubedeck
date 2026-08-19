@@ -202,7 +202,17 @@ function renderStandardAnswer(answer: string, messages: LlmMessage[]): string {
     ["5. Чего не хватает", missing, "Контекст достаточен для диагностики текущего состояния."],
   ];
 
-  return sections.map(([title, items, fallback]) => `${title}\n${(items.length ? items : [fallback]).map((item) => `- ${item}`).join("\n")}`).join("\n\n");
+  const rendered = sections.map(([title, items, fallback]) => `${title}\n${(items.length ? items : [fallback]).map((item) => `- ${item}`).join("\n")}`);
+
+  // The sizing verdict only exists when usage history was recorded, and a
+  // resource that has none - a Service, a Secret, a pod seen for a minute -
+  // should not carry an empty section explaining that it is empty.
+  const resources = asStringItems(parsed.resources, 2);
+  if (resources.length > 0) {
+    rendered.push(`6. Request / limit по истории\n${resources.map((item) => `- ${item}`).join("\n")}`);
+  }
+
+  return rendered.join("\n\n");
 }
 
 export async function chatCompletion(settings: ResolvedLlmSettings, messages: LlmMessage[], fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike): Promise<LlmCompletion> {
