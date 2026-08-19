@@ -455,10 +455,6 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
       if (closing) return closing;
 
       closing = (async () => {
-        // Recorded usage is the only thing here that has to reach disk, and it
-        // does not depend on any session teardown, so it is written before the
-        // awaited closes below rather than after them: a failure while
-        // stopping a watch or an SSH session must not cost the samples.
         services.usageHistory.close();
         await services.sshWebSocket.close();
         await services.terminalWebSocket.close();

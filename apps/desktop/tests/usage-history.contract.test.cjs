@@ -121,9 +121,11 @@ test("history is bounded by retention and by series count", () => {
   assert.equal(many.history("c1", "default", "pod-0").pod, null, "the least recently sampled series is evicted first");
 });
 
-test("history survives a restart and is removed with the cluster", () => {
+test("history covers one run and leaves nothing on disk behind it", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-usage-"));
-  const configStore = { paths: { metrics: path.join(root, "metrics") } };
+  const metrics = path.join(root, "metrics");
+  fs.mkdirSync(metrics, { recursive: true });
+  const configStore = { paths: { metrics } };
   const runner = {
     run() {
       throw new Error("the sampler must not reach kubectl in this test");
@@ -132,22 +134,33 @@ test("history survives a restart and is removed with the cluster", () => {
   let now = 1_700_000_000_000;
 
   try {
-    const first = new UsageHistorySampler(configStore, runner, () => {}, { now: () => now, persist: true });
+    // Files left by a version that kept history between runs, plus a stray
+    // temporary from an interrupted write.
+    fs.writeFileSync(path.join(metrics, "c1.json"), JSON.stringify({ version: 1, series: [] }));
+    fs.writeFileSync(path.join(metrics, "c1.json.123.tmp"), "partial");
+    fs.writeFileSync(path.join(metrics, "unrelated.txt"), "keep me");
+
+    const first = new UsageHistorySampler(configStore, runner, () => {}, { now: () => now });
+    assert.equal(fs.existsSync(path.join(metrics, "c1.json")), false, "starting up removes recorded history");
+    assert.equal(fs.existsSync(path.join(metrics, "c1.json.123.tmp")), false);
+    assert.equal(fs.existsSync(path.join(metrics, "unrelated.txt")), true, "only history files are removed");
+
     for (let index = 0; index < 30; index += 1) {
       first.ingest("c1", samplesFromTopOutput("default api-8db54c48d-hw9zw 120m 400Mi", true, ""));
       now += 60_000;
     }
     first.attributePods("c1", [deploymentPod("8db54c48d", "hw9zw")]);
+    assert.equal(first.history("c1", "default", "api-8db54c48d-hw9zw").pod.samples, 30);
     first.close();
 
-    const second = new UsageHistorySampler(configStore, runner, () => {}, { now: () => now, persist: true });
-    const restored = second.history("c1", "default", "api-8db54c48d-hw9zw");
-    assert.equal(restored.pod.samples, 30, "samples must come back after a restart");
-    // Attribution is persisted too, so the rollup works without re-browsing pods.
-    assert.equal(restored.workloadKey, "Deployment/api");
-
-    second.forgetCluster("c1");
-    assert.equal(fs.existsSync(path.join(root, "metrics", "c1.json")), false, "removing a cluster removes its recorded history");
+    // Nothing was written during the run, so nothing carries over into it.
+    assert.deepEqual(
+      fs.readdirSync(metrics).filter((entry) => entry.endsWith(".json")),
+      [],
+      "a run must not write history to disk",
+    );
+    const second = new UsageHistorySampler(configStore, runner, () => {}, { now: () => now });
+    assert.equal(second.history("c1", "default", "api-8db54c48d-hw9zw").pod, null, "a new run starts with an empty window");
     second.close();
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -156,7 +169,7 @@ test("history survives a restart and is removed with the cluster", () => {
 
 test("the LLM context states coverage and how to read the percentiles", () => {
   let now = 1_700_000_000_000;
-  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
   for (let index = 0; index < 120; index += 1) {
     sampler.ingest("c1", samplesFromTopOutput("default api-8db54c48d-hw9zw 120m 400Mi", true, ""));
     now += 60_000;
@@ -195,7 +208,7 @@ test("the LLM context states coverage and how to read the percentiles", () => {
 test("a pod metrics-server started reporting after the list call still shows usage in the table", () => {
   const { applyPodMetricsSnapshot, parsePodMetrics } = require("../dist/main/backend/resources/metrics.js");
   let now = 1_700_000_000_000;
-  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
 
   // The background sampler saw the pod; the table's own kubectl top call was
   // issued earlier, when metrics-server did not know about it yet.
@@ -229,7 +242,7 @@ test("a pod metrics-server started reporting after the list call still shows usa
 
 test("a reading of zero is a measurement, not a missing sample", () => {
   let now = 1_700_000_000_000;
-  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
 
   // An idle pod genuinely reports 0m. Treating that as absent left the whole
   // CPU history empty for pods that are simply not doing anything.
@@ -258,7 +271,7 @@ test("a reading of zero is a measurement, not a missing sample", () => {
 
 test("a metric that arrives late is averaged over its own samples", () => {
   let now = 1_700_000_000_000;
-  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
 
   // metrics-server reports memory from its first scrape but needs two before
   // it can derive a CPU rate, so a bucket can hold more memory readings than
@@ -273,7 +286,7 @@ test("a metric that arrives late is averaged over its own samples", () => {
   assert.equal(history.pod.samples, 3);
 
   // The backfill must not invent an "N/A" string for the half that is missing.
-  const missingCpu = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  const missingCpu = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
   missingCpu.ingest("c2", [{ namespace: "d", pod: "p", cpuMillicores: null, memoryBytes: 100 }]);
   const metrics = new Map();
   missingCpu.backfillPodMetrics("c2", metrics, [{ name: "p", namespace: "d" }], true, "d");
@@ -293,7 +306,7 @@ test("the pod-usage route serves recorded samples without touching kubectl", asy
   assert.equal(matchPodUsageRoute("GET", "/clusters/c1/pod-usage", "/clusters/c1/pod-usage?namespace=prod").namespace, "prod");
 
   let now = 1_700_000_000_000;
-  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
   sampler.ingest("c1", samplesFromTopOutput("default api-1 250m 512Mi\nkube-system coredns-1 3m 21Mi", true, ""));
 
   const configStore = {

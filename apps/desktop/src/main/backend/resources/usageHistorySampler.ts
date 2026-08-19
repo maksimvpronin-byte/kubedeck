@@ -11,18 +11,15 @@ import { formatWorkloadKey, workloadKeyForPod } from "./workloadKey";
 const SAMPLE_TIMEOUT_SECONDS = 20;
 const SAMPLE_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const DEFAULT_INTERVAL_MS = 30_000;
-// History is worth little if it is lost on a crash, and worth nothing if
-// writing it stalls the app: the store is flushed on a timer, not per sample.
-const FLUSH_INTERVAL_MS = 5 * 60_000;
 const BACKFILL_MAX_AGE_MS = 2 * 60_000;
 
 type JsonObject = Record<string, unknown>;
 
 export interface UsageHistorySamplerOptions {
   intervalMs?: number;
-  flushIntervalMs?: number;
   now?: () => number;
-  persist?: boolean;
+  // Tests drive their own directory; production always purges the real one.
+  purgeOnStart?: boolean;
 }
 
 function text(value: unknown): string {
@@ -87,72 +84,47 @@ export function samplesFromTopOutput(stdout: string, allNamespaces: boolean, fal
   return samplesFromPodMetrics(parsePodMetrics(stdout, allNamespaces), allNamespaces, fallbackNamespace);
 }
 
-// Sampling runs for as long as the application does, which is the only window
-// this history can cover: there is no Prometheus behind it to backfill from.
+// History lives for one run of the application: it is held in memory, dropped
+// when KubeDeck exits, and bounded by the retention window while it runs. There
+// is no Prometheus behind it to backfill from, so a fresh start means a fresh
+// window.
 export class UsageHistorySampler {
   private readonly store: UsageHistoryStore;
   private readonly timers = new Map<string, NodeJS.Timeout>();
-  private readonly loaded = new Set<string>();
-  private readonly dirty = new Set<string>();
   private readonly intervalMs: number;
-  private readonly persist: boolean;
-  private flushTimer: NodeJS.Timeout | null = null;
   private closed = false;
 
   constructor(
     private readonly configStore: ConfigStore,
     private readonly runner: KubectlRunner,
     private readonly log: (message: string) => void,
-    private readonly options: UsageHistorySamplerOptions = {},
+    options: UsageHistorySamplerOptions = {},
   ) {
     this.store = new UsageHistoryStore(options.now ?? Date.now);
     this.intervalMs = Math.max(5_000, options.intervalMs ?? DEFAULT_INTERVAL_MS);
-    this.persist = options.persist !== false;
+    if (options.purgeOnStart !== false) this.purgeStoredHistory();
   }
 
-  private filePath(clusterId: string): string {
-    return path.join(this.configStore.paths.metrics, `${clusterId}.json`);
-  }
-
-  private restore(clusterId: string): void {
-    if (this.loaded.has(clusterId)) return;
-    this.loaded.add(clusterId);
-    if (!this.persist) return;
+  // Earlier versions kept history on disk between runs. Nothing reads those
+  // files any more, so they are removed rather than left behind holding
+  // cluster data the user has no way to see.
+  purgeStoredHistory(): void {
+    const directory = this.configStore.paths.metrics;
+    let entries: string[];
     try {
-      const raw = fs.readFileSync(this.filePath(clusterId), "utf8");
-      this.store.load(clusterId, JSON.parse(raw));
+      entries = fs.readdirSync(directory);
     } catch {
-      // A missing or unreadable history file only means the window starts now.
+      // No directory means nothing was ever written.
+      return;
     }
-  }
-
-  private flushCluster(clusterId: string): void {
-    if (!this.persist) return;
-    const target = this.filePath(clusterId);
-    const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
-    try {
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(temporary, `${JSON.stringify(this.store.snapshot(clusterId))}\n`, { encoding: "utf8", mode: 0o600 });
-      fs.renameSync(temporary, target);
-    } catch (error) {
-      this.log(`usage history flush failed for ${clusterId}: ${error instanceof Error ? error.message : String(error)}`);
+    for (const entry of entries) {
+      if (!entry.endsWith(".json") && !entry.endsWith(".tmp")) continue;
       try {
-        fs.rmSync(temporary, { force: true });
-      } catch {
-        // The temporary file is already gone or unreachable.
+        fs.rmSync(path.join(directory, entry), { force: true });
+      } catch (error) {
+        this.log(`usage history cleanup failed for ${entry}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-  }
-
-  flush(): void {
-    for (const clusterId of this.dirty) this.flushCluster(clusterId);
-    this.dirty.clear();
-  }
-
-  private scheduleFlush(): void {
-    if (this.flushTimer || this.closed || !this.persist) return;
-    this.flushTimer = setInterval(() => this.flush(), this.options.flushIntervalMs ?? FLUSH_INTERVAL_MS);
-    this.flushTimer.unref?.();
   }
 
   private async sample(clusterId: string): Promise<void> {
@@ -168,10 +140,7 @@ export class UsageHistorySampler {
 
   ingest(clusterId: string, samples: UsageSample[]): void {
     if (this.closed || samples.length === 0) return;
-    this.restore(clusterId);
     this.store.record(clusterId, samples);
-    this.dirty.add(clusterId);
-    this.scheduleFlush();
   }
 
   // Called with a freshly loaded pod list: `kubectl top` carries no labels or
@@ -179,23 +148,19 @@ export class UsageHistorySampler {
   // can be learned.
   attributePods(clusterId: string, rows: JsonObject[]): void {
     if (this.closed || rows.length === 0) return;
-    this.restore(clusterId);
     for (const row of rows) {
       const pod = text(row.name);
       if (!pod) continue;
       const workload = formatWorkloadKey(workloadKeyForPod(row));
       if (workload) this.store.attribute(clusterId, text(row.namespace), pod, workload);
     }
-    this.dirty.add(clusterId);
   }
 
   ensureCluster(clusterId: string): void {
     if (this.closed || this.timers.has(clusterId)) return;
-    this.restore(clusterId);
     const timer = setInterval(() => void this.sample(clusterId), this.intervalMs);
     timer.unref?.();
     this.timers.set(clusterId, timer);
-    this.scheduleFlush();
     void this.sample(clusterId);
   }
 
@@ -225,7 +190,6 @@ export class UsageHistorySampler {
   // already been sampled: the table can refresh its numbers without a second
   // `kubectl get pods`, which is the expensive half of a list reload.
   currentUsage(clusterId: string, namespace: string): Array<{ namespace: string; pod: string; cpu: string; memory: string; cpuMillicores: number | null; memoryBytes: number | null }> {
-    this.restore(clusterId);
     return this.store.recentSamples(clusterId, namespace, BACKFILL_MAX_AGE_MS).map((entry) => ({
       namespace: entry.namespace,
       pod: entry.pod,
@@ -237,7 +201,6 @@ export class UsageHistorySampler {
   }
 
   history(clusterId: string, namespace: string, pod: string, podRow: JsonObject | null = null): UsageHistoryResult {
-    this.restore(clusterId);
     const key = podRow ? workloadKeyForPod(podRow) : null;
     if (key) this.store.attribute(clusterId, namespace, pod, formatWorkloadKey(key));
     return this.store.history(clusterId, namespace, pod, key ? { key: formatWorkloadKey(key), exact: key.exact } : undefined);
@@ -247,10 +210,6 @@ export class UsageHistorySampler {
     const timer = this.timers.get(clusterId);
     if (timer) clearInterval(timer);
     this.timers.delete(clusterId);
-    if (this.dirty.has(clusterId)) {
-      this.flushCluster(clusterId);
-      this.dirty.delete(clusterId);
-    }
   }
 
   // Removing a cluster must take its history with it: it is data about an
@@ -258,22 +217,12 @@ export class UsageHistorySampler {
   forgetCluster(clusterId: string): void {
     this.stopCluster(clusterId);
     this.store.clearCluster(clusterId);
-    this.loaded.delete(clusterId);
-    if (!this.persist) return;
-    try {
-      fs.rmSync(this.filePath(clusterId), { force: true });
-    } catch {
-      // Nothing to remove.
-    }
   }
 
   close(): void {
     this.closed = true;
     for (const timer of this.timers.values()) clearInterval(timer);
     this.timers.clear();
-    if (this.flushTimer) clearInterval(this.flushTimer);
-    this.flushTimer = null;
-    this.flush();
   }
 
   seriesCount(clusterId: string): number {

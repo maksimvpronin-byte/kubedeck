@@ -38,10 +38,9 @@ React renderer
 - `config.json` — настройки и список кластеров;
 - `kubeconfigs/` — импортированные kubeconfig-файлы, редактируемые из Settings (атомарная запись, права 0600, копия предыдущей версии в `.bak`);
 - `logs/` — desktop/backend diagnostic logs;
-- `metrics/` — история потребления подов, по файлу на кластер: единственные данные кластера, которые KubeDeck хранит между запусками. Файл ограничен окном в 24 часа и числом серий, пишется атомарно и удаляется вместе с кластером;
 - `terminals/` — временные shell scripts, когда они нужны platform integration.
 
-Resource Snapshot Cache, watch events, terminal, SSH и port-forward sessions хранятся только в памяти процесса.
+Resource Snapshot Cache, история потребления подов, watch events, terminal, SSH и port-forward sessions хранятся только в памяти процесса. Каталог `metrics/` создаётся, но между запусками ничего не хранит: история существует в пределах одного запуска и ограничена окном в 24 часа, а файлы, оставшиеся от предыдущих версий, удаляются при старте.
 
 ## Backend boundaries
 
@@ -56,7 +55,7 @@ Resource Snapshot Cache, watch events, terminal, SSH и port-forward sessions х
 - `terminal/` — интерактивные Pod Terminal sessions через `node-pty`;
 - `ssh/` — Node SSH sessions через `ssh2`;
 - `portForward/` — registry и lifecycle управляемых `kubectl port-forward`;
-- `resources/` — нормализация строк таблиц, метрики, кэш `kubectl api-resources` (доступные ресурсы и их scope) и история потребления подов: сэмплы снимаются самим KubeDeck, складываются в пятиминутные бакеты и переживают перезапуск через файл на кластер в `metrics/`;
+- `resources/` — нормализация строк таблиц, метрики, кэш `kubectl api-resources` (доступные ресурсы и их scope) и история потребления подов: сэмплы снимаются самим KubeDeck, складываются в пятиминутные бакеты и живут в памяти в пределах одного запуска;
 - `search/`, `problems/`, `relations/` — diagnostic engines; `relations/` строит связи от целевого объекта по манифесту и обратные связи через discovery, поэтому CRD-маршруты (Traefik, Gateway API) опрашиваются только на кластерах, где они установлены;
 - `llm/` — sanitization, context, prompts и OpenAI-compatible client;
 - `audit/` — bounded metadata audit без содержимого Secret.
