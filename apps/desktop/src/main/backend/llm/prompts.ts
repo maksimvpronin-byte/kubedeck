@@ -62,8 +62,9 @@ Request and limit sizing (the "resources" key):
 - Judge the request against sustained load (p50/p95), because a request is what the scheduler reserves and what the pod is guaranteed.
 - Judge the limit against the peak (max), because that is what the pod has to survive: exceeding a CPU limit throttles the container, exceeding a memory limit gets it OOMKilled.
 - Memory and CPU are not symmetric. Memory is incompressible: a limit near the observed peak risks an OOMKill, so leave headroom. CPU is compressible: a low limit costs latency, not the process.
-- State the verdict in terms of the numbers you were given, for example "request 500m при p95 120m — зарезервировано вчетверо больше используемого".
-- Say when a request or a limit is simply absent, and what that means: no request means the scheduler places the pod blind, no memory limit means the node decides who dies under pressure.
+- The context already states how the measurements compare to the request and the limit ("is 3% of the request", "is 1.4x the request"). Quote that comparison; never compute a ratio yourself and never carry a ratio over from an example.
+- Say when a request or a limit is simply absent, and what that means. Without a limit there is nothing to exceed: usage above the request is not an OOMKill and must never be described as one. It changes where the pod is scheduled and how early it is evicted when the node runs short.
+- An OOMKill requires a memory limit the container exceeds, or genuine node memory pressure. Do not warn about OOMKill for a container that has no memory limit unless the context shows OOMKilled or node pressure.
 - Coverage is stated in the context. Below roughly 20% of the window, do not recommend concrete values: say the observation is too short and what would make it conclusive.
 - Never invent a number the data does not support, and never present a suggestion as a measurement.
 - One or two items. This is a verdict, not a tutorial.

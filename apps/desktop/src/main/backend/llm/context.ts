@@ -330,6 +330,46 @@ function usageStatLine(label: string, stat: unknown, format: (value: unknown) =>
   return `${label}: p50 ${format(values.p50)}, p95 ${format(values.p95)}, max ${format(values.max)}, avg ${format(values.avg)}`;
 }
 
+function ratioText(value: unknown, against: unknown): string {
+  const used = Number(value);
+  const total = Number(against);
+  if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) return "";
+  const percent = (used / total) * 100;
+  if (percent >= 200) return `${Math.round((used / total) * 10) / 10}x the request`;
+  return `${Math.round(percent)}% of the request`;
+}
+
+// The comparison between what was measured and what was configured is
+// arithmetic, and arithmetic is what a model gets wrong: it is stated here so
+// the answer only has to read it. An absent limit is spelled out too, because
+// "usage above request" and "OOMKill" are unrelated without one.
+function sizingLines(resource: string, stat: unknown, requestValue: unknown, limitValue: unknown, format: (value: unknown) => string): string[] {
+  const values = asObject(stat);
+  const hasRequest = Number(requestValue) > 0;
+  const hasLimit = Number(limitValue) > 0;
+  const lines: string[] = [];
+
+  if (hasRequest) {
+    const sustained = ratioText(values.p95, requestValue);
+    const peak = ratioText(values.max, requestValue);
+    lines.push(`${resource} request: ${format(requestValue)}; sustained p95 ${format(values.p95)} is ${sustained}; peak ${format(values.max)} is ${peak}`);
+  } else {
+    lines.push(`${resource} request: not set, so the scheduler places this pod without knowing what it needs`);
+  }
+
+  if (hasLimit) {
+    lines.push(`${resource} limit: ${format(limitValue)}; peak ${format(values.max)} is ${ratioText(values.max, limitValue).replace("the request", "the limit")}`);
+  } else if (resource === "memory") {
+    lines.push(
+      "memory limit: not set. There is no limit to exceed, so a limit-driven OOMKill cannot happen here; usage above the request affects scheduling and how early this pod is evicted when the node runs short.",
+    );
+  } else {
+    lines.push("cpu limit: not set, so this container is not throttled and may use idle cpu on the node.");
+  }
+
+  return lines;
+}
+
 // Usage history is sampled by KubeDeck while it runs; there is no Prometheus
 // behind it. Coverage is stated first so a conclusion drawn from twenty
 // minutes of data is not presented as if it came from a full day.
@@ -346,8 +386,8 @@ function usageHistorySection(request: LlmAnalyzeResourceRequest): string {
     `coverage: ${Math.round(Number(history.pod && pod.coverage) * 100)}% of the window, ${pod.samples} samples in ${pod.buckets} five-minute buckets`,
     usageStatLine("pod cpu", pod.cpu, formatCpu),
     usageStatLine("pod memory", pod.memory, formatMemory),
-    `pod cpu request: ${formatCpu(resourceObject.podCpuRequestValue)}, cpu limit: ${formatCpu(resourceObject.podCpuLimitValue)}`,
-    `pod memory request: ${formatMemory(resourceObject.podMemoryRequestValue)}, memory limit: ${formatMemory(resourceObject.podMemoryLimitValue)}`,
+    ...sizingLines("cpu", pod.cpu, resourceObject.podCpuRequestValue, resourceObject.podCpuLimitValue, formatCpu),
+    ...sizingLines("memory", pod.memory, resourceObject.podMemoryRequestValue, resourceObject.podMemoryLimitValue, formatMemory),
   ];
 
   const workload = asObject(history.workload);

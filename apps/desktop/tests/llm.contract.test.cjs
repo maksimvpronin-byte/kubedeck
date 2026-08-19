@@ -618,10 +618,11 @@ test("the analysis is asked to judge request and limit against the recorded hist
     },
     60000,
   ).context;
-  // The verdict needs both halves in front of it: what was measured and what
-  // was configured.
+  // The verdict needs both halves in front of it: what was measured, what was
+  // configured, and how the two compare.
   assert.match(context, /pod cpu: p50 120m/);
-  assert.match(context, /pod cpu request: 500m, cpu limit: 1 cores/);
+  assert.match(context, /cpu request: 500m; sustained p95 120m is 24% of the request/);
+  assert.match(context, /cpu limit: 1 cores; peak 120m is 12% of the limit/);
 
   let reply;
   const server = http.createServer(async (request, response) => {
@@ -645,5 +646,69 @@ test("the analysis is asked to judge request and limit against the recorded hist
   const withoutVerdict = await chatCompletion(resolvedSettings(baseUrl), messages);
   assert.doesNotMatch(withoutVerdict.answer, /Request \/ limit/);
   assert.match(withoutVerdict.answer, /5\. Чего не хватает/, "the other five sections still render");
+  sampler.close();
+});
+
+test("the context does the sizing arithmetic so the answer only has to read it", () => {
+  const { SYSTEM_PROMPT } = require("../dist/main/backend/llm/prompts.js");
+  const { UsageHistorySampler, samplesFromTopOutput } = require("../dist/main/backend/resources/usageHistorySampler.js");
+
+  let now = 1_700_000_000_000;
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, purgeOnStart: false });
+  for (let index = 0; index < 80; index += 1) {
+    sampler.ingest("c1", samplesFromTopOutput("kube-system metrics-server-x 3m 77Mi", true, ""));
+    now += 30_000;
+  }
+  const history = sampler.history("c1", "kube-system", "metrics-server-x");
+
+  // metrics-server as k3s ships it: requests set, no limits at all.
+  const noLimits = buildResourceContext(
+    {
+      clusterId: "c1",
+      resource: "pods",
+      name: "metrics-server-x",
+      namespace: "kube-system",
+      resourceObject: { podCpuRequestValue: 100, podMemoryRequestValue: 70 * 1024 * 1024 },
+      usageHistory: history,
+    },
+    60000,
+  ).context;
+
+  // A ratio computed by the model is a ratio it can get wrong: 100m against a
+  // p95 of 3m is 33x, and an answer once reported it as fourfold because the
+  // prompt's example said so.
+  assert.match(noLimits, /cpu request: 100m; sustained p95 3m is 3% of the request/);
+  assert.match(noLimits, /memory request: 70Mi; sustained p95 77Mi is 110% of the request/);
+
+  // Usage above a request is not an OOMKill when there is no limit to exceed.
+  assert.match(noLimits, /memory limit: not set\. There is no limit to exceed, so a limit-driven OOMKill cannot happen here/);
+  assert.match(noLimits, /cpu limit: not set, so this container is not throttled/);
+
+  // A pod with limits gets the peak compared against the limit instead.
+  const withLimits = buildResourceContext(
+    {
+      clusterId: "c1",
+      resource: "pods",
+      name: "metrics-server-x",
+      namespace: "kube-system",
+      resourceObject: { podCpuRequestValue: 1, podCpuLimitValue: 10, podMemoryRequestValue: 70 * 1024 * 1024, podMemoryLimitValue: 100 * 1024 * 1024 },
+      usageHistory: history,
+    },
+    60000,
+  ).context;
+  assert.match(withLimits, /cpu limit: 10m; peak 3m is 30% of the limit/);
+  // A large ratio reads as a multiplier rather than an unwieldy percentage.
+  assert.match(withLimits, /sustained p95 3m is 3x the request/);
+
+  // A pod with nothing configured is told what that costs.
+  const nothingSet = buildResourceContext({ clusterId: "c1", resource: "pods", name: "metrics-server-x", namespace: "kube-system", resourceObject: {}, usageHistory: history }, 60000).context;
+  assert.match(nothingSet, /cpu request: not set, so the scheduler places this pod without knowing what it needs/);
+
+  // The prompt must not hand the model a ratio it can copy, and must forbid
+  // the OOMKill claim for a container without a memory limit.
+  assert.doesNotMatch(SYSTEM_PROMPT, /вчетверо/);
+  assert.match(SYSTEM_PROMPT, /never compute a ratio yourself and never carry a ratio over from an example/);
+  assert.match(SYSTEM_PROMPT, /usage above the request is not an OOMKill and must never be described as one/);
+  assert.match(SYSTEM_PROMPT, /Do not warn about OOMKill for a container that has no memory limit/);
   sampler.close();
 });

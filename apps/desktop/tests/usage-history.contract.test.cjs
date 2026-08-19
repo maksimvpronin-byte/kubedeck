@@ -194,8 +194,10 @@ test("the LLM context states coverage and how to read the percentiles", () => {
   // A conclusion drawn from two hours must not read as if it covered a day.
   assert.match(context, /coverage: \d+% of the window, 120 samples/);
   assert.match(context, /pod cpu: p50 120m/);
-  assert.match(context, /pod cpu request: 500m, cpu limit: 1 cores/);
-  assert.match(context, /pod memory request: 1Gi, memory limit: 2Gi/);
+  // The configured values arrive already compared against the measurements,
+  // so the answer never has to divide anything.
+  assert.match(context, /cpu request: 500m; sustained p95 120m is 24% of the request/);
+  assert.match(context, /memory request: 1Gi; sustained p95 400Mi is 39% of the request/);
   assert.match(context, /p50\/p95 are percentiles of five-minute averages \(sustained load, what a request should cover\)/);
   assert.match(context, /max is the highest five-minute peak \(what a limit must survive\)/);
 
