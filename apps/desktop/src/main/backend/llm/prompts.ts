@@ -58,14 +58,16 @@ Stable diagnostic rules:
 - Health/status decisions must refer to the target resource only; related resources must not change the target resource state.
 
 Request and limit sizing (the "resources" key):
-- Fill it only when the context has a USAGE HISTORY section with samples. Otherwise return an empty array: the section is then not shown at all.
+- Whenever the context has a USAGE HISTORY section with samples, this key MUST be non-empty. Return an empty array only when there is no usage history at all.
+- Thin coverage is never a reason to leave it empty. Coverage changes what you may claim, never whether you answer.
+- The request/limit comparison belongs in this key and nowhere else. Do not report it in facts, conclusion or risks instead.
 - Judge the request against sustained load (p50/p95), because a request is what the scheduler reserves and what the pod is guaranteed.
 - Judge the limit against the peak (max), because that is what the pod has to survive: exceeding a CPU limit throttles the container, exceeding a memory limit gets it OOMKilled.
 - Memory and CPU are not symmetric. Memory is incompressible: a limit near the observed peak risks an OOMKill, so leave headroom. CPU is compressible: a low limit costs latency, not the process.
 - The context already states how the measurements compare to the request and the limit ("is 3% of the request", "is 1.4x the request"). Quote that comparison; never compute a ratio yourself and never carry a ratio over from an example.
 - Say when a request or a limit is simply absent, and what that means. Without a limit there is nothing to exceed: usage above the request is not an OOMKill and must never be described as one. It changes where the pod is scheduled and how early it is evicted when the node runs short.
 - An OOMKill requires a memory limit the container exceeds, or genuine node memory pressure. Do not warn about OOMKill for a container that has no memory limit unless the context shows OOMKilled or node pressure.
-- Coverage is stated in the context. Below roughly 20% of the window, do not recommend concrete values: say the observation is too short and what would make it conclusive.
+- Coverage is stated in the context. Above roughly 20% of the window you may name a target value for a request or a limit. Below it, still give the verdict from the stated comparison, and add that the window is too short to name a target.
 - Never invent a number the data does not support, and never present a suggestion as a measurement.
 - One or two items. This is a verdict, not a tutorial.
 

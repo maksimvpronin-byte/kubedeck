@@ -596,7 +596,7 @@ test("the analysis is asked to judge request and limit against the recorded hist
   assert.match(SYSTEM_PROMPT, /Memory is incompressible/);
   assert.match(SYSTEM_PROMPT, /OOMKilled/);
   // Guard rails: no numbers invented, none recommended off a thin window.
-  assert.match(SYSTEM_PROMPT, /Below roughly 20% of the window, do not recommend concrete values/);
+  assert.match(SYSTEM_PROMPT, /Below it, still give the verdict from the stated comparison, and add that the window is too short to name a target/);
   assert.match(SYSTEM_PROMPT, /Never invent a number the data does not support/);
   assert.match(SYSTEM_PROMPT, /"resources": \["\.\.\."\]/, "the key has to be in the schema the model is given");
   assert.match(DEFAULT_USER_REQUEST, /оцени, верно ли выставлены request и limit/);
@@ -711,4 +711,23 @@ test("the context does the sizing arithmetic so the answer only has to read it",
   assert.match(SYSTEM_PROMPT, /usage above the request is not an OOMKill and must never be described as one/);
   assert.match(SYSTEM_PROMPT, /Do not warn about OOMKill for a container that has no memory limit/);
   sampler.close();
+});
+
+test("a thin observation window changes the sizing verdict, it does not remove it", () => {
+  const { SYSTEM_PROMPT } = require("../dist/main/backend/llm/prompts.js");
+
+  // History covers only the current run, so coverage of the 24h window is
+  // usually small. A rule that suppressed the section below a threshold would
+  // therefore suppress it almost always, which is how a real answer lost the
+  // section entirely while still reporting the same numbers under "facts".
+  assert.match(SYSTEM_PROMPT, /this key MUST be non-empty/);
+  assert.match(SYSTEM_PROMPT, /Thin coverage is never a reason to leave it empty/);
+  assert.match(SYSTEM_PROMPT, /Coverage changes what you may claim, never whether you answer/);
+  assert.match(SYSTEM_PROMPT, /The request\/limit comparison belongs in this key and nowhere else/);
+  assert.doesNotMatch(SYSTEM_PROMPT, /do not recommend concrete values/, "the wording that read as 'say nothing' must be gone");
+
+  // Low coverage still forbids naming a target, which is the claim the data
+  // cannot support.
+  assert.match(SYSTEM_PROMPT, /Above roughly 20% of the window you may name a target value/);
+  assert.match(SYSTEM_PROMPT, /Below it, still give the verdict from the stated comparison, and add that the window is too short to name a target/);
 });
