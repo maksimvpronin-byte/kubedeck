@@ -296,6 +296,19 @@ export interface ServiceEndpointsResponse {
   truncated: boolean;
 }
 
+export interface PodUsageEntry {
+  namespace: string;
+  pod: string;
+  cpu: string;
+  memory: string;
+  cpuMillicores: number | null;
+  memoryBytes: number | null;
+}
+
+export interface PodUsageResponse {
+  items: PodUsageEntry[];
+}
+
 export interface UsageStat {
   avg: number | null;
   p50: number | null;

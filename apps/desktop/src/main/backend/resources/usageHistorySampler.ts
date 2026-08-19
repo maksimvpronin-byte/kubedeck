@@ -221,6 +221,21 @@ export class UsageHistorySampler {
     }
   }
 
+  // Current usage for every pod in scope, served entirely from what has
+  // already been sampled: the table can refresh its numbers without a second
+  // `kubectl get pods`, which is the expensive half of a list reload.
+  currentUsage(clusterId: string, namespace: string): Array<{ namespace: string; pod: string; cpu: string; memory: string; cpuMillicores: number | null; memoryBytes: number | null }> {
+    this.restore(clusterId);
+    return this.store.recentSamples(clusterId, namespace, BACKFILL_MAX_AGE_MS).map((entry) => ({
+      namespace: entry.namespace,
+      pod: entry.pod,
+      cpu: entry.cpuMillicores === null ? "" : formatCpu(Math.round(entry.cpuMillicores)),
+      memory: entry.memoryBytes === null ? "" : formatMemory(Math.round(entry.memoryBytes)),
+      cpuMillicores: entry.cpuMillicores === null ? null : Math.round(entry.cpuMillicores),
+      memoryBytes: entry.memoryBytes === null ? null : Math.round(entry.memoryBytes),
+    }));
+  }
+
   history(clusterId: string, namespace: string, pod: string, podRow: JsonObject | null = null): UsageHistoryResult {
     this.restore(clusterId);
     const key = podRow ? workloadKeyForPod(podRow) : null;

@@ -8,6 +8,20 @@ const { UsageHistorySampler, samplesFromTopOutput, parseCpuMillicoresValue, pars
 const { workloadKeyForPod, formatWorkloadKey, inferWorkloadFromPodName } = require("../dist/main/backend/resources/workloadKey.js");
 const { buildResourceContext } = require("../dist/main/backend/llm/context.js");
 
+function listen(server) {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve(`http://127.0.0.1:${server.address().port}`);
+    });
+  });
+}
+
+function close(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 function deploymentPod(hash, suffix) {
   return {
     name: `api-${hash}-${suffix}`,
@@ -267,4 +281,52 @@ test("a metric that arrives late is averaged over its own samples", () => {
   assert.equal(metrics.get("d/p").memory, "100B");
   sampler.close();
   missingCpu.close();
+});
+
+test("the pod-usage route serves recorded samples without touching kubectl", async (t) => {
+  const http = require("node:http");
+  const { handlePodUsageRequest, matchPodUsageRoute } = require("../dist/main/backend/routes/podUsage.js");
+
+  assert.equal(matchPodUsageRoute("POST", "/clusters/c1/pod-usage", "/clusters/c1/pod-usage"), null, "only GET is served");
+  assert.equal(matchPodUsageRoute("GET", "/clusters/c1/resources/pods", "/clusters/c1/resources/pods"), null);
+  assert.deepEqual(matchPodUsageRoute("GET", "/clusters/c1/pod-usage", "/clusters/c1/pod-usage"), { clusterId: "c1", namespace: "all" });
+  assert.equal(matchPodUsageRoute("GET", "/clusters/c1/pod-usage", "/clusters/c1/pod-usage?namespace=prod").namespace, "prod");
+
+  let now = 1_700_000_000_000;
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  sampler.ingest("c1", samplesFromTopOutput("default api-1 250m 512Mi\nkube-system coredns-1 3m 21Mi", true, ""));
+
+  const configStore = {
+    getCluster(clusterId) {
+      if (clusterId !== "c1") throw new Error("unknown cluster");
+      return { id: clusterId };
+    },
+  };
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    const handled = handlePodUsageRequest(request, response, pathname, configStore, sampler, () => {});
+    if (!handled) {
+      response.statusCode = 404;
+      response.end();
+    }
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+
+  const all = await (await fetch(`${baseUrl}/clusters/c1/pod-usage?namespace=all`)).json();
+  assert.equal(all.items.length, 2);
+  const api = all.items.find((item) => item.pod === "api-1");
+  assert.deepEqual(api, { namespace: "default", pod: "api-1", cpu: "250m", memory: "512Mi", cpuMillicores: 250, memoryBytes: 536870912 });
+
+  // A namespaced request must not leak the rest of the cluster.
+  const scoped = await (await fetch(`${baseUrl}/clusters/c1/pod-usage?namespace=default`)).json();
+  assert.deepEqual(
+    scoped.items.map((item) => item.pod),
+    ["api-1"],
+  );
+
+  // A reading that stopped arriving drops out rather than being served forever.
+  now += 5 * 60_000;
+  assert.deepEqual((await (await fetch(`${baseUrl}/clusters/c1/pod-usage?namespace=all`)).json()).items, []);
+  sampler.close();
 });

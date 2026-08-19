@@ -32,6 +32,15 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   { method: "PUT", path: "/clusters/{cluster_id}/yaml/apply", transport: "http", owner: "node", targetRelease: "2.0.0-alpha.4", migratedIn: "2.0.0-alpha.4", sourceModule: "routes_yaml.py" },
   {
     method: "GET",
+    path: "/clusters/{cluster_id}/pod-usage",
+    transport: "http",
+    owner: "node",
+    targetRelease: "2.12.1",
+    migratedIn: "2.12.1",
+    sourceModule: "routes/podUsage.ts",
+  },
+  {
+    method: "GET",
     path: "/clusters/{cluster_id}/resources/{resource}",
     transport: "http",
     owner: "node",

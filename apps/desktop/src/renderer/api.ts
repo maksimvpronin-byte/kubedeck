@@ -20,6 +20,7 @@ import type {
   SecretKeysResponse,
   SecretRevealResponse,
   ServiceEndpointsResponse,
+  PodUsageResponse,
   UsageHistoryResponse,
   Settings,
   DeploymentLogTargetsResponse,
@@ -249,6 +250,10 @@ export class ApiClient {
       `/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/endpoints`,
       { signal },
     );
+  }
+
+  podUsage(clusterId: string, namespace: string, signal?: AbortSignal) {
+    return this.request<PodUsageResponse>(`/clusters/${clusterId}/pod-usage?namespace=${encodeURIComponent(namespace)}`, { signal });
   }
 
   usageHistory(clusterId: string, resource: string, namespace: string, name: string, signal?: AbortSignal) {

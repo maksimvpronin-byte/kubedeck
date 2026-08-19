@@ -55,6 +55,10 @@ ws://127.0.0.1:<port>/clusters/<cluster>/pods/<namespace>/<pod>/terminal?token=<
 - `endpoints` возвращает JSON и допустим только для services в конкретном namespace (`UNSUPPORTED_RESOURCE_ENDPOINTS`). Endpoints читаются из `EndpointSlice` через label selector `kubernetes.io/service-name`, поэтому API server возвращает срезы одного сервиса. Ответ содержит точные счётчики `ready`/`notReady`/`total` и список `items`, ограниченный 100 записями с флагом `truncated`;
 - `usage-history` возвращает JSON и допустим только для pods в конкретном namespace (`UNSUPPORTED_USAGE_HISTORY`). Единственная операция, которая не обращается к kubectl: она отдаёт то, что KubeDeck уже насэмплил. Ответ содержит агрегаты по поду и по воркоаду (`p50`/`p95`/`max`/`avg`), `coverage` как долю покрытого 24-часового окна и `points` — пятиминутные бакеты для графика.
 
+### Pod usage
+
+`GET /clusters/{cluster_id}/pod-usage?namespace=all|<ns>` возвращает текущее потребление подов из уже записанных сэмплов и не вызывает kubectl. Существует потому, что таблица берёт usage из ответа списка, а список на watch-событиях не перезагружается, пока с подами ничего не происходит: под, о котором metrics-server узнал позже загрузки, иначе так и остался бы без значений. Ответ содержит `items` с `namespace`, `pod`, отформатированными `cpu`/`memory` и числовыми `cpuMillicores`/`memoryBytes`; попадают только поды с показанием не старше двух минут.
+
 ### Related resources и discovery
 
 `GET /clusters/{cluster_id}/resources/{resource}/{namespace}/{name}/related` перед сбором связей читает кэш `kubectl api-resources` (общий с Global Search и resource discovery) и опрашивает роутовые CRD только если кластер их обслуживает: `IngressRoute`, `IngressRouteTCP`, `IngressRouteUDP`, `Middleware` (группы `traefik.io` и `traefik.containo.us`), `HTTPRoute`, `Gateway`, `GatewayClass` (группа `gateway.networking.k8s.io`). Оттуда же берётся признак namespaced для custom resources. Недоступность discovery не является ошибкой: маршрут возвращает встроенные связи.

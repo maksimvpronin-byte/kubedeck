@@ -1797,3 +1797,57 @@ test("the service summary renders endpoints loaded outside the Service object", 
   assert.match(styles, /\.summary-endpoint-main \{/);
   assert.match(styles, /\.summary-endpoint-detail \{/);
 });
+
+test("recorded usage patches only the usage fields and keeps unchanged rows identical", () => {
+  const model = loadTypeScript("utils/podUsagePatch.ts");
+  const rows = [
+    { uid: "1", name: "api-1", namespace: "default", phase: "Running", podCpuLimitValue: 1000, podCpuRequestValue: 200, podMemoryLimitValue: 1073741824, podMemoryRequestValue: 536870912 },
+    { uid: "2", name: "other", namespace: "default", phase: "Running", cpuUsage: "9m" },
+  ];
+
+  const patched = model.applyPodUsage(rows, [{ namespace: "default", pod: "api-1", cpu: "250m", memory: "512Mi", cpuMillicores: 250, memoryBytes: 536870912 }]);
+  const api = patched[0];
+  assert.equal(api.cpuUsage, "250m");
+  assert.equal(api.memoryUsage, "512Mi");
+  assert.equal(api.podCpuUsageValue, 250);
+  // Mirrors the backend: clamped against the limit, unclamped against the
+  // request, because a request is a scheduling floor rather than a ceiling.
+  assert.equal(api.podCpuUsagePercent, 25);
+  assert.equal(api.podCpuRequestPercent, 125);
+  assert.equal(api.podMemoryUsagePercent, 50);
+  assert.equal(api.podMemoryRequestPercent, 100);
+  // Everything that belongs to the list response survives.
+  assert.equal(api.phase, "Running");
+  assert.equal(api.uid, "1");
+  // A row with no entry is the very same object.
+  assert.equal(patched[1], rows[1]);
+
+  // A refresh that changes nothing must not produce a new array, or the table
+  // would re-render every 30 seconds for no reason.
+  const unchanged = model.applyPodUsage(patched, [{ namespace: "default", pod: "api-1", cpu: "250m", memory: "512Mi", cpuMillicores: 250, memoryBytes: 536870912 }]);
+  assert.equal(unchanged, patched);
+  assert.equal(model.applyPodUsage(rows, []), rows);
+
+  // A pod of the same name in another namespace must not be matched.
+  const crossNamespace = model.applyPodUsage(rows, [{ namespace: "other-ns", pod: "api-1", cpu: "1m", memory: "1Mi", cpuMillicores: 1, memoryBytes: 1048576 }]);
+  assert.equal(crossNamespace, rows);
+
+  // A half-missing reading leaves the percentage null rather than zero.
+  const cpuOnly = model.applyPodUsage(rows, [{ namespace: "default", pod: "api-1", cpu: "250m", memory: "", cpuMillicores: 250, memoryBytes: null }]);
+  assert.equal(cpuOnly[0].podMemoryUsagePercent, null);
+  assert.equal(cpuOnly[0].memoryUsage, "");
+});
+
+test("the pods table refreshes usage from recorded samples rather than reloading the list", () => {
+  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  // A table driven by watch events is not reloaded while the pods do not
+  // change, so its usage column froze at whatever the last list load caught.
+  assert.match(app, /const POD_USAGE_REFRESH_MS = 30_000;/);
+  assert.match(app, /api\.podUsage\(activeCluster\.id/);
+  assert.match(app, /applyPodUsage\(rows, response\.items\)/);
+  // Reloading the list would mean another `kubectl get pods` every 30 seconds,
+  // which is what moving from polling to watch was avoiding.
+  const effect = app.slice(app.indexOf("A pods table driven by watch events"), app.indexOf("}, [api, activeCluster?.id, resourceTab, selectedNamespaces]);"));
+  assert.doesNotMatch(effect, /loadResources/);
+  assert.match(effect, /return next === rows \? current :/, "an unchanged refresh must not replace the rows");
+});

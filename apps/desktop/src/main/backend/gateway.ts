@@ -36,6 +36,7 @@ import { handlePodExecRequest } from "./routes/podExec";
 import { handleResourceListRequest } from "./routes/resourceLists";
 import { handleWatchRequest } from "./routes/watch";
 import { handlePortForwardRequest } from "./routes/portForward";
+import { handlePodUsageRequest } from "./routes/podUsage";
 import { handleProblemsRequest } from "./routes/problems";
 import { handleOverviewRequest } from "./routes/overview";
 import { handleSearchRequest } from "./routes/search";
@@ -306,6 +307,10 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
   if (handleRelatedResourcesRequest(request, response, pathname, services.configStore, services.kubectlRunner, options.log)) {
     return;
   }
+  if (handlePodUsageRequest(request, response, pathname, services.configStore, services.usageHistory, options.log)) {
+    return;
+  }
+
   if (handleResourceListRequest(request, response, pathname, services.configStore, services.kubectlRunner, services.resourceCache, clearResourceDefinitionCache, services.usageHistory, options.log)) {
     return;
   }

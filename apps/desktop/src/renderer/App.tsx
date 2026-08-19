@@ -29,12 +29,21 @@ import { useResourceWorkspaceTabs } from "./hooks/useResourceWorkspaceTabs";
 import { buildResourceTableColumns } from "./utils/resourceTableColumns";
 import { createTranslator } from "./i18n";
 import { brandIcon as Database, isPlaceholderSection, normalizeStoredSection, resourceLabel, resourceTree, sectionTitle, sections, visibleTabs } from "./navigation";
-import { canDeleteResource, findResourceDefinition, groupCrds } from "./utils/kubeResources";
+import { canDeleteResource, findResourceDefinition, groupCrds, normalizeNamespaceSelection } from "./utils/kubeResources";
+import { applyPodUsage } from "./utils/podUsagePatch";
 import type { ApiKeyUpdate, ErrorInfo, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
+
+// Matches the sampling interval: the table cannot show anything newer than the
+// samples behind it.
+const POD_USAGE_REFRESH_MS = 30_000;
+
+function isPodResourceTab(resource: string): boolean {
+  return ["pods", "pod", "po"].includes(resource);
+}
 
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
@@ -297,6 +306,40 @@ export function App() {
     }, intervalSeconds * 1000);
     return () => window.clearInterval(timer);
   }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources, watchHealthy]);
+
+  // A pods table driven by watch events is not reloaded while nothing about
+  // the pods changes, so its usage column would keep whatever the last list
+  // load happened to catch - N/A for a pod metrics-server had not reported
+  // yet. This refreshes only the usage, from samples KubeDeck already
+  // recorded, so it costs no kubectl call.
+  useEffect(() => {
+    if (!api || !activeCluster || !isPodResourceTab(resourceTab)) return;
+    const namespace = normalizeNamespaceSelection(selectedNamespaces).join(",") || "all";
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const response = await api.podUsage(activeCluster.id, namespace.includes(",") ? "all" : namespace);
+        if (cancelled) return;
+        setRows((current) => {
+          const rows = current[resourceTab];
+          if (!rows) return current;
+          const next = applyPodUsage(rows, response.items);
+          return next === rows ? current : { ...current, [resourceTab]: next };
+        });
+      } catch {
+        // Usage is a refinement of what the table already shows: failing to
+        // read it must never disturb the rows or raise an error banner.
+      }
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), POD_USAGE_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [api, activeCluster?.id, resourceTab, selectedNamespaces]);
 
   async function saveSettings(next: Settings, apiKeyUpdate?: ApiKeyUpdate) {
     if (!api) return;
