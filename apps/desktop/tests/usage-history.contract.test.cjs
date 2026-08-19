@@ -212,3 +212,59 @@ test("a pod metrics-server started reporting after the list call still shows usa
   assert.equal(stale[0].memoryUsage, "");
   sampler.close();
 });
+
+test("a reading of zero is a measurement, not a missing sample", () => {
+  let now = 1_700_000_000_000;
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+
+  // An idle pod genuinely reports 0m. Treating that as absent left the whole
+  // CPU history empty for pods that are simply not doing anything.
+  for (let index = 0; index < 6; index += 1) {
+    sampler.ingest("c1", samplesFromTopOutput("default nginx-dc4f957d7-44w8p 0m 4Mi", true, ""));
+    now += 30_000;
+  }
+  const history = sampler.history("c1", "default", "nginx-dc4f957d7-44w8p");
+  assert.deepEqual(history.pod.cpu, { avg: 0, p50: 0, p95: 0, max: 0 });
+  assert.equal(history.points[0].cpuAvg, 0);
+  assert.equal(history.points[0].cpuMax, 0);
+
+  // The window is measured from real sample timestamps: bucket starts round
+  // down to five minutes and would report a wider window than was observed.
+  assert.ok(history.pod.lastSampleAt - history.pod.firstSampleAt < 5 * 60_000);
+
+  const { applyPodMetricsSnapshot } = require("../dist/main/backend/resources/metrics.js");
+  const rows = [{ name: "nginx-dc4f957d7-44w8p", namespace: "default" }];
+  const metrics = new Map();
+  sampler.backfillPodMetrics("c1", metrics, rows, true, "default");
+  applyPodMetricsSnapshot({ metrics, allNamespaces: true }, rows);
+  assert.equal(rows[0].cpuUsage, "0m", "an idle pod shows 0m in the table rather than N/A");
+  assert.equal(rows[0].memoryUsage, "4Mi");
+  sampler.close();
+});
+
+test("a metric that arrives late is averaged over its own samples", () => {
+  let now = 1_700_000_000_000;
+  const sampler = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+
+  // metrics-server reports memory from its first scrape but needs two before
+  // it can derive a CPU rate, so a bucket can hold more memory readings than
+  // CPU ones. Dividing CPU by the shared sample count deflated it.
+  sampler.ingest("c1", [{ namespace: "d", pod: "p", cpuMillicores: null, memoryBytes: 100 }]);
+  sampler.ingest("c1", [{ namespace: "d", pod: "p", cpuMillicores: null, memoryBytes: 100 }]);
+  sampler.ingest("c1", [{ namespace: "d", pod: "p", cpuMillicores: 60, memoryBytes: 100 }]);
+
+  const history = sampler.history("c1", "d", "p");
+  assert.equal(history.pod.cpu.avg, 60, "CPU must be averaged over the samples that carried it");
+  assert.equal(history.pod.memory.avg, 100);
+  assert.equal(history.pod.samples, 3);
+
+  // The backfill must not invent an "N/A" string for the half that is missing.
+  const missingCpu = new UsageHistorySampler({ paths: { metrics: "" } }, {}, () => {}, { now: () => now, persist: false });
+  missingCpu.ingest("c2", [{ namespace: "d", pod: "p", cpuMillicores: null, memoryBytes: 100 }]);
+  const metrics = new Map();
+  missingCpu.backfillPodMetrics("c2", metrics, [{ name: "p", namespace: "d" }], true, "d");
+  assert.equal(metrics.get("d/p").cpu, "");
+  assert.equal(metrics.get("d/p").memory, "100B");
+  sampler.close();
+  missingCpu.close();
+});

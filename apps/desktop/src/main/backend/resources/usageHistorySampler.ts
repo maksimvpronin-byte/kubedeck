@@ -211,9 +211,12 @@ export class UsageHistorySampler {
       if (metrics.has(key)) continue;
       const recorded = this.store.latestSample(clusterId, namespace, pod, BACKFILL_MAX_AGE_MS);
       if (!recorded) continue;
+      // An empty string means "not measured", which is what a row without a
+      // metric already carries. formatCpu/formatMemory would render the literal
+      // "N/A" here, turning a missing half of the reading into fake content.
       metrics.set(key, {
-        cpu: formatCpu(recorded.cpuMillicores === null ? null : Math.round(recorded.cpuMillicores)),
-        memory: formatMemory(recorded.memoryBytes === null ? null : Math.round(recorded.memoryBytes)),
+        cpu: recorded.cpuMillicores === null ? "" : formatCpu(Math.round(recorded.cpuMillicores)),
+        memory: recorded.memoryBytes === null ? "" : formatMemory(Math.round(recorded.memoryBytes)),
       });
     }
   }
