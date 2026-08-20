@@ -85,7 +85,8 @@ export function YamlTab({
     setJumpRequest((current) => current + 1);
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the counter is the trigger; re-running on every draft or query keystroke would drag the caret around while typing.
+  // Deliberately keyed on the counter alone: it is the trigger, and re-running
+  // on every draft or query keystroke would drag the caret around while typing.
   useEffect(() => {
     if (jumpRequest === 0 || matchIndex < 0 || !editorRef.current) return;
     selectMatch(editorRef.current, yamlDraft, yamlQuery, matchIndex);
