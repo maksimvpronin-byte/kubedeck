@@ -1,3 +1,13 @@
+## 2.13.3 - Hide prompt no longer waits for the model
+
+Opening the LLM prompt preview and then starting an analysis left the prompt
+filling the tab with its own button greyed out until the answer arrived. The
+button was tied to a flag shared with the analysis, but closing the preview
+sets a boolean and returns without touching the network - only opening it has
+anything to wait for. The button now waits on its own work alone, so closing is
+always available and opening during a run is allowed.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.13.2 - Things that were visible but not reachable
 
 Terminal numbers were invisible on the light theme: only eight of the sixteen

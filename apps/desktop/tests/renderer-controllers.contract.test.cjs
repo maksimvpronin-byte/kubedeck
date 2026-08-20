@@ -2075,3 +2075,21 @@ test("finding in YAML scrolls the container that actually scrolls", () => {
   // Focus must not scroll on its own or it fights the deliberate scroll.
   assert.match(yamlTab, /element\.focus\(\{ preventScroll: true \}\)/);
 });
+
+test("the prompt preview can be hidden while an analysis is still running", () => {
+  const llmTab = fs.readFileSync(path.join(rendererRoot, "components/LlmTab.tsx"), "utf8");
+
+  // Hiding an open prompt is local: the handler closes it and returns without
+  // touching the network. Tying the button to the shared busy flag left the
+  // prompt stuck on screen for as long as the model took to answer.
+  assert.match(llmTab, /togglePromptPreview\(\)\} disabled=\{promptPreviewLoading\}/);
+  assert.doesNotMatch(llmTab, /togglePromptPreview\(\)\} disabled=\{busy\}/);
+
+  // Starting a second analysis while one is in flight stays blocked.
+  assert.match(llmTab, /analyze\(\)\} disabled=\{busy\}/);
+  assert.match(llmTab, /const busy = loading \|\| promptPreviewLoading;/);
+
+  // The early return is what makes hiding free; if it ever goes, the button
+  // would be waiting on a request again.
+  assert.match(llmTab, /if \(promptPreviewOpen\) \{\s*setPromptPreviewOpen\(false\);\s*return;/);
+});

@@ -168,7 +168,13 @@ export function LlmTab({
           <button className="primary" onClick={() => void analyze()} disabled={busy}>
             {loading ? t("llm.analyzing") : answer ? t("llm.rerun") : t("llm.analyze")}
           </button>
-          <button onClick={() => void togglePromptPreview()} disabled={busy}>
+          {/* Disabled only while this button is itself fetching a preview.
+              Hiding an open prompt is local - it never waits on anything - and
+              tying it to the analysis left the prompt stuck on screen for as
+              long as the model took to answer. Opening it during an analysis is
+              a separate read and worth allowing: it is when you most want to
+              see what was sent. */}
+          <button onClick={() => void togglePromptPreview()} disabled={promptPreviewLoading}>
             {promptPreviewLoading ? t("llm.collectingContext") : promptPreviewOpen ? t("llm.hidePrompt") : t("llm.showPrompt")}
           </button>
           {answer ? <button onClick={() => onCopy(answer, t("llm.answerCopied"))}>{t("llm.copyAnswer")}</button> : null}
