@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 
 export function HelpPanel({ t }: { t: (key: string) => string }) {
   const [appVersion, setAppVersion] = useState("—");
-  const quickStart = ["help.quickStart.1", "help.quickStart.2", "help.quickStart.3", "help.quickStart.4"];
-  const drawer = ["help.drawer.1", "help.drawer.2", "help.drawer.3", "help.drawer.4"];
-  const sections = ["help.sections.1", "help.sections.2", "help.sections.3", "help.sections.4", "help.sections.5"];
+  const quickStart = ["help.quickStart.1", "help.quickStart.2", "help.quickStart.3", "help.quickStart.4", "help.quickStart.5"];
+  // Connection comes right after the quick start because a grey rail badge is
+  // the first thing that stops a cluster from showing anything.
+  const connection = ["help.connection.1", "help.connection.2", "help.connection.3", "help.connection.4", "help.connection.5"];
+  const drawer = ["help.drawer.1", "help.drawer.2", "help.drawer.3", "help.drawer.4", "help.drawer.5", "help.drawer.6", "help.drawer.7"];
+  const sections = ["help.sections.1", "help.sections.2", "help.sections.3", "help.sections.4", "help.sections.5", "help.sections.6", "help.sections.7"];
   const actions = ["help.actions.1", "help.actions.2", "help.actions.3", "help.actions.4"];
   const terminal = ["help.terminal.1", "help.terminal.2", "help.terminal.3", "help.terminal.4"];
   const portable = ["help.portable.1", "help.portable.2", "help.portable.3", "help.portable.4"];
@@ -51,6 +54,7 @@ export function HelpPanel({ t }: { t: (key: string) => string }) {
         </article>
 
         <HelpList title={t("help.quickStart")} items={quickStart.map(t)} />
+        <HelpList title={t("help.connection")} items={connection.map(t)} />
         <HelpList title={t("help.drawer")} items={drawer.map(t)} />
         <HelpList title={t("help.sections")} items={sections.map(t)} />
         <HelpList title={t("help.actions")} items={actions.map(t)} />

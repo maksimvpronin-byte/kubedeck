@@ -2093,3 +2093,57 @@ test("the prompt preview can be hidden while an analysis is still running", () =
   // would be waiting on a request again.
   assert.match(llmTab, /if \(promptPreviewOpen\) \{\s*setPromptPreviewOpen\(false\);\s*return;/);
 });
+
+test("About and Help describe the application as it actually behaves", () => {
+  const about = fs.readFileSync(path.join(rendererRoot, "components/AboutPanel.tsx"), "utf8");
+  const help = fs.readFileSync(path.join(rendererRoot, "components/HelpPanel.tsx"), "utf8");
+  const ru = JSON.parse(fs.readFileSync(path.join(rendererRoot, "locales/ru.json"), "utf8"));
+  const en = JSON.parse(fs.readFileSync(path.join(rendererRoot, "locales/en.json"), "utf8"));
+
+  // KubeDeck is Apache-2.0 and redistributes third-party components. None of
+  // that was visible in the packaged application - only in repository files,
+  // which someone running the portable exe does not have.
+  assert.match(about, /Apache License 2\.0/);
+  assert.match(about, /Copyright 2026 Maksim Pronin/, "must match NOTICE verbatim");
+  assert.match(about, /about\.thirdParty/);
+
+  // The copied diagnostics answer "why is nothing updating" and "is the model
+  // configured". The LLM status shape carries no key and must not gain one.
+  assert.match(about, /connected: \(config\.connectedClusterIds \?\? \[\]\)\.includes\(cluster\.id\)/);
+  assert.match(about, /llm: backendInfo\?\.settings\.llm \?\? null/);
+  assert.doesNotMatch(about, /apiKey/);
+
+  // Clusters moved to the left rail several releases ago; the quick start still
+  // sent people to a top-bar dropdown that no longer exists.
+  for (const locale of [ru, en]) {
+    assert.doesNotMatch(locale["help.quickStart.2"], /верхней панели|top bar/i);
+    assert.match(locale["help.quickStart.2"], /рельс|rail/i);
+  }
+
+  // Everything the last releases added has to be findable here.
+  const helpKeys = [
+    "help.connection.1",
+    "help.connection.2",
+    "help.connection.3",
+    "help.connection.4",
+    "help.connection.5",
+    "help.quickStart.5",
+    "help.drawer.5",
+    "help.drawer.6",
+    "help.drawer.7",
+    "help.sections.6",
+    "help.sections.7",
+  ];
+  for (const key of helpKeys) {
+    for (const [name, locale] of [
+      ["ru", ru],
+      ["en", en],
+    ]) {
+      assert.ok(typeof locale[key] === "string" && locale[key].length > 0, `${name}.json is missing ${key}`);
+    }
+  }
+  assert.match(help, /help\.connection\.5/, "the connection card must render every line it defines");
+  assert.match(help, /help\.drawer\.7/);
+  assert.match(help, /help\.sections\.7/);
+  assert.match(help, /help\.quickStart\.5/);
+});

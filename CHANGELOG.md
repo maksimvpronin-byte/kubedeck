@@ -1,3 +1,22 @@
+## 2.13.4 - Help and About describe the application again
+
+The quick start still told people to pick a cluster in the top bar, which the
+left rail replaced several releases ago. Help now also covers cluster
+connection and what the rail badges mean, the LLM and Secret drawer tabs, the
+usage history on a pod's Summary, the Overview, Port-forwards and Audit
+sections, and Ctrl+K.
+
+About had no licence in it. KubeDeck is Apache-2.0 and redistributes
+third-party components, but both facts lived only in repository files that
+someone running the portable exe does not have. A licensing card now carries
+the licence, the copyright line quoted verbatim from NOTICE, and a pointer to
+the third-party notices.
+
+Copy diagnostics now reports whether each cluster is connected and the public
+LLM status, which are the two things people were asked for and could not find.
+The status shape carries no API key.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.13.3 - Hide prompt no longer waits for the model
 
 Opening the LLM prompt preview and then starting an analysis left the prompt

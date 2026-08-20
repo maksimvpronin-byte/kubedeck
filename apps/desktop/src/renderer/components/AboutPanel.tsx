@@ -73,7 +73,13 @@ export function AboutPanel({
           displayName: cluster.displayName,
           kubeconfigPath: cluster.kubeconfigPath,
           lastOpened: cluster.lastOpened,
+          // "Nothing is updating" is usually this, so it belongs in the report
+          // a user pastes when asking why.
+          connected: (config.connectedClusterIds ?? []).includes(cluster.id),
         })) ?? [],
+      // Public status only: enabled, configured, model and base URL. The key is
+      // not part of this shape and must never be added to it.
+      llm: backendInfo?.settings.llm ?? null,
       settings: config
         ? {
             kubectlPath: config.settings.kubectlPath,
@@ -143,10 +149,31 @@ export function AboutPanel({
           <InfoRow label={t("about.clusterId")} value={activeCluster?.id || "-"} mono />
           <InfoRow label={t("about.kubeconfig")} value={activeCluster?.kubeconfigPath || "-"} mono />
           <InfoRow label={t("about.clusterCount")} value={String(config?.clusters.length ?? backendInfo?.clusters ?? 0)} />
+          <InfoRow label={t("about.llm")} value={llmSummary(backendInfo, t)} />
+        </AboutCard>
+
+        {/* KubeDeck is Apache-2.0 and redistributes third-party components, and
+            none of that was visible anywhere in the packaged application - only
+            in files in the repository, which someone running the portable exe
+            does not have. */}
+        <AboutCard title={t("about.licensing")} wide>
+          <InfoRow label={t("about.license")} value="Apache License 2.0" />
+          {/* Verbatim from NOTICE. A computed year would misstate it. */}
+          <InfoRow label={t("about.copyright")} value="Copyright 2026 Maksim Pronin" />
+          <InfoRow label={t("about.thirdParty")} value={t("about.thirdPartyValue")} />
         </AboutCard>
       </div>
     </section>
   );
+}
+
+// The public LLM status carries no key - that is the whole point of its shape -
+// so it is safe both on screen and in the copied diagnostics, where "is the
+// model even configured" is a common first question.
+function llmSummary(backendInfo: BackendInfo | null, t: (key: string) => string): string {
+  const llm = backendInfo?.settings.llm;
+  if (!llm?.enabled || !llm.configured) return t("about.llmOff");
+  return llm.model ? `${llm.model} · ${llm.baseUrl}` : llm.baseUrl;
 }
 
 function AboutCard({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {

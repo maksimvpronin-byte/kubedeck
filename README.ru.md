@@ -1,4 +1,4 @@
-# KubeDeck 2.13.3
+# KubeDeck 2.13.4
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -155,7 +155,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.13.3-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.13.4-x64.exe
 ```
 
 ## Сборка для macOS Apple Silicon
@@ -167,8 +167,8 @@ npm run package:mac
 Результаты:
 
 ```text
-apps/desktop/release/KubeDeck-2.13.3-arm64.dmg
-apps/desktop/release/KubeDeck-2.13.3-arm64.zip
+apps/desktop/release/KubeDeck-2.13.4-arm64.dmg
+apps/desktop/release/KubeDeck-2.13.4-arm64.zip
 ```
 
 macOS-сборка не подписана Apple Developer ID и не notarized. При первом запуске используйте Finder → Applications → Control-click по KubeDeck → Open.
@@ -182,7 +182,7 @@ npm run package:linux
 Результат:
 
 ```text
-apps/desktop/release/KubeDeck-2.13.3-x86_64.AppImage
+apps/desktop/release/KubeDeck-2.13.4-x86_64.AppImage
 ```
 
 Сборщик запускает полный source gate, пересобирает `node-pty` под Electron, создаёт AppImage и проверяет release payload. AppImage не подписан.
@@ -268,8 +268,8 @@ Linux:
 
 ## Документация
 
-- [Release notes 2.13.3](./docs/releases/RELEASE_NOTES_2.13.3.md)
-- [Regression checklist 2.13.3](./docs/releases/REGRESSION_CHECKLIST_2.13.3.md)
+- [Release notes 2.13.4](./docs/releases/RELEASE_NOTES_2.13.4.md)
+- [Regression checklist 2.13.4](./docs/releases/REGRESSION_CHECKLIST_2.13.4.md)
 - [Статус миграции на Node](./NODE_MIGRATION_PROGRESS.md)
 - [Лицензии сторонних компонентов](./docs/third-party-notices.md)
 
