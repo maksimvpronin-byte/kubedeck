@@ -217,7 +217,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
   }
 
   if (request.method === "PUT" && pathname === "/settings") {
-    void writeSettings(request, response, services.configStore, services.auditStore, services.secretStore).catch((error) => {
+    void writeSettings(request, response, services.configStore, services.auditStore, services.secretStore, services.connections.list()).catch((error) => {
       options.log(`gateway settings update failed: ${String(error)}`);
       writeError(response, 500, "SETTINGS_UPDATE_FAILED", "Unable to update settings");
     });

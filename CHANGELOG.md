@@ -1,3 +1,13 @@
+## 2.13.1 - Saving settings no longer greys out the cluster rail
+
+Pressing Save in Settings made every cluster badge go to the disconnected
+colour while nothing was actually disconnected. `GET /config` and
+`PUT /settings` both return a whole AppConfig, and only the first carried the
+connection state - so saving settings replaced the interface's config with one
+that had none. Both now go through a single builder, and an absent connection
+list is treated as "not reported" rather than "nothing connected".
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.13.0 - Clusters connect on request, and usage is read at source
 
 Clusters no longer stay connected forever. Every cluster that had been opened

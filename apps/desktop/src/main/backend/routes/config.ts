@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ApiKeyUpdate } from "@kubedeck/shared-types";
+import type { ApiKeyUpdate, AppConfig } from "@kubedeck/shared-types";
 import type { AuditStore } from "../audit/auditStore";
 import type { ConfigStore } from "../config/configStore";
 import type { SecretStore } from "../security/secretStore";
@@ -67,13 +67,29 @@ function applyApiKeyUpdate(secretStore: SecretStore, update: ApiKeyUpdate): void
 }
 
 // `connectedClusterIds` is runtime state, not configuration: it rides along on
-// this response because the rail already re-reads it after every change, and it
-// is never written back to disk.
-export function writeConfig(response: ServerResponse, configStore: ConfigStore, connectedClusterIds: string[] = []): void {
-  writeJson(response, { ...configStore.load(), connectedClusterIds });
+// the config response because the rail already re-reads it after every change,
+// and it is never written back to disk.
+//
+// Every response that carries a whole AppConfig goes through here. Saving
+// settings used to serialise its own copy without this field, and the renderer
+// replaced its config with that - so pressing Save made every cluster look
+// disconnected while the backend carried on talking to them.
+export function configResponse(config: AppConfig, connectedClusterIds: string[]): AppConfig {
+  return { ...config, connectedClusterIds };
 }
 
-export async function writeSettings(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore, auditStore: AuditStore, secretStore: SecretStore): Promise<void> {
+export function writeConfig(response: ServerResponse, configStore: ConfigStore, connectedClusterIds: string[] = []): void {
+  writeJson(response, configResponse(configStore.load(), connectedClusterIds));
+}
+
+export async function writeSettings(
+  request: IncomingMessage,
+  response: ServerResponse,
+  configStore: ConfigStore,
+  auditStore: AuditStore,
+  secretStore: SecretStore,
+  connectedClusterIds: string[] = [],
+): Promise<void> {
   try {
     const body = await readJsonBody(request);
     const settings = settingsFromBody(body);
@@ -93,7 +109,7 @@ export async function writeSettings(request: IncomingMessage, response: ServerRe
       message: "Application settings updated",
     });
 
-    writeJson(response, updated);
+    writeJson(response, configResponse(updated, connectedClusterIds));
   } catch (error) {
     const message = error instanceof RequestBodyError ? error.message : error instanceof Error ? error.message : String(error);
 

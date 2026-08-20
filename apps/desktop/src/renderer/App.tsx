@@ -364,7 +364,15 @@ export function App() {
       const normalized = normalizeSettingsSsh(next);
       saveStoredSshDefaults(normalized.ssh);
       const updated = await api.updateSettings(normalized, apiKeyUpdate);
-      setConfig({ ...updated, settings: normalizeSettingsSsh(updated.settings) });
+      // An absent `connectedClusterIds` means the response did not carry the
+      // runtime state, not that nothing is connected. Treating the two the same
+      // turned every cluster in the rail grey on save while the backend was
+      // still talking to them.
+      setConfig((current) => ({
+        ...updated,
+        settings: normalizeSettingsSsh(updated.settings),
+        connectedClusterIds: updated.connectedClusterIds ?? current?.connectedClusterIds ?? [],
+      }));
       setLanguagePreview(null);
       setError(null);
     } catch (err) {

@@ -638,3 +638,35 @@ test("a cluster stays disconnected until asked, and disconnecting names the sess
   await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
   assert.notEqual((await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/namespaces`, { headers })).status, 409);
 });
+
+test("saving settings does not make connected clusters look disconnected", async (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-settings-connection-"));
+  const source = path.join(appDataRoot, "source.yaml");
+  fs.writeFileSync(source, "apiVersion: v1\n", "utf8");
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+
+  const cluster = new ConfigStore(appDataRoot).importCluster(source, "settings-test");
+  const gateway = await startGateway({
+    sessionToken: TOKEN,
+    appDataRoot,
+    appVersion: "2.13.0",
+    log: () => {},
+    spawnKubectl: fakeKubectlSpawn,
+  });
+  t.after(async () => {
+    await gateway.close();
+  });
+
+  const headers = { "Content-Type": "application/json", "X-KubeDeck-Token": TOKEN };
+  await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/open`, { method: "POST", headers });
+
+  const settings = (await (await fetch(`${gateway.baseUrl}/config`, { headers })).json()).settings;
+  const saved = await fetch(`${gateway.baseUrl}/settings`, { method: "PUT", headers, body: JSON.stringify({ settings: { ...settings, logsTailLines: 250 } }) });
+  assert.equal(saved.status, 200);
+
+  // The renderer replaces its whole config with this response. Serialising it
+  // without the connection state made every cluster in the rail look
+  // disconnected while the backend carried on talking to them.
+  assert.deepEqual((await saved.json()).connectedClusterIds, [cluster.id]);
+  assert.deepEqual((await (await fetch(`${gateway.baseUrl}/config`, { headers })).json()).connectedClusterIds, [cluster.id], "and the cluster really is still connected");
+});

@@ -1915,6 +1915,10 @@ test("a disconnected cluster is left alone, including by the polling fallback", 
   // every action still on offer against a cluster the gateway now refuses.
   assert.match(app, /\{activeCluster && activeClusterConnected \? \(/);
   assert.match(app, /<DisconnectedClusterPanel/);
+  // Saving settings replaces the whole config from the PUT response. An absent
+  // connection list means "not reported", not "nothing connected" - conflating
+  // them turned the entire rail grey while the backend kept talking.
+  assert.match(app, /connectedClusterIds: updated\.connectedClusterIds \?\? current\?\.connectedClusterIds \?\? \[\]/);
 
   // Left click connects, right click offers the menu.
   assert.match(rail, /onContextMenu=\{\(event\) => \{/);
