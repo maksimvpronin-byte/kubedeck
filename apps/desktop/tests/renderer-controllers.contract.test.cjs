@@ -1948,3 +1948,130 @@ test("a disconnected cluster is left alone, including by the polling fallback", 
   // drawer would keep offering actions the gateway now refuses.
   assert.match(controller, /if \(cluster\.id === activeCluster\?\.id\) \{\s*setRows\(\{\}\);\s*setSelectedRow\(null\);/);
 });
+
+test("the problems panel sizes itself by its own width, not the window's", () => {
+  const problems = fs.readFileSync(path.join(rendererRoot, "styles/problems-panel.css"), "utf8");
+  const panels = fs.readFileSync(path.join(rendererRoot, "styles/panels.css"), "utf8");
+
+  // The panel is squeezed by the drawer, not by the window. A viewport media
+  // query cannot see that, so on a wide screen with the drawer open the card
+  // kept two columns, the button column took its max-content width, and the
+  // text column collapsed until `overflow-wrap: anywhere` broke the resource
+  // path one character per line.
+  assert.match(problems, /\.problems-priority \{[^}]*container-type: inline-size/);
+  assert.match(problems, /@container problems-priority \(max-width: 1050px\)[\s\S]*?\.problems-priority-list/);
+  assert.match(problems, /@container problems-priority \(max-width: 560px\)[\s\S]*?\.problem-priority-card/);
+  assert.doesNotMatch(problems, /@media[^{]*\{\s*\.problems-priority-list/, "the list must not key off the viewport again");
+  assert.doesNotMatch(problems, /@media[^{]*\{\s*\.problem-priority-card/, "nor the card");
+
+  assert.match(panels, /\.problems-guidance \{[^}]*container-type: inline-size/);
+  assert.match(panels, /@container problems-guidance \(max-width: 1050px\)/);
+  assert.doesNotMatch(panels, /@media[^{]*\{\s*\.problems-guidance-grid/);
+
+  // The summary row needs no query at all - auto-fit follows the space that is
+  // actually there.
+  assert.match(problems, /\.problem-summary-grid \{[^}]*repeat\(auto-fit, minmax\(160px, 1fr\)\)/);
+  assert.doesNotMatch(problems, /@media[^{]*\{\s*\.problem-summary-grid/);
+});
+
+test("every ANSI colour stays readable against its own terminal background", () => {
+  const theme = fs.readFileSync(path.join(rendererRoot, "utils/terminalTheme.ts"), "utf8");
+  const slots = [
+    "black",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "white",
+    "brightBlack",
+    "brightRed",
+    "brightGreen",
+    "brightYellow",
+    "brightBlue",
+    "brightMagenta",
+    "brightCyan",
+    "brightWhite",
+  ];
+
+  // xterm fills anything left out from its own palette, which assumes a dark
+  // background. Leaving the eight bright slots unset put #eeeeec on the light
+  // theme's #f5f7fa background, so `top`, which prints its summary values in
+  // bold white, rendered them invisible.
+  for (const slot of slots) {
+    assert.match(theme, new RegExp("\\b" + slot + ": token\\("), slot + " must be given to xterm explicitly");
+  }
+
+  const lines = fs.readFileSync(path.join(rendererRoot, "styles/tokens.css"), "utf8").split(String.fromCharCode(13)).join("").split(String.fromCharCode(10));
+  const themes = {};
+  let current = null;
+  for (const line of lines) {
+    if (line.endsWith("{")) {
+      const named = line.match(/data-theme="([a-z]+)"/);
+      current = named ? named[1] : line.startsWith(":root") ? "root" : null;
+      if (current && !themes[current]) themes[current] = {};
+      continue;
+    }
+    if (line.startsWith("}")) current = null;
+    if (!current) continue;
+    const declaration = line.match(/(--[a-z-]+):\s*([^;]+);/);
+    if (declaration) themes[current][declaration[1]] = declaration[2].trim();
+  }
+
+  const luminance = (hex) => {
+    const h = hex.replace("#", "");
+    const channels = [0, 2, 4].map((i) => Number.parseInt(h.substr(i, 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  };
+  const contrast = (a, b) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  const base = { ...themes.root, ...themes.midnight };
+  const cssSlots = slots.map((slot) => "--terminal-" + slot.replace(/([A-Z])/g, (m) => "-" + m.toLowerCase()));
+
+  for (const name of ["midnight", "graphite", "nord", "forest", "plum", "mocha", "light"]) {
+    const resolved = { ...base, ...(themes[name] ?? {}) };
+    const background = resolved["--terminal-bg"];
+    assert.ok(background, name + " must define a terminal background");
+    const dark = luminance(background) < 0.2;
+    for (const slot of cssSlots) {
+      const colour = resolved[slot];
+      assert.ok(colour && colour.startsWith("#"), name + " is missing " + slot);
+      // ANSI black is meant to sit near a dark background; that is the palette
+      // working rather than a defect.
+      if (dark && slot === "--terminal-black") continue;
+      const ratio = contrast(colour, background);
+      assert.ok(ratio >= 2, name + " " + slot + " " + colour + " is " + ratio.toFixed(2) + ":1 against " + background);
+    }
+  }
+});
+
+test("finding in YAML scrolls the container that actually scrolls", () => {
+  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+
+  // The textarea stopped being the scroll container when the folding editor
+  // arrived: it is sized to its content with overflow hidden, and
+  // `.yaml-fold-view` scrolls instead. Writing scrollTop on the textarea was a
+  // silent no-op, so the match counter advanced while the view never moved.
+  assert.doesNotMatch(yamlTab, /element\.scrollTop\s*=/, "the textarea does not scroll");
+  assert.match(yamlTab, /element\.closest\("\.yaml-fold-view"\)/);
+  assert.match(yamlTab, /container\.scrollTop \+=/);
+
+  // Measured from the DOM rather than multiplied by a line height: fold rows
+  // and segment boundaries make the document taller than its line count.
+  assert.match(yamlTab, /function lineRow\(container: HTMLElement, line: number\)/);
+  assert.match(yamlTab, /number\.textContent === String\(line\)/);
+
+  // Clearing the folds re-renders the editor, so the jump has to run after that
+  // commit. A requestAnimationFrame scheduled alongside the setState is not
+  // ordered against it.
+  assert.match(yamlTab, /setJumpRequest\(\(current\) => current \+ 1\)/);
+  assert.match(yamlTab, /\}, \[jumpRequest\]\);/);
+  assert.doesNotMatch(yamlTab, /window\.requestAnimationFrame\(/);
+
+  // Focus must not scroll on its own or it fights the deliberate scroll.
+  assert.match(yamlTab, /element\.focus\(\{ preventScroll: true \}\)/);
+});

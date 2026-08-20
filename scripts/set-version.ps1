@@ -37,6 +37,10 @@ function Update-PackageJsonVersion {
 
     $content = Get-Content $Path -Raw -Encoding UTF8
     $content = $content -replace '(?m)("version"\s*:\s*")[^"]+(")', "`${1}$Version`${2}"
+    # The workspace dependency is pinned to an exact version, so leaving it
+    # behind sends npm to the registry for a package that only exists in this
+    # repository - the lock refresh below then fails with a 404.
+    $content = $content -replace '("@kubedeck/[a-z-]+"\s*:\s*")[^"]+(")', "`${1}$Version`${2}"
     Write-Utf8NoBom -Path $Path -Content $content
     Write-Host "Updated: $Path"
 }

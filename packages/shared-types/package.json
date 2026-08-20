@@ -1,6 +1,6 @@
 {
   "name": "@kubedeck/shared-types",
-  "version": "2.13.1",
+  "version": "2.13.2",
   "private": true,
   "license": "Apache-2.0",
   "types": "src/index.ts"

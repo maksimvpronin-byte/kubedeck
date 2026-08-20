@@ -71,6 +71,14 @@
   --terminal-magenta: #b99acb;
   --terminal-cyan: #70b8bc;
   --terminal-white: #e8eef5;
+  --terminal-bright-black: #46586b;
+  --terminal-bright-red: #eda0a0;
+  --terminal-bright-green: #a2dbb6;
+  --terminal-bright-yellow: #ecd294;
+  --terminal-bright-blue: #9cc4e6;
+  --terminal-bright-magenta: #d0b4e0;
+  --terminal-bright-cyan: #8fd3d7;
+  --terminal-bright-white: #ffffff;
   background: var(--app-bg);
   color: var(--text);
 }
@@ -393,5 +401,13 @@
   --terminal-blue: #286a9d;
   --terminal-magenta: #76528c;
   --terminal-cyan: #176f75;
-  --terminal-white: #f7fafc;
+  --terminal-white: #5b6472;
+  --terminal-bright-black: #4a5568;
+  --terminal-bright-red: #c2264a;
+  --terminal-bright-green: #0f6b3f;
+  --terminal-bright-yellow: #7a4c08;
+  --terminal-bright-blue: #1a5c92;
+  --terminal-bright-magenta: #66407f;
+  --terminal-bright-cyan: #0d6068;
+  --terminal-bright-white: #172033;
 }

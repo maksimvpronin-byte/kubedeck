@@ -49,6 +49,7 @@ export function YamlTab({
 }: YamlTabProps) {
   const [yamlQuery, setYamlQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(-1);
+  const [jumpRequest, setJumpRequest] = useState(0);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const matchCount = useMemo(() => (yamlQuery ? countMatches(yamlDraft, yamlQuery) : 0), [yamlDraft, yamlQuery]);
   const reloadFeedback = useAsyncActionFeedback();
@@ -77,10 +78,18 @@ export function YamlTab({
     // A match can sit inside a collapsed section; clear folds so the whole
     // document becomes one editable run before selecting into it.
     setCollapsed(new Set());
-    window.requestAnimationFrame(() => {
-      if (editorRef.current) selectMatch(editorRef.current, yamlDraft, yamlQuery, next);
-    });
+    // Bumped rather than acted on here: clearing the folds re-renders the
+    // editor, and the jump has to run against the DOM that render produces. An
+    // effect is ordered after the commit; a requestAnimationFrame scheduled
+    // here is not.
+    setJumpRequest((current) => current + 1);
   }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the counter is the trigger; re-running on every draft or query keystroke would drag the caret around while typing.
+  useEffect(() => {
+    if (jumpRequest === 0 || matchIndex < 0 || !editorRef.current) return;
+    selectMatch(editorRef.current, yamlDraft, yamlQuery, matchIndex);
+  }, [jumpRequest]);
 
   function toggleFold(path: string) {
     setCollapsed((current) => {
@@ -332,9 +341,34 @@ function selectMatch(element: HTMLTextAreaElement, text: string, query: string, 
     if (index === -1) return;
     from = index + lowerQuery.length;
   }
-  element.focus();
-  element.setSelectionRange(index, index + query.length);
-  const lineHeight = 16;
+  // preventScroll because the container is scrolled deliberately below; a
+  // focus-driven scroll first would fight it.
+  element.focus({ preventScroll: true });
+  if (element.value === text) element.setSelectionRange(index, index + query.length);
+
+  // The textarea itself no longer scrolls. Since the folding editor arrived it
+  // is sized to its content with overflow hidden, and `.yaml-fold-view` is the
+  // one scroll container - so writing scrollTop here did nothing at all, and
+  // the counter advanced while the view stayed put.
+  const container = element.closest(".yaml-fold-view");
+  if (!(container instanceof HTMLElement)) return;
   const line = text.slice(0, index).split("\n").length;
-  element.scrollTop = Math.max(0, (line - 6) * lineHeight);
+  const row = lineRow(container, line);
+  if (!row) return;
+
+  // Measured rather than multiplied by a line height: fold rows and segment
+  // boundaries make the document taller than its line count, and a fractional
+  // line box would drift over a long manifest.
+  const rowBox = row.getBoundingClientRect();
+  const containerBox = container.getBoundingClientRect();
+  container.scrollTop += rowBox.top - containerBox.top - container.clientHeight / 2 + rowBox.height / 2;
+}
+
+// Line numbers are rendered per line and are absolute across segments, so the
+// row can be found without knowing how the document was split.
+function lineRow(container: HTMLElement, line: number): HTMLElement | null {
+  for (const number of container.querySelectorAll(".yaml-line-number")) {
+    if (number.textContent === String(line)) return number.parentElement;
+  }
+  return null;
 }

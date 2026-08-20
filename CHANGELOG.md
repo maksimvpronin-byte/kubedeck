@@ -1,3 +1,25 @@
+## 2.13.2 - Things that were visible but not reachable
+
+Terminal numbers were invisible on the light theme: only eight of the sixteen
+ANSI colours were given to xterm, so the bright half stayed at xterm's own
+dark-background defaults. `top` prints its summary values in bold white, xterm
+renders bold in the bright colour, and that landed at 1.08:1 against the light
+background. All sixteen slots are defined per theme now, and a test measures
+the contrast rather than trusting the eye.
+
+A resource path in the Problems panel broke one character per line. The panel
+is sized by the drawer beside it, not by the window, and its responsive rules
+were viewport media queries. It uses container queries now.
+
+Find in YAML counted matches without going to them: the textarea stopped being
+the scroll container when the folding editor arrived, so writing scrollTop on
+it did nothing. The container is scrolled now, positioned by measuring the
+line's own row.
+
+`scripts/set-version.ps1` also left the pinned workspace dependency behind,
+which failed the lock refresh with a 404.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.13.1 - Saving settings no longer greys out the cluster rail
 
 Pressing Save in Settings made every cluster badge go to the disconnected

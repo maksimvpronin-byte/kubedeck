@@ -4,6 +4,11 @@ function token(styles: CSSStyleDeclaration, name: string, fallback: string): str
   return styles.getPropertyValue(name).trim() || fallback;
 }
 
+// All sixteen ANSI slots have to be filled. xterm falls back to its own palette
+// for anything left out, and that palette assumes a dark background: on the
+// light theme the eight bright colours stayed near-white. `top` prints its
+// summary values in bold white, xterm renders bold in the bright colour, and
+// the numbers came out invisible against the background.
 export function terminalThemeFromCss(): ITheme {
   const styles = getComputedStyle(document.documentElement);
   return {
@@ -19,5 +24,13 @@ export function terminalThemeFromCss(): ITheme {
     red: token(styles, "--terminal-red", "#d98787"),
     white: token(styles, "--terminal-white", "#e8eef5"),
     yellow: token(styles, "--terminal-yellow", "#d5b978"),
+    brightBlack: token(styles, "--terminal-bright-black", "#46586b"),
+    brightBlue: token(styles, "--terminal-bright-blue", "#9cc4e6"),
+    brightCyan: token(styles, "--terminal-bright-cyan", "#8fd3d7"),
+    brightGreen: token(styles, "--terminal-bright-green", "#a2dbb6"),
+    brightMagenta: token(styles, "--terminal-bright-magenta", "#d0b4e0"),
+    brightRed: token(styles, "--terminal-bright-red", "#eda0a0"),
+    brightWhite: token(styles, "--terminal-bright-white", "#ffffff"),
+    brightYellow: token(styles, "--terminal-bright-yellow", "#ecd294"),
   };
 }
