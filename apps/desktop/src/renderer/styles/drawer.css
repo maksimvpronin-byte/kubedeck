@@ -290,7 +290,6 @@
 }
 
 .drawer-content-fill > .yaml-ide-editor,
-.drawer-content-fill > .yaml-fold-view,
 .drawer-content-fill > .describe-viewer {
   flex: 1 1 0;
   height: auto;
@@ -567,10 +566,6 @@ dd {
   font-weight: 600;
 }
 
-.yaml-editor-input[readonly] {
-  cursor: default;
-}
-
 .yaml-dirty-indicator {
   color: var(--warning-text);
   font-size: 12px;
@@ -606,6 +601,9 @@ dd {
   text-align: right;
 }
 
+/* The CodeMirror host. It is the sized box; CodeMirror's own scroller fills it
+   and owns both scroll axes, so nothing here needs a line-height that has to
+   stay in step with a separately positioned gutter. */
 .yaml-ide-editor {
   position: relative;
   height: clamp(360px, calc(100vh - 380px), 680px);
@@ -616,184 +614,12 @@ dd {
   overflow: hidden;
 }
 
-.yaml-fold-view {
-  /* An exact pixel value, not a ratio: sub-pixel rounding of a fractional line
-     box (12px * 1.35 = 16.2px lands on 16.203125px) accumulates over a long
-     manifest and would drift the fold buttons away from their lines. */
-  --yaml-line-height: 16px;
-  height: clamp(360px, calc(100vh - 380px), 680px);
-  min-height: 360px;
-  margin: 0;
-  border: 1px solid var(--input-border);
-  border-radius: 6px;
-  background: var(--code-bg);
-}
-
-/* This element is the one and only scroll container for the manifest, so its
-   own vertical padding sits here while each row supplies its horizontal inset:
-   that keeps line spacing continuous across a segment boundary instead of
-   opening a 20px gap wherever a fold splits the document. Compound selector
-   because .yaml-editor's own `padding: 10px` is defined later at equal
-   specificity. */
-.yaml-fold-view.yaml-editor {
-  padding: 10px 0;
-}
-
-/* max-content keeps a long line from being squeezed into the container, so the
-   scroll container above (not any inner box) owns horizontal scrolling too. */
-.yaml-segment-row {
-  display: flex;
-  align-items: stretch;
-  width: max-content;
-  min-width: 100%;
-}
-
-.yaml-fold-gutter-col {
-  position: relative;
-  flex: none;
-  width: 20px;
-}
-
-.yaml-fold-gutter-button {
-  display: inline-grid;
-  flex: none;
-  width: 18px;
-  height: var(--yaml-line-height);
-  padding: 0;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-}
-
-.yaml-fold-gutter-button-nested {
-  position: absolute;
-  left: 1px;
-}
-
-.yaml-fold-gutter-button:hover,
-.yaml-fold-gutter-button:focus-visible {
-  color: var(--text);
-}
-
-.yaml-fold-summary-row {
-  height: var(--yaml-line-height);
-}
-
-/* Compound selector: this element also carries .yaml-line, whose own
-   `display: inline` rule (defined later, same specificity) would otherwise
-   win the cascade and silently break the flex layout below. */
-.yaml-line.yaml-fold-summary-line {
-  display: inline-flex;
-  align-items: center;
-  padding-left: 10px;
-}
-
-.yaml-fold-view .yaml-line-number {
-  width: 34px;
-  margin-right: 8px;
-}
-
-.yaml-fold-summary {
-  color: var(--muted);
-  font-style: italic;
-}
-
-.yaml-segment-editor {
-  flex: 1 1 auto;
-}
-
-/* Inside the grouped editor the highlight layer is returned to normal flow so
-   it, rather than a hand-computed line count, sizes the box: the caret layer
-   then matches it exactly and no inner box ever needs a scrollbar of its own. */
-.yaml-segment-editor .yaml-ide-editor {
-  position: relative;
-  width: max-content;
-  min-width: 100%;
-  height: auto;
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  overflow: hidden;
-}
-
-.yaml-segment-editor .yaml-highlight-layer {
-  position: relative;
-  inset: auto;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  padding: 0 10px;
-}
-
-/* width/height auto so `inset: 0` alone sizes the caret layer. .yaml-editor's
-   `width: 100%` would otherwise be a content-box width with the 52px + 10px
-   padding added on top, pushing the caret 62px wider than the text under it. */
-.yaml-segment-editor .yaml-editor-input {
-  width: auto;
-  height: auto;
-  overflow: hidden;
-  padding: 0 10px 0 52px;
-}
-
-.yaml-editor {
-  width: 100%;
+.yaml-ide-editor .cm-editor {
   height: 100%;
-  background: transparent;
-  border: 0;
-  color: var(--text);
-  padding: 10px;
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  line-height: var(--yaml-line-height, 1.35);
-  white-space: pre;
-  overflow: auto;
-  tab-size: 2;
 }
 
-.yaml-editor-input {
-  position: absolute;
-  inset: 0;
-  resize: none;
-  color: transparent;
-  caret-color: var(--text);
-  padding-left: 60px;
-  z-index: 2;
-}
-
-.yaml-editor-input::selection {
-  background: color-mix(in srgb, var(--primary-border) 70%, transparent);
-  color: transparent;
-}
-
-.yaml-editor-input:focus {
-  outline: 1px solid var(--focus-ring);
-  outline-offset: -1px;
-}
-
-.yaml-highlight-layer {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  pointer-events: none;
-  z-index: 1;
-  color: var(--text);
-}
-
-.yaml-line {
-  display: inline;
-}
-
-.yaml-line-number {
-  display: inline-block;
-  width: 38px;
-  margin-right: 12px;
-  color: var(--muted-soft);
-  text-align: right;
-  user-select: none;
-}
-
+/* Tokens rendered outside an editor - the manifest diff shows a YAML line as
+   plain markup - so these stay independent of the editor's own theme. */
 .yaml-key {
   color: var(--focus-ring);
 }

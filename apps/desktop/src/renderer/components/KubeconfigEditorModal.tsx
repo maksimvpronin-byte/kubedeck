@@ -1,5 +1,5 @@
 import { ShieldAlert, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
@@ -25,7 +25,6 @@ export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Pro
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
-  const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const changed = content !== loadedContent;
 
   useEffect(() => {
@@ -103,7 +102,7 @@ export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Pro
               {t("common.loading")}
             </div>
           ) : (
-            <YamlSourceEditor value={content} readOnly={!editable || saving} ariaLabel={t("kubeconfig.title")} editorRef={editorRef} onChange={setContent} />
+            <YamlSourceEditor value={content} readOnly={!editable || saving} ariaLabel={t("kubeconfig.title")} onChange={setContent} />
           )}
         </div>
         <footer>

@@ -9,7 +9,7 @@ electron-builder, test helpers and type definitions — is not redistributed and
 is therefore not listed here.
 
 The versions below were verified against the committed `package-lock.json` for
-KubeDeck 2.14.0. Update this document whenever a production dependency is
+KubeDeck 2.15.0. Update this document whenever a production dependency is
 added, removed or upgraded.
 
 ## Runtime platform
@@ -49,10 +49,25 @@ modify those files.
 ## Renderer dependencies
 
 These packages are bundled into the renderer output by Vite rather than shipped
-as separate `node_modules` entries.
+as separate `node_modules` entries. The CodeMirror and Lezer entries below
+include the transitive packages the editor pulls in, because they are bundled
+and redistributed the same way its direct packages are.
 
 | Component | Version | License |
 |---|---|---|
+| `@codemirror/commands` | 6.11.0 | MIT |
+| `@codemirror/lang-yaml` | 6.1.3 | MIT |
+| `@codemirror/language` | 6.12.4 | MIT |
+| `@codemirror/state` | 6.7.1 | MIT |
+| `@codemirror/view` | 6.43.9 | MIT |
+| `@lezer/common` | 1.5.2 | MIT |
+| `@lezer/highlight` | 1.2.3 | MIT |
+| `@lezer/lr` | 1.4.10 | MIT |
+| `@lezer/yaml` | 1.0.4 | MIT |
+| `@marijn/find-cluster-break` | 1.0.4 | MIT |
+| `crelt` | 1.0.7 | MIT |
+| `style-mod` | 4.1.3 | MIT |
+| `w3c-keyname` | 2.2.8 | MIT |
 | `@xterm/addon-fit` | 0.11.0 | MIT |
 | `@xterm/xterm` | 6.0.0 | MIT |
 | `lucide-react` | 0.468.0 | ISC |

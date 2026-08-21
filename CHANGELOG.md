@@ -1,3 +1,34 @@
+## 2.15.0 - the YAML editor is CodeMirror now
+
+Alt+drag selects a rectangle across lines, typing reaches every caret in it at
+once, and undo takes the whole multi-caret edit back as one step. The old editor
+was a textarea with a highlight layer behind it, and a textarea has exactly one
+caret, so this needed the editor replaced rather than extended.
+
+Tab had no handler at all before: pressing it in the YAML editor moved focus out
+of the editor. It now shifts the indent of the selected lines, and Shift+Tab
+shifts it back. Alt+Shift+arrows move lines, Ctrl+D duplicates, Ctrl+/ comments,
+F3 and Shift+F3 step the toolbar's search from inside the text.
+
+Folding moved into the editor, so the manifest is one document again instead of
+several textareas split around each collapsed region with the chevrons
+positioned by hand. Which groups are foldable is still decided by KubeDeck's own
+YAML analysis, so Collapse top-level groups collapses exactly what it did
+before. Highlighting comes from the Lezer YAML grammar rather than a
+line-by-line regular expression, and still reads every colour from the
+application's CSS variables, so a theme change repaints it.
+
+The editor is a lazily-loaded chunk, fetched when a drawer or the kubeconfig
+editor opens: it grows from about 2 KB to about 334 KB (109 KB gzipped).
+CodeMirror, Lezer and their bundled transitive packages are MIT and are listed
+in the third-party notices.
+
+One behaviour is deliberately gone: with text in the Find in YAML box, Enter
+inside the editor used to jump to the next match instead of inserting a newline,
+so a query left in the box quietly blocked typing new lines. Enter in the editor
+is a newline again.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.14.0 - performance pass
 
 A release about what KubeDeck stopped doing. The resource table repainted every

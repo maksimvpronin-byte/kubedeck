@@ -4,6 +4,7 @@ import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, ResourceRo
 import { ErrorPanel } from "./ErrorPanel";
 import { LogsTab } from "./LogsTab";
 import { YamlTab } from "./YamlTab";
+import type { YamlEditorHandle } from "./YamlSourceEditor";
 import { DescribeTab } from "./DescribeTab";
 import { RelatedTab } from "./RelatedTab";
 import { SecretTab } from "./SecretTab";
@@ -96,7 +97,7 @@ export function PodDrawer({
   const [llmElapsedMs, setLlmElapsedMs] = useState(0);
   const [llmContextChars, setLlmContextChars] = useState(0);
   const [llmTruncated, setLlmTruncated] = useState(false);
-  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<YamlEditorHandle | null>(null);
   const onTabChangeRef = useRef(onTabChange);
   const onDirtyChangeRef = useRef(onDirtyChange);
   onTabChangeRef.current = onTabChange;

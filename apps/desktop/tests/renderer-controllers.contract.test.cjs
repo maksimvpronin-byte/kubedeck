@@ -257,12 +257,16 @@ test("the kubeconfig editor reuses the YAML editor and never persists credential
   const clusterPanel = fs.readFileSync(path.join(rendererRoot, "components/ClusterPanel.tsx"), "utf8");
   const api = fs.readFileSync(path.join(rendererRoot, "api.ts"), "utf8");
 
-  // One highlighting implementation, used by both surfaces.
+  // One editor implementation, used by both surfaces, and CodeMirror lives
+  // only inside it: nothing else in the renderer may reach for an EditorView.
   assert.match(modal, /<YamlSourceEditor/);
   assert.match(yamlTab, /<YamlSourceEditor/);
-  assert.doesNotMatch(yamlTab, /function highlightYaml\(/);
-  assert.match(editor, /function highlightYaml\(/);
-
+  assert.doesNotMatch(yamlTab, /@codemirror/);
+  assert.doesNotMatch(modal, /@codemirror/);
+  assert.match(editor, /from "@codemirror[/]view"/);
+  // The line renderer that survived the migration serves the surfaces that
+  // show a YAML line outside an editor, such as the manifest diff.
+  assert.match(editor, /export function highlightYamlLine[(]/);
   // Kubeconfig content holds credentials: it must not reach persisted UI state.
   assert.doesNotMatch(modal, /saveUiState|localStorage|uiState/);
   // Saving is confirmed by typing the cluster name.
@@ -1623,124 +1627,117 @@ test("YAML folding preserves full source and hides only collection descendants",
   assert.deepEqual(model.yamlFoldRegions("metadata:\n  name: ["), []);
 });
 
-test("YAML edit segments stay editable around a fold and always reconstruct the exact source", () => {
-  const model = loadTypeScript("utils/yamlFolding.ts", { yaml: require("yaml") });
-  const source =
-    "apiVersion: v1\nkind: Pod\nmetadata:\n  name: demo\n  labels:\n    app: demo\n    tier: backend\nspec:\n  containers:\n    - name: app\n      image: nginx\nstatus:\n  phase: Running\n";
-  const regions = model.yamlFoldRegions(source);
-  const metadata = regions.find((region) => region.label === "metadata");
-  const labels = regions.find((region) => region.label === "labels");
+test("the YAML editor offers column selection, multiple carets and indent shifting", () => {
+  const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
 
-  // Nothing collapsed: the whole document is one editable run.
-  const flat = model.yamlEditSegments(source, regions, new Set());
-  assert.deepEqual(
-    flat.map((segment) => segment.kind),
-    ["text"],
-  );
-  assert.equal(model.joinYamlEditSegments(flat), source);
+  // Alt+drag is a rectangular selection, and the crosshair pointer says so
+  // before the drag starts. Without allowMultipleSelections that rectangle
+  // collapses to one range and typing reaches a single line.
+  assert.match(editor, /rectangularSelection[(][)]/);
+  assert.match(editor, /crosshairCursor[(][)]/);
+  assert.match(editor, /EditorState[.]allowMultipleSelections[.]of[(]true[)]/);
+  // drawSelection paints the extra ranges; the native selection only ever
+  // shows the primary one.
+  assert.match(editor, /drawSelection[(][)]/);
 
-  // Collapsing "metadata" hides it behind a summary but keeps editing on both
-  // sides of it, and a round trip through join must reproduce the source
-  // untouched, including the lines a summary row never shows.
-  const withMetadataFolded = model.yamlEditSegments(source, regions, new Set([metadata.path]));
-  assert.deepEqual(
-    withMetadataFolded.map((segment) => segment.kind),
-    ["text", "folded", "text"],
-  );
-  const editableText = withMetadataFolded
-    .filter((segment) => segment.kind === "text")
-    .map((segment) => segment.text)
-    .join("\n");
-  assert.equal(editableText.includes("name: demo"), false, "a collapsed region's lines must not be part of any editable segment");
-  assert.equal(model.joinYamlEditSegments(withMetadataFolded), source);
+  // Tab shifts the indent of the selected lines instead of moving focus out of
+  // the editor, which is what it did while this was a plain textarea.
+  assert.match(editor, /indentWithTab/);
+  assert.match(editor, /indentUnit[.]of[(]" {2}"[)]/);
 
-  // Collapsing only the nested "labels" region leaves its parent "metadata"
-  // editable, so "name: demo" (a sibling of labels) stays editable while
-  // "app: demo" (inside labels) is hidden.
-  const withLabelsFolded = model.yamlEditSegments(source, regions, new Set([labels.path]));
-  const editableWithLabelsFolded = withLabelsFolded
-    .filter((segment) => segment.kind === "text")
-    .map((segment) => segment.text)
-    .join("\n");
-  assert.equal(editableWithLabelsFolded.includes("name: demo"), true);
-  assert.equal(editableWithLabelsFolded.includes("app: demo"), false);
-  assert.equal(model.joinYamlEditSegments(withLabelsFolded), source);
+  // IntelliJ bindings, ahead of the default keymap because the defaults already
+  // claim some of these combinations.
+  for (const binding of [/"Shift-Alt-ArrowUp", run: moveLineUp/, /"Shift-Alt-ArrowDown", run: moveLineDown/, /"Mod-d", run: copyLineDown/, /"Mod-[/]", run: toggleComment/]) {
+    assert.match(editor, binding);
+  }
+  assert.ok(editor.indexOf("intelliJStyleKeymap,") < editor.indexOf("keymap.of([indentWithTab"), "the IntelliJ bindings must be reachable before the defaults claim the same keys");
 
-  // Collapsing every top-level section (what "Collapse top-level groups" does)
-  // still reconstructs the exact source; "apiVersion"/"kind" before the first
-  // section and the trailing newline after the last stay their own editable runs.
-  const minimumDepth = Math.min(...regions.map((region) => region.depth));
-  const allTopLevel = new Set(regions.filter((region) => region.depth === minimumDepth).map((region) => region.path));
-  const collapsedAll = model.yamlEditSegments(source, regions, allTopLevel);
-  assert.deepEqual(
-    collapsedAll.map((segment) => segment.kind),
-    ["text", "folded", "folded", "folded", "text"],
-  );
-  assert.equal(model.joinYamlEditSegments(collapsedAll), source);
-
-  // Editing one segment's text and rejoining must only change that segment,
-  // leaving a folded region's original text (and everything else) untouched.
-  const edited = withMetadataFolded.map((segment, index) => (index === 0 ? { ...segment, text: "apiVersion: v2\nkind: Pod" } : segment));
-  assert.equal(model.joinYamlEditSegments(edited), source.replace("apiVersion: v1", "apiVersion: v2"));
+  // Undo has to survive a re-render. Rebuilding the view whenever a callback
+  // identity changed would drop the history, the folds and the selection.
+  assert.match(editor, /history[(][)]/);
+  assert.match(editor, /onChangeRef[.]current = onChange/);
+  const mountEffect = editor.slice(editor.indexOf("const host = hostRef.current"), editor.indexOf("}, []);"));
+  assert.ok(mountEffect.length > 0, "the editor is built inside an effect with an empty dependency list");
+  assert.match(mountEffect, /doc: initialValueRef[.]current/);
 });
 
-test("the YAML tab is editable immediately, with no separate fold-view mode to switch out of", () => {
-  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+test("the YAML editor is themed by the application palette rather than a bundled theme", () => {
+  const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
   const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
 
-  // The old "Edit full YAML" toggle (and the state it flipped) is gone -
-  // there is nothing to click before the manifest becomes editable.
-  assert.doesNotMatch(yamlTab, /useState\(false\)[^;]*editing|\[editing, setEditing\]/);
+  // Themes are switched at runtime through CSS variables, so a theme built out
+  // of literal colours would freeze the editor on whichever one was bundled.
+  assert.doesNotMatch(editor, /@codemirror[/]theme-|oneDark/);
+  const theme = editor.slice(editor.indexOf("const yamlEditorTheme"), editor.indexOf("const intelliJStyleKeymap"));
+  assert.ok(theme.includes("var(--text)") && theme.includes("var(--focus-ring)"), "the editor theme reads the application palette");
+  assert.doesNotMatch(theme, /#[0-9a-fA-F]{3}/, "no literal colours in the editor theme");
+
+  // The host is the sized box and CodeMirror's scroller fills it, so the
+  // hand-positioned fold gutter and highlight layer are gone with their rules.
+  assert.match(drawerStyles, /[.]yaml-ide-editor [.]cm-editor \{\s*height: 100%;/);
+  for (const dead of [/[.]yaml-fold-view/, /[.]yaml-segment-row/, /[.]yaml-highlight-layer/, /[.]yaml-editor-input/]) {
+    assert.doesNotMatch(drawerStyles, dead);
+  }
+  // The token classes stay: the manifest diff still renders YAML lines as markup.
+  assert.match(drawerStyles, /[.]yaml-key \{/);
+});
+
+test("the YAML tab is editable immediately, and folding is the editor's own", () => {
+  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+
+  // The old "Edit full YAML" toggle (and the state it flipped) is gone - there
+  // is nothing to click before the manifest becomes editable.
+  assert.doesNotMatch(yamlTab, /useState[(]false[)][^;]*editing|\[editing, setEditing\]/);
   assert.doesNotMatch(yamlTab, /Edit full YAML|Open fold view|<Pencil/);
-  assert.doesNotMatch(yamlTab, /function FoldedYamlView/);
 
-  // Collapsing/expanding groups is always available, not just in a read-only mode.
+  // Folding moved into CodeMirror, so the hand-split editable segments and the
+  // summary rows they needed are gone with it.
+  assert.doesNotMatch(yamlTab, /yamlEditSegments|joinYamlEditSegments|FoldedYamlEditor|yaml-fold-gutter/);
+
+  // Collapsing and expanding are always available, not only in a read-only mode,
+  // and each greys out once it would no longer change anything. CodeMirror owns
+  // the fold state and reports it back, which is what those checks read.
   assert.doesNotMatch(yamlTab, /disabled=\{editing/);
-  assert.match(yamlTab, /disabled=\{collapsed\.size === 0\}/);
-
-  // Collapse replaces the whole set, so it must also grey out once everything
-  // it would collapse is already collapsed - not only when the manifest has no
-  // groups at all, which left it lit up after a click that changed nothing.
+  assert.match(yamlTab, /onFoldedLinesChange=\{setFoldedLines\}/);
+  assert.match(yamlTab, /disabled=\{foldedLines[.]length === 0\}/);
   assert.match(yamlTab, /disabled=\{collapseIsNoOp\}/);
-  assert.doesNotMatch(yamlTab, /disabled=\{foldRegions\.length === 0\}/);
-  assert.match(yamlTab, /collapsed\.size === topLevelFoldPaths\.length && topLevelFoldPaths\.every\(\(path\) => collapsed\.has\(path\)\)/);
+  assert.match(yamlTab, /topLevelFoldRegions[.]every[(][(]region[)] => foldedLines[.]includes[(]region[.]startLine[)][)]/);
 
-  // A collapsed region renders as a summary row; everything else is one of
-  // possibly several editable text blocks, each its own YamlSourceEditor.
-  assert.match(yamlTab, /function FoldedYamlEditor/);
-  assert.match(yamlTab, /yamlEditSegments\(value, regions, collapsed\)/);
-  assert.match(yamlTab, /segment\.kind === "folded"/);
-  assert.match(yamlTab, /<YamlSourceEditor value=\{segment\.text\}/);
-  assert.match(yamlTab, /joinYamlEditSegments\(next\)/);
+  // Which regions count as top level is still decided by the tested fold
+  // analysis rather than by anything CodeMirror infers.
+  assert.match(yamlTab, /yamlFoldRegions[(]yamlDraft[)]/);
+  assert.match(yamlTab, /foldLineRanges[(]topLevelFoldRegions[)]/);
+  assert.match(yamlTab, /Collapse top-level YAML groups/);
+});
 
-  // A nested region that is still expanded gets its own fold toggle inside
-  // the shared text block instead of losing the ability to be collapsed.
-  assert.match(yamlTab, /yaml-fold-gutter-button-nested/);
+test("a searched-for match opens the folds hiding it and is selected in the editor", () => {
+  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
+  // Only module scope runs here, and the one thing it reaches for is `lazy`.
+  const model = loadTypeScript("components/YamlTab.tsx", { react: { lazy: () => null } });
 
-  // The searched-for match forces every fold open before selecting into the
-  // (now single) text block, rather than switching some separate raw mode.
-  const jumpMatch = yamlTab.slice(yamlTab.indexOf("function jumpMatch"), yamlTab.indexOf("function toggleFold"));
-  assert.match(jumpMatch, /setCollapsed\(new Set\(\)\)/);
-  assert.doesNotMatch(jumpMatch, /setEditing/);
+  // The counter and the selected range have to be the same match, so both walk
+  // the document the same way.
+  const text = "a: one\nb: one\nc: one";
+  assert.equal(model.matchOffset(text, "one", 0), text.indexOf("one"));
+  assert.equal(model.matchOffset(text, "one", 1), text.indexOf("one", 4));
+  assert.equal(model.matchOffset(text, "one", 2), text.lastIndexOf("one"));
+  assert.equal(model.matchOffset(text, "one", 3), -1);
+  assert.equal(model.matchOffset(text, "", 0), -1);
 
-  // .yaml-line's own `display: inline` (defined later in the stylesheet, same
-  // specificity as a bare .yaml-fold-summary-line rule) would otherwise win
-  // the cascade and silently break the summary row's flex layout.
-  assert.match(drawerStyles, /\.yaml-line\.yaml-fold-summary-line\s*\{[^}]*display:\s*inline-flex;/s);
+  // A match can sit inside a folded region, where the selection would be hidden
+  // behind the placeholder, so the jump opens every fold first. The editor then
+  // scrolls the range into view itself - there is no container left to scroll by
+  // hand, and no render to wait for before selecting.
+  const jumpMatch = yamlTab.slice(yamlTab.indexOf("const jumpMatch"), yamlTab.indexOf("const findNext"));
+  assert.match(jumpMatch, /handle[.]unfoldAll[(][)]/);
+  assert.match(jumpMatch, /handle[.]selectRange[(]offset, offset [+] yamlQuery[.]length[)]/);
+  assert.doesNotMatch(jumpMatch, /setEditing|setJumpRequest|scrollTop/);
+  assert.doesNotMatch(yamlTab, /closest[(]"[.]yaml-fold-view"[)]|function lineRow/);
 
-  // Only the outer .yaml-fold-view scrolls. Sizing a segment from a line count
-  // times a line height put a second scrollbar inside every segment, because a
-  // fractional line box (12px * 1.35) rounds up per line and the accumulated
-  // overflow re-armed the inner `overflow: auto`. The highlight layer is put
-  // back in normal flow so it, not arithmetic, sizes the box.
-  assert.doesNotMatch(yamlTab, /--yaml-segment-lines/, "a segment must not be sized from a hand-computed line count");
-  assert.doesNotMatch(drawerStyles, /--yaml-segment-lines/);
-  assert.match(drawerStyles, /--yaml-line-height:\s*\d+px;/, "the fold gutter steps by an exact pixel line height, not a rounding-prone ratio");
-  assert.match(drawerStyles, /\.yaml-segment-editor \.yaml-ide-editor\s*\{[^}]*overflow:\s*hidden;/s);
-  assert.match(drawerStyles, /\.yaml-segment-editor \.yaml-highlight-layer\s*\{[^}]*position:\s*relative;/s);
-  // The caret layer is absolute with inset: 0, so it must not also carry
-  // .yaml-editor's content-box `width: 100%`, which adds its padding on top.
-  assert.match(drawerStyles, /\.yaml-segment-editor \.yaml-editor-input\s*\{[^}]*width:\s*auto;[^}]*height:\s*auto;/s);
+  // F3 steps the same search from inside the editor, without going back to the
+  // toolbar for it.
+  assert.match(yamlTab, /onFindNext=\{findNext\}/);
+  assert.match(yamlTab, /onFindPrevious=\{findPrevious\}/);
 });
 
 test("lazy panel boundary resets its failure after navigation", () => {
@@ -2089,33 +2086,6 @@ test("every ANSI colour stays readable against its own terminal background", () 
       assert.ok(ratio >= 2, name + " " + slot + " " + colour + " is " + ratio.toFixed(2) + ":1 against " + background);
     }
   }
-});
-
-test("finding in YAML scrolls the container that actually scrolls", () => {
-  const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
-
-  // The textarea stopped being the scroll container when the folding editor
-  // arrived: it is sized to its content with overflow hidden, and
-  // `.yaml-fold-view` scrolls instead. Writing scrollTop on the textarea was a
-  // silent no-op, so the match counter advanced while the view never moved.
-  assert.doesNotMatch(yamlTab, /element\.scrollTop\s*=/, "the textarea does not scroll");
-  assert.match(yamlTab, /element\.closest\("\.yaml-fold-view"\)/);
-  assert.match(yamlTab, /container\.scrollTop \+=/);
-
-  // Measured from the DOM rather than multiplied by a line height: fold rows
-  // and segment boundaries make the document taller than its line count.
-  assert.match(yamlTab, /function lineRow\(container: HTMLElement, line: number\)/);
-  assert.match(yamlTab, /number\.textContent === String\(line\)/);
-
-  // Clearing the folds re-renders the editor, so the jump has to run after that
-  // commit. A requestAnimationFrame scheduled alongside the setState is not
-  // ordered against it.
-  assert.match(yamlTab, /setJumpRequest\(\(current\) => current \+ 1\)/);
-  assert.match(yamlTab, /\}, \[jumpRequest\]\);/);
-  assert.doesNotMatch(yamlTab, /window\.requestAnimationFrame\(/);
-
-  // Focus must not scroll on its own or it fights the deliberate scroll.
-  assert.match(yamlTab, /element\.focus\(\{ preventScroll: true \}\)/);
 });
 
 test("the prompt preview can be hidden while an analysis is still running", () => {
