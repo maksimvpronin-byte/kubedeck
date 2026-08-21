@@ -2,11 +2,10 @@ import { Search, Trash2, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
-import { useUiClock } from "../hooks/useUiClock";
+import { useElapsedLabel } from "../hooks/useUiClock";
 import { canonicalPhase, PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
 import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { columnSortMetrics, sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
-import { formatElapsed } from "../utils/time";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTableSortMenu } from "./ResourceTableSortMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
@@ -132,10 +131,6 @@ export function ResourceTable({
     toggleColumn,
     resetColumns,
   } = table;
-  const now = useUiClock(
-    columns.some((column) => column.key === "createdAt"),
-    1000,
-  );
   const tableWidth = 38 + visibleColumns.reduce((sum, column) => sum + widthFor(column), 0);
   const selectedRowKey = selectedRow ? rowKey(selectedRow) : "";
   const hasFilter = query.trim().length > 0;
@@ -289,7 +284,7 @@ export function ResourceTable({
                           {String(row.namespace)}
                         </button>
                       ) : (
-                        formatCell(row, column.key, now)
+                        formatCell(row, column.key)
                       );
                     return <td key={`${key}-${column.key}`}>{cellContent}</td>;
                   })}
@@ -331,7 +326,7 @@ export function ResourceTable({
   );
 }
 
-function formatCell(row: ResourceRow, key: string, now: number): ReactNode {
+function formatCell(row: ResourceRow, key: string): ReactNode {
   if (key === "phase") {
     const reason = rowHealthReason(row);
     const phase = canonicalPhase(row);
@@ -348,10 +343,18 @@ function formatCell(row: ResourceRow, key: string, now: number): ReactNode {
   if (key === "status" && Array.isArray(row.workloadConditions)) return <WorkloadConditions row={row} />;
   if (key === "labelsText" && Array.isArray(row.nodeLabelItems)) return <NodeLabels row={row} />;
   if (key !== "createdAt") return String(row[key] ?? "");
-  const createdAt = String(row.createdAt ?? "");
+  return <AgeCell createdAt={String(row.createdAt ?? "")} />;
+}
+
+// The second hand lives in the cell rather than in the table. Reading the clock
+// at the table level re-rendered every row of every column once a second only to
+// move the ages forward; here a tick reaches the ages alone, and React skips even
+// those whose text did not change.
+function AgeCell({ createdAt }: { createdAt: string }) {
   const createdMs = Date.parse(createdAt);
-  if (!Number.isFinite(createdMs)) return createdAt;
-  return formatElapsed(Math.max(0, now - createdMs));
+  const valid = Number.isFinite(createdMs);
+  const label = useElapsedLabel(valid ? createdMs : 0);
+  return <>{valid ? label : createdAt}</>;
 }
 
 function NodeResourceUsage({ row }: { row: ResourceRow }) {

@@ -1,3 +1,28 @@
+## 2.14.0 - performance pass
+
+A release about what KubeDeck stopped doing. The resource table repainted every
+row of every column once a second, because the age column's clock was read at
+the table level; the clock now lives in the age cell, is shared by every reader,
+and compares the rendered text rather than the time, so a pod up for twelve days
+is skipped entirely. The pod drawer ticked on every tab though only Summary
+shows an age, re-rendering the terminal and the YAML editor for nothing.
+
+Rows were sorted with `localeCompare` and an options object, which rebuilds the
+collator behind every comparison: 217ms per sort of five thousand rows became
+11ms with a cached `Intl.Collator`, in the identical order. Two values handed
+to the table were rebuilt on every shell render and defeated its filter and sort
+memoisation. The main process kept expired resource snapshots for the whole
+session, because only a read swept them and the tables deliberately read live.
+
+The one behavioural change: watch events are coalesced with a floor and a
+ceiling, not only a settle time. Resetting a 350ms timer on every event meant a
+cluster emitting them faster than that never reloaded at all - and the polling
+fallback stays off while the socket is healthy - while a cluster just below that
+rate got a full `kubectl get -A -o json` per event. Reloads are now at least one
+second and at most three seconds apart under a stream of events, and unchanged
+on a quiet cluster.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.13.4 - Help and About describe the application again
 
 The quick start still told people to pick a cluster in the top bar, which the

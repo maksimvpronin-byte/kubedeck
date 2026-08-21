@@ -126,7 +126,10 @@ export function PodDrawer({
     usageHistory,
   } = usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey });
   const yamlChanged = yamlDraft !== yamlBaseline;
-  const now = useUiClock(Boolean(pod), 1000);
+  // Only the summary shows an age, and the drawer carries a terminal and a
+  // YAML editor: ticking a clock the other tabs never read re-rendered all of
+  // them once a second.
+  const now = useUiClock(Boolean(pod) && tab === "summary", 1000);
   const isDeploymentResource = resource === "deployments" || resource === "deployments.apps" || resource === "deployment";
   const isNodeResource = resource === "nodes" || resource === "node";
   const {

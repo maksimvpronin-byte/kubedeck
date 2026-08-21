@@ -73,6 +73,14 @@ export class ResourceSnapshotCache {
       cacheTtlSeconds: this.ttlSeconds,
     };
 
+    // Entries are only ever dropped when somebody reads or lists them, and the
+    // resource tables deliberately read live rather than cached, so an expired
+    // snapshot of a few thousand rows would otherwise be held for the rest of
+    // the session for every resource and namespace ever opened.
+    for (const [key, entry] of this.entries) {
+      if (entry.expiresAt <= now) this.entries.delete(key);
+    }
+
     this.entries.set(cacheKey(clusterId, resource, namespace), {
       clusterId,
       resource: resource.toLowerCase(),

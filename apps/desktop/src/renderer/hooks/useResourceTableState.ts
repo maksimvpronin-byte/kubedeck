@@ -15,6 +15,10 @@ const DEFAULT_PAGE_SIZE = 200;
 const COMPACT_TABLE_WIDTH = 920;
 const NARROW_TABLE_WIDTH = 760;
 const MIN_COLUMN_WIDTH = 72;
+// Built once. `String.prototype.localeCompare` with options rebuilds the
+// collator behind every single comparison, and sorting a table of a few
+// thousand rows is tens of thousands of comparisons on every refresh.
+const ROW_COLLATOR = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 const COMPACT_HIDDEN_COLUMNS = new Set(["ready", "restarts", "cpuUsage", "memoryUsage", "ports", "clusterIp", "externalIp", "labels", "conditions", "reason", "statusMessage", "containerProblems"]);
 const NARROW_HIDDEN_COLUMNS = new Set(["node", "storageClass", "accessModes", "capacity"]);
 
@@ -70,7 +74,7 @@ export function compareRows(left: ResourceRow, right: ResourceRow, key: string) 
     if (typeof rightValue !== "number") return 1;
     return leftValue - rightValue;
   }
-  return String(leftValue ?? "").localeCompare(String(rightValue ?? ""), undefined, { numeric: true, sensitivity: "base" });
+  return ROW_COLLATOR.compare(String(leftValue ?? ""), String(rightValue ?? ""));
 }
 
 function compactColumnWidth(key: string, narrow: boolean) {

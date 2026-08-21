@@ -1164,6 +1164,48 @@ test("watch reconnect controller keeps one pending reconnect and stops cleanly",
   assert.equal(scheduled.length, 1);
 });
 
+test("watch events are coalesced with a floor and a ceiling, so a busy cluster neither storms nor freezes", () => {
+  const model = loadTypeScript("hooks/useResourceWatch.ts");
+  const single = createTestScheduler();
+  const quietRuns = [];
+  const quiet = model.createWatchRefreshCoalescer(() => quietRuns.push(single.scheduler.now()), single.scheduler.setTimeout, single.scheduler.clearTimeout, single.scheduler.now);
+
+  // A lone event still settles for the debounce and nothing longer.
+  quiet.requestRefresh();
+  single.advance(model.WATCH_REFRESH_DEBOUNCE_MS - 1);
+  assert.deepEqual(quietRuns, []);
+  single.advance(1);
+  assert.equal(quietRuns.length, 1);
+
+  // An event every 100ms used to reset the settle timer forever: the refresh
+  // never ran, and the polling fallback stays off while the socket is healthy.
+  const busy = createTestScheduler();
+  const busyRuns = [];
+  const coalescer = model.createWatchRefreshCoalescer(() => busyRuns.push(busy.scheduler.now()), busy.scheduler.setTimeout, busy.scheduler.clearTimeout, busy.scheduler.now);
+  const step = 100;
+  for (let tick = 0; tick < 80; tick += 1) {
+    coalescer.requestRefresh();
+    busy.advance(step);
+  }
+  assert.ok(busyRuns.length >= 2, `a stream of events must still refresh the table, got ${busyRuns.length} refreshes`);
+
+  for (let index = 1; index < busyRuns.length; index += 1) {
+    const gap = busyRuns[index] - busyRuns[index - 1];
+    // The floor: a full list load per event burst, not per event.
+    assert.ok(gap >= model.WATCH_REFRESH_MIN_INTERVAL_MS, `refreshes ${gap}ms apart are closer than the minimum interval`);
+    // The ceiling: the table is never left behind for longer than this.
+    assert.ok(gap <= model.WATCH_REFRESH_MAX_WAIT_MS + step, `refreshes ${gap}ms apart leave the table stale past the maximum wait`);
+  }
+
+  // Stopping cancels the pending load rather than firing it after teardown.
+  coalescer.requestRefresh();
+  coalescer.stop();
+  const stoppedAt = busyRuns.length;
+  busy.advance(model.WATCH_REFRESH_MAX_WAIT_MS * 2);
+  assert.equal(busyRuns.length, stoppedAt);
+  assert.equal(busy.pending(), 0);
+});
+
 test("resource watch lifecycle does not stop a shared backend watch", () => {
   const source = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWatch.ts"), "utf8");
   assert.match(source, /\.startWatch\(clusterId, resource, watchNamespace\)/);

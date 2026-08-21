@@ -48,6 +48,10 @@ function isPodResourceTab(resource: string): boolean {
   return ["pods", "pod", "po"].includes(resource);
 }
 
+// One shared empty array: `rows[tab] ?? []` handed the table a new identity on
+// every render, which re-ran its filter and sort memos for nothing.
+const NO_ROWS: ResourceRow[] = [];
+
 const initialUiState = typeof window !== "undefined" ? loadUiState() : {};
 const initialSection = normalizeStoredSection(initialUiState.section);
 const initialResourceTab = initialUiState.section === "overview" || initialSection === "nodes" ? "nodes" : (initialUiState.resourceTab ?? "pods");
@@ -490,7 +494,7 @@ export function App() {
   }
 
   const clusters = config?.clusters ?? [];
-  const activeRows = rows[resourceTab] ?? [];
+  const activeRows = rows[resourceTab] ?? NO_ROWS;
   useEffect(() => {
     if (!activeCluster || !selectedDefinition) return;
     if (selectedDefinition.namespaced === false) {
@@ -555,25 +559,31 @@ export function App() {
   });
   const resourceTabs = visibleTabs(section, resourceTab);
   const tableColumns = useMemo(() => buildResourceTableColumns(t), [t]);
-  const columns =
-    tableColumns[resourceTab] ??
-    (isCrdInstanceTab
-      ? [
-          ...(isClusterScoped ? [] : [{ key: "namespace", label: t("col.namespace") }]),
-          { key: "kind", label: t("col.kind") },
-          { key: "name", label: t("col.name") },
-          { key: "apiVersion", label: "API Version" },
-          { key: "status", label: t("col.status") },
-          { key: "createdAt", label: t("col.age") },
-        ]
-      : [
-          { key: "namespace", label: t("col.namespace") },
-          { key: "kind", label: t("col.kind") },
-          { key: "name", label: t("col.name") },
-          { key: "status", label: t("col.status") },
-          { key: "type", label: t("col.type") },
-          { key: "createdAt", label: t("col.age") },
-        ]);
+  // A fresh array here is a fresh identity for the table's filter and sort
+  // memos, which re-ran the whole comparison on every App render for CRD and
+  // fallback tabs - the two that build their columns inline.
+  const columns = useMemo(
+    () =>
+      tableColumns[resourceTab] ??
+      (isCrdInstanceTab
+        ? [
+            ...(isClusterScoped ? [] : [{ key: "namespace", label: t("col.namespace") }]),
+            { key: "kind", label: t("col.kind") },
+            { key: "name", label: t("col.name") },
+            { key: "apiVersion", label: "API Version" },
+            { key: "status", label: t("col.status") },
+            { key: "createdAt", label: t("col.age") },
+          ]
+        : [
+            { key: "namespace", label: t("col.namespace") },
+            { key: "kind", label: t("col.kind") },
+            { key: "name", label: t("col.name") },
+            { key: "status", label: t("col.status") },
+            { key: "type", label: t("col.type") },
+            { key: "createdAt", label: t("col.age") },
+          ]),
+    [tableColumns, resourceTab, isCrdInstanceTab, isClusterScoped, t],
+  );
   function startSidebarResize(event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault();
     const startX = event.clientX;
