@@ -216,6 +216,37 @@ test("manifest compare marks equal, changed, added, and removed lines", () => {
   assert.ok(uneven.some((row) => row.left === null && row.rightTone === "added"));
 });
 
+test("the columns popover leaves the table panel so a short table cannot clip it", () => {
+  const menu = fs.readFileSync(path.join(rendererRoot, "components/ResourceTableColumnsMenu.tsx"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
+
+  // The panel is only as tall as its table - a cluster has a handful of nodes -
+  // and it clips what overflows it. Its container-type makes it the containing
+  // block for a fixed child too, so the popover has to leave its subtree.
+  assert.match(styles, /\.resource-table-panel\s*\{[^}]*container-type:\s*inline-size;[^}]*overflow:\s*hidden;/s);
+  assert.match(menu, /createPortal\(/);
+  assert.match(menu, /document\.body,/);
+  assert.match(menu, /trigger\.getBoundingClientRect\(\)/);
+  assert.match(styles, /\.table-columns-popover\s*\{[^}]*position:\s*fixed;/s);
+  assert.doesNotMatch(styles, /\.table-columns-popover\s*\{[^}]*top:\s*calc\(100% \+ 6px\);/s);
+
+  // Positioned from the trigger, the popover has to keep itself inside the
+  // window rather than trusting the space below the button.
+  assert.match(menu, /window\.innerHeight - bounds\.bottom/);
+  assert.match(menu, /const upward = /);
+  assert.match(menu, /window\.innerWidth - VIEWPORT_MARGIN - POPOVER_WIDTH/);
+  assert.match(menu, /window\.addEventListener\("resize", reposition\)/);
+  assert.match(menu, /window\.addEventListener\("scroll", reposition, true\)/);
+
+  // A click inside the portal is outside the trigger's subtree, so the dismiss
+  // handler has to know about both elements.
+  assert.match(menu, /triggerRef\.current\?\.contains\(target\) \|\| popoverRef\.current\?\.contains\(target\)/);
+
+  // Out of the toolbar, the Reset button can no longer be styled through it.
+  assert.match(styles, /\.table-columns-popover\s*\{[^}]*--kd-table-action-bg:/s);
+  assert.doesNotMatch(styles, /\.resource-table-actions \.table-columns-popover-header/);
+});
+
 test("a manifest diff fold collapses and expands both panes from one key", () => {
   const folding = loadTypeScript("utils/yamlFolding.ts", { yaml: require("yaml") });
   const model = loadTypeScript("components/ManifestCompare.tsx", { diff: require("diff"), yaml: require("yaml"), "../utils/yamlFolding": folding });

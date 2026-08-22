@@ -1,3 +1,28 @@
+## 2.15.2 - the columns popover is no longer cut off
+
+On Nodes it was cut off almost every time, because the list of columns is
+longer than the list of nodes. The popover was positioned inside the resource
+table panel, and that panel is only as tall as its own content: a namespace
+full of pods fills the window and left room for the popover, three nodes did
+not, and the panel clips what overflows it. Which columns were reachable
+depended on how many rows the table happened to have.
+
+position: fixed would not have escaped the clip either - the panel declares
+container-type for its container queries, which makes it the containing block
+for fixed children too - so the popover now renders into the document body and
+is positioned from the rectangle of the button that opens it.
+
+Outside the panel, the window bounds it instead: it opens upwards when there
+is more room above, its height is capped to the space actually available with
+the list scrolling inside it, it stays inside the window horizontally, and it
+follows the button when the window is resized or the content behind it
+scrolls. Escape closes it now, which it did not before.
+
+The columns themselves are unchanged: same list, same order, reordering and
+resizing in the header as before, the last visible column still cannot be
+unchecked, and Reset columns still restores the default set.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.15.1 - collapsing groups in the manifest diff expands again
 
 Compare manifests computed its fold regions twice, once from each side, and

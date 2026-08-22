@@ -201,13 +201,16 @@
 }
 
 .table-columns-popover {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 6px);
-  right: 0;
+  position: fixed;
+  /* above the table and its sticky header, below the command palette. */
+  z-index: 50;
   width: 240px;
-  max-height: min(360px, calc(100vh - 180px));
   display: grid;
+  --kd-table-action-bg: var(--button-bg, #202a34);
+  --kd-table-action-bg-hover: var(--surface-hover, #172331);
+  --kd-table-action-border: var(--border-strong, #334251);
+  --kd-table-action-border-hover: var(--primary-border, #4d94b7);
+  --kd-table-action-text: var(--text, #d8dee9);
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--border-strong, #334251);
@@ -480,7 +483,7 @@
 
 .resource-table-header .resource-table-actions button.secondary-btn,
 .resource-table-header .resource-table-actions button.danger-btn,
-.resource-table-header .resource-table-actions .table-columns-popover-header button {
+.table-columns-popover-header button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -507,7 +510,7 @@
 }
 
 .resource-table-header .resource-table-actions button.secondary-btn:hover:not(:disabled),
-.resource-table-header .resource-table-actions .table-columns-popover-header button:hover:not(:disabled) {
+.table-columns-popover-header button:hover:not(:disabled) {
   border-color: var(--kd-table-action-border-hover);
   background: var(--kd-table-action-bg-hover);
   color: var(--kd-table-action-text);
@@ -527,14 +530,14 @@
 
 .resource-table-header .resource-table-actions button.secondary-btn:disabled,
 .resource-table-header .resource-table-actions button.danger-btn:disabled,
-.resource-table-header .resource-table-actions .table-columns-popover-header button:disabled {
+.table-columns-popover-header button:disabled {
   opacity: 0.46;
   cursor: not-allowed;
 }
 
 .resource-table-header .resource-table-actions button.secondary-btn svg,
 .resource-table-header .resource-table-actions button.danger-btn svg,
-.resource-table-header .resource-table-actions .table-columns-popover-header button svg {
+.table-columns-popover-header button svg {
   width: 14px;
   height: 14px;
   opacity: 0.88;
