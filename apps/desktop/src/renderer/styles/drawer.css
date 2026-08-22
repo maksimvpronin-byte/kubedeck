@@ -677,7 +677,16 @@ dd {
   margin: 0;
 }
 
+.logs-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .logs-search {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -726,10 +735,17 @@ dd {
 }
 
 .log-line mark {
-  background: color-mix(in srgb, var(--warning-border) 70%, transparent);
+  background: color-mix(in srgb, var(--warning-border) 42%, transparent);
   color: var(--warning-text);
   border-radius: 3px;
   padding: 0 1px;
+}
+
+/* The occurrence the arrows are standing on, told apart from the rest of them
+   the same way the manifest editor tells its current match apart. */
+.log-line mark.is-current {
+  background: color-mix(in srgb, var(--warning-border) 85%, transparent);
+  outline: 1px solid var(--warning-text);
 }
 
 .pod-terminal {

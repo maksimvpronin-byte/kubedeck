@@ -1,3 +1,32 @@
+## 2.16.0 - a found match is highlighted, not selected
+
+Typing a query in Find in YAML and pressing Enter jumped to the first match -
+and moved the focus into the editor with that match selected. The second
+Enter, the one meant to step to the next match, went to the editor rather than
+the search box, and since 2.15.0 Enter in the editor inserts a newline. A
+newline over a selection replaces it: the text just found was deleted and the
+manifest was left dirty.
+
+The match is no longer selected. The editor paints it as a decoration - visual
+only, nothing a keystroke can replace. The caret does not move and the focus
+stays in the search box, so Enter and Shift+Enter keep stepping through the
+matches.
+
+Every occurrence is tinted now, with the one being stepped to picked out by a
+stronger fill and an outline. The highlight is recomputed from the draft on
+every change, so it can never sit on text that has moved, and repainting never
+scrolls - only an explicit jump does, and a jump still opens the fold hiding
+its match. Stepping backwards from a fresh query lands on the last match
+instead of skipping it.
+
+The log viewer searches the same way. Its query still filters the lines and
+Current view still downloads what the filter left, but the search gains the
+counter, the arrows, Enter and Shift+Enter, and scrolls the current occurrence
+into the middle of the pane. Every occurrence in a line is marked rather than
+only the first. Both searches are one piece of code underneath, so the
+counters count the same things in both tabs.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.15.2 - the columns popover is no longer cut off
 
 On Nodes it was cut off almost every time, because the list of columns is

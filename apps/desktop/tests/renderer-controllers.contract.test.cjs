@@ -1485,8 +1485,10 @@ test("resource table columns, YAML match count, manifest diff and log filtering 
   assert.match(app, /const tableColumns = useMemo\(\(\) => buildResourceTableColumns\(t\), \[t\]\);/);
 
   const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
-  assert.match(yamlTab, /const matchCount = useMemo\(\(\) => \(yamlQuery \? countMatches\(yamlDraft, yamlQuery\) : 0\), \[yamlDraft, yamlQuery\]\);/);
-  assert.doesNotMatch(yamlTab, /index = text\.toLowerCase\(\)\.indexOf\(query\.toLowerCase\(\), index \+ query\.length\)/, "countMatches must not lower-case text/query inside its scan loop");
+  assert.match(yamlTab, /const matches = useMemo\(\(\) => matchRanges\(yamlDraft, yamlQuery\), \[yamlDraft, yamlQuery\]\);/);
+  const searchSource = fs.readFileSync(path.join(rendererRoot, "utils/searchMatches.ts"), "utf8");
+  assert.match(searchSource, /const haystack = text\.toLowerCase\(\);/);
+  assert.doesNotMatch(searchSource, /indexOf\(query\.toLowerCase\(\)/, "the needle and the haystack are lower-cased once, never inside the scan loop");
 
   const manifestCompare = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
   assert.match(manifestCompare, /const \{ left, right, rows, renderError \} = useMemo\(\(\) => \{/);
@@ -1495,6 +1497,11 @@ test("resource table columns, YAML match count, manifest diff and log filtering 
   const logsTab = fs.readFileSync(path.join(rendererRoot, "components/LogsTab.tsx"), "utf8");
   assert.match(logsTab, /const \{ lines, visibleLines, visibleText \} = useMemo\(\(\) => \{/);
   assert.match(logsTab, /\}, \[content, normalizedQuery\]\);/);
+  // Scanning every visible line for occurrences is the same size of work as the
+  // filter itself, so it is memoized on the same inputs rather than re-run per
+  // render, and the per-line grouping the renderer reads hangs off it.
+  assert.match(logsTab, /\[normalizedQuery, visibleLines\],/);
+  assert.match(logsTab, /const matchesByLine = useMemo\([\s\S]*?\}, \[matches\]\);/);
 });
 
 test("workspace resource tabs add, deduplicate, limit, and close deterministically", () => {
@@ -1781,34 +1788,80 @@ test("the YAML tab is editable immediately, and folding is the editor's own", ()
   assert.match(yamlTab, /Collapse top-level YAML groups/);
 });
 
-test("a searched-for match opens the folds hiding it and is selected in the editor", () => {
+test("a searched-for match is highlighted rather than selected, in the manifest and in the log", () => {
+  const search = loadTypeScript("utils/searchMatches.ts");
   const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
-  // Only module scope runs here, and the one thing it reaches for is `lazy`.
-  const model = loadTypeScript("components/YamlTab.tsx", { react: { lazy: () => null } });
+  const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
+  const logsTab = fs.readFileSync(path.join(rendererRoot, "components/LogsTab.tsx"), "utf8");
+  const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
 
-  // The counter and the selected range have to be the same match, so both walk
-  // the document the same way.
+  // One walker for both surfaces, so the counter counts the occurrences the
+  // highlight paints - in a manifest and in a log alike.
   const text = "a: one\nb: one\nc: one";
-  assert.equal(model.matchOffset(text, "one", 0), text.indexOf("one"));
-  assert.equal(model.matchOffset(text, "one", 1), text.indexOf("one", 4));
-  assert.equal(model.matchOffset(text, "one", 2), text.lastIndexOf("one"));
-  assert.equal(model.matchOffset(text, "one", 3), -1);
-  assert.equal(model.matchOffset(text, "", 0), -1);
+  assert.deepEqual(
+    search.matchRanges(text, "one").map((range) => range.from),
+    [text.indexOf("one"), text.indexOf("one", 4), text.lastIndexOf("one")],
+  );
+  assert.equal(search.matchRanges(text, "ONE").length, 3);
+  assert.deepEqual(search.matchRanges(text, ""), []);
+  // Overlapping matches are not counted twice: the scan resumes past the one it
+  // just found.
+  assert.deepEqual(
+    search.matchRanges("aaaa", "aa").map((range) => range.from),
+    [0, 2],
+  );
 
-  // A match can sit inside a folded region, where the selection would be hidden
-  // behind the placeholder, so the jump opens every fold first. The editor then
-  // scrolls the range into view itself - there is no container left to scroll by
-  // hand, and no render to wait for before selecting.
+  // From nothing chosen, forwards lands on the first match and backwards on the
+  // last - stepping back from -1 used to skip the last one.
+  assert.equal(search.nextMatchIndex(-1, 1, 3), 0);
+  assert.equal(search.nextMatchIndex(-1, -1, 3), 2);
+  assert.equal(search.nextMatchIndex(2, 1, 3), 0);
+  assert.equal(search.nextMatchIndex(0, -1, 3), 2);
+  assert.equal(search.nextMatchIndex(0, 1, 0), -1);
+
+  // The editor paints its matches. A selection is what the next keystroke
+  // replaces, so Enter straight after a search used to swallow the very line
+  // that had just been found.
+  assert.doesNotMatch(editor, /selectRange/);
+  assert.match(editor, /provide: \(field\) => EditorView\.decorations\.from\(field\)/);
+  assert.match(editor, /return decorations\.map\(transaction\.changes\);/);
+  assert.match(editor, /\.cm-kd-search-match-current/);
+  const showMatches = editor.slice(editor.indexOf("showSearchMatches(ranges, current, reveal)"), editor.indexOf("foldLineRanges(ranges)"));
+  assert.match(showMatches, /setSearchMatches\.of\(/);
+  assert.doesNotMatch(showMatches, /view\.focus\(\)|selection:/);
+
+  // A match can sit inside a folded region, where the highlight would be hidden
+  // behind the placeholder. Repainting after a keystroke must not drag the
+  // viewport off what is being typed, so only a jump reveals.
   const jumpMatch = yamlTab.slice(yamlTab.indexOf("const jumpMatch"), yamlTab.indexOf("const findNext"));
-  assert.match(jumpMatch, /handle[.]unfoldAll[(][)]/);
-  assert.match(jumpMatch, /handle[.]selectRange[(]offset, offset [+] yamlQuery[.]length[)]/);
+  assert.match(jumpMatch, /handle\.unfoldAll\(\)/);
+  assert.match(jumpMatch, /handle\.showSearchMatches\(matches, next, true\)/);
+  assert.match(yamlTab, /showSearchMatches\(matches, currentMatch, false\)/);
   assert.doesNotMatch(jumpMatch, /setEditing|setJumpRequest|scrollTop/);
-  assert.doesNotMatch(yamlTab, /closest[(]"[.]yaml-fold-view"[)]|function lineRow/);
 
   // F3 steps the same search from inside the editor, without going back to the
   // toolbar for it.
   assert.match(yamlTab, /onFindNext=\{findNext\}/);
   assert.match(yamlTab, /onFindPrevious=\{findPrevious\}/);
+
+  // The log viewer searches the same way. Its query still filters the lines -
+  // "Current view" downloads what the filter left - and the arrows now step
+  // through every occurrence inside those lines.
+  assert.match(logsTab, /filteredLines = normalizedQuery \? allLines\.filter/);
+  assert.match(logsTab, /matchRanges\(line, normalizedQuery\)/);
+  assert.match(logsTab, /nextMatchIndex\(currentMatch, direction, matches\.length\)/);
+  assert.match(logsTab, /jumpMatch\(event\.shiftKey \? -1 : 1\)/);
+  assert.match(logsTab, /aria-label="Previous match"/);
+  assert.match(logsTab, /aria-label="Next match"/);
+  // Every occurrence in a line is marked, not only the first one.
+  assert.doesNotMatch(logsTab, /const start = lower\.indexOf\(needle\);/);
+  assert.match(logsTab, /className=\{isCurrent \? "is-current" : undefined\}/);
+  assert.match(drawerStyles, /\.log-line mark\.is-current\s*\{/);
+
+  // Both surfaces run out of matches the same way: a step the reader had
+  // reached can outlive the text that produced it.
+  assert.match(yamlTab, /const currentMatch = matchIndex < matchCount \? matchIndex : -1;/);
+  assert.match(logsTab, /const currentMatch = matchIndex < matches\.length \? matchIndex : -1;/);
 });
 
 test("lazy panel boundary resets its failure after navigation", () => {

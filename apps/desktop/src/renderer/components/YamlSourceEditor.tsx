@@ -1,11 +1,13 @@
 import { copyLineDown, defaultKeymap, history, historyKeymap, indentWithTab, moveLineDown, moveLineUp, toggleComment } from "@codemirror/commands";
 import { yaml } from "@codemirror/lang-yaml";
-import { codeFolding, foldedRanges, foldEffect, foldGutter, HighlightStyle, indentUnit, syntaxHighlighting, unfoldAll } from "@codemirror/language";
-import { Compartment, EditorState } from "@codemirror/state";
-import { crosshairCursor, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
+import { codeFolding, foldEffect, foldedRanges, foldGutter, HighlightStyle, indentUnit, syntaxHighlighting, unfoldAll } from "@codemirror/language";
+import { Compartment, EditorState, StateEffect, StateField } from "@codemirror/state";
+import type { DecorationSet } from "@codemirror/view";
+import { crosshairCursor, Decoration, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { MutableRefObject, ReactNode } from "react";
 import { useEffect, useRef } from "react";
+import type { SearchMatch } from "../utils/searchMatches";
 
 // What the surfaces around the editor are allowed to ask of it. Everything
 // CodeMirror-shaped stays inside this module: the YAML tab and the kubeconfig
@@ -13,8 +15,10 @@ import { useEffect, useRef } from "react";
 export interface YamlEditorHandle {
   focus(): void;
   // Character offsets into the document, which is how the toolbar search
-  // counts; the editor scrolls the range to the middle of the viewport.
-  selectRange(from: number, to: number): void;
+  // counts. The matches are painted, never selected, and `reveal` says whether
+  // this is a jump - which scrolls the current match to the middle - or a
+  // repaint after the text changed, which must leave the viewport alone.
+  showSearchMatches(ranges: readonly SearchMatch[], current: number, reveal: boolean): void;
   // 1-based inclusive line numbers, which is what `yamlFoldRegions` produces.
   foldLineRanges(ranges: ReadonlyArray<{ startLine: number; endLine: number }>): void;
   unfoldAll(): void;
@@ -46,6 +50,34 @@ const yamlHighlightStyle = HighlightStyle.define([
   { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "var(--muted-soft)", fontStyle: "italic" },
   { tag: [tags.punctuation, tags.separator, tags.brace, tags.bracket, tags.meta], color: "var(--muted)" },
 ]);
+
+// The toolbar search paints its matches instead of selecting them. A selection
+// is what the next keystroke replaces, so Enter straight after a search used to
+// swallow the very text that had just been found; a decoration is visual only,
+// and it leaves the caret and the focus where the reader put them.
+const setSearchMatches = StateEffect.define<{ ranges: readonly SearchMatch[]; current: number }>();
+const searchMatchMark = Decoration.mark({ class: "cm-kd-search-match" });
+const currentSearchMatchMark = Decoration.mark({ class: "cm-kd-search-match cm-kd-search-match-current" });
+
+const searchMatchField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(decorations, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(setSearchMatches)) {
+        const { ranges, current } = effect.value;
+        return Decoration.set(
+          ranges.map((range, index) => (index === current ? currentSearchMatchMark : searchMatchMark).range(range.from, range.to)),
+          true,
+        );
+      }
+    }
+    // Typing next to a highlighted match arrives before the surface above can
+    // recompute the ranges, so the existing ones move with the text rather than
+    // staying behind on whatever now occupies those offsets.
+    return decorations.map(transaction.changes);
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
 
 const yamlEditorTheme = EditorView.theme({
   "&": {
@@ -90,6 +122,17 @@ const yamlEditorTheme = EditorView.theme({
   },
   // Every caret of a multi-caret edit, not only the primary one.
   ".cm-cursor, .cm-dropCursor, .cm-cursor-secondary": { borderLeftColor: "var(--text)" },
+  // Every match of the toolbar search, with the one being stepped to picked out
+  // of them. The colours are the log viewer's, so a search reads the same in
+  // both tabs.
+  ".cm-kd-search-match": {
+    backgroundColor: "color-mix(in srgb, var(--warning-border) 42%, transparent)",
+    borderRadius: "2px",
+  },
+  ".cm-kd-search-match-current": {
+    backgroundColor: "color-mix(in srgb, var(--warning-border) 85%, transparent)",
+    outline: "1px solid var(--warning-text)",
+  },
   ".cm-foldPlaceholder": {
     background: "transparent",
     border: "0",
@@ -170,6 +213,7 @@ export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef
           indentUnit.of("  "),
           yaml(),
           syntaxHighlighting(yamlHighlightStyle),
+          searchMatchField,
           yamlEditorTheme,
           intelliJStyleKeymap,
           keymap.of([
@@ -225,14 +269,14 @@ export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef
       focus() {
         viewRef.current?.focus();
       },
-      selectRange(from, to) {
+      showSearchMatches(ranges, current, reveal) {
         const view = viewRef.current;
         if (!view) return;
         const limit = view.state.doc.length;
-        const anchor = Math.max(0, Math.min(from, limit));
-        const head = Math.max(0, Math.min(to, limit));
-        view.focus();
-        view.dispatch({ selection: { anchor, head }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) });
+        const clamped = ranges.map((range) => ({ from: Math.max(0, Math.min(range.from, limit)), to: Math.max(0, Math.min(range.to, limit)) })).filter((range) => range.to > range.from);
+        const target = current >= 0 ? clamped[current] : undefined;
+        const scroll = reveal && target ? [EditorView.scrollIntoView(target.from, { y: "center" })] : [];
+        view.dispatch({ effects: [setSearchMatches.of({ ranges: clamped, current }), ...scroll] });
       },
       foldLineRanges(ranges) {
         const view = viewRef.current;

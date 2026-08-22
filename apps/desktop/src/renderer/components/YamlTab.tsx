@@ -1,12 +1,13 @@
 import { ChevronDown, ChevronUp, FileCheck2, GitCompareArrows, ListTree, RotateCcw, Save, Search, UnfoldVertical } from "lucide-react";
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
-import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
-import { AsyncActionButton, reloadActionLabels } from "./AsyncActionButton";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ApiClient } from "../api";
+import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { matchRanges, nextMatchIndex } from "../utils/searchMatches";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
 import { yamlFoldRegions } from "../utils/yamlFolding";
-import { YamlSourceEditor, type YamlEditorHandle } from "./YamlSourceEditor";
+import { AsyncActionButton, reloadActionLabels } from "./AsyncActionButton";
+import { type YamlEditorHandle, YamlSourceEditor } from "./YamlSourceEditor";
 
 const ManifestCompare = lazy(() => import("./ManifestCompare").then((module) => ({ default: module.ManifestCompare })));
 
@@ -50,7 +51,11 @@ export function YamlTab({
   const [yamlQuery, setYamlQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(-1);
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const matchCount = useMemo(() => (yamlQuery ? countMatches(yamlDraft, yamlQuery) : 0), [yamlDraft, yamlQuery]);
+  const matches = useMemo(() => matchRanges(yamlDraft, yamlQuery), [yamlDraft, yamlQuery]);
+  const matchCount = matches.length;
+  // An edit can leave the draft with fewer matches than the step the reader had
+  // reached, and neither the counter nor the highlight may point past the end.
+  const currentMatch = matchIndex < matchCount ? matchIndex : -1;
   const reloadFeedback = useAsyncActionFeedback();
   const [compareOpen, setCompareOpen] = useState(false);
   // CodeMirror owns the fold state; this is the mirror it reports back, and the
@@ -69,20 +74,25 @@ export function YamlTab({
   const collapseIsNoOp = topLevelFoldRegions.length === 0 || topLevelFoldRegions.every((region) => foldedLines.includes(region.startLine));
   const labels = reloadActionLabels(t);
 
+  // The highlight is repainted whenever the draft or the query changes, because
+  // the ranges are recomputed from the draft: a match can never end up painted
+  // over text that has since moved. A repaint never scrolls - only a jump does.
+  useEffect(() => {
+    editorRef.current?.showSearchMatches(matches, currentMatch, false);
+  }, [currentMatch, editorRef, matches]);
+
   const jumpMatch = useCallback(
     (direction: 1 | -1) => {
       const handle = editorRef.current;
-      if (!yamlQuery || matchCount === 0 || !handle) return;
-      const next = matchIndex < 0 && direction === 1 ? 0 : (matchIndex + direction + matchCount) % matchCount;
+      if (matchCount === 0 || !handle) return;
+      const next = nextMatchIndex(currentMatch, direction, matchCount);
       setMatchIndex(next);
-      const offset = matchOffset(yamlDraft, yamlQuery, next);
-      if (offset < 0) return;
-      // A match can sit inside a folded region, which would leave the selection
-      // hidden behind the placeholder, so every fold is opened before selecting.
+      // A match can sit inside a folded region, where the highlight would be
+      // hidden behind the placeholder, so every fold is opened before revealing.
       handle.unfoldAll();
-      handle.selectRange(offset, offset + yamlQuery.length);
+      handle.showSearchMatches(matches, next, true);
     },
-    [editorRef, matchCount, matchIndex, yamlDraft, yamlQuery],
+    [currentMatch, editorRef, matchCount, matches],
   );
 
   const findNext = useCallback(() => jumpMatch(1), [jumpMatch]);
@@ -110,7 +120,7 @@ export function YamlTab({
               placeholder="Find in YAML"
             />
           </label>
-          <span className="match-counter">{yamlQuery ? `${matchIndex >= 0 ? matchIndex + 1 : 0}/${matchCount}` : ""}</span>
+          <span className="match-counter">{yamlQuery ? `${currentMatch >= 0 ? currentMatch + 1 : 0}/${matchCount}` : ""}</span>
           <span className="yaml-action-tooltip" data-tooltip="Previous match (Shift+F3)">
             <button className="icon-button yaml-icon-action" disabled={!matchCount} onClick={() => jumpMatch(-1)} aria-label="Previous match">
               <ChevronUp size={18} />
@@ -187,33 +197,4 @@ export function YamlTab({
       />
     </>
   );
-}
-
-function countMatches(text: string, query: string) {
-  if (!query) return 0;
-  const lowerText = text.toLowerCase();
-  const lowerQuery = query.toLowerCase();
-  let count = 0;
-  let index = lowerText.indexOf(lowerQuery);
-  while (index !== -1) {
-    count += 1;
-    index = lowerText.indexOf(lowerQuery, index + lowerQuery.length);
-  }
-  return count;
-}
-
-// The character offset of the nth match, counted exactly as `countMatches`
-// counts them so the toolbar's "3/17" and the selected range are the same match.
-export function matchOffset(text: string, query: string, targetIndex: number): number {
-  if (!query) return -1;
-  const lowerText = text.toLowerCase();
-  const lowerQuery = query.toLowerCase();
-  let index = -1;
-  let from = 0;
-  for (let step = 0; step <= targetIndex; step += 1) {
-    index = lowerText.indexOf(lowerQuery, from);
-    if (index === -1) return -1;
-    from = index + lowerQuery.length;
-  }
-  return index;
 }
