@@ -216,6 +216,46 @@ test("manifest compare marks equal, changed, added, and removed lines", () => {
   assert.ok(uneven.some((row) => row.left === null && row.rightTone === "added"));
 });
 
+test("a manifest diff fold collapses and expands both panes from one key", () => {
+  const folding = loadTypeScript("utils/yamlFolding.ts", { yaml: require("yaml") });
+  const model = loadTypeScript("components/ManifestCompare.tsx", { diff: require("diff"), yaml: require("yaml"), "../utils/yamlFolding": folding });
+  const left = "metadata:\n  labels:\n    app: web\n  name: web\nspec:\n  replicas: 2\n";
+  const right = "metadata:\n  labels:\n    app: web\n    tier: front\n  name: web\nspec:\n  replicas: 2\n";
+  const rows = model.buildManifestDiff(left, right);
+  const ranges = model.mergeFoldRanges([...model.diffFoldRanges(rows, "left", left), ...model.diffFoldRanges(rows, "right", right)]);
+
+  // The same block on the left and on the right is one fold, not two rival keys:
+  // collapsing every top level group used to leave the second key holding a group
+  // shut while its chevron already reported the group open.
+  assert.deepEqual(
+    ranges.map((range) => range.key),
+    [...new Set(ranges.map((range) => range.key))],
+  );
+  assert.equal(ranges.filter((range) => range.start === 0).length, 1);
+
+  const topLevel = ranges.filter((range) => range.depth === Math.min(...ranges.map((item) => item.depth)));
+  const collapsed = new Set(topLevel.map((range) => range.key));
+  const folded = model.visibleDiffRows(rows, ranges, collapsed);
+  assert.deepEqual(
+    folded.map((entry) => entry.row.left),
+    ["metadata:", "spec:"],
+  );
+  assert.ok(folded.every((entry) => entry.hiddenCount > 0));
+
+  // One chevron expands its own group and leaves the other one folded.
+  collapsed.delete(folded[0].fold.key);
+  const expanded = model.visibleDiffRows(rows, ranges, collapsed);
+  assert.deepEqual(
+    expanded.map((entry) => entry.row.right),
+    ["metadata:", "  labels:", "    app: web", "    tier: front", "  name: web", "spec:"],
+  );
+  assert.equal(expanded.at(-1).hiddenCount, 1);
+
+  // A fold ends with its own block: the line the other side added inside metadata
+  // folds away with it, and spec, which follows metadata, does not.
+  assert.equal(ranges.find((range) => range.start === 0).end, 4);
+});
+
 test("revealed text secrets edit immediately with themed safe confirmation", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/SecretTab.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");

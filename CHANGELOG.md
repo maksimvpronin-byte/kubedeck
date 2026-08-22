@@ -1,3 +1,30 @@
+## 2.15.1 - collapsing groups in the manifest diff expands again
+
+Compare manifests computed its fold regions twice, once from each side, and
+each copy carried its own key built from that side's line numbers. A block
+present in both manifests therefore had two keys for one visible fold.
+
+Collapse top-level groups added both. A chevron toggled one of them, the other
+kept the rows hidden, and the chevron - reading only the key it toggled - had
+already redrawn itself as open. The group looked expanded and stayed folded,
+and only Expand all could recover it.
+
+A fold is now the span of diff rows it covers rather than a side and a line
+number, and the left and the right region of the same block merge into one
+fold, the wider of the two. One key, one collapsed state, both panes reading
+it.
+
+Two smaller things fell out of the same rewrite. A fold no longer swallows the
+rows after it: rows the other side added carry no line number here, and the
+region scan kept absorbing them past the end of the block, so collapsing
+metadata could hide an added line belonging to spec. And the chevron is drawn
+only on the pane that has a line on that row, not beside a blank one.
+
+Collapsed groups are forgotten when the compared resource changes, and a key
+that no longer names a fold is dropped - Expand all used to stay enabled with
+nothing left to expand.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.15.0 - the YAML editor is CodeMirror now
 
 Alt+drag selects a rectangle across lines, typing reaches every caret in it at

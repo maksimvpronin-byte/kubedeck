@@ -87,34 +87,44 @@ export function buildManifestDiff(left: string, right: string): ManifestDiffRow[
 type DiffFoldRange = { key: string; label: string; depth: number; start: number; end: number };
 type VisibleDiffRow = { row: ManifestDiffRow; originalIndex: number; fold?: DiffFoldRange; hiddenCount?: number };
 
-function diffFoldRanges(rows: ManifestDiffRow[], side: "left" | "right", source: string): DiffFoldRange[] {
+// Both panes render the same rows, so a fold is a span of rows rather than a span
+// of one side's lines: the key is the row span, which makes the left region and the
+// right region of the same block one fold with one collapsed state.
+export function diffFoldRanges(rows: ManifestDiffRow[], side: "left" | "right", source: string): DiffFoldRange[] {
   const numberKey = `${side}Number` as const;
-  return yamlFoldRegions(source)
-    .map((region) => {
-      const start = rows.findIndex((row) => row[numberKey] === region.startLine);
-      let end = start;
-      for (let index = start; index >= 0 && index < rows.length; index += 1) {
-        const line = rows[index][numberKey];
-        if (line !== null && line > region.endLine) break;
-        end = index;
-      }
-      return { key: `${side}:${region.path}`, label: region.label, depth: region.depth, start, end };
-    })
-    .filter((region) => region.start >= 0 && region.end > region.start);
+  return yamlFoldRegions(source).flatMap((region) => {
+    const start = rows.findIndex((row) => row[numberKey] === region.startLine);
+    if (start < 0) return [];
+    let end = start;
+    for (let index = start + 1; index < rows.length; index += 1) {
+      const line = rows[index][numberKey];
+      // Rows the other side added carry no number on this side: they belong to the
+      // region only when a numbered row inside the region still follows them.
+      if (line === null) continue;
+      if (line > region.endLine) break;
+      end = index;
+    }
+    return end > start ? [{ key: `${start}:${end}`, label: region.label, depth: region.depth, start, end }] : [];
+  });
 }
 
-function visibleDiffRows(rows: ManifestDiffRow[], ranges: DiffFoldRange[], collapsed: ReadonlySet<string>): VisibleDiffRow[] {
-  const starts = new Map<number, DiffFoldRange[]>();
+// One fold per starting row, the widest one, so the chevron a pane shows always
+// toggles the fold that actually hides the rows below it.
+export function mergeFoldRanges(ranges: DiffFoldRange[]): DiffFoldRange[] {
+  const widest = new Map<number, DiffFoldRange>();
   for (const range of ranges) {
-    const bucket = starts.get(range.start) ?? [];
-    bucket.push(range);
-    starts.set(range.start, bucket);
+    const current = widest.get(range.start);
+    if (!current || range.end > current.end) widest.set(range.start, range);
   }
+  return [...widest.values()].sort((left, right) => left.start - right.start);
+}
+
+export function visibleDiffRows(rows: ManifestDiffRow[], ranges: DiffFoldRange[], collapsed: ReadonlySet<string>): VisibleDiffRow[] {
+  const starts = new Map(ranges.map((range) => [range.start, range]));
   const result: VisibleDiffRow[] = [];
   for (let index = 0; index < rows.length; index += 1) {
-    const candidates = (starts.get(index) ?? []).sort((left, right) => right.end - left.end);
-    const fold = candidates[0];
-    const active = candidates.find((candidate) => collapsed.has(candidate.key));
+    const fold = starts.get(index);
+    const active = fold && collapsed.has(fold.key) ? fold : undefined;
     result.push({ row: rows[index], originalIndex: index, fold, hiddenCount: active ? active.end - active.start : undefined });
     if (active) index = active.end;
   }
@@ -148,7 +158,7 @@ function DiffPane({
             <span className="manifest-diff-number">{number ?? ""}</span>
             <span className="manifest-diff-marker">{tone === "added" ? "+" : tone === "removed" ? "−" : tone === "changed" ? "~" : "="}</span>
             <span className="manifest-diff-fold-cell">
-              {fold ? (
+              {fold && value !== null ? (
                 <button
                   className="manifest-diff-fold"
                   type="button"
@@ -216,6 +226,7 @@ export function ManifestCompare({
   );
   const choose = async (id: string) => {
     resetScroll();
+    setCollapsed(new Set());
     const request = ++requestRef.current;
     setTarget(id);
     setError("");
@@ -254,8 +265,16 @@ export function ManifestCompare({
       : lines(cleanedLeft).map((value, index) => ({ left: value, right: null, leftNumber: index + 1, rightNumber: null, leftTone: "equal" as const, rightTone: "equal" as const }));
     return { left: cleanedLeft, right: cleanedRight, rows: diffRows, renderError: manifestError };
   }, [currentYaml, targetYaml, raw, error]);
-  const foldRanges = useMemo(() => [...diffFoldRanges(rows, "left", left), ...(right ? diffFoldRanges(rows, "right", right) : [])], [left, right, rows]);
+  const foldRanges = useMemo(() => mergeFoldRanges([...diffFoldRanges(rows, "left", left), ...(right ? diffFoldRanges(rows, "right", right) : [])]), [left, right, rows]);
   const displayedRows = useMemo(() => visibleDiffRows(rows, foldRanges, collapsed), [collapsed, foldRanges, rows]);
+  useEffect(() => {
+    setCollapsed((current) => {
+      if (!current.size) return current;
+      const keys = new Set(foldRanges.map((range) => range.key));
+      const next = new Set([...current].filter((key) => keys.has(key)));
+      return next.size === current.size ? current : next;
+    });
+  }, [foldRanges]);
   const toggleFold = (key: string) =>
     setCollapsed((current) => {
       const next = new Set(current);
