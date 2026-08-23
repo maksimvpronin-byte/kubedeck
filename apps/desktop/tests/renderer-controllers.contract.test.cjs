@@ -112,14 +112,14 @@ test("clusters are switched from the icon rail instead of a topbar dropdown", ()
   const component = fs.readFileSync(path.join(rendererRoot, "components/ClusterRail.tsx"), "utf8");
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
-  const topbar = app.slice(app.indexOf('<header className="topbar">'), app.indexOf("<NamespaceSelector"));
+  const topbar = fs.readFileSync(path.join(rendererRoot, "components/AppTopbar.tsx"), "utf8");
 
   assert.equal(fs.existsSync(path.join(rendererRoot, "components/ClusterSelector.tsx")), false);
   assert.doesNotMatch(app, /ClusterSelector/);
   assert.doesNotMatch(topbar, /<select/);
   assert.match(app, /<ClusterRail/);
   // The rail sits left of the resource navigation and keeps the drawer guard.
-  assert.ok(app.indexOf("<ClusterRail") < app.indexOf('<aside className="sidebar">'));
+  assert.ok(app.indexOf("<ClusterRail") < app.indexOf("<AppSidebar"));
   assert.match(app, /onSelect=\{\(cluster\) => \{[\s\S]*?confirmDrawerNavigation\(\)[\s\S]*?openCluster\(cluster\)/);
 
   assert.doesNotMatch(component, /<select/);

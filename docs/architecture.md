@@ -83,13 +83,15 @@ Kubernetes API вызывается через системный `kubectl`, у�
 
 Renderer находится в `apps/desktop/src/renderer`:
 
-- `App.tsx` — composition и orchestration верхнего уровня;
+- `App.tsx` — composition и orchestration верхнего уровня: держит состояние и связывает hooks, а разметку собирает из `AppSidebar` (дерево ресурсов), `AppTopbar` (namespace-скоуп, поиск, статус), `AppSectionRouter` (какая поверхность соответствует выбранной секции) и `AppResourceWorkspace` (правая колонка с табами и дровером);
 - `api.ts` — единый HTTP/WebSocket client;
 - `components/` — resource tables, drawer tabs, panels и modals;
 - `hooks/` — UI lifecycle и persisted state;
 - `utils/` — чистые функции;
 - `locales/` — русская и английская локализация;
 - `styles/` — темы и стили приложения.
+
+Ленивые панели — About, Help, Overview, Port forwards, Problems, Settings — объявлены в `AppSectionRouter`, а не в `App.tsx`: граница чанка идёт по тому модулю, который решает, какая панель нужна. `PodDrawer` и `BottomTerminalPanel` объявлены там, где монтируются. Все они проходят через общий `LazySurface` — boundary, сбрасывающийся при навигации, поверх Suspense-фолбэка.
 
 Переключение кластеров живёт в `ClusterRail` — вертикальном рельсе иконок слева от resource navigation. Рельс показывает по одной кнопке на кластер в порядке из `config.clusters`, отмечает активный, открывающийся и недоступный кластер и содержит кнопку импорта kubeconfig. Переименование и удаление кластеров остаются в Settings.
 

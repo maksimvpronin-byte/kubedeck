@@ -97,9 +97,10 @@ test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contra
   assert.match(table, /label="Storage"/);
   assert.match(table, /label="Disk"/);
   assert.match(table, /function PodResourceUsage/);
-  assert.match(app, /function LazySurface/);
-  const appReturn = app.slice(app.indexOf("return (", app.indexOf("export function App")), app.indexOf('<aside className="sidebar">'));
-  assert.doesNotMatch(appReturn, /<Suspense/);
+  const lazySurface = fs.readFileSync(path.join(rendererRoot, "components/LazySurface.tsx"), "utf8");
+  assert.match(lazySurface, /export function LazySurface/);
+  // The boundary is what mounts a lazy panel, so App itself never reaches for Suspense.
+  assert.doesNotMatch(app, /<Suspense/);
   assert.match(yamlTab, /yamlFoldRegions/);
   assert.match(yamlTab, /Collapse top-level YAML groups/);
   assert.match(drawerStyles, /\.resource-workspace-tab\.active::after/);
@@ -122,7 +123,8 @@ test("2.9.0 overview and navigation polish stay contracted", () => {
   assert.match(navigation, /id: "overview", icon: LayoutDashboard/);
   assert.doesNotMatch(navigation, /events:\s*\["events"\]/);
   assert.doesNotMatch(navigation, /id: "audit"/);
-  assert.match(app, /<OverviewPanel/);
+  const router = fs.readFileSync(path.join(rendererRoot, "components/AppSectionRouter.tsx"), "utf8");
+  assert.match(router, /<OverviewPanel/);
   assert.match(app, /closeTransientDrawerFromBackground/);
   assert.match(overview, /api\.overview\(/);
   assert.match(overview, /clusterProfile/);

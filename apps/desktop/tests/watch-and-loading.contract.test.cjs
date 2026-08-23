@@ -272,8 +272,9 @@ test("a disconnected cluster is left alone, including by the polling fallback", 
 
   // The table used to keep showing rows loaded before the disconnect, with
   // every action still on offer against a cluster the gateway now refuses.
-  assert.match(app, /\{activeCluster && activeClusterConnected \? \(/);
-  assert.match(app, /<DisconnectedClusterPanel/);
+  const router = fs.readFileSync(path.join(rendererRoot, "components/AppSectionRouter.tsx"), "utf8");
+  assert.match(router, /\{activeCluster && props\.activeClusterConnected \? \(/);
+  assert.match(router, /<DisconnectedClusterPanel/);
   // Saving settings replaces the whole config from the PUT response. An absent
   // connection list means "not reported", not "nothing connected" - conflating
   // them turned the entire rail grey while the backend kept talking.

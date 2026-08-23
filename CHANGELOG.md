@@ -1,3 +1,40 @@
+## 2.20.4 - Internal cleanup: App.tsx stops being the whole shell
+
+No behaviour change. No route changes. Node-only ownership stays at Node 58 /
+Python 0.
+
+`App.tsx` was 1028 lines - about 525 of orchestration between hooks and one
+JSX return of 416. It is 691 now, and its `return` reads as a list of what is
+on screen: cluster rail, sidebar, topbar, tabs, section router, resource
+workspace, terminal panel, three modals. Seven modules came out of it:
+`components/AppSectionRouter.tsx` (221 lines, which surface a section shows),
+`components/AppSidebar.tsx` (94, the resource tree with CRDs grouped by API
+group), `components/AppResourceWorkspace.tsx` (87, the right column),
+`components/AppTopbar.tsx` (73), `components/LazySurface.tsx` (22),
+`hooks/useSectionNavigation.ts` (173) and `hooks/usePodUsageRefresh.ts` (65).
+
+Two of the hooks were not in the plan. The sidebar and the router come to about
+205 lines, not enough to get under 700, so three more seams had to be real
+ones. `selectSection` alone was 68 lines: picking a section has never been
+"show this section", it also decides which tab opens and in which namespace
+scope, and the same `if (selectedNamespaces.includes("_cluster"))
+restoreNamespacedSelection()` appeared seven times. `usePodUsageRefresh` is the
+effect that keeps the pods table's usage column current from recorded samples.
+
+Code splitting is intact: all eight lazy chunks are still separate and the same
+size. The main bundle grew from 331.28 kB to 335.33 kB (gzip 101.91 → 102.90) -
+not a chunk that moved, but the new modules themselves, module boundaries and
+props where there used to be closures.
+
+Six tests broke, which was the point. 2.20.3 measured that 50 of the 93
+renderer tests assert on source text rather than behaviour; splitting a file
+fifteen of them read proved what that costs. Not one assertion stopped being
+true - they were looking in `App.tsx` and the subject had moved - and each was
+repointed at the file it moved to. A behavioural test would have needed none of
+those edits.
+
+Fourth of the sections in `docs/file-structure-refactor-plan.md`.
+
 ## 2.20.3 - Internal cleanup: the renderer test junk drawer is sorted
 
 No application code changed at all - `apps/desktop/src` is byte-identical to

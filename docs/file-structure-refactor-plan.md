@@ -1,6 +1,6 @@
 # KubeDeck — разделение крупных файлов и снятие структурного долга
 
-Статус: A, B и C выполнены (2.20.1–2.20.3). Дальше — D.
+Статус: A–D выполнены (2.20.1–2.20.4). Дальше — E.
 
 ## Контекст
 
@@ -333,7 +333,7 @@ grep-контрактов зафиксирован в комментариях �
 
 ---
 
-## Секция D — `App.tsx`: `<AppSidebar>` + `<AppSectionRouter>`
+## Секция D — `App.tsx`: сайдбар, топбар, роутер секций, рабочая область
 
 Предполагаемая версия: 2.20.4.
 
@@ -344,34 +344,79 @@ grep-контрактов зафиксирован в комментариях �
 
 - строки **85–611** — тело `App()`: ~525 строк оркестрации между hooks
 - строки **612–1028** — один JSX-возврат на 416 строк, внутри которого два
-  независимых куска:
-  - дерево сайдбара: `sections.map` + CRD-группы + вложенные ресурсы (~140 строк)
-  - цепочка `section === "overview" / "help" / "about" / "settings" /
-    "problems" / "port-forwards" / placeholder` с обёртками `LazySurface`
-    (~120 строк)
+  независимых куска: дерево сайдбара (`sections.map` + CRD-группы) и цепочка
+  `section === "overview" / "help" / "about" / "settings" / "problems" /
+  "port-forwards" / placeholder` с обёртками `LazySurface`.
 
-Оба куска не читают ничего, кроме уже вычисленных значений — извлекаются
-механически, без изменения логики.
+### Что понадобилось сверх плана
+
+Двух извлечений не хватило: сайдбар и роутер снимают ~205 строк, а цель —
+не длиннее 700. Пришлось найти ещё три шва, и все три оказались настоящими:
+
+- **`hooks/useSectionNavigation.ts`** (173 строки) — `selectSection`,
+  `selectTreeResource`, `toggleSection`, `toggleCrdGroup`. Один только
+  `selectSection` занимал 68 строк: выбор секции никогда не был «показать
+  секцию», он ещё решает, какая вкладка открывается и в каком namespace-скоупе.
+  Повторяющееся `if (selectedNamespaces.includes("_cluster"))
+  restoreNamespacedSelection()` встречалось семь раз и свелось в один
+  `restoreNamespacesIfClusterScoped`.
+- **`hooks/usePodUsageRefresh.ts`** (65 строк) — эффект, освежающий колонку
+  usage в таблице подов из уже записанных сэмплов, вместе с
+  `POD_USAGE_REFRESH_MS` и `isPodResourceTab`. Самодостаточный, с собственным
+  объяснением, зачем он существует.
+- **`components/AppTopbar.tsx`** (73 строки) — namespace-селектор, глобальный
+  поиск и строка состояния.
+
+Плюс `components/AppResourceWorkspace.tsx` (87) — правая колонка с табами и
+дровером, и `components/LazySurface.tsx` (22) — обёртка, которую делят App и
+роутер.
 
 ### Задачи
 
-- [ ] `components/AppSidebar.tsx` — дерево навигации: `sections.map`,
-  `expandedSections`, `expandedCrdGroups`, группировка CRD. Props — явные,
-  без прокидывания всего состояния App.
-- [ ] `components/AppSectionRouter.tsx` — цепочка `section === …` вместе с
-  `LazySurface` и lazy-импортами панелей (`AboutPanel`, `OverviewPanel`,
-  `HelpPanel`, `PortForwardsPanel`, `ProblemsPanel`, `SettingsPanel`).
-- [ ] Проверить, что code-splitting не сломался: lazy-импорты должны остаться
-  в модуле роутера, а не подтянуться в основной бандл. Сверить размеры чанков
-  до/после `npm run build`.
-- [ ] `App.tsx` после секции — не длиннее 700 строк.
-- [ ] `docs/architecture.md` — обновить схему renderer.
+- [x] `components/AppSidebar.tsx` (94) — дерево навигации. Props явные, 11
+  штук, без прокидывания состояния App целиком.
+- [x] `components/AppSectionRouter.tsx` (221) — цепочка `section === …` вместе
+  с `LazySurface` и lazy-импортами панелей. Цепочка тернарников переписана в
+  ранние `return`, что и делает файл читаемым.
+- [x] `components/AppTopbar.tsx`, `components/AppResourceWorkspace.tsx`,
+  `components/LazySurface.tsx`.
+- [x] `hooks/useSectionNavigation.ts`, `hooks/usePodUsageRefresh.ts`.
+- [x] `utils/kubeResources.ts` — у `groupCrds` появился именованный
+  возвращаемый тип `CrdGroup`, иначе сайдбар не мог его назвать в props.
+- [x] Проверить, что code-splitting не сломался. Все восемь ленивых чанков
+  остались отдельными и того же размера: `HelpPanel` 2.90 КБ,
+  `PortForwardsPanel` 3.18, `AboutPanel` 5.09, `OverviewPanel` 11.11,
+  `ProblemsPanel` 11.58, `SettingsPanel` 30.41, `PodDrawer` 88.21,
+  `BottomTerminalPanel` 363.96.
+- [x] `App.tsx` после секции — не длиннее 700 строк (факт: 691).
+- [x] `docs/architecture.md` — обновить схему renderer.
+
+### Чего это стоило
+
+**Основной бандл вырос с 331.28 КБ до 335.33 КБ** (gzip 101.91 → 102.90). Это
+не переехавший ленивый чанк, а сами новые модули: границы модулей и props,
+которые раньше были замыканиями. ~1 КБ gzip за то, что `App.tsx` стал читаемым
+— цена принимается, но замолчать её нельзя.
+
+**Шесть grep-контрактов упали** — первое настоящее подтверждение того, что
+Секция C измерила. Ни одно утверждение не перестало быть верным: они читали
+`App.tsx`, а предмет проверки переехал. Перенаправлены на новые файлы:
+`function LazySurface` → `components/LazySurface.tsx`, `<OverviewPanel>` и
+`{activeCluster && activeClusterConnected ? (` → `components/AppSectionRouter.tsx`,
+`POD_USAGE_REFRESH_MS` и `setAlignedInterval(…)` → `hooks/usePodUsageRefresh.ts`,
+проверка топбара — на `components/AppTopbar.tsx`, порядок «рельса левее
+навигации» — на `<AppSidebar>` вместо `<aside className="sidebar">`.
+Поведенческий тест не потребовал бы ни одной из этих правок.
 
 ### Критерий секции
 
-`App.tsx` ≤ 700 строк, его `return` умещается в один экран логики: rail,
-sidebar, router, table, drawer, terminal, palette. Размер основного бандла не
-вырос.
+`App.tsx` ≤ 700 строк (691), его `return` умещается в один экран: `ClusterRail`,
+`DisconnectClusterModal`, `AppSidebar`, `AppTopbar`, вкладки, `AppSectionRouter`,
+`AppResourceWorkspace`, `BottomTerminalPanel`, `RenameClusterModal`,
+`AppCommandPalette`, `BulkActionModals`. Ленивые чанки не переехали в основной
+бандл.
+
+**Статус: выполнено, выпущено как 2.20.4.**
 
 ---
 

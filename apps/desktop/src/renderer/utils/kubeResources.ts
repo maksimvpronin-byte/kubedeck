@@ -39,7 +39,19 @@ export function fullyQualifiedResource(definition: ResourceDefinition) {
   return definition.apiGroup ? `${definition.name}.${definition.apiGroup}` : definition.name;
 }
 
-export function groupCrds(rows: ResourceRow[]) {
+export interface CrdGroupItem {
+  group: string;
+  kind: string;
+  plural: string;
+  resource: string;
+}
+
+export interface CrdGroup {
+  group: string;
+  items: CrdGroupItem[];
+}
+
+export function groupCrds(rows: ResourceRow[]): CrdGroup[] {
   const groups = new Map<string, Array<{ group: string; kind: string; plural: string; resource: string }>>();
   for (const row of rows) {
     const group = String(row.group || "unknown");

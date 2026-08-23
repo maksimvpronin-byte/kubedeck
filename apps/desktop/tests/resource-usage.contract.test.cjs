@@ -27,8 +27,8 @@ test("the usage history panel refreshes itself instead of freezing on its first 
   // apart, which reads as the two panels disagreeing about one pod.
   const aligned = fs.readFileSync(path.join(rendererRoot, "utils/alignedInterval.ts"), "utf8");
   assert.match(aligned, /intervalMs - \(Date\.now\(\) % intervalMs\)/);
-  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
-  assert.match(app, /setAlignedInterval\(\(\) => void refresh\(\), POD_USAGE_REFRESH_MS\)/);
+  const podUsage = fs.readFileSync(path.join(rendererRoot, "hooks/usePodUsageRefresh.ts"), "utf8");
+  assert.match(podUsage, /setAlignedInterval\(\(\) => void refresh\(\), POD_USAGE_REFRESH_MS\)/);
   const fetchEffect = lifecycle.slice(lifecycle.indexOf("Usage history is recorded by KubeDeck itself"), lifecycle.indexOf('tab !== "related"'));
   assert.match(fetchEffect, /usageHistoryTick\]/, "the fetch must depend on the tick or it never runs again");
   assert.match(fetchEffect, /requestGeneration === usageHistoryRequestRef\.current/, "a stale response must not land on another pod");
@@ -80,7 +80,7 @@ test("recorded usage patches only the usage fields and keeps unchanged rows iden
 
 // grep contract: asserts on source text, not behaviour.
 test("the pods table refreshes usage from recorded samples rather than reloading the list", () => {
-  const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  const app = fs.readFileSync(path.join(rendererRoot, "hooks/usePodUsageRefresh.ts"), "utf8");
   // A table driven by watch events is not reloaded while the pods do not
   // change, so its usage column froze at whatever the last list load caught.
   assert.match(app, /const POD_USAGE_REFRESH_MS = 15_000;/);
