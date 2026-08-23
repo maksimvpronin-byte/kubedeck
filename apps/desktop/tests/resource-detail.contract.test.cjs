@@ -24,7 +24,8 @@ test("node labels and annotations are read whole, not guessed at from three chip
   const nodeColumns = columns.buildResourceTableColumns((key) => key).nodes.map((column) => column.key);
   assert.ok(nodeColumns.includes("roles"));
   assert.ok(nodeColumns.indexOf("roles") < nodeColumns.indexOf("labelsText"));
-  assert.match(table, /if \(key === "roles" && row\.roles !== undefined\) return <NodeRolesCell row=\{row\} \/>;/);
+  const formatCell = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/formatCell.tsx"), "utf8");
+  assert.match(formatCell, /if \(key === "roles" && row\.roles !== undefined\) return <NodeRolesCell row=\{row\} \/>;/);
 
   // The remainder is a popover rendered into the body, not a native tooltip
   // holding a comma-joined blob, and it is placed by the same helper the

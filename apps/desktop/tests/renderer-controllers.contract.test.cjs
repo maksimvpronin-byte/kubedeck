@@ -381,32 +381,6 @@ test("renderer error normalizer preserves ApiError fields and redacts sensitive 
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("the problems panel sizes itself by its own width, not the window's", () => {
-  const problems = fs.readFileSync(path.join(rendererRoot, "styles/problems-panel.css"), "utf8");
-  const panels = fs.readFileSync(path.join(rendererRoot, "styles/panels.css"), "utf8");
-
-  // The panel is squeezed by the drawer, not by the window. A viewport media
-  // query cannot see that, so on a wide screen with the drawer open the card
-  // kept two columns, the button column took its max-content width, and the
-  // text column collapsed until `overflow-wrap: anywhere` broke the resource
-  // path one character per line.
-  assert.match(problems, /\.problems-priority \{[^}]*container-type: inline-size/);
-  assert.match(problems, /@container problems-priority \(max-width: 1050px\)[\s\S]*?\.problems-priority-list/);
-  assert.match(problems, /@container problems-priority \(max-width: 560px\)[\s\S]*?\.problem-priority-card/);
-  assert.doesNotMatch(problems, /@media[^{]*\{\s*\.problems-priority-list/, "the list must not key off the viewport again");
-  assert.doesNotMatch(problems, /@media[^{]*\{\s*\.problem-priority-card/, "nor the card");
-
-  assert.match(panels, /\.problems-guidance \{[^}]*container-type: inline-size/);
-  assert.match(panels, /@container problems-guidance \(max-width: 1050px\)/);
-  assert.doesNotMatch(panels, /@media[^{]*\{\s*\.problems-guidance-grid/);
-
-  // The summary row needs no query at all - auto-fit follows the space that is
-  // actually there.
-  assert.match(problems, /\.problem-summary-grid \{[^}]*repeat\(auto-fit, minmax\(160px, 1fr\)\)/);
-  assert.doesNotMatch(problems, /@media[^{]*\{\s*\.problem-summary-grid/);
-});
-
-// grep contract: asserts on source text, not behaviour.
 test("the prompt preview can be hidden while an analysis is still running", () => {
   const llmTab = fs.readFileSync(path.join(rendererRoot, "components/LlmTab.tsx"), "utf8");
 

@@ -30,7 +30,8 @@ test("2.7.4 resource surfaces stay compact and operational", () => {
   assert.doesNotMatch(summary, /Object\.entries\(row\)/);
   assert.match(summary, /String\(event\.type \|\| ""\)\.toLowerCase\(\) !== "warning"/);
   assert.doesNotMatch(table, /<AsyncActionButton/);
-  assert.match(table, /className=\{`phase-value is-\$\{kubernetesStatusTone\(row\)\}`\}/);
+  const formatCell = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/formatCell.tsx"), "utf8");
+  assert.match(formatCell, /className=\{`phase-value is-\$\{kubernetesStatusTone\(row\)\}`\}/);
   assert.doesNotMatch(table, /className="cell-hint"/);
   assert.match(columns, /aria-label="Choose visible columns"/);
   assert.match(columns, /data-tooltip="Choose columns"/);
@@ -62,16 +63,18 @@ test("2.7.5 Manifest Compare uses the themed chooser and quota rows cannot overl
 
 test("2.7.6 resource surfaces align compare panes and render compact operational signals", () => {
   const compare = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
-  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
   const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
   const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
   assert.match(compare, /target\.scrollTop !== source\.scrollTop/);
   assert.match(compare, /target\.scrollLeft !== source\.scrollLeft/);
   assert.match(compare, /aria-label=\{side === "left" \? "Current manifest" : "Compared manifest"\}/);
-  assert.match(table, /<ResourceUsageBar label="CPU"/);
-  assert.match(table, /<ResourceUsageBar label="RAM"/);
-  assert.match(table, /workload-condition-list/);
-  assert.match(table, /nodeLabelItems/);
+  const usageCells = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/UsageCells.tsx"), "utf8");
+  const statusCells = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/StatusCells.tsx"), "utf8");
+  const formatCell = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/formatCell.tsx"), "utf8");
+  assert.match(usageCells, /<ResourceUsageBar label="CPU"/);
+  assert.match(usageCells, /<ResourceUsageBar label="RAM"/);
+  assert.match(statusCells, /workload-condition-list/);
+  assert.match(formatCell, /nodeLabelItems/);
   assert.match(summary, /formatQuotaQuantity/);
   assert.match(lifecycle, /\.resourceMetrics\(/);
   assert.match(lifecycle, /metricsRequestRef/);
@@ -85,7 +88,6 @@ test("2.7.6 resource surfaces align compare panes and render compact operational
 // grep contract: asserts on source text, not behaviour.
 test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contracted", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
-  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
   const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
   const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
   const terminalStyles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
@@ -94,9 +96,10 @@ test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contra
   assert.match(tableColumns, /key: "podResources", label: "Usage"/);
   assert.match(app, /onVisibleNodeRows=\{loadVisibleNodeDisk\}/);
   assert.match(nodeDiskUsage, /Promise\.all\(Array\.from\(\{ length: Math\.min\(NODE_DISK_CONCURRENCY, queue\.length\) \}, worker\)\)/);
-  assert.match(table, /label="Storage"/);
-  assert.match(table, /label="Disk"/);
-  assert.match(table, /function PodResourceUsage/);
+  const usage = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/UsageCells.tsx"), "utf8");
+  assert.match(usage, /label="Storage"/);
+  assert.match(usage, /label="Disk"/);
+  assert.match(usage, /function PodResourceUsage/);
   const lazySurface = fs.readFileSync(path.join(rendererRoot, "components/LazySurface.tsx"), "utf8");
   assert.match(lazySurface, /export function LazySurface/);
   // The boundary is what mounts a lazy panel, so App itself never reaches for Suspense.

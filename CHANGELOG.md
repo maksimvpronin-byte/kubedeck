@@ -1,3 +1,43 @@
+## 2.20.6 - Internal cleanup: table cells and problem classification get their own files
+
+No behaviour change. No route changes. Node-only ownership stays at Node 58 /
+Python 0.
+
+`ResourceTable.tsx` was 629 lines, exactly half of it cells that nothing
+outside the table ever used - the table body reached all of them through one
+function. It is 327 now, over `resourceTable/UsageCells.tsx` (139),
+`resourceTable/rowStatus.ts` (95, the pure helpers), `resourceTable/
+StatusCells.tsx` (51) and `resourceTable/formatCell.tsx` (33).
+`ProblemsPanel.tsx` was 578 and is 232, over `ProblemsPanelParts.tsx` (215, the
+five sub-components) and `problemsModel.ts` (141, the classification).
+
+`formatCell` was meant to stay in the table as its dispatcher, but it dragged
+along five imports only it needed; in its own file the cell folder is
+self-contained and the table imports one name.
+
+Splitting these broke six tests. Five were repointed at the files their subject
+moved to - thirteen source-text assertions have now been edited purely because
+code moved. The sixth was replaced: a regex over the table's source asserting
+that a container which is merely not ready reads as pending rather than as a
+failure is now six calls to `containerTone(...)` with the answers written out.
+
+The pure functions being importable also made room for 16 new behavioural
+tests. `problemsModel.ts` gets 10: classification from an explicit category and
+from the row's own text, severity ordering, guidance grouping capped at four,
+the locator that opens the object a problem is about rather than the event that
+reported it, the clipboard diagnostic, row keys, filter deduplication.
+`rowStatus.ts` gets 6: which problem a health reason names first, trimming to
+the first clause and to 72 characters, container cubes from states and from
+bare names, CPU and byte formatting, and the request percentage that rounds but
+does not clamp. The renderer suite goes from 93 to 109 tests, and the share
+that only greps source text drops from 54% to 46%.
+
+One new test failed first run - the expectation was wrong, not the code:
+`problemOpenLocator` builds a stable uid even for a row with no separate
+target, because a problem row carries no Kubernetes uid of its own.
+
+Sixth of the sections in `docs/file-structure-refactor-plan.md`.
+
 ## 2.20.5 - Internal cleanup: the drawer's tab bodies leave PodDrawer
 
 No behaviour change. No route changes. Node-only ownership stays at Node 58 /

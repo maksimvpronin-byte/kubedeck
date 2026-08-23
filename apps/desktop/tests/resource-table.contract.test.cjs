@@ -137,12 +137,12 @@ test("rows without a usage metric sort to the low end instead of scattering", ()
 
 // grep contract: asserts on source text, not behaviour.
 test("pod usage falls back from limit to request to the raw reading", () => {
-  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const usageCells = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/UsageCells.tsx"), "utf8");
   const bar = fs.readFileSync(path.join(rendererRoot, "components/ResourceUsageBar.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
 
   // The three tiers, in order.
-  const cell = table.slice(table.indexOf("function PodUsageBar"), table.indexOf("function unclampedPercent"));
+  const cell = usageCells.slice(usageCells.indexOf("function PodUsageBar"));
   assert.ok(cell.indexOf('denominatorLabel="limit"') < cell.indexOf('denominatorLabel="request"'), "a limit must win over a request");
   assert.match(cell, /unavailableLabel=\{usedText \|\| "N\/A"\}/);
   assert.doesNotMatch(cell, /"No limit"/);
@@ -253,4 +253,87 @@ test("resource table columns, YAML match count, manifest diff and log filtering 
   // render, and the per-line grouping the renderer reads hangs off it.
   assert.match(logsTab, /\[normalizedQuery, visibleLines\],/);
   assert.match(logsTab, /const matchesByLine = useMemo\([\s\S]*?\}, \[matches\]\);/);
+});
+
+// The cells' pure helpers moved into components/resourceTable/rowStatus.ts in
+// section F, which made them reachable without a React tree. These replace
+// grepping ResourceTable.tsx for the same rules.
+const rowStatus = loadTypeScript("components/resourceTable/rowStatus.ts");
+
+test("a row's health reason names the most specific problem it has", () => {
+  const reason = (row) => rowStatus.rowHealthReason(row);
+
+  // A finished pod is not unhealthy, whatever else the row carries.
+  assert.equal(reason({ phase: "Succeeded", reason: "Completed" }), "");
+  assert.equal(reason({ phase: "Completed", containerProblems: "app: Error" }), "");
+
+  // Container problems are the most specific thing there is, so they win.
+  assert.equal(reason({ phase: "Running", reason: "Unhealthy", containerProblems: "app: CrashLoopBackOff back-off" }), "app: CrashLoopBackOff back-off");
+  assert.equal(reason({ phase: "Running", reason: "Unhealthy", statusMessage: "probe failed" }), "Unhealthy");
+  assert.equal(reason({ phase: "Running", statusMessage: "probe failed" }), "probe failed");
+  assert.equal(reason({ phase: "Running", conditions: "Ready=False" }), "Ready=False");
+
+  // A phase that is not a healthy one speaks for itself.
+  assert.equal(reason({ phase: "Pending" }), "Pending");
+  assert.equal(reason({ phase: "Running", ready: "1/1" }), "", "a running, fully ready pod has nothing to report");
+  assert.equal(reason({ phase: "Running", ready: "1/2" }), "Ready 1/2", "a running pod missing a container does");
+  assert.equal(reason({}), "");
+});
+
+test("a health reason is trimmed to its first clause and to a readable length", () => {
+  assert.equal(rowStatus.compactReason("first problem; second problem"), "first problem");
+  const long = `${"x".repeat(100)}; ignored`;
+  const compact = rowStatus.compactReason(long);
+  assert.equal(compact.length, 72);
+  assert.ok(compact.endsWith("..."));
+});
+
+test("container cubes are built from states when there are any, and from names otherwise", () => {
+  const withStates = rowStatus.normalizeContainerStatusItems({
+    containerStates: [
+      { name: "app", state: "running", ready: true, restartCount: 0 },
+      { name: "sidecar", state: "waiting", ready: false, reason: "ImagePullBackOff", restartCount: 3 },
+    ],
+  });
+  assert.deepEqual(
+    withStates.map((item) => item.tone),
+    ["ready", "danger"],
+  );
+  assert.match(withStates[1].title, /sidecar/);
+  assert.match(withStates[1].title, /ImagePullBackOff/);
+  assert.match(withStates[1].title, /3 restarts/, "a restart count is worth saying, a zero is not");
+  assert.doesNotMatch(withStates[0].title, /restarts/);
+
+  // A row that only knows the container names still shows one cube each.
+  const namesOnly = rowStatus.normalizeContainerStatusItems({ containers: ["app", "sidecar"] });
+  assert.equal(namesOnly.length, 2);
+  assert.deepEqual(
+    namesOnly.map((item) => item.tone),
+    ["unknown", "unknown"],
+  );
+
+  assert.deepEqual(rowStatus.normalizeContainerStatusItems({}), [], "a row with neither shows no cubes at all");
+});
+
+test("usage values are formatted at the unit a reader thinks in", () => {
+  assert.equal(rowStatus.formatCpuValue(2000), "2", "whole cores lose the millicores");
+  assert.equal(rowStatus.formatCpuValue(1500), "1500m");
+  assert.equal(rowStatus.formatCpuValue(0), "", "an unset limit prints nothing, not a zero");
+  assert.equal(rowStatus.formatCpuValue(null), "");
+
+  assert.equal(rowStatus.formatByteValue(1024 ** 3), "1 GiB");
+  assert.equal(rowStatus.formatByteValue(1024 ** 2 * 512), "512 MiB");
+  assert.equal(rowStatus.formatByteValue(2048), "2 KiB");
+  assert.equal(rowStatus.formatByteValue(512), "512 B");
+  assert.equal(rowStatus.formatByteValue(0), "");
+});
+
+test("a percentage against a request is rounded but not clamped", () => {
+  assert.equal(rowStatus.unclampedPercent("42%"), 42);
+  assert.equal(rowStatus.unclampedPercent(42.6), 43);
+  // Using more than the request is the interesting case, and it must survive.
+  assert.equal(rowStatus.unclampedPercent("240%"), 240);
+  assert.equal(rowStatus.unclampedPercent(-5), 0);
+  assert.equal(rowStatus.unclampedPercent("N/A"), null);
+  assert.equal(rowStatus.unclampedPercent(undefined), null);
 });

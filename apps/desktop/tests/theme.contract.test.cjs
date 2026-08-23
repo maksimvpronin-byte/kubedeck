@@ -188,11 +188,21 @@ test("2.8.1 Kubernetes statuses distinguish pending from failure", () => {
   const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
   const tableStyles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
   const layoutStyles = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
-  assert.match(table, /kubernetesStatusTone\(row\)/);
+  const formatCell = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/formatCell.tsx"), "utf8");
+  assert.match(formatCell, /kubernetesStatusTone\(row\)/);
   assert.match(summary, /kubernetesStatusTone\(row\)/);
   assert.doesNotMatch(table, /resource-row-warning|rowHealthClass/);
   assert.doesNotMatch(layoutStyles, /resource-row-warning/);
-  assert.match(table, /not\\s\*ready[\s\S]*return "waiting"/);
+  // "Not ready" is a pod on its way up, not a pod that failed - the cube has to
+  // read pending rather than red. This used to be asserted by grepping the
+  // table's source; the function it lives in is importable now.
+  const rowStatus = loadTypeScript("components/resourceTable/rowStatus.ts");
+  assert.equal(rowStatus.containerTone("running", false, "not ready"), "waiting");
+  assert.equal(rowStatus.containerTone("running", false, "Not Ready"), "waiting");
+  assert.equal(rowStatus.containerTone("running", true, ""), "ready");
+  assert.equal(rowStatus.containerTone("waiting", false, "ImagePullBackOff"), "danger");
+  assert.equal(rowStatus.containerTone("running", false, ""), "running");
+  assert.equal(rowStatus.containerTone("", false, ""), "unknown");
   assert.match(tableStyles, /\.resource-table th,\s*\.resource-table td\s*\{[^}]*padding:\s*3px 10px;[^}]*line-height:\s*1\.1;/s);
   assert.match(tableStyles, /\.resource-table tbody tr\s*\{[^}]*min-height:\s*28px;/s);
   assert.match(tableStyles, /\.resource-table \.select-col input\[type="checkbox"\]\s*\{[^}]*padding:\s*0;[^}]*border:\s*0;/s);
