@@ -91,7 +91,8 @@ test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results",
     assert.doesNotMatch(source, /yaml-operation-output/);
   }
   assert.doesNotMatch(yaml, /Copy output/);
-  assert.match(drawer, /<ErrorPanel error=\{error\}/);
+  const tabBody = fs.readFileSync(path.join(rendererRoot, "components/PodDrawerTabBody.tsx"), "utf8");
+  assert.match(tabBody, /<ErrorPanel error=\{error\}/);
 });
 
 test("the drawer tab is remembered per resource and dropped for kinds that lack it", () => {

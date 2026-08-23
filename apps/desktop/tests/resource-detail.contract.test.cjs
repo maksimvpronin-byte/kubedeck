@@ -212,8 +212,8 @@ test("the service summary renders endpoints loaded outside the Service object", 
   assert.match(endpointsEffect, /\.catch\(\(\) => undefined\)/, "a refused endpoint lookup must not replace the summary with an error");
   assert.match(lifecycle, /serviceEndpoints: snapshotIsCurrent \? serviceEndpoints : null/);
 
-  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
-  assert.match(drawer, /<ResourceSummary[\s\S]*?serviceEndpoints=\{serviceEndpoints\}/);
+  const tabBody = fs.readFileSync(path.join(rendererRoot, "components/PodDrawerTabBody.tsx"), "utf8");
+  assert.match(tabBody, /<ResourceSummary[\s\S]*?serviceEndpoints=\{serviceEndpoints\}/);
 
   const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
   assert.match(summary, /addFact\(facts, "Ready endpoints", `\$\{serviceEndpoints\.ready\} \/ \$\{serviceEndpoints\.total\}`/);

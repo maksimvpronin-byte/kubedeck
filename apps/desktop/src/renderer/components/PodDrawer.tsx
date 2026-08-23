@@ -1,21 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiClient } from "../api";
-import type { ErrorInfo, PortForwardSession, PortForwardStartRequest, ResourceRow, Settings } from "../types";
-import { ErrorPanel } from "./ErrorPanel";
-import { LogsTab } from "./LogsTab";
-import { YamlTab } from "./YamlTab";
+import type { PortForwardSession, PortForwardStartRequest, ResourceRow, Settings } from "../types";
 import type { YamlEditorHandle } from "./YamlSourceEditor";
-import { DescribeTab } from "./DescribeTab";
-import { RelatedTab } from "./RelatedTab";
-import { SecretTab } from "./SecretTab";
-import { LlmTab } from "./LlmTab";
 import { PortForwardModal, defaultPortForwardDraft, supportsPortForward } from "./PortForwardModal";
 import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, actionLabel, supportedActions, type ResourceAction } from "./PodDrawerModals";
 import { useUiClock } from "../hooks/useUiClock";
-import { ResourceSummary } from "./ResourceSummary";
-import { containerNames, downloadTextFile, eventTargetForOpen } from "./podDrawerHelpers";
+import { containerNames, eventTargetForOpen } from "./podDrawerHelpers";
 import { availableDrawerTabs, PodDrawerActions, PodDrawerHeader, PodDrawerTabs, type DrawerTab } from "./PodDrawerChrome";
+import { PodDrawerTabBody } from "./PodDrawerTabBody";
 import { drawerResourceIdentity, usePodDrawerResourceLifecycle } from "../hooks/usePodDrawerResourceLifecycle";
+import { usePodDrawerLlm } from "../hooks/usePodDrawerLlm";
 import { usePodDrawerLogs } from "../hooks/usePodDrawerLogs";
 import { usePodDrawerYamlActions } from "../hooks/usePodDrawerYamlActions";
 import { toErrorInfo } from "../utils/errors";
@@ -92,13 +86,6 @@ export function PodDrawer({
   const [replicas, setReplicas] = useState(1);
   const [relatedResourceFilter, setRelatedResourceFilter] = useState("all");
   const [terminalPickerOpen, setTerminalPickerOpen] = useState(false);
-  const [llmLoading, setLlmLoading] = useState(false);
-  const [llmError, setLlmError] = useState<ErrorInfo | null>(null);
-  const [llmAnswer, setLlmAnswer] = useState("");
-  const [llmModel, setLlmModel] = useState("");
-  const [llmElapsedMs, setLlmElapsedMs] = useState(0);
-  const [llmContextChars, setLlmContextChars] = useState(0);
-  const [llmTruncated, setLlmTruncated] = useState(false);
   const editorRef = useRef<YamlEditorHandle | null>(null);
   const onTabChangeRef = useRef(onTabChange);
   const onDirtyChangeRef = useRef(onDirtyChange);
@@ -106,28 +93,9 @@ export function PodDrawer({
   onDirtyChangeRef.current = onDirtyChange;
 
   const currentObjectKey = drawerResourceIdentity(clusterId, resource, pod);
-  const {
-    content,
-    setContent,
-    describeContent,
-    yamlBaseline,
-    setYamlBaseline,
-    yamlDraft,
-    setYamlDraft,
-    setYamlObjectKey,
-    events,
-    relatedLinks,
-    relatedSources,
-    relatedErrors,
-    relatedLoading,
-    loading,
-    setLoading,
-    error,
-    setError,
-    metrics,
-    serviceEndpoints,
-    usageHistory,
-  } = usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey });
+  const llm = usePodDrawerLlm(currentObjectKey);
+  const lifecycle = usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey });
+  const { setContent, yamlBaseline, setYamlBaseline, yamlDraft, setYamlDraft, setYamlObjectKey, loading, setLoading, error, setError } = lifecycle;
   const yamlChanged = yamlDraft !== yamlBaseline;
   // Only the summary shows an age, and the drawer carries a terminal and a
   // YAML editor: ticking a clock the other tabs never read re-rendered all of
@@ -135,29 +103,8 @@ export function PodDrawer({
   const now = useUiClock(Boolean(pod) && tab === "summary", 1000);
   const isDeploymentResource = resource === "deployments" || resource === "deployments.apps" || resource === "deployment";
   const isNodeResource = resource === "nodes" || resource === "node";
-  const {
-    logsLoading,
-    logsDownloadLoading,
-    logsTail,
-    setLogsTail,
-    logsPrevious,
-    setLogsPrevious,
-    logsTimestamps,
-    setLogsTimestamps,
-    logsFollow,
-    setLogsFollow,
-    logsQuery,
-    setLogsQuery,
-    logsContainer,
-    setLogsContainer,
-    logsPodFilter,
-    setLogsPodFilter,
-    deploymentLogPods,
-    deploymentLogContainers,
-    downloadFullLogs,
-    refreshLogs,
-  } = usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentObjectKey, isDeploymentResource, setContent, setError });
-  const { runYamlDryRun, applyYaml, resetYamlDraft, reloadYamlFromCluster } = usePodDrawerYamlActions({
+  const logs = usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentObjectKey, isDeploymentResource, setContent, setError });
+  const yamlActions = usePodDrawerYamlActions({
     api,
     clusterId,
     pod,
@@ -176,6 +123,7 @@ export function PodDrawer({
     setYamlApplyConfirmOpen,
     onActionComplete,
   });
+  const { applyYaml } = yamlActions;
 
   // A remembered tab carries over between objects of the same resource, so it
   // has to be dropped when this resource does not offer it.
@@ -206,13 +154,6 @@ export function PodDrawer({
     setTerminalPickerOpen(false);
     setCloseConfirmOpen(false);
     setRelatedResourceFilter("all");
-    setLlmLoading(false);
-    setLlmError(null);
-    setLlmAnswer("");
-    setLlmModel("");
-    setLlmElapsedMs(0);
-    setLlmContextChars(0);
-    setLlmTruncated(false);
   }, [currentObjectKey]);
 
   useEffect(() => {
@@ -380,142 +321,40 @@ export function PodDrawer({
         }
       />
       <PodDrawerTabs tabs={drawerTabs} active={tab} labels={labels} llmLabel={t("llm.title")} onChange={setTab} />
-      <div className={tab === "logs" || tab === "yaml" || tab === "describe" || tab === "llm" ? "drawer-content drawer-content-fill" : "drawer-content"}>
-        {isCrdDefinitionResource ? (
-          <section className="crd-notice">
-            <strong>CRD definition is view-only</strong>
-            <span>KubeDeck blocks direct edits and deletes for CustomResourceDefinition objects. Open a CRD resource from the sidebar to manage its instances.</span>
-          </section>
-        ) : isCrdInstanceResource ? (
-          <section className="crd-notice crd-notice-info">
-            <strong>CRD instance</strong>
-            <span>This custom resource can be viewed, edited through YAML, or deleted if your Kubernetes RBAC allows it.</span>
-          </section>
-        ) : null}
-        {tab === "summary" ? (
-          <ResourceSummary
-            row={{ ...pod, ...metrics, uid: pod.uid, name: pod.name }}
-            resource={resource}
-            now={now}
-            events={events}
-            serviceEndpoints={serviceEndpoints}
-            usageHistory={usageHistory}
-            onCopy={copyText}
-          />
-        ) : tab === "llm" ? (
-          <LlmTab
-            api={api}
-            clusterId={clusterId}
-            resource={resource}
-            row={pod}
-            settings={settings}
-            yaml={yamlDraft || yamlBaseline}
-            describe={describeContent}
-            events={events}
-            relatedLinks={relatedLinks}
-            usageHistory={usageHistory}
-            loading={llmLoading}
-            answer={llmAnswer}
-            model={llmModel}
-            elapsedMs={llmElapsedMs}
-            contextChars={llmContextChars}
-            truncated={llmTruncated}
-            error={llmError}
-            copyLabel={copyLabel}
-            t={t}
-            onLoadingChange={setLlmLoading}
-            onAnswer={(result) => {
-              setLlmAnswer(result.answer);
-              setLlmModel(result.model);
-              setLlmElapsedMs(result.elapsedMs);
-              setLlmContextChars(result.contextChars);
-              setLlmTruncated(result.truncated);
-            }}
-            onError={setLlmError}
-            onCopy={copyText}
-          />
-        ) : tab === "related" ? (
-          <RelatedTab
-            pod={pod}
-            relatedLinks={relatedLinks}
-            loading={relatedLoading}
-            error={error}
-            copyLabel={copyLabel}
-            sources={relatedSources}
-            errors={relatedErrors}
-            resourceFilter={relatedResourceFilter}
-            onResourceFilterChange={setRelatedResourceFilter}
-            onOpenRelated={onOpenRelated}
-            onDeletePods={onDeleteRelatedPods}
-            sourceResource={resource}
-          />
-        ) : tab === "secret" ? (
-          <SecretTab api={api} clusterId={clusterId} row={pod} copyLabel={copyLabel} t={t} />
-        ) : (
-          <>
-            {loading ? <div className="muted">Loading...</div> : null}
-            <ErrorPanel error={error} copyLabel={copyLabel} />
-            {tab === "yaml" ? (
-              <YamlTab
-                yamlDraft={yamlDraft}
-                setYamlDraft={(value) => {
-                  setYamlDraft(value);
-                  setYamlStatus("");
-                }}
-                yamlChanged={yamlChanged}
-                loading={loading}
-                status={yamlStatus}
-                editorRef={editorRef}
-                onReset={resetYamlDraft}
-                onReloadFromCluster={reloadYamlFromCluster}
-                onDryRun={() => void runYamlDryRun()}
-                onRequestApply={() => {
-                  if (!yamlReadOnly) setYamlApplyConfirmOpen(true);
-                }}
-                readOnly={yamlReadOnly}
-                readOnlyReason={yamlReadOnly ? "view-only CRD definition" : ""}
-                t={t}
-                api={api}
-                current={{ clusterId, resource, namespace: namespaceText, name: pod.name, label: `${clusterId} · ${namespaceText}/${pod.name}` }}
-                candidates={workspaceTabs.filter((item) => item.id !== currentWorkspaceTabId && item.resource.split(".")[0] === resource.split(".")[0])}
-              />
-            ) : tab === "logs" ? (
-              <LogsTab
-                content={content}
-                loading={logsLoading}
-                query={logsQuery}
-                onQueryChange={setLogsQuery}
-                tail={logsTail}
-                onTailChange={setLogsTail}
-                previous={logsPrevious}
-                onPreviousChange={setLogsPrevious}
-                timestamps={logsTimestamps}
-                onTimestampsChange={setLogsTimestamps}
-                follow={logsFollow}
-                onFollowChange={setLogsFollow}
-                containers={isDeploymentResource ? deploymentLogContainers : containerNames(pod)}
-                selectedContainer={isDeploymentResource ? logsContainer : logsContainer || containerNames(pod)[0] || ""}
-                onContainerChange={setLogsContainer}
-                allowAllContainers={isDeploymentResource}
-                targetPods={isDeploymentResource ? deploymentLogPods : []}
-                selectedTargetPod={logsPodFilter}
-                onTargetPodChange={setLogsPodFilter}
-                contextLabel={isDeploymentResource ? "deployment" : "pod"}
-                fullDownloadLabel={isDeploymentResource ? "Full deployment log" : "Full pod log"}
-                onRefresh={refreshLogs}
-                refreshFailed={Boolean(error)}
-                t={t}
-                onCopy={() => copyText(content, "Logs copied")}
-                downloadLoading={logsDownloadLoading}
-                onDownloadVisible={(visibleText) => downloadTextFile(`${pod.name}.visible.log`, visibleText)}
-                onDownloadFull={downloadFullLogs}
-              />
-            ) : (
-              <DescribeTab content={content} />
-            )}
-          </>
-        )}
-      </div>
+      <PodDrawerTabBody
+        tab={tab}
+        api={api}
+        clusterId={clusterId}
+        pod={pod}
+        resource={resource}
+        settings={settings}
+        copyLabel={copyLabel}
+        t={t}
+        now={now}
+        lifecycle={lifecycle}
+        logs={logs}
+        yamlActions={yamlActions}
+        llm={llm}
+        isCrdDefinitionResource={isCrdDefinitionResource}
+        isCrdInstanceResource={isCrdInstanceResource}
+        isDeploymentResource={isDeploymentResource}
+        yamlChanged={yamlChanged}
+        yamlReadOnly={yamlReadOnly}
+        yamlStatus={yamlStatus}
+        namespaceText={namespaceText}
+        editorRef={editorRef}
+        workspaceTabs={workspaceTabs}
+        currentWorkspaceTabId={currentWorkspaceTabId}
+        relatedResourceFilter={relatedResourceFilter}
+        onRelatedResourceFilterChange={setRelatedResourceFilter}
+        onOpenRelated={onOpenRelated}
+        onDeleteRelatedPods={onDeleteRelatedPods}
+        onYamlStatusChange={setYamlStatus}
+        onRequestYamlApply={() => {
+          if (!yamlReadOnly) setYamlApplyConfirmOpen(true);
+        }}
+        onCopy={copyText}
+      />
       {pendingAction && pod ? (
         <ResourceActionConfirmModal
           action={pendingAction}

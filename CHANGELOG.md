@@ -1,3 +1,40 @@
+## 2.20.5 - Internal cleanup: the drawer's tab bodies leave PodDrawer
+
+No behaviour change. No route changes. Node-only ownership stays at Node 58 /
+Python 0.
+
+`PodDrawer.tsx` was 551 lines with 17 `useState` and no local helpers at all.
+It is 390 now, with 11. Two modules came out: `components/PodDrawerTabBody.tsx`
+(211 lines, the `tab === …` chain and the CRD notices) and
+`hooks/usePodDrawerLlm.ts` (39). Seven of the seventeen states were the LLM
+tab's - loading, error, answer, model, elapsed time, context size, truncation -
+along with their reset, which had been sitting inside the drawer's general
+per-object reset effect. They are one hook now, and the reset lives where the
+state does: an analysis belongs to the object it was run against, so moving to
+another object clears it.
+
+Lifting the tab chain out naively would have taken about fifty props, since it
+reads nearly everything the drawer gets from its four hooks. Instead the
+component takes those bundles whole - `lifecycle`, `logs`, `yamlActions`, `llm`
+- typed as `ReturnType<typeof usePodDrawerX>`. The hooks already define
+cohesive groups, so handing one over as a single value is more honest than
+restating forty names: 25 props instead of ~50, and no new types. The drawer no
+longer destructures `logs` at all, or half of `lifecycle`.
+
+The tab body landed in the drawer's own chunk rather than the main bundle:
+PodDrawer 88.21 → 89.27 kB, index unchanged at 335.33 kB.
+
+The plan asked for 320 lines and this stops at 390. The remaining 70 are modal
+state, the action handlers and the header with its six modals - the drawer
+itself, not another chain to lift. Splitting further would mean a component per
+modal.
+
+Two more grep contracts needed repointing, bringing the running total to eight
+source-text assertions edited purely because code moved - the cost 2.20.3 put a
+number on.
+
+Fifth of the sections in `docs/file-structure-refactor-plan.md`.
+
 ## 2.20.4 - Internal cleanup: App.tsx stops being the whole shell
 
 No behaviour change. No route changes. Node-only ownership stays at Node 58 /
