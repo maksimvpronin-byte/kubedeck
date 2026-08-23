@@ -1,3 +1,41 @@
+## 2.19.0 - nodes sort by one chosen annotation
+
+Sorting a table by "annotations" would compare every annotation joined into
+one string, alphabetically by key, and on nodes the first key is the same on
+every row - the order would not change. The Labels column already demonstrates
+this: it sorts on a string that starts with beta.kubernetes.io/arch=amd64
+everywhere. What sorts is one chosen annotation.
+
+The Annotations column's header opens the menu the Usage column has had for
+years, a list of what to sort by. A usage column's metrics are three known
+numbers; annotation keys belong to the cluster, so the list is built from the
+keys the loaded nodes carry, the ones on the most nodes first. Values compare
+the way the rest of the table compares text, counting rather than spelling, so
+a ttl of 5 sorts before 30, and a node without the annotation sits at the low
+end - where a node without a usage reading already sits - so descending puts
+those last.
+
+The cell reads `8 annotations` and opens the popover the labels +N opens: every
+key with its value beneath it, monospace, scrollable, in the page body so
+nothing clips it. No chips - an annotation's value is a JSON document or a
+command line and none of that reads at the width of a column. Clicking an entry
+filters the list by key=value, and the table's filter box searches annotations
+now; it could not before, because the filter only ever searched the columns on
+screen and annotations had no column.
+
+The column starts hidden, the first in KubeDeck to do so: most annotations are
+written by the CNI and the cloud controller for themselves, and the column is
+for the clusters where somebody put something in them worth sorting by. Reset
+columns restores that default rather than showing everything.
+
+The three popovers - the columns menu, the labels +N and this one - share one
+hook that places them, dismisses them and keeps them attached to their button;
+each carried its own copy of that effect before. The renderer's contract tests
+also load relative imports for real now: a module that imported another
+renderer module used to be handed an empty object for it, so anything it called
+there was undefined at run time.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.18.0 - node labels tell nodes apart, and annotations arrive
 
 The Labels cell read `Role: true · Type: k3s · OS: lin… +1`, with everything it

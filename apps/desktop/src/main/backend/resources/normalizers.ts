@@ -738,6 +738,7 @@ export function nodeSummary(item: JsonObject): ResourceRow {
   const labels = record(record(item.metadata).labels);
   const displayLabels = nodeLabelItems(labels, text(record(item.metadata).name));
   const roles = nodeRoles(labels);
+  const annotations = nodeAnnotationItems(record(item.metadata).annotations);
 
   return {
     ...meta(item),
@@ -767,7 +768,8 @@ export function nodeSummary(item: JsonObject): ResourceRow {
     taints: records(spec.taints),
     pressure: pressure.join("; "),
     roles: roles.join(", "),
-    nodeAnnotationItems: nodeAnnotationItems(record(item.metadata).annotations),
+    nodeAnnotationItems: annotations,
+    nodeAnnotationsSearch: annotations.map((annotation) => `${annotation.key}=${annotation.value}`).join(" "),
     nodeLabelItems: displayLabels,
     nodeLabelsSearch: displayLabels.map((label) => `${label.full} ${label.label} ${label.value}`.trim()).join(" "),
   };

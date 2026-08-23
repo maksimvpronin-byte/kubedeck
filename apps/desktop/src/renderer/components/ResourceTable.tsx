@@ -1,12 +1,13 @@
 import { Search, Trash2, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import type { ResourceRow } from "../types";
 import { useElapsedLabel } from "../hooks/useUiClock";
 import { canonicalPhase, PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
 import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { columnSortMetrics, sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
-import { NodeLabelsCell, NodeRolesCell } from "./NodeLabelsCell";
+import { NodeAnnotationsCell, NodeLabelsCell, NodeRolesCell } from "./NodeLabelsCell";
+import { ANNOTATION_COLUMN_KEY, annotationSortMetrics } from "../utils/annotationSort";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTableSortMenu } from "./ResourceTableSortMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
@@ -133,6 +134,8 @@ export function ResourceTable({
     resetColumns,
   } = table;
   const tableWidth = 38 + visibleColumns.reduce((sum, column) => sum + widthFor(column), 0);
+  const annotationMetrics = useMemo(() => annotationSortMetrics(rows), [rows]);
+  const metricsFor = (columnKey: string) => (columnKey === ANNOTATION_COLUMN_KEY ? annotationMetrics : columnSortMetrics(columnKey));
   const selectedRowKey = selectedRow ? rowKey(selectedRow) : "";
   const hasFilter = query.trim().length > 0;
   const filteredEmpty = rows.length > 0 && hasFilter && visibleRows.length === 0;
@@ -250,8 +253,8 @@ export function ResourceTable({
                     setDragOverColumn("");
                   }}
                 >
-                  {columnSortMetrics(column.key).length ? (
-                    <ResourceTableSortMenu label={column.label} metrics={columnSortMetrics(column.key)} sortKey={sortKey} sortDirection={sortDirection} sortByLabel={ui.sortBy} onSelect={changeSort} />
+                  {metricsFor(column.key).length ? (
+                    <ResourceTableSortMenu label={column.label} metrics={metricsFor(column.key)} sortKey={sortKey} sortDirection={sortDirection} sortByLabel={ui.sortBy} onSelect={changeSort} />
                   ) : (
                     <button type="button" className="table-sort-button" draggable={false} onClick={() => changeSort(column.key)}>
                       <span className="table-sort-label">{column.label}</span>
@@ -344,6 +347,7 @@ function formatCell(row: ResourceRow, key: string, onFilter?: (query: string) =>
   if (key === "status" && Array.isArray(row.workloadConditions)) return <WorkloadConditions row={row} />;
   if (key === "labelsText" && Array.isArray(row.nodeLabelItems)) return <NodeLabelsCell row={row} onFilter={onFilter} />;
   if (key === "roles" && row.roles !== undefined) return <NodeRolesCell row={row} />;
+  if (key === ANNOTATION_COLUMN_KEY) return <NodeAnnotationsCell row={row} onFilter={onFilter} />;
   if (key !== "createdAt") return String(row[key] ?? "");
   return <AgeCell createdAt={String(row.createdAt ?? "")} />;
 }

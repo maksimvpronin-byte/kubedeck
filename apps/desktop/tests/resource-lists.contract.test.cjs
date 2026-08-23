@@ -315,6 +315,7 @@ test("node annotations reach the row, without the manifest kubectl stores on app
     },
   ]);
   assert.equal(row.roles, "worker");
+  assert.equal(row.nodeAnnotationsSearch, "node.alpha.kubernetes.io/ttl=0");
   assert.deepEqual(
     row.nodeAnnotationItems.map((item) => item.key),
     ["node.alpha.kubernetes.io/ttl"],

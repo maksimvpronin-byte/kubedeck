@@ -1,4 +1,6 @@
-export function buildResourceTableColumns(t: (key: string) => string): Record<string, Array<{ key: string; label: string }>> {
+import type { ResourceTableColumn } from "../hooks/useResourceTableState";
+
+export function buildResourceTableColumns(t: (key: string) => string): Record<string, ResourceTableColumn[]> {
   return {
     nodes: [
       { key: "name", label: t("col.name") },
@@ -6,6 +8,10 @@ export function buildResourceTableColumns(t: (key: string) => string): Record<st
       { key: "roles", label: "Roles" },
       { key: "nodeResources", label: "Usage" },
       { key: "labelsText", label: "Labels" },
+      // Off by default: annotations are long, and most of them are written by
+      // the CNI and the cloud controller for themselves. The column is here for
+      // the clusters where somebody put something in them worth sorting by.
+      { key: "nodeAnnotations", label: "Annotations", defaultHidden: true },
       { key: "kubeletVersion", label: t("col.kubernetes") },
       { key: "createdAt", label: t("col.age") },
     ],

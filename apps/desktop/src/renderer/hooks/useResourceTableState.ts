@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from "react";
 import type { ResourceRow } from "../types";
+import { annotationKeyFromSortKey, annotationValue, isAnnotationSortKey } from "../utils/annotationSort";
 import { loadUiState, saveUiState } from "../uiState";
 import { sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
 import { parseTimestamp } from "../utils/time";
@@ -8,6 +9,8 @@ import { parseTimestamp } from "../utils/time";
 export interface ResourceTableColumn {
   key: string;
   label: string;
+  // Present in the columns menu, absent from the table until someone ticks it.
+  defaultHidden?: boolean;
 }
 
 export const PAGE_SIZE_OPTIONS = [50, 100, 200, 500, 1000, 2000];
@@ -41,6 +44,10 @@ export function normalizeColumnOrder(order: string[], columns: ResourceTableColu
   return orderColumns(columns, order).map((column) => column.key);
 }
 
+export function defaultHiddenColumns(columns: ResourceTableColumn[]) {
+  return columns.filter((column) => column.defaultHidden).map((column) => column.key);
+}
+
 export function normalizeHiddenColumns(hidden: string[], columns: ResourceTableColumn[]) {
   const known = new Set(columns.map((column) => column.key));
   const normalized = Array.from(new Set(hidden.filter((key) => known.has(key))));
@@ -64,6 +71,16 @@ export function resourceTablePreferencePatch(stateKey: string, columns: Resource
 
 export function compareRows(left: ResourceRow, right: ResourceRow, key: string) {
   if (key === "createdAt") return parseTimestamp(left.createdAt) - parseTimestamp(right.createdAt);
+  if (isAnnotationSortKey(key)) {
+    const name = annotationKeyFromSortKey(key);
+    const leftAnnotation = annotationValue(left, name);
+    const rightAnnotation = annotationValue(right, name);
+    // A node that does not carry the annotation has nothing to compare with,
+    // and belongs at the low end the way a missing metric does, so descending
+    // puts those rows last.
+    if (!leftAnnotation || !rightAnnotation) return leftAnnotation ? 1 : rightAnnotation ? -1 : 0;
+    return ROW_COLLATOR.compare(leftAnnotation, rightAnnotation);
+  }
   const leftValue = key === "phase" ? canonicalPhase(left) : left[key];
   const rightValue = key === "phase" ? canonicalPhase(right) : right[key];
   // A usage metric is missing whenever metrics-server or the kubelet did not
@@ -109,6 +126,7 @@ function defaultColumnWidth(key: string) {
     podResources: 260,
     labelsText: 240,
     roles: 150,
+    nodeAnnotations: 150,
     status: 180,
     namespaceResources: 260,
   };
@@ -126,7 +144,7 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => loadUiState().columnWidths?.[stateKey] ?? {});
   const [columnOrder, setColumnOrder] = useState<string[]>(() => normalizeColumnOrder(loadUiState().columnOrders?.[stateKey] ?? [], columns));
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => normalizeHiddenColumns(loadUiState().hiddenColumns?.[stateKey] ?? [], columns));
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => normalizeHiddenColumns(loadUiState().hiddenColumns?.[stateKey] ?? defaultHiddenColumns(columns), columns));
   const [draggedColumn, setDraggedColumn] = useState("");
   const [dragOverColumn, setDragOverColumn] = useState("");
 
@@ -192,9 +210,11 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
                 ? canonicalPhase(row)
                 : column.key === "labelsText"
                   ? `${String(row.labelsText ?? "")} ${String(row.nodeLabelsSearch ?? "")}`
-                  : column.key === "status"
-                    ? `${String(row.status ?? "")} ${String(row.workloadConditionsText ?? "")}`
-                    : (row[column.key] ?? ""),
+                  : column.key === "nodeAnnotations"
+                    ? String(row.nodeAnnotationsSearch ?? "")
+                    : column.key === "status"
+                      ? `${String(row.status ?? "")} ${String(row.workloadConditionsText ?? "")}`
+                      : (row[column.key] ?? ""),
             )
               .toLowerCase()
               .includes(lower),
@@ -276,7 +296,7 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
   const resetColumns = () => {
     setColumnWidths({});
     setColumnOrder([]);
-    setHiddenColumns([]);
+    setHiddenColumns(defaultHiddenColumns(columns));
   };
 
   return {

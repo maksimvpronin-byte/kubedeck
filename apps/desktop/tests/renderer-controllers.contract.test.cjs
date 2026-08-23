@@ -6,6 +6,17 @@ const ts = require("typescript");
 
 const rendererRoot = path.resolve(__dirname, "../src/renderer");
 
+const rendererModuleCache = new Map();
+
+function resolveRendererModule(fromRelativePath, specifier) {
+  const base = path.dirname(path.join(rendererRoot, fromRelativePath));
+  const target = path.resolve(base, specifier);
+  for (const candidate of [`${target}.ts`, `${target}.tsx`, path.join(target, "index.ts")]) {
+    if (fs.existsSync(candidate)) return path.relative(rendererRoot, candidate).split(path.sep).join("/");
+  }
+  return "";
+}
+
 function loadTypeScript(relativePath, stubs = {}) {
   const source = fs.readFileSync(path.join(rendererRoot, relativePath), "utf8");
   const output = ts.transpileModule(source, {
@@ -14,6 +25,15 @@ function loadTypeScript(relativePath, stubs = {}) {
   const module = { exports: {} };
   const localRequire = (specifier) => {
     if (Object.hasOwn(stubs, specifier)) return stubs[specifier];
+    if (specifier.startsWith(".")) {
+      const resolved = resolveRendererModule(relativePath, specifier);
+      if (resolved) {
+        if (rendererModuleCache.has(resolved)) return rendererModuleCache.get(resolved);
+        const loaded = loadTypeScript(resolved, stubs);
+        rendererModuleCache.set(resolved, loaded);
+        return loaded;
+      }
+    }
     if (specifier === "react")
       return {
         useCallback: (value) => value,
@@ -236,13 +256,15 @@ test("the columns popover leaves the table panel so a short table cannot clip it
   assert.match(placementSource, /window\.innerHeight - bounds\.bottom/);
   assert.match(placementSource, /const upward = /);
   assert.match(placementSource, /window\.innerWidth - VIEWPORT_MARGIN - width/);
-  assert.match(menu, /placeAnchoredPopover\(trigger, POPOVER_WIDTH, POPOVER_HEIGHT\)/);
-  assert.match(menu, /window\.addEventListener\("resize", reposition\)/);
-  assert.match(menu, /window\.addEventListener\("scroll", reposition, true\)/);
+  const popoverHook = fs.readFileSync(path.join(rendererRoot, "hooks/useAnchoredPopover.ts"), "utf8");
+  assert.match(menu, /useAnchoredPopover\(POPOVER_WIDTH, POPOVER_HEIGHT\)/);
+  assert.match(popoverHook, /placeAnchoredPopover\(trigger, width, height\)/);
+  assert.match(popoverHook, /window\.addEventListener\("resize", reposition\)/);
+  assert.match(popoverHook, /window\.addEventListener\("scroll", reposition, true\)/);
 
   // A click inside the portal is outside the trigger's subtree, so the dismiss
   // handler has to know about both elements.
-  assert.match(menu, /triggerRef\.current\?\.contains\(target\) \|\| popoverRef\.current\?\.contains\(target\)/);
+  assert.match(popoverHook, /triggerRef\.current\?\.contains\(target\) \|\| popoverRef\.current\?\.contains\(target\)/);
 
   // Out of the toolbar, the Reset button can no longer be styled through it.
   assert.match(styles, /\.table-columns-popover\s*\{[^}]*--kd-table-action-bg:/s);
@@ -936,7 +958,7 @@ test("a usage header sorts on a chosen metric instead of its formatted cell", ()
 
   // The header renders the menu instead of a plain sort button, and reuses
   // changeSort so picking the active value flips the direction.
-  assert.match(table, /columnSortMetrics\(column\.key\)\.length \? \(/);
+  assert.match(table, /metricsFor\(column\.key\)\.length \? \(/);
   assert.match(table, /<ResourceTableSortMenu/);
   assert.match(menu, /onSelect\(metric\.key\)/);
 
@@ -1946,8 +1968,8 @@ test("node labels and annotations are read whole, not guessed at from three chip
   // columns menu uses.
   assert.doesNotMatch(cell, /title=\{full\}|aria-label=\{full/);
   assert.match(cell, /createPortal\(/);
-  assert.match(cell, /placeAnchoredPopover\(trigger, POPOVER_WIDTH, POPOVER_HEIGHT\)/);
-  assert.match(menu, /placeAnchoredPopover\(trigger, POPOVER_WIDTH, POPOVER_HEIGHT\)/);
+  assert.match(cell, /useAnchoredPopover\(POPOVER_WIDTH, POPOVER_HEIGHT\)/);
+  assert.match(menu, /useAnchoredPopover\(POPOVER_WIDTH, POPOVER_HEIGHT\)/);
   assert.doesNotMatch(menu, /function placePopover/);
 
   // Clicking a label filters the list by it, and must not open the row beneath.
@@ -1992,6 +2014,83 @@ test("node labels and annotations are read whole, not guessed at from three chip
   assert.match(section, /title="Annotations"/);
   assert.match(section, /entry\.value\.length > LONG_VALUE_LENGTH/);
   assert.match(section, /nodeAnnotationItems/);
+});
+
+test("nodes sort by one chosen annotation, not by all of them at once", () => {
+  const sort = loadTypeScript("utils/annotationSort.ts");
+  const state = loadTypeScript("hooks/useResourceTableState.ts");
+  const metrics = loadTypeScript("utils/resourceTableSortMetrics.ts");
+  const columns = loadTypeScript("utils/resourceTableColumns.ts");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+
+  const node = (name, annotations) => ({ name, nodeAnnotationItems: Object.entries(annotations).map(([key, value]) => ({ key, value })) });
+  const rows = [
+    node("openclaw", { "alpha.kubernetes.io/provided-node-ip": "192.168.1.10", "node.alpha.kubernetes.io/ttl": "30" }),
+    node("worker-a", { "alpha.kubernetes.io/provided-node-ip": "192.168.1.11", "node.alpha.kubernetes.io/ttl": "5" }),
+    node("worker-b", { "alpha.kubernetes.io/provided-node-ip": "192.168.1.12" }),
+  ];
+
+  // Sorting by "annotations" would sort by whichever key comes first in the
+  // alphabet, which is the same on every node and orders nothing. The header
+  // offers the keys the loaded rows carry, the ones on most nodes first.
+  assert.deepEqual(
+    sort.annotationSortMetrics(rows).map((metric) => metric.label),
+    ["alpha.kubernetes.io/provided-node-ip", "node.alpha.kubernetes.io/ttl"],
+  );
+  assert.equal(sort.annotationSortMetrics(rows)[0].key, "annotation:alpha.kubernetes.io/provided-node-ip");
+  assert.deepEqual(sort.annotationSortMetrics([]), []);
+
+  const ttl = sort.annotationSortKey("node.alpha.kubernetes.io/ttl");
+  const sorted = [...rows].sort((left, right) => state.compareRows(left, right, ttl));
+  // 5 before 30, because the collator counts rather than spells; and the node
+  // that has no such annotation sits at the low end, so descending puts it last.
+  assert.deepEqual(
+    sorted.map((row) => row.name),
+    ["worker-b", "worker-a", "openclaw"],
+  );
+  assert.equal(state.compareRows(rows[2], rows[2], ttl), 0);
+
+  // The keys cannot be listed ahead of time, so the column claims its sort by
+  // the prefix and keeps its header marked.
+  assert.equal(metrics.sortKeyBelongsToColumn("nodeAnnotations", ttl), true);
+  assert.equal(metrics.sortKeyBelongsToColumn("labelsText", ttl), false);
+  assert.match(table, /const annotationMetrics = useMemo\(\(\) => annotationSortMetrics\(rows\), \[rows\]\);/);
+  assert.match(table, /metricsFor\(column\.key\)\.length \? \(/);
+
+  // The column is in the menu and out of the table until somebody asks for it,
+  // because most annotations are written by the CNI for itself.
+  const nodeColumns = columns.buildResourceTableColumns((key) => key).nodes;
+  const annotationColumn = nodeColumns.find((column) => column.key === "nodeAnnotations");
+  assert.ok(annotationColumn, "nodes offer an Annotations column");
+  assert.equal(annotationColumn.defaultHidden, true);
+  assert.deepEqual(state.defaultHiddenColumns(nodeColumns), ["nodeAnnotations"]);
+  assert.deepEqual(state.defaultHiddenColumns([{ key: "name", label: "Name" }]), []);
+  const stateSource = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
+  assert.match(stateSource, /loadUiState\(\)\.hiddenColumns\?\.\[stateKey\] \?\? defaultHiddenColumns\(columns\)/);
+  assert.match(stateSource, /setHiddenColumns\(defaultHiddenColumns\(columns\)\);/);
+  // Searching the table reaches annotations through the text the gateway
+  // prepared, the way it already reaches labels.
+  assert.match(stateSource, /column\.key === "nodeAnnotations"\s*\?\s*String\(row\.nodeAnnotationsSearch \?\? ""\)/);
+});
+
+test("one hook opens every anchored popover", () => {
+  const hook = fs.readFileSync(path.join(rendererRoot, "hooks/useAnchoredPopover.ts"), "utf8");
+  const menu = fs.readFileSync(path.join(rendererRoot, "components/ResourceTableColumnsMenu.tsx"), "utf8");
+  const cell = fs.readFileSync(path.join(rendererRoot, "components/NodeLabelsCell.tsx"), "utf8");
+
+  // Three surfaces open one of these, and each used to carry its own copy of
+  // the same effect: place, dismiss on Escape or outside, follow on scroll.
+  assert.match(hook, /window\.addEventListener\("pointerdown", close\)/);
+  assert.match(hook, /window\.addEventListener\("keydown", closeOnEscape\)/);
+  assert.match(hook, /window\.addEventListener\("scroll", reposition, true\)/);
+  assert.match(hook, /triggerRef\.current\?\.contains\(target\) \|\| popoverRef\.current\?\.contains\(target\)/);
+  for (const component of [menu, cell]) {
+    assert.match(component, /useAnchoredPopover\(POPOVER_WIDTH, POPOVER_HEIGHT\)/);
+    assert.doesNotMatch(component, /window\.addEventListener\("pointerdown"/);
+    assert.doesNotMatch(component, /placeAnchoredPopover\(/);
+  }
+  // Both cells of the labels column and the annotations column use it.
+  assert.equal((cell.match(/useAnchoredPopover\(/g) ?? []).length, 2);
 });
 
 test("lazy panel boundary resets its failure after navigation", () => {

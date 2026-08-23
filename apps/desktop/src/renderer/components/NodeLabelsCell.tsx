@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { placeAnchoredPopover, type PopoverPlacement } from "../utils/popoverPlacement";
+import { useAnchoredPopover } from "../hooks/useAnchoredPopover";
+import { annotationItems } from "../utils/annotationSort";
 import type { ResourceRow } from "../types";
 
 export interface NodeLabel {
@@ -24,37 +24,9 @@ function labelText(label: NodeLabel): string {
 // table's own clipping cannot cut it off.
 export function NodeLabelsCell({ row, onFilter }: { row: ResourceRow; onFilter?: (query: string) => void }) {
   const labels = ((row.nodeLabelItems as NodeLabel[]) ?? []).filter(Boolean);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-  const [placement, setPlacement] = useState<PopoverPlacement | null>(null);
-  const open = placement !== null;
+  const { placement, open, triggerRef, popoverRef, toggle, close } = useAnchoredPopover(POPOVER_WIDTH, POPOVER_HEIGHT);
   const visible = labels.slice(0, CHIP_LIMIT);
   const hidden = labels.length - visible.length;
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
-      setPlacement(null);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPlacement(null);
-    };
-    const reposition = () => {
-      if (triggerRef.current) setPlacement(placeAnchoredPopover(triggerRef.current, POPOVER_WIDTH, POPOVER_HEIGHT));
-    };
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", closeOnEscape);
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
-    return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("keydown", closeOnEscape);
-      window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
-    };
-  }, [open]);
 
   if (labels.length === 0) return null;
 
@@ -62,7 +34,7 @@ export function NodeLabelsCell({ row, onFilter }: { row: ResourceRow; onFilter?:
   // resource, and filtering by a label is not a request to open a node.
   const filterBy = (label: NodeLabel) => {
     onFilter?.(labelText(label));
-    setPlacement(null);
+    close();
   };
 
   return (
@@ -92,8 +64,7 @@ export function NodeLabelsCell({ row, onFilter }: { row: ResourceRow; onFilter?:
           title={`Show all ${labels.length} labels`}
           onClick={(event) => {
             event.stopPropagation();
-            const trigger = triggerRef.current;
-            setPlacement((current) => (current || !trigger ? null : placeAnchoredPopover(trigger, POPOVER_WIDTH, POPOVER_HEIGHT)));
+            toggle();
           }}
         >
           +{hidden}
@@ -110,6 +81,59 @@ export function NodeLabelsCell({ row, onFilter }: { row: ResourceRow; onFilter?:
                 {labels.map((label) => (
                   <button type="button" key={String(label.key)} title={`Filter by ${labelText(label)}`} onClick={() => filterBy(label)}>
                     <code>{labelText(label)}</code>
+                  </button>
+                ))}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </span>
+  );
+}
+
+// Annotations are off the table by default and hold no chips: their values are
+// JSON documents and command lines, and none of that reads at the width of a
+// column. What the cell offers is how many there are and a way to read them.
+export function NodeAnnotationsCell({ row, onFilter }: { row: ResourceRow; onFilter?: (query: string) => void }) {
+  const annotations = annotationItems(row);
+  const { placement, open, triggerRef, popoverRef, toggle, close } = useAnchoredPopover(POPOVER_WIDTH, POPOVER_HEIGHT);
+
+  if (annotations.length === 0) return null;
+
+  const filterBy = (key: string, value: string) => {
+    onFilter?.(value ? `${key}=${value}` : key);
+    close();
+  };
+
+  return (
+    <span className="node-label-list">
+      <button
+        type="button"
+        ref={triggerRef}
+        className={`node-label-more ${open ? "is-open" : ""}`}
+        aria-expanded={open}
+        aria-label={`Show ${annotations.length} annotations`}
+        title={`Show ${annotations.length} annotations`}
+        onClick={(event) => {
+          event.stopPropagation();
+          toggle();
+        }}
+      >
+        {annotations.length} annotation{annotations.length === 1 ? "" : "s"}
+      </button>
+      {placement
+        ? createPortal(
+            <div className="node-label-popover" ref={popoverRef} style={{ top: placement.top, left: placement.left, maxHeight: placement.maxHeight }} onClick={(event) => event.stopPropagation()}>
+              <div className="node-label-popover-header">
+                <strong>{String(row.name || "Annotations")}</strong>
+                <span>{annotations.length} annotations</span>
+              </div>
+              <div className="node-label-popover-list">
+                {annotations.map((annotation) => (
+                  <button type="button" key={annotation.key} title={`Filter by ${annotation.key}`} onClick={() => filterBy(annotation.key, annotation.value)}>
+                    <code>{annotation.key}</code>
+                    <code className="node-label-popover-value">{annotation.value || "(empty)"}</code>
                   </button>
                 ))}
               </div>

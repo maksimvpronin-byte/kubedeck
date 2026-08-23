@@ -1,3 +1,5 @@
+import { ANNOTATION_COLUMN_KEY, isAnnotationSortKey } from "./annotationSort";
+
 export interface ColumnSortMetric {
   key: string;
   label: string;
@@ -38,6 +40,9 @@ export function activeSortMetric(columnKey: string, sortKey: string): ColumnSort
 // A sort can be active on a value that is not itself a column, so the header of
 // the column that owns it stays marked and the sort survives a column reorder.
 export function sortKeyBelongsToColumn(columnKey: string, sortKey: string): boolean {
+  // The annotation column's metrics are the keys the loaded rows happen to
+  // carry, so they cannot be listed here; the prefix is what identifies them.
+  if (columnKey === ANNOTATION_COLUMN_KEY && isAnnotationSortKey(sortKey)) return true;
   return columnKey === sortKey || activeSortMetric(columnKey, sortKey) !== null;
 }
 

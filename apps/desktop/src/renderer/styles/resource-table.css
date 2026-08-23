@@ -302,6 +302,21 @@
   background: var(--surface-hover);
 }
 
+/* An annotation is a key and a value that can be a whole document, so the two
+   stack instead of fighting over one line. */
+.node-label-popover-list button:has(.node-label-popover-value) {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+}
+
+.node-label-popover-value {
+  display: block;
+  max-height: 3.4em;
+  overflow: hidden;
+  color: var(--muted-strong);
+}
+
 .node-label-popover-list code {
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
