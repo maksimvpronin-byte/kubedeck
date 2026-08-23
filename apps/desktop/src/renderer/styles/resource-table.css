@@ -648,7 +648,6 @@
 
 .main-panel,
 .main-panel-resource,
-.main-panel-resource > .table-surface,
 .resource-table-panel {
   min-width: 0;
   min-height: 0;
@@ -659,9 +658,35 @@
   flex-direction: column;
 }
 
-.main-panel-resource > .table-surface {
+/* Filling the panel is what puts the pagination bar at the bottom of the
+   window: the scrolling rows take the space that is left, however few of them
+   there are. */
+.main-panel-resource > .resource-table-panel {
   flex: 1 1 auto;
   overflow: hidden;
+}
+
+/* With no rows there is nothing to scroll, and a header row holding the free
+   space would push the message down beside the pagination bar. The message
+   takes the space instead, which is where a reader looks for it. */
+.main-panel-resource > .resource-table-panel:has(> .empty-state) > .table-scroll {
+  flex: 0 0 auto;
+}
+
+.main-panel-resource > .resource-table-panel > .empty-state {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* A flex box does not collapse the margins of what it holds, and the title and
+   the sentence under it would drift apart by both of theirs. */
+.main-panel-resource > .resource-table-panel > .empty-state > * {
+  margin: 0;
 }
 
 .resource-table-panel {

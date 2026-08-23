@@ -502,7 +502,7 @@ input {
   flex: 0 0 auto;
 }
 
-.main-panel-resource > .table-surface {
+.main-panel-resource > .resource-table-panel {
   flex: 1 1 auto;
   height: auto;
   min-height: 0;

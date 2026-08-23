@@ -1454,6 +1454,33 @@ test("resource polling is only a fallback while live watch is unavailable", () =
   assert.match(app, /shouldPollResources\(intervalSeconds, watchHealthy\)/);
 });
 
+test("the pagination bar sits at the bottom of the window, not under the last row", () => {
+  const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+
+  // The panel is the child `.main-panel-resource` actually has. The rules that
+  // stretch it used to name `.table-surface`, an element no component renders
+  // any more, so the panel was only as tall as its rows and the pagination bar
+  // rode up under them with the window empty below.
+  assert.doesNotMatch(layout, /\.main-panel-resource > \.table-surface/);
+  assert.doesNotMatch(styles, /\.main-panel-resource > \.table-surface/);
+  assert.match(layout, /\.main-panel-resource > \.resource-table-panel\s*\{[^}]*flex:\s*1 1 auto;/s);
+  assert.match(styles, /\.main-panel-resource > \.resource-table-panel\s*\{[^}]*flex:\s*1 1 auto;/s);
+
+  // The rows take what is left and the footer keeps its own height, which is
+  // what puts it against the bottom edge.
+  assert.match(styles, /\.table-scroll\s*\{[^}]*flex:\s*1 1 auto;[^}]*overflow:\s*auto;/s);
+  assert.match(styles, /\.table-footer\s*\{[^}]*flex:\s*0 0 auto;/s);
+  assert.match(table, /<div className="table-scroll">[\s\S]*<ResourceTablePagination/);
+
+  // With no rows there is nothing to scroll: a header row holding the free
+  // space would push the empty state down beside the pagination bar.
+  assert.match(styles, /\.main-panel-resource > \.resource-table-panel:has\(> \.empty-state\) > \.table-scroll\s*\{[^}]*flex:\s*0 0 auto;/s);
+  assert.match(styles, /\.main-panel-resource > \.resource-table-panel > \.empty-state\s*\{[^}]*flex:\s*1 1 auto;[^}]*justify-content:\s*center;/s);
+  assert.match(styles, /\.main-panel-resource > \.resource-table-panel > \.empty-state > \*\s*\{[^}]*margin:\s*0;/s);
+});
+
 test("resource table keeps one sticky header inside its scroll container", () => {
   const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");

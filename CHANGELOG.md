@@ -1,3 +1,27 @@
+## 2.16.1 - the pagination bar sits at the bottom of the window
+
+A resource table is a column: the header and the toolbar keep their height,
+the rows take what is left and scroll, and the pagination bar keeps its height
+at the bottom. That only works if the panel holding them fills the window, and
+it did not - the rules meant to stretch it named .table-surface, an element an
+earlier layout left behind and no component renders any more, so they matched
+nothing.
+
+With a namespace full of pods this was invisible, because the contents already
+filled the window. On three CronJobs or five nodes the pagination bar ended up
+a couple of centimetres below the title with the rest of the window empty
+under it.
+
+The rules now name the panel the layout actually has. The empty state moved
+with it: there is nothing to scroll without rows, and a lone header row
+holding the free space would have pushed "Nothing here yet" down beside the
+pagination bar, so the message takes that space and sits centred in it.
+
+This was also why the columns popover was cut off before 2.15.2 - the panel it
+opened from ended just below the toolbar. That was fixed from the other side
+by moving the popover out of the panel, and both fixes stand.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.16.0 - a found match is highlighted, not selected
 
 Typing a query in Find in YAML and pressing Enter jumped to the first match -
