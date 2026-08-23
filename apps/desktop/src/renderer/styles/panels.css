@@ -479,7 +479,7 @@
 }
 
 .about-actions > button.about-copy-button:hover:not(:disabled) {
-  background: var(--primary-hover) !important;
+  background: var(--primary-hover);
 }
 
 .settings-local-activity {

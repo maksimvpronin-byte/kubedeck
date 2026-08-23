@@ -1,3 +1,49 @@
+## 2.20.2 - Internal cleanup: the CSS hotfix layer stops being one
+
+No user-visible change - not a colour, not a spacing, not a state. No route
+changes. Node-only ownership stays at Node 58 / Python 0.
+
+Three stylesheets still carried a header calling them a hotfix for 1.0.5 or
+1.1.1: `drawer-controls-polish.css` (677 lines, 139 !important),
+`related-panel-polish.css` (654 lines, 228 !important) and
+`resource-summary-polish.css` (516 lines). Nine minor versions later, changing
+anything about the drawer, the Related tab or a resource Summary still meant
+guessing which of two files would win. They are now `drawer-controls.css`,
+`related-panel.css` and `resource-summary.css`, the old 27-line
+`related-panel.css` is merged into the first of those, and each begins with a
+line about what it covers and why it loads where it loads. Seventeen
+stylesheets instead of eighteen. 126 of the folder's 406 `!important`
+declarations are gone.
+
+Reading all eighteen with a parser, in the import order the renderer actually
+uses, contradicted the assumption this patch started from.
+`resource-summary-polish.css` was never an override layer: not one of its 75
+selectors appears anywhere else, so there was nothing to fold it into.
+`drawer-controls-polish.css` is barely one either - 213 selectors, 8 of them
+shared - and folding it into `drawer.css` would have been a bug, because it
+loads after `terminal.css` on purpose, to settle primary-button colours that
+`terminal.css` also sets with `!important`. Only `related-panel-polish.css` was
+a real layer, and that is the one that got merged.
+
+280 of the 406 `!important` had to stay. `layout.css` declares `.primary {
+background: ... !important }` at specificity 100, which forces every rule
+wanting a different primary-button colour to use `!important` as well and then
+settle it by specificity - the origin of selectors like `.pod-drawer
+.drawer-content button.primary:not(.danger):not(.danger-button):hover`. Inside
+the polish files, `!important` also holds their own ordering together, since
+they were written `!important`-first. Removing everything not contested by
+another file flipped 1044 cascade outcomes on the first attempt; untangling it
+properly means reworking the button cascade application-wide, and is now
+section H of the plan with its own release.
+
+That nothing changed was established by comparing, for every pair of
+declarations that set the same property and share a class in their selectors,
+which one wins - 18211 pairs, zero flipped, zero gone, zero new. That reasons
+about selectors rather than the DOM, which is why the regression checklist
+walks the drawer, the Related tab and Resource Summary on all eight themes.
+
+Second of the sections in `docs/file-structure-refactor-plan.md`.
+
 ## 2.20.1 - Internal cleanup: the resource normalizers become a directory
 
 No user-visible change. No route changes. Node-only ownership stays at Node 58

@@ -1,4 +1,6 @@
-/* KubeDeck 1.0.5 sort indicator hotfix */
+/* Controls inside the resource drawer: toolbars, action buttons, sort
+   indicators, the LLM panel. Loads after drawer.css and terminal.css because
+   it settles the button colours those two also set. */
 .table-sort-button {
   display: inline-flex;
   align-items: center;
@@ -270,18 +272,18 @@
   width: 26px;
   height: 26px;
   min-width: 26px;
-  border: 1px solid color-mix(in srgb, var(--primary-border) 70%, transparent) !important;
-  border-radius: 7px !important;
-  padding: 0 !important;
-  background: color-mix(in srgb, var(--surface) 70%, transparent) !important;
-  color: var(--kd-action-muted) !important;
+  border: 1px solid color-mix(in srgb, var(--primary-border) 70%, transparent);
+  border-radius: 7px;
+  padding: 0;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: var(--kd-action-muted);
   font-size: 14px;
   line-height: 1;
 }
 
 .resource-title-copy:not(:disabled):hover,
 .copy-name-icon:not(:disabled):hover {
-  border-color: color-mix(in srgb, var(--primary-border) 65%, transparent) !important;
+  border-color: color-mix(in srgb, var(--primary-border) 65%, transparent);
   background: color-mix(in srgb, var(--surface) 80%, transparent) !important;
   color: var(--text-strong) !important;
 }
@@ -549,8 +551,8 @@
 
 .drawer .yaml-toolbar button.yaml-icon-action {
   display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  align-items: center;
+  justify-content: center;
   width: 32px !important;
   min-width: 32px !important;
   height: 32px !important;

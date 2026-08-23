@@ -170,9 +170,9 @@
   align-items: center;
   gap: 5px;
   min-height: 26px;
-  padding: 0 8px 0 8px !important;
-  color: var(--muted) !important;
-  font-size: 12px !important;
+  padding: 0 8px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .nav-subgroup-header span {
@@ -803,8 +803,8 @@ h2 {
 
 .primary {
   background: var(--primary) !important;
-  border-color: var(--primary-border) !important;
-  color: var(--text-inverse) !important;
+  border-color: var(--primary-border);
+  color: var(--text-inverse);
 }
 
 .cluster-list {

@@ -168,14 +168,14 @@
   min-height: 32px;
   height: 32px;
   padding: 0 12px;
-  border: 1px solid var(--kd-action-border) !important;
-  border-radius: 8px !important;
-  background: var(--kd-action-bg) !important;
-  color: var(--kd-action-text) !important;
+  border: 1px solid var(--kd-action-border);
+  border-radius: 8px;
+  background: var(--kd-action-bg);
+  color: var(--kd-action-text);
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
-  box-shadow: none !important;
+  box-shadow: none;
   transition:
     border-color 120ms ease,
     background 120ms ease,
@@ -484,8 +484,8 @@
 }
 
 .xterm-host .xterm-viewport {
-  background: var(--terminal-bg) !important;
-  overflow-y: auto !important;
+  background: var(--terminal-bg);
+  overflow-y: auto;
 }
 
 .embedded-terminal {

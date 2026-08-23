@@ -9,7 +9,7 @@ electron-builder, test helpers and type definitions — is not redistributed and
 is therefore not listed here.
 
 The versions below were verified against the committed `package-lock.json` for
-KubeDeck 2.20.1. Update this document whenever a production dependency is
+KubeDeck 2.20.2. Update this document whenever a production dependency is
 added, removed or upgraded.
 
 ## Runtime platform

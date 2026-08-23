@@ -1217,7 +1217,7 @@ test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results",
   const yamlActions = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerYamlActions.ts"), "utf8");
   const yaml = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
   const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
-  const lightStyles = fs.readFileSync(path.join(rendererRoot, "styles/related-panel-polish.css"), "utf8");
+  const lightStyles = fs.readFileSync(path.join(rendererRoot, "styles/related-panel.css"), "utf8");
 
   assert.match(lifecycle, /}, \[currentObjectKey\]\);/);
   assert.doesNotMatch(lifecycle, /}, \[api, clusterId, pod,/);
@@ -2259,7 +2259,7 @@ test("the service summary renders endpoints loaded outside the Service object", 
   assert.match(summary, /No endpoints back this service/);
   assert.match(summary, /\+\{data\.total - data\.items\.length\} more endpoints not listed/);
 
-  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-summary-polish.css"), "utf8");
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-summary.css"), "utf8");
   assert.match(styles, /\.summary-endpoint-main \{/);
   assert.match(styles, /\.summary-endpoint-detail \{/);
 });

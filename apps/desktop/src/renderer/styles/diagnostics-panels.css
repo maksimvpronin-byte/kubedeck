@@ -73,11 +73,11 @@
 
 .cache-note,
 .cache-empty {
-  color: var(--muted) !important;
+  color: var(--muted);
 }
 
 .cache-message {
-  color: var(--success-text) !important;
+  color: var(--success-text);
 }
 
 .cache-entry-list {
@@ -231,11 +231,11 @@
 .watch-note,
 .watch-empty,
 .watch-hint {
-  color: var(--muted) !important;
+  color: var(--muted);
 }
 
 .watch-message {
-  color: var(--success-text) !important;
+  color: var(--success-text);
 }
 
 .watch-entry-list {

@@ -1,4 +1,6 @@
-/* KubeDeck 1.0.5 summary layout polish hotfix */
+/* Resource Summary: tiles, container and restart cards, endpoints and the
+   usage-history chart. Not an override layer - no other stylesheet declares
+   any of these selectors. */
 .resource-summary-layout {
   display: flex;
   flex-direction: column;

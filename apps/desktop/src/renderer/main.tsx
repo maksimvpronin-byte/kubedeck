@@ -13,13 +13,12 @@ import "./styles/audit-panel.css";
 import "./styles/diagnostics-panels.css";
 import "./styles/problems-panel.css";
 import "./styles/panels.css";
-import "./styles/related-panel.css";
 import "./styles/modals.css";
 import "./styles/resource-table.css";
 import "./styles/overview.css";
-import "./styles/resource-summary-polish.css";
-import "./styles/drawer-controls-polish.css";
-import "./styles/related-panel-polish.css";
+import "./styles/resource-summary.css";
+import "./styles/drawer-controls.css";
+import "./styles/related-panel.css";
 
 restoreStoredThemePreference();
 
