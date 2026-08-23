@@ -12,7 +12,7 @@ const {
   nodeLabelItems,
   nodeRoles,
   nodeAnnotationItems,
-} = require("../dist/main/backend/resources/normalizers.js");
+} = require("../dist/main/backend/resources/normalizers/index.js");
 
 test("Secret summary exposes metadata without values", () => {
   const row = keyValueSummary({ metadata: { name: "api-key", namespace: "tools" }, kind: "Secret", type: "Opaque", data: { token: "c2VjcmV0", password: "c2VjcmV0Mg==" } });

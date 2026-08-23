@@ -1,3 +1,33 @@
+## 2.20.1 - Internal cleanup: the resource normalizers become a directory
+
+No user-visible change. No route changes. Node-only ownership stays at Node 58
+/ Python 0.
+
+`main/backend/resources/normalizers.ts` had grown to 926 lines around 25
+exports - about twenty independent `xxxSummary(item)` functions, one per family
+of Kubernetes resource, sharing a file only because that is where they were
+first written. Two of those names were ever used from outside the file:
+`normalizeResourceItems` and the `ResourceRow` type.
+
+It is a directory now, one file per family - `pod`, `node`, `workload`,
+`network`, `rbac`, `misc` - over a shared `primitives.ts` for reading a
+manifest safely, with `index.ts` holding the resource-to-normalizer table. The
+largest file is 216 lines instead of 926. The barrel re-exports exactly what
+the single file exported, so not one import in `src/` changed.
+
+Function bodies were copied, not edited: a normalizer that rounded a value one
+way before rounds it the same way now. Two helpers moved next to their only
+caller rather than into the shared primitives - `effectivePodResource` into
+`pod.ts` and `formatBytesQuantity` into `node.ts`.
+
+`tests/resource-lists.contract.test.cjs` required the compiled
+`normalizers.js` directly and now points at `normalizers/index.js`, with the
+same set of imported names. Note that `tsc` does not clean `dist/`, so a tree
+built before this release keeps a stale `normalizers.js` beside the new
+directory and CJS resolution prefers the file; delete it or build clean.
+
+First of seven sections in `docs/file-structure-refactor-plan.md`.
+
 ## 2.20.0 - a Service says how to reach it
 
 Working that out used to mean reading the type, the ClusterIP and the port list

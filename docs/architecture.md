@@ -56,6 +56,7 @@ Resource Snapshot Cache, история потребления подов, watch
 - `ssh/` — Node SSH sessions через `ssh2`;
 - `portForward/` — registry и lifecycle управляемых `kubectl port-forward`;
 - `resources/` — нормализация строк таблиц, метрики, кэш `kubectl api-resources` (доступные ресурсы и их scope) и история потребления подов: сэмплы снимаются самим KubeDeck, складываются в пятиминутные бакеты и живут в памяти в пределах одного запуска;
+- `resources/normalizers/` — по файлу на семейство ресурсов (`pod`, `node`, `workload`, `network`, `rbac`, `misc`) поверх общих примитивов чтения манифеста в `primitives.ts`. Единственная точка входа — `index.ts`: он держит таблицу `resource → normalizer` и экспортирует `normalizeResourceItems`, поэтому вызывающая сторона импортирует `resources/normalizers` и не знает о разбиении;
 - `search/`, `problems/`, `relations/` — diagnostic engines; `relations/` строит связи от целевого объекта по манифесту и обратные связи через discovery, поэтому CRD-маршруты (Traefik, Gateway API) опрашиваются только на кластерах, где они установлены;
 - `llm/` — sanitization, context, prompts и OpenAI-compatible client;
 - `audit/` — bounded metadata audit без содержимого Secret.
