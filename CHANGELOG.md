@@ -1,3 +1,36 @@
+## 2.20.3 - Internal cleanup: the renderer test junk drawer is sorted
+
+No application code changed at all - `apps/desktop/src` is byte-identical to
+2.20.2. No route changes. Node-only ownership stays at Node 58 / Python 0.
+
+`tests/renderer-controllers.contract.test.cjs` was the largest file in the
+repository: 2581 lines, 93 tests, 189 `readFileSync` calls, with themes,
+namespace selection, manifest compare, SSH, the cluster rail, pagination, watch
+coalescing, bulk actions, workspace tabs, drawer lifecycle and async action
+feedback all sharing it. It is now twelve domain files - `theme`,
+`namespace-selection`, `resource-table`, `workspace-tabs`, `bulk-actions`,
+`drawer-lifecycle`, `yaml-editor`, `resource-usage`, `watch-and-loading`,
+`resource-detail`, `release-surface` and the remainder under the original name
+- over a shared `tests/helpers/renderer.cjs` holding `loadTypeScript`,
+`resolveRendererModule` and the deterministic scheduler. Largest is 426 lines.
+The same 93 tests pass, none rewritten, and `test:renderer` names all twelve
+explicitly the way `test:gateway` already named its own.
+
+The split doubled as an audit. Classifying all 93 by whether they execute
+renderer code or only read a source file: 31 behavioural, 12 mixed, and 50 that
+assert on source text alone. More than half the suite is a grep - a test that
+breaks when a CSS class is renamed and passes straight through a real
+regression. All 50 now carry `// grep contract: asserts on source text, not
+behaviour.` in the code, and every file holding one explains what the marker
+means. They were not rewritten here: this release is a move, and turning a grep
+into a behavioural test changes what is being asserted.
+
+Two gateway test files stay over 700 lines,
+`resource-lists.contract.test.cjs` (798) and `llm.contract.test.cjs` (792).
+They were never part of this section and are left alone.
+
+Third of the sections in `docs/file-structure-refactor-plan.md`.
+
 ## 2.20.2 - Internal cleanup: the CSS hotfix layer stops being one
 
 No user-visible change - not a colour, not a spacing, not a state. No route
