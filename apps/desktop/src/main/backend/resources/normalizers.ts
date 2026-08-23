@@ -520,6 +520,40 @@ export function deploymentSummary(item: JsonObject): ResourceRow {
   };
 }
 
+export interface ServicePortItem {
+  name: string;
+  port: number;
+  targetPort: string;
+  nodePort: number;
+  protocol: string;
+  appProtocol: string;
+}
+
+// The ports were only ever a formatted string, which is enough to print in a
+// cell and not enough to build an address out of. The pieces travel too now,
+// along with the addresses a Service answers on outside the cluster.
+export function servicePortItems(portsValue: unknown): ServicePortItem[] {
+  return records(portsValue).map((port) => ({
+    name: text(port.name),
+    port: Math.trunc(numberValue(port.port)),
+    targetPort: String(port.targetPort ?? port.port ?? ""),
+    nodePort: Math.trunc(numberValue(port.nodePort)),
+    protocol: text(port.protocol, "TCP"),
+    appProtocol: text(port.appProtocol),
+  }));
+}
+
+export function loadBalancerAddresses(statusValue: unknown): string[] {
+  const loadBalancer = record(record(statusValue).loadBalancer);
+  return records(loadBalancer.ingress)
+    .map((ingress) => text(ingress.ip) || text(ingress.hostname))
+    .filter(Boolean);
+}
+
+function stringList(value: unknown): string[] {
+  return (Array.isArray(value) ? value : []).map((entry) => String(entry ?? "")).filter(Boolean);
+}
+
 export function serviceSummary(item: JsonObject): ResourceRow {
   const spec = record(item.spec);
   const ports = records(spec.ports);
@@ -528,6 +562,10 @@ export function serviceSummary(item: JsonObject): ResourceRow {
     ...meta(item),
     type: text(spec.type),
     clusterIp: text(spec.clusterIP),
+    servicePortItems: servicePortItems(spec.ports),
+    externalName: text(spec.externalName),
+    externalIps: stringList(spec.externalIPs),
+    loadBalancerAddresses: loadBalancerAddresses(item.status),
     ports: ports
       .map((port) => {
         const name = text(port.name);

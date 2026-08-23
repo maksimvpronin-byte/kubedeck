@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { ResourceRow, ServiceEndpointsResponse, UsageHistoryResponse } from "../types";
 import { NodeMetadataSection } from "./NodeMetadataSection";
+import { ServiceAddressesSection } from "./ServiceAddressesSection";
 import { UsageHistoryChart } from "./UsageHistoryChart";
 import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { formatAge } from "../utils/time";
@@ -34,6 +35,8 @@ export function ResourceSummary({ row, resource, now, events = [], serviceEndpoi
           <SummaryTile key={item.label} {...item} />
         ))}
       </section>
+
+      {isService(resource) ? <ServiceAddressesSection row={row} onCopy={onCopy} /> : null}
 
       {serviceEndpoints ? <ServiceEndpoints data={serviceEndpoints} /> : null}
 
@@ -503,6 +506,9 @@ function numeric(value: unknown): number | null {
 
 function isPod(resource: string) {
   return baseResource(resource) === "pod";
+}
+function isService(resource: string) {
+  return baseResource(resource) === "service";
 }
 function isNode(resource: string) {
   return baseResource(resource) === "node";

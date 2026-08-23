@@ -1,3 +1,35 @@
+## 2.20.0 - a Service says how to reach it
+
+Working that out used to mean reading the type, the ClusterIP and the port list
+and assembling the address in your head. A Service's Summary now carries a How
+to reach it section: the cluster DNS name per port, the ClusterIP, the node
+ports, every load balancer address and external IP, the name an ExternalName
+answers with, and the kubectl port-forward line that reaches the Service from
+the machine KubeDeck runs on. Every line is a button that copies it.
+
+A scheme is written only where the port says what it speaks - by its name, by
+appProtocol, or by being one of the numbers everybody uses for HTTP. A port
+named http becomes http://web.shop.svc.cluster.local:80; a port named pg stays
+postgres.data.svc.cluster.local:5432, because http:// in front of a database
+port is an address that cannot work.
+
+Nothing in the section is a link. A ClusterIP is not routable from your machine
+and svc.cluster.local does not resolve on it, so a clickable link would be a
+promise the application cannot keep - and KubeDeck only opens localhost URLs
+anyway. The one genuinely openable address, a running port-forward's
+http://127.0.0.1:..., is a link where it already was, in the Port forwards
+panel.
+
+An address two ports share - 53/UDP and 53/TCP are the usual pair - is printed
+once, with both ports named beside it. A headless Service says its name
+resolves to the pod addresses rather than to one address, and an ExternalName
+shows the name and nothing else, since nothing else applies.
+
+The gateway sent a Service's ports only as the string a table cell prints,
+`http · 80 → 8080/TCP`, which no address can be built from; the pieces travel
+now too.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.19.0 - nodes sort by one chosen annotation
 
 Sorting a table by "annotations" would compare every annotation joined into

@@ -2093,6 +2093,73 @@ test("one hook opens every anchored popover", () => {
   assert.equal((cell.match(/useAnchoredPopover\(/g) ?? []).length, 2);
 });
 
+test("a Service says how to reach it, in addresses to copy rather than links to follow", () => {
+  const addresses = loadTypeScript("utils/serviceAddresses.ts");
+  const section = fs.readFileSync(path.join(rendererRoot, "components/ServiceAddressesSection.tsx"), "utf8");
+  const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
+  const port = (extra) => ({ name: "", port: 0, targetPort: "", nodePort: 0, protocol: "TCP", appProtocol: "", ...extra });
+
+  const clusterIp = {
+    name: "kube-dns",
+    namespace: "kube-system",
+    type: "ClusterIP",
+    clusterIp: "10.43.0.10",
+    servicePortItems: [port({ name: "dns", port: 53, protocol: "UDP" }), port({ name: "dns-tcp", port: 53 }), port({ name: "metrics", port: 9153 })],
+  };
+  // 53/UDP and 53/TCP are one address twice, and printing it twice reads as a
+  // mistake; the ports that produced it are named beside it instead.
+  assert.deepEqual(
+    addresses.serviceAddresses(clusterIp).map((entry) => `${entry.group} ${entry.address}`),
+    ["Cluster DNS kube-dns.kube-system.svc.cluster.local:53", "Cluster DNS kube-dns.kube-system.svc.cluster.local:9153", "ClusterIP 10.43.0.10:53", "ClusterIP 10.43.0.10:9153"],
+  );
+  assert.equal(addresses.serviceAddresses(clusterIp)[0].hint, "dns · UDP, dns-tcp · TCP");
+  assert.equal(addresses.portForwardCommand(clusterIp), "kubectl port-forward -n kube-system svc/kube-dns 53:53");
+
+  // A scheme is written only where the port says what it speaks: guessing
+  // http:// onto a database port would produce an address that cannot work.
+  assert.equal(addresses.portScheme(port({ name: "http", port: 8080 })), "http");
+  assert.equal(addresses.portScheme(port({ appProtocol: "https", port: 8443 })), "https");
+  assert.equal(addresses.portScheme(port({ port: 443 })), "https");
+  assert.equal(addresses.portScheme(port({ name: "pg", port: 5432 })), "");
+  assert.equal(addresses.portScheme(port({ name: "dns", port: 53, protocol: "UDP" })), "");
+
+  const loadBalancer = {
+    name: "web",
+    namespace: "shop",
+    type: "LoadBalancer",
+    clusterIp: "10.43.7.21",
+    servicePortItems: [port({ name: "http", port: 80, nodePort: 31080 })],
+    loadBalancerAddresses: ["203.0.113.4"],
+  };
+  assert.deepEqual(
+    addresses.serviceAddresses(loadBalancer).map((entry) => entry.address),
+    ["http://web.shop.svc.cluster.local:80", "http://10.43.7.21:80", "<node-ip>:31080", "http://203.0.113.4:80"],
+  );
+
+  // A headless Service has no address of its own; the name answers with the
+  // pod addresses behind it.
+  const headless = { name: "postgres", namespace: "data", clusterIp: "None", servicePortItems: [port({ name: "pg", port: 5432 })] };
+  const headlessAddresses = addresses.serviceAddresses(headless);
+  assert.deepEqual(
+    headlessAddresses.map((entry) => entry.group),
+    ["Cluster DNS", "Headless"],
+  );
+  assert.match(headlessAddresses[1].hint, /pod addresses/);
+
+  // An ExternalName is a CNAME and nothing else applies to it.
+  assert.deepEqual(addresses.serviceAddresses({ name: "vendor", namespace: "shop", type: "ExternalName", externalName: "api.vendor.example.com" }), [
+    { group: "ExternalName", address: "api.vendor.example.com", hint: "the cluster resolves this Service to this name" },
+  ]);
+  assert.deepEqual(addresses.serviceAddresses({ name: "vendor", namespace: "shop", type: "ExternalName" }), []);
+
+  // Every row copies. None of them is a link: a ClusterIP is not routable from
+  // this machine, and the application only opens localhost URLs anyway.
+  assert.match(section, /className="service-address-value"/);
+  assert.doesNotMatch(section, /<a href|target="_blank"/);
+  assert.match(section, /onClick=\{\(\) => copy\(address\.address\)\}/);
+  assert.match(summary, /isService\(resource\) \? <ServiceAddressesSection row=\{row\} onCopy=\{onCopy\} \/> : null/);
+});
+
 test("lazy panel boundary resets its failure after navigation", () => {
   class Component {
     constructor(props) {

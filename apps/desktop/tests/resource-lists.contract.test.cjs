@@ -266,6 +266,34 @@ test("deployment conditions preserve simultaneous Lens-style labels", () => {
   assert.match(row.status, /ReplicaFailure/);
 });
 
+test("a Service carries the pieces an address is built from, not only a printed port list", () => {
+  const [row] = normalizeResourceItems("services", [
+    {
+      metadata: { name: "web", namespace: "shop" },
+      spec: {
+        type: "LoadBalancer",
+        clusterIP: "10.43.7.21",
+        externalIPs: ["198.51.100.7"],
+        ports: [{ name: "http", port: 80, targetPort: 8080, nodePort: 31080, protocol: "TCP", appProtocol: "http" }],
+      },
+      status: { loadBalancer: { ingress: [{ ip: "203.0.113.4" }, { hostname: "lb.example.com" }] } },
+    },
+  ]);
+
+  // The printed list stays - a table cell still needs it - and the pieces
+  // travel beside it, because an address cannot be built from "80 → 8080/TCP".
+  assert.equal(row.ports, "http · 80 → 8080/TCP");
+  assert.deepEqual(row.servicePortItems, [{ name: "http", port: 80, targetPort: "8080", nodePort: 31080, protocol: "TCP", appProtocol: "http" }]);
+  assert.deepEqual(row.loadBalancerAddresses, ["203.0.113.4", "lb.example.com"]);
+  assert.deepEqual(row.externalIps, ["198.51.100.7"]);
+  assert.equal(row.externalName, "");
+
+  const [external] = normalizeResourceItems("services", [{ metadata: { name: "vendor", namespace: "shop" }, spec: { type: "ExternalName", externalName: "api.vendor.example.com" }, status: {} }]);
+  assert.equal(external.externalName, "api.vendor.example.com");
+  assert.deepEqual(external.servicePortItems, []);
+  assert.deepEqual(external.loadBalancerAddresses, []);
+});
+
 test("node labels lead with what somebody set, and roles are not labels", () => {
   const labels = {
     "node-role.kubernetes.io/control-plane": "",
