@@ -78,6 +78,41 @@ test("resource action route, plans and confirmation contract", () => {
     },
   ]);
 
+  // Running a CronJob by hand is creating one Job from its template: the
+  // schedule is not touched, and the name comes from the caller so the command
+  // the confirmation showed is the command that runs.
+  const cronjobTarget = target("cronjobs", "default", "nightly");
+  const triggerPlan = buildResourceActionPlan(cronjobTarget, "trigger", undefined, "nightly-manual-1750000000");
+  assert.deepEqual(triggerPlan.args, ["create", "job", "nightly-manual-1750000000", "--from=cronjob/nightly", "-n", "default"]);
+  assert.equal(triggerPlan.jobName, "nightly-manual-1750000000");
+  assert.deepEqual(triggerPlan.authorizationChecks, [{ verb: "create", resource: "jobs", namespace: "default" }]);
+  assert.throws(
+    () => buildResourceActionPlan(target("deployments"), "trigger", undefined, "demo-manual-1"),
+    (error) => error.code === "UNSUPPORTED_ACTION",
+  );
+  assert.throws(
+    () => buildResourceActionPlan(cronjobTarget, "trigger"),
+    (error) => error.code === "INVALID_JOB_NAME",
+  );
+  for (const invalid of ["-leading", "trailing-", "Upper", "with space", "a".repeat(64)]) {
+    assert.throws(
+      () => buildResourceActionPlan(cronjobTarget, "trigger", undefined, invalid),
+      (error) => error.code === "INVALID_JOB_NAME",
+      `${invalid} must be rejected as a job name`,
+    );
+  }
+  // A CronJob that is not namespaced cannot produce a Job.
+  assert.throws(
+    () => buildResourceActionPlan(target("cronjobs", "_cluster", "nightly"), "trigger", undefined, "nightly-manual-1"),
+    (error) => error.code === "INVALID_NAMESPACE",
+  );
+  // Mutating actions carry a typed confirmation; running a CronJob is one.
+  assert.doesNotThrow(() => requireResourceActionConfirmation(confirmation(cronjobTarget, "trigger", "nightly"), cronjobTarget, triggerPlan));
+  assert.throws(
+    () => requireResourceActionConfirmation(confirmation(cronjobTarget, "trigger", ""), cronjobTarget, triggerPlan),
+    (error) => error.code === "CONFIRMATION_TYPED_NAME_MISMATCH",
+  );
+
   assert.doesNotThrow(() => requireResourceActionConfirmation(confirmation(target("pods"), "delete"), target("pods"), deletePlan));
   assert.doesNotThrow(() => requireResourceActionConfirmation(confirmation(target(), "restart", "demo"), target(), restartPlan));
   assert.throws(

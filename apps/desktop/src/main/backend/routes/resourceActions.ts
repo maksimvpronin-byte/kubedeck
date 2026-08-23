@@ -15,7 +15,15 @@ const ACTION_TIMEOUT_SECONDS = 45;
 const DRAIN_TIMEOUT_SECONDS = 330;
 const AUTH_TIMEOUT_SECONDS = 15;
 
-export type ResourceAction = "delete" | "restart" | "redeploy" | "scale" | "cordon" | "uncordon" | "drain";
+export type ResourceAction = "delete" | "restart" | "redeploy" | "scale" | "cordon" | "uncordon" | "drain" | "trigger";
+
+const RESOURCE_ACTIONS = ["delete", "restart", "redeploy", "scale", "cordon", "uncordon", "drain", "trigger"];
+
+// A Job created by hand needs a name of its own, and Kubernetes will only take a
+// DNS-1123 label for it. The name arrives from the caller rather than being
+// invented here, so the command the confirmation showed is the command that runs.
+const JOB_NAME_PATTERN = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
+const MAX_JOB_NAME_LENGTH = 63;
 
 interface OperationConfirmation {
   clusterId?: unknown;
@@ -29,6 +37,7 @@ interface OperationConfirmation {
 interface ResourceActionRequestPayload {
   action: ResourceAction;
   replicas?: number;
+  jobName?: string;
   confirmation?: OperationConfirmation;
 }
 
@@ -51,12 +60,19 @@ export interface ResourceActionPlan {
   args: string[];
   namespace: string;
   replicas?: number;
+  jobName?: string;
   authorizationChecks: AuthorizationCheck[];
   timeoutSeconds: number;
   maxOutputBytes: number;
 }
 
 type CacheInvalidator = (clusterId: string) => Promise<void>;
+
+function actionExtra(plan: ResourceActionPlan): { extra?: Record<string, unknown> } {
+  if (plan.action === "scale") return { extra: { replicas: plan.replicas } };
+  if (plan.action === "trigger") return { extra: { jobName: plan.jobName } };
+  return {};
+}
 
 type JsonObject = Record<string, unknown>;
 
@@ -86,11 +102,22 @@ function normalizeAction(value: unknown): ResourceAction {
   }
 
   const action = value.trim().toLowerCase();
-  if (!["delete", "restart", "redeploy", "scale", "cordon", "uncordon", "drain"].includes(action)) {
+  if (!RESOURCE_ACTIONS.includes(action)) {
     throw new RequestValidationError(400, "UNSUPPORTED_ACTION", `Unsupported action: ${value}`);
   }
 
   return action as ResourceAction;
+}
+
+function normalizeJobName(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new RequestValidationError(400, "INVALID_JOB_NAME", "jobName must be a non-empty string");
+  }
+  const name = value.trim();
+  if (name.length > MAX_JOB_NAME_LENGTH || !JOB_NAME_PATTERN.test(name)) {
+    throw new RequestValidationError(400, "INVALID_JOB_NAME", `jobName must be a DNS-1123 label of at most ${MAX_JOB_NAME_LENGTH} characters`);
+  }
+  return name;
 }
 
 function normalizeReplicas(value: unknown): number | undefined {
@@ -110,6 +137,7 @@ async function readActionPayload(request: IncomingMessage): Promise<ResourceActi
   return {
     action: normalizeAction(body.action),
     ...(body.replicas !== undefined ? { replicas: normalizeReplicas(body.replicas) } : {}),
+    ...(body.jobName !== undefined ? { jobName: normalizeJobName(body.jobName) } : {}),
     ...(isRecord(body.confirmation) ? { confirmation: body.confirmation as OperationConfirmation } : {}),
   };
 }
@@ -118,7 +146,7 @@ function unsupported(action: ResourceAction, resource: string): never {
   throw new RequestValidationError(400, "UNSUPPORTED_ACTION", `${action} is not supported for ${resource}`);
 }
 
-export function buildResourceActionPlan(target: ResourceActionRouteTarget, action: ResourceAction, replicas?: number): ResourceActionPlan {
+export function buildResourceActionPlan(target: ResourceActionRouteTarget, action: ResourceAction, replicas?: number, jobName?: string): ResourceActionPlan {
   const resource = target.resource;
   const namespaced = target.namespace !== "_cluster";
   const namespaceArgs = namespaced ? ["-n", target.namespace] : [];
@@ -205,6 +233,35 @@ export function buildResourceActionPlan(target: ResourceActionRouteTarget, actio
     };
   }
 
+  if (action === "trigger") {
+    if (!["cronjob", "cronjobs"].includes(resource)) {
+      return unsupported(action, resource);
+    }
+    if (!namespaced) {
+      throw new RequestValidationError(400, "INVALID_NAMESPACE", "trigger requires a namespaced CronJob");
+    }
+
+    // What kubectl does for `create job --from=cronjob/x`: it copies the job
+    // template out of the CronJob and creates one Job from it. The schedule is
+    // untouched, and the CronJob keeps running as it did.
+    const name = normalizeJobName(jobName);
+    return {
+      action,
+      args: ["create", "job", name, `--from=cronjob/${target.name}`, ...namespaceArgs],
+      namespace: target.namespace,
+      jobName: name,
+      authorizationChecks: [
+        {
+          verb: "create",
+          resource: "jobs",
+          namespace: target.namespace,
+        },
+      ],
+      timeoutSeconds: ACTION_TIMEOUT_SECONDS,
+      maxOutputBytes: ACTION_MAX_OUTPUT_BYTES,
+    };
+  }
+
   if (!["node", "nodes"].includes(resource)) {
     return unsupported(action, resource);
   }
@@ -263,7 +320,7 @@ export function requireResourceActionConfirmation(confirmation: OperationConfirm
     }
   }
 
-  if (["restart", "redeploy", "scale"].includes(plan.action)) {
+  if (["restart", "redeploy", "scale", "trigger"].includes(plan.action)) {
     if (confirmationString(confirmation.typedName) !== target.name) {
       throw new RequestValidationError(400, "CONFIRMATION_TYPED_NAME_MISMATCH", "Typed confirmation value is invalid");
     }
@@ -310,7 +367,7 @@ async function executeResourceAction(
   invalidateResourceCache: CacheInvalidator,
 ): Promise<void> {
   const payload = await readActionPayload(request);
-  const plan = buildResourceActionPlan(target, payload.action, payload.replicas);
+  const plan = buildResourceActionPlan(target, payload.action, payload.replicas, payload.jobName);
   requireResourceActionConfirmation(payload.confirmation, target, plan);
 
   for (const check of plan.authorizationChecks) {
@@ -329,7 +386,7 @@ async function executeResourceAction(
       resource: target.resource,
       name: target.name,
       commandPreview: result.commandPreview,
-      ...(plan.action === "scale" ? { extra: { replicas: plan.replicas } } : {}),
+      ...actionExtra(plan),
     });
 
     try {
@@ -350,7 +407,7 @@ async function executeResourceAction(
         name: target.name,
         commandPreview: error.info.commandPreview,
         message: error.info.message,
-        ...(plan.action === "scale" ? { extra: { replicas: plan.replicas } } : {}),
+        ...actionExtra(plan),
       });
     }
     throw error;

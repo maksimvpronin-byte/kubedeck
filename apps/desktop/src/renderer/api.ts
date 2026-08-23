@@ -341,7 +341,8 @@ export class ApiClient {
     return this.request<string>(`/clusters/${clusterId}/yaml/apply`, { method: "PUT", body: JSON.stringify({ yaml, confirmation }) });
   }
 
-  resourceAction(clusterId: string, resource: string, namespace: string, name: string, action: string, replicas?: number, typedName = "") {
+  resourceAction(clusterId: string, resource: string, namespace: string, name: string, action: string, options: { replicas?: number; typedName?: string; jobName?: string } = {}) {
+    const { replicas, typedName = "", jobName } = options;
     const confirmation: OperationConfirmation = {
       clusterId,
       action,
@@ -352,7 +353,7 @@ export class ApiClient {
     };
     return this.request<string>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/action`, {
       method: "POST",
-      body: JSON.stringify({ action, replicas, confirmation }),
+      body: JSON.stringify({ action, replicas, jobName, confirmation }),
     });
   }
 

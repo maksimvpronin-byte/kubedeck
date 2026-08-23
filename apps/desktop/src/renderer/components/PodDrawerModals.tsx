@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import { CommandPreviewBlock } from "./CommandPreviewBlock";
 import type { ResourceRow } from "../types";
 
-export type ResourceAction = "restart" | "redeploy" | "scale" | "delete";
+export type ResourceAction = "restart" | "redeploy" | "scale" | "delete" | "trigger";
 
 interface ResourceActionConfirmModalProps {
   action: ResourceAction;
@@ -10,12 +10,15 @@ interface ResourceActionConfirmModalProps {
   row: ResourceRow;
   replicas: number;
   onReplicasChange: (value: number) => void;
+  // Fixed when the button was pressed, so the name in the preview is the name
+  // the Job is created under.
+  jobName: string;
   loading: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export function ResourceActionConfirmModal({ action, resource, row, replicas, onReplicasChange, loading, onCancel, onConfirm }: ResourceActionConfirmModalProps) {
+export function ResourceActionConfirmModal({ action, resource, row, replicas, onReplicasChange, jobName, loading, onCancel, onConfirm }: ResourceActionConfirmModalProps) {
   const namespace = String(row.namespace || "_cluster");
   return (
     <div className="modal-backdrop" role="presentation">
@@ -38,7 +41,7 @@ export function ResourceActionConfirmModal({ action, resource, row, replicas, on
             {resource}/{row.name}
           </code>
           <p className="muted">Review the exact kubectl action preview and confirm the action. Typing the resource name is not required.</p>
-          <CommandPreviewBlock command={commandPreview(action, resource, namespace, row.name, replicas)} />
+          <CommandPreviewBlock command={commandPreview(action, resource, namespace, row.name, replicas, jobName)} />
         </div>
         <footer>
           <button onClick={onCancel} disabled={loading}>
@@ -166,6 +169,7 @@ export function TerminalContainerPickerModal({ row, containers, onCancel, onOpen
 
 export function supportedActions(resource: string): ResourceAction[] {
   if (resource === "pods") return ["restart", "delete"];
+  if (["cronjobs", "cronjob"].includes(resource)) return ["trigger", "delete"];
   if (["deployments", "statefulsets"].includes(resource)) return ["redeploy", "scale", "delete"];
   if (resource === "daemonsets") return ["redeploy", "delete"];
   if (resource === "replicasets") return ["scale", "delete"];
@@ -174,6 +178,7 @@ export function supportedActions(resource: string): ResourceAction[] {
 }
 
 export function actionLabel(action: ResourceAction, resource: string) {
+  if (action === "trigger") return "Run now";
   if (action === "restart") return resource === "pods" ? "Restart pod" : "Restart";
   if (action === "redeploy") return "Redeploy";
   if (action === "scale") return "Scale";
@@ -181,6 +186,7 @@ export function actionLabel(action: ResourceAction, resource: string) {
 }
 
 function actionDescription(action: ResourceAction, resource: string, name: string) {
+  if (action === "trigger") return `Run ${name} once, now, by creating a Job from its template. The schedule is not touched and the CronJob keeps running as before.`;
   if (action === "restart" && resource === "pods") return `Restart ${name} by deleting the pod and letting its controller recreate it.`;
   if (action === "redeploy") return `Trigger a rollout restart for ${name}.`;
   if (action === "scale") return `Set desired replicas for ${name}.`;
@@ -188,9 +194,10 @@ function actionDescription(action: ResourceAction, resource: string, name: strin
   return `Delete ${name}. This action cannot be undone from KubeDeck.`;
 }
 
-function commandPreview(action: ResourceAction, resource: string, namespace: string, name: string, replicas: number) {
+function commandPreview(action: ResourceAction, resource: string, namespace: string, name: string, replicas: number, jobName: string) {
   const ns = namespace && namespace !== "_cluster" ? ` -n ${quoteKubectlArg(namespace)}` : "";
   const target = `${resource}/${name}`;
+  if (action === "trigger") return `kubectl create job ${quoteKubectlArg(jobName)} --from=cronjob/${quoteKubectlArg(name)}${ns}`;
   if (action === "restart" && resource === "pods") return `kubectl delete pod ${quoteKubectlArg(name)} --wait=false${ns}`;
   if (action === "redeploy") return `kubectl rollout restart ${quoteKubectlArg(target)}${ns}`;
   if (action === "scale") return `kubectl scale ${quoteKubectlArg(target)} --replicas=${replicas}${ns}`;

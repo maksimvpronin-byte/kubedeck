@@ -1891,6 +1891,39 @@ test("a searched-for match is highlighted rather than selected, in the manifest 
   assert.match(logsTab, /const currentMatch = matchIndex < matches\.length \? matchIndex : -1;/);
 });
 
+test("a CronJob can be run by hand, under a name the confirmation showed", () => {
+  const names = loadTypeScript("utils/manualJobName.ts");
+  const modals = loadTypeScript("components/PodDrawerModals.tsx");
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+  const chrome = fs.readFileSync(path.join(rendererRoot, "components/PodDrawerChrome.tsx"), "utf8");
+  const api = fs.readFileSync(path.join(rendererRoot, "api.ts"), "utf8");
+
+  // Kubernetes takes a DNS-1123 label of at most 63 characters for a Job, and
+  // the second the run was asked for keeps two runs from colliding.
+  assert.equal(names.manualJobName("nightly", 1_750_000_000_000), "nightly-manual-1750000000");
+  assert.equal(names.manualJobName("Nightly", 1_750_000_000_000), "nightly-manual-1750000000");
+  const long = names.manualJobName("a".repeat(80), 1_750_000_000_000);
+  assert.equal(long.length, 63);
+  assert.match(long, /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/);
+  // Truncating in the middle of a name can leave a dash against the suffix.
+  assert.equal(names.manualJobName(`${"a".repeat(44)}--`, 1_750_000_000_000), `${"a".repeat(44)}-manual-1750000000`);
+  assert.match(names.manualJobName("", 1_750_000_000_000), /^cronjob-manual-/);
+
+  // The button lives beside Delete in the drawer, and only for CronJobs.
+  assert.deepEqual(modals.supportedActions("cronjobs"), ["trigger", "delete"]);
+  assert.deepEqual(modals.supportedActions("jobs"), ["delete"]);
+  assert.equal(modals.actionLabel("trigger", "cronjobs"), "Run now");
+  assert.match(chrome, /if \(action === "trigger"\) return <Play size=\{18\}/);
+
+  // The name is fixed at the press rather than recomputed while the
+  // confirmation is open, so the preview cannot name one Job and the request
+  // create another.
+  assert.match(drawer, /if \(action === "trigger"\) setTriggerJobName\(manualJobName\(pod\.name, Date\.now\(\)\)\);/);
+  assert.match(drawer, /jobName=\{triggerJobName\}/);
+  assert.match(drawer, /\.\.\.\(action === "trigger" \? \{ jobName: triggerJobName \} : \{\}\)/);
+  assert.match(api, /body: JSON\.stringify\(\{ action, replicas, jobName, confirmation \}\)/);
+});
+
 test("lazy panel boundary resets its failure after navigation", () => {
   class Component {
     constructor(props) {

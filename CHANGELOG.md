@@ -1,3 +1,29 @@
+## 2.17.0 - a CronJob can be run by hand
+
+Run now sits beside Delete in the CronJob drawer and starts one run
+immediately. It does what kubectl create job --from=cronjob/<name> does: the
+job template is copied out of the CronJob and one Job is created from it. The
+schedule is not modified, the CronJob is not suspended, and the next scheduled
+run happens as it would have anyway.
+
+A Job needs a name of its own. The controller names its scheduled runs
+<cronjob>-<unix-minute>; a manual run says so, and carries the second rather
+than the minute, so two runs a few seconds apart cannot collide. A long
+CronJob name is truncated to leave room for the suffix, because Kubernetes
+takes a DNS-1123 label of at most 63 characters.
+
+The name is fixed the moment the button is pressed rather than while the
+confirmation is open, so the command in the preview is the command that runs -
+the confirmation would not be worth reading otherwise. Running a CronJob is
+treated as a mutating action and carries a typed confirmation, the way Restart,
+Redeploy and Scale do.
+
+Authorization is checked first with kubectl auth can-i create jobs in the
+CronJob's namespace, so a missing permission is reported as a permission
+problem rather than a raw kubectl failure, and the run is recorded in the audit
+trail as resource.trigger carrying the name of the Job it created.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.16.1 - the pagination bar sits at the bottom of the window
 
 A resource table is a column: the header and the toolbar keep their height,

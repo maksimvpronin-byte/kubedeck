@@ -10,6 +10,7 @@ import {
   LogOut,
   Maximize2,
   Network,
+  Play,
   RotateCw,
   ShieldCheck,
   ShieldOff,
@@ -134,6 +135,7 @@ interface ActionsProps {
 export function PodDrawerActions(props: ActionsProps) {
   const actionIcon = (action: ResourceAction) => {
     if (action === "delete") return <Trash2 size={18} strokeWidth={2.25} />;
+    if (action === "trigger") return <Play size={18} strokeWidth={2.25} />;
     if (action === "scale") return <Maximize2 size={18} strokeWidth={2.25} />;
     return <RotateCw size={18} strokeWidth={2.25} />;
   };

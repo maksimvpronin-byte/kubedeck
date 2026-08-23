@@ -10,7 +10,7 @@ import { RelatedTab } from "./RelatedTab";
 import { SecretTab } from "./SecretTab";
 import { LlmTab } from "./LlmTab";
 import { PortForwardModal, defaultPortForwardDraft, supportsPortForward } from "./PortForwardModal";
-import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, supportedActions, type ResourceAction } from "./PodDrawerModals";
+import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, actionLabel, supportedActions, type ResourceAction } from "./PodDrawerModals";
 import { useUiClock } from "../hooks/useUiClock";
 import { ResourceSummary } from "./ResourceSummary";
 import { containerNames, downloadTextFile, eventTargetForOpen } from "./podDrawerHelpers";
@@ -20,6 +20,7 @@ import { usePodDrawerLogs } from "../hooks/usePodDrawerLogs";
 import { usePodDrawerYamlActions } from "../hooks/usePodDrawerYamlActions";
 import { toErrorInfo } from "../utils/errors";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
+import { manualJobName } from "../utils/manualJobName";
 import type { NodeActionKind } from "../hooks/useBulkResourceActions";
 
 interface Props {
@@ -85,6 +86,7 @@ export function PodDrawer({
   const [yamlStatus, setYamlStatus] = useState("");
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<ResourceAction | null>(null);
+  const [triggerJobName, setTriggerJobName] = useState("");
   const [yamlApplyConfirmOpen, setYamlApplyConfirmOpen] = useState(false);
   const [portForwardDraft, setPortForwardDraft] = useState<PortForwardStartRequest | null>(null);
   const [replicas, setReplicas] = useState(1);
@@ -221,7 +223,7 @@ export function PodDrawer({
 
   async function runAction(action: ResourceAction) {
     if (!pod) return;
-    const label = action === "delete" ? "Delete" : action === "redeploy" ? "Redeploy" : action === "scale" ? "Scale" : "Restart";
+    const label = actionLabel(action, resource);
 
     // Close the confirmation dialog immediately. Kubernetes delete/restart operations can
     // wait for graceful termination or controller reconciliation, so keeping the modal
@@ -231,15 +233,11 @@ export function PodDrawer({
     setError(null);
     setApplyResult(`${label} requested...`);
     try {
-      const result = await api.resourceAction(
-        clusterId,
-        resource,
-        String(pod.namespace || "_cluster"),
-        pod.name,
-        action,
-        action === "scale" ? replicas : undefined,
-        action === "delete" ? "" : pod.name,
-      );
+      const result = await api.resourceAction(clusterId, resource, String(pod.namespace || "_cluster"), pod.name, action, {
+        ...(action === "scale" ? { replicas } : {}),
+        ...(action === "trigger" ? { jobName: triggerJobName } : {}),
+        typedName: action === "delete" ? "" : pod.name,
+      });
       setApplyResult(result || `${label} requested`);
       onActionComplete();
       if (action === "delete" || (resource === "pods" && action === "restart")) onClose();
@@ -363,7 +361,12 @@ export function PodDrawer({
             loading={loading}
             applyResult={applyResult}
             involvedTarget={involvedTarget}
-            onAction={setPendingAction}
+            onAction={(action) => {
+              // Fixed at the press, not at each render of the confirmation, so
+              // the name in the preview is the name the Job is created under.
+              if (action === "trigger") setTriggerJobName(manualJobName(pod.name, Date.now()));
+              setPendingAction(action);
+            }}
             onTerminal={() => (isNodeResource ? onOpenNodeSsh(pod) : openTerminal())}
             onNodeAction={onNodeAction}
             canPortForward={supportsPortForward(resource, pod)}
@@ -512,6 +515,7 @@ export function PodDrawer({
           row={pod}
           replicas={replicas}
           onReplicasChange={setReplicas}
+          jobName={triggerJobName}
           loading={loading}
           onCancel={() => setPendingAction(null)}
           onConfirm={() => void runAction(pendingAction)}
