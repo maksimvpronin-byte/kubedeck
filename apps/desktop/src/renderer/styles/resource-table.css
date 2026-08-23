@@ -178,9 +178,21 @@
 .node-label-chip {
   min-width: 0;
   max-width: 120px;
+  padding: 0;
   overflow: hidden;
+  border: 0;
+  background: none;
   color: var(--muted-strong);
+  font: inherit;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.node-label-chip:hover,
+.node-label-more:hover {
+  color: var(--text-strong);
+  text-decoration: underline;
 }
 
 .node-label-chip + .node-label-chip::before {
@@ -191,8 +203,109 @@
 
 .node-label-more {
   flex: 0 0 auto;
+  padding: 0 2px;
+  border: 0;
+  background: none;
   color: var(--primary);
+  font: inherit;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.node-label-more.is-open {
+  color: var(--text-strong);
+}
+
+/* Roles are their own column: the value of a role label is empty or "true", so
+   what is shown is the suffix of the key. */
+.node-role-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.node-role-chip {
+  flex: 0 0 auto;
+  max-width: 100%;
+  padding: 1px 7px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2, var(--panel-muted));
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-role-chip.is-control-plane {
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
+/* The rest of the labels, which used to be a comma-joined native tooltip. */
+.node-label-popover {
+  position: fixed;
+  z-index: 50;
+  width: 340px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-menu, 0 14px 30px rgba(0, 0, 0, 0.35));
+}
+
+.node-label-popover-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.node-label-popover-header span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.node-label-popover-list {
+  display: grid;
+  gap: 1px;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+  scrollbar-width: thin;
+}
+
+.node-label-popover-list button {
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-label-popover-list button:hover {
+  background: var(--surface-hover);
+}
+
+.node-label-popover-list code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .summary-workload-conditions {

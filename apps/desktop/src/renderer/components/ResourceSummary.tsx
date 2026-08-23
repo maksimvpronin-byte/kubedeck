@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ResourceRow, ServiceEndpointsResponse, UsageHistoryResponse } from "../types";
+import { NodeMetadataSection } from "./NodeMetadataSection";
 import { UsageHistoryChart } from "./UsageHistoryChart";
 import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { formatAge } from "../utils/time";
@@ -12,12 +13,13 @@ interface Props {
   events?: ResourceRow[];
   serviceEndpoints?: ServiceEndpointsResponse | null;
   usageHistory?: UsageHistoryResponse | null;
+  onCopy?: (text: string, message: string) => void;
 }
 
 type Tone = "default" | "neutral" | "pending" | "warning" | "danger" | "success";
 type Fact = { label: string; value: ReactNode; tone?: Tone };
 
-export function ResourceSummary({ row, resource, now, events = [], serviceEndpoints = null, usageHistory = null }: Props) {
+export function ResourceSummary({ row, resource, now, events = [], serviceEndpoints = null, usageHistory = null, onCopy }: Props) {
   const facts = summaryFacts(row, resource, now, serviceEndpoints);
   const containers = isPod(resource) ? containerRows(row) : [];
   const failures = isPod(resource) ? restartFailures(row) : [];
@@ -34,6 +36,8 @@ export function ResourceSummary({ row, resource, now, events = [], serviceEndpoi
       </section>
 
       {serviceEndpoints ? <ServiceEndpoints data={serviceEndpoints} /> : null}
+
+      {isNode(resource) ? <NodeMetadataSection row={row} onCopy={onCopy} /> : null}
 
       {isPod(resource) && usageHistory ? (
         <UsageHistoryChart
@@ -499,6 +503,9 @@ function numeric(value: unknown): number | null {
 
 function isPod(resource: string) {
   return baseResource(resource) === "pod";
+}
+function isNode(resource: string) {
+  return baseResource(resource) === "node";
 }
 function isQuota(resource: string) {
   return baseResource(resource) === "resourcequota";

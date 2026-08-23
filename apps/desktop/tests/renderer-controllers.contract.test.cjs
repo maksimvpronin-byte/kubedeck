@@ -226,15 +226,17 @@ test("the columns popover leaves the table panel so a short table cannot clip it
   assert.match(styles, /\.resource-table-panel\s*\{[^}]*container-type:\s*inline-size;[^}]*overflow:\s*hidden;/s);
   assert.match(menu, /createPortal\(/);
   assert.match(menu, /document\.body,/);
-  assert.match(menu, /trigger\.getBoundingClientRect\(\)/);
+  const placementSource = fs.readFileSync(path.join(rendererRoot, "utils/popoverPlacement.ts"), "utf8");
+  assert.match(placementSource, /trigger\.getBoundingClientRect\(\)/);
   assert.match(styles, /\.table-columns-popover\s*\{[^}]*position:\s*fixed;/s);
   assert.doesNotMatch(styles, /\.table-columns-popover\s*\{[^}]*top:\s*calc\(100% \+ 6px\);/s);
 
   // Positioned from the trigger, the popover has to keep itself inside the
   // window rather than trusting the space below the button.
-  assert.match(menu, /window\.innerHeight - bounds\.bottom/);
-  assert.match(menu, /const upward = /);
-  assert.match(menu, /window\.innerWidth - VIEWPORT_MARGIN - POPOVER_WIDTH/);
+  assert.match(placementSource, /window\.innerHeight - bounds\.bottom/);
+  assert.match(placementSource, /const upward = /);
+  assert.match(placementSource, /window\.innerWidth - VIEWPORT_MARGIN - width/);
+  assert.match(menu, /placeAnchoredPopover\(trigger, POPOVER_WIDTH, POPOVER_HEIGHT\)/);
   assert.match(menu, /window\.addEventListener\("resize", reposition\)/);
   assert.match(menu, /window\.addEventListener\("scroll", reposition, true\)/);
 
@@ -1924,6 +1926,74 @@ test("a CronJob can be run by hand, under a name the confirmation showed", () =>
   assert.match(api, /body: JSON\.stringify\(\{ action, replicas, jobName, confirmation \}\)/);
 });
 
+test("node labels and annotations are read whole, not guessed at from three chips", () => {
+  const metadata = loadTypeScript("utils/metadataEntries.ts");
+  const placement = loadTypeScript("utils/popoverPlacement.ts");
+  const cell = fs.readFileSync(path.join(rendererRoot, "components/NodeLabelsCell.tsx"), "utf8");
+  const section = fs.readFileSync(path.join(rendererRoot, "components/NodeMetadataSection.tsx"), "utf8");
+  const columns = loadTypeScript("utils/resourceTableColumns.ts");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const menu = fs.readFileSync(path.join(rendererRoot, "components/ResourceTableColumnsMenu.tsx"), "utf8");
+
+  // Roles are a column now, where kubectl puts them.
+  const nodeColumns = columns.buildResourceTableColumns((key) => key).nodes.map((column) => column.key);
+  assert.ok(nodeColumns.includes("roles"));
+  assert.ok(nodeColumns.indexOf("roles") < nodeColumns.indexOf("labelsText"));
+  assert.match(table, /if \(key === "roles" && row\.roles !== undefined\) return <NodeRolesCell row=\{row\} \/>;/);
+
+  // The remainder is a popover rendered into the body, not a native tooltip
+  // holding a comma-joined blob, and it is placed by the same helper the
+  // columns menu uses.
+  assert.doesNotMatch(cell, /title=\{full\}|aria-label=\{full/);
+  assert.match(cell, /createPortal\(/);
+  assert.match(cell, /placeAnchoredPopover\(trigger, POPOVER_WIDTH, POPOVER_HEIGHT\)/);
+  assert.match(menu, /placeAnchoredPopover\(trigger, POPOVER_WIDTH, POPOVER_HEIGHT\)/);
+  assert.doesNotMatch(menu, /function placePopover/);
+
+  // Clicking a label filters the list by it, and must not open the row beneath.
+  assert.match(table, /formatCell\(row, column\.key, setQuery\)/);
+  assert.match(cell, /onFilter\?\.\(labelText\(label\)\)/);
+  assert.match(cell, /event\.stopPropagation\(\);\s*filterBy\(label\)/);
+
+  globalThis.window = { innerHeight: 800, innerWidth: 1280 };
+  try {
+    const upward = placement.placeAnchoredPopover({ getBoundingClientRect: () => ({ top: 700, bottom: 720, right: 400 }) }, 240, 360);
+    assert.ok(upward.top < 700, "a trigger near the bottom opens upwards");
+    const clamped = placement.placeAnchoredPopover({ getBoundingClientRect: () => ({ top: 10, bottom: 30, right: 5 }) }, 240, 360);
+    assert.equal(clamped.left, 12, "a popover never leaves the window on the left");
+  } finally {
+    globalThis.window = undefined;
+  }
+
+  // Grouping needs no curated list of interesting keys: the domain in front of
+  // the slash says who wrote the entry, and what Kubernetes wrote on every node
+  // sorts after what somebody here chose.
+  const groups = metadata.groupMetadataEntries([
+    { key: "kubernetes.io/os", value: "linux" },
+    { key: "example.com/team", value: "platform" },
+    { key: "gpu", value: "none" },
+    { key: "node.kubernetes.io/instance-type", value: "k3s" },
+  ]);
+  assert.deepEqual(
+    groups.map((group) => group.prefix),
+    ["", "example.com", "kubernetes.io", "node.kubernetes.io"],
+  );
+  assert.deepEqual(
+    groups.map((group) => group.wellKnown),
+    [false, false, true, true],
+  );
+  assert.equal(metadata.isWellKnownKey("csi.storage.k8s.io/nodeid"), true);
+  assert.equal(metadata.isWellKnownKey("flannel.alpha.coreos.com/backend-type"), false);
+  assert.equal(metadata.isWellKnownKey("team"), false);
+
+  // The section shows both, and a value long enough to be a document of its own
+  // is held back behind More rather than pushing everything off the screen.
+  assert.match(section, /title="Labels"/);
+  assert.match(section, /title="Annotations"/);
+  assert.match(section, /entry\.value\.length > LONG_VALUE_LENGTH/);
+  assert.match(section, /nodeAnnotationItems/);
+});
+
 test("lazy panel boundary resets its failure after navigation", () => {
   class Component {
     constructor(props) {
@@ -2015,7 +2085,7 @@ test("the service summary renders endpoints loaded outside the Service object", 
   assert.match(lifecycle, /serviceEndpoints: snapshotIsCurrent \? serviceEndpoints : null/);
 
   const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
-  assert.match(drawer, /<ResourceSummary [^>]*serviceEndpoints=\{serviceEndpoints\}/);
+  assert.match(drawer, /<ResourceSummary[\s\S]*?serviceEndpoints=\{serviceEndpoints\}/);
 
   const summary = fs.readFileSync(path.join(rendererRoot, "components/ResourceSummary.tsx"), "utf8");
   assert.match(summary, /addFact\(facts, "Ready endpoints", `\$\{serviceEndpoints\.ready\} \/ \$\{serviceEndpoints\.total\}`/);

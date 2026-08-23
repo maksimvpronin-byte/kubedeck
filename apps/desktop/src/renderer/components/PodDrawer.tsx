@@ -393,7 +393,15 @@ export function PodDrawer({
           </section>
         ) : null}
         {tab === "summary" ? (
-          <ResourceSummary row={{ ...pod, ...metrics, uid: pod.uid, name: pod.name }} resource={resource} now={now} events={events} serviceEndpoints={serviceEndpoints} usageHistory={usageHistory} />
+          <ResourceSummary
+            row={{ ...pod, ...metrics, uid: pod.uid, name: pod.name }}
+            resource={resource}
+            now={now}
+            events={events}
+            serviceEndpoints={serviceEndpoints}
+            usageHistory={usageHistory}
+            onCopy={copyText}
+          />
         ) : tab === "llm" ? (
           <LlmTab
             api={api}

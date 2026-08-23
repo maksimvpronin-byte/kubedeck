@@ -1,3 +1,41 @@
+## 2.18.0 - node labels tell nodes apart, and annotations arrive
+
+The Labels cell read `Role: true · Type: k3s · OS: lin… +1`, with everything it
+hid stuffed into a native tooltip, and annotations reached the interface only
+as raw YAML.
+
+Roles are not labels. `node-role.kubernetes.io/control-plane` carries no value
+or the value `true`, and the meaning is in the suffix of the key, so a chip
+reading `Role: true` said nothing. Roles now have a column of their own, where
+kubectl puts them, listing control-plane, worker and etcd as words; the
+pre-1.16 `kubernetes.io/role` spelling is read too.
+
+The labels that are shown are the ones that tell nodes apart. A label nobody
+aliased is one somebody in this cluster chose, and it distinguishes a node in a
+way `OS: linux` on every row never will, so those come first, then topology,
+then the generic ones. Two chips instead of three: two read in full beat three
+cut in half at the width of the column.
+
+`+N` opens a popover rather than filling a tooltip - every label as key=value,
+monospace, scrollable, rendered into the body so nothing clips it. Clicking a
+label, in the cell or in the popover, filters the list by it, which turns
+labels into a way to slice a node list; the row still opens from anywhere else
+in it.
+
+A node's Summary gained a Labels and annotations section that shows both in
+full: complete keys, monospace values, nothing truncated, a long key wrapping
+rather than ending in an ellipsis. Entries are grouped by the domain in front
+of the slash - the one split that needs no curated list of interesting keys,
+because it says who wrote the entry - with what somebody here set open and the
+dozens Kubernetes and the CNI write for themselves collapsed. There is a filter
+over both, copy per group, More for an annotation holding a whole JSON
+document, and no last-applied-configuration, which is the object again and
+already in the YAML tab.
+
+Both popovers, this one and the columns menu, now place themselves through one
+shared helper instead of two copies of the same arithmetic.
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
 ## 2.17.0 - a CronJob can be run by hand
 
 Run now sits beside Delete in the CronJob drawer and starts one run

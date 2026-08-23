@@ -108,6 +108,7 @@ function defaultColumnWidth(key: string) {
     nodeResources: 260,
     podResources: 260,
     labelsText: 240,
+    roles: 150,
     status: 180,
     namespaceResources: 260,
   };

@@ -3,7 +3,16 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 
 const { ResourceSnapshotCache } = require("../dist/main/backend/cache/resourceSnapshotCache.js");
-const { normalizeResourceItems, podSummary, nodeSummary, keyValueSummary, deploymentSummary, nodeLabelItems } = require("../dist/main/backend/resources/normalizers.js");
+const {
+  normalizeResourceItems,
+  podSummary,
+  nodeSummary,
+  keyValueSummary,
+  deploymentSummary,
+  nodeLabelItems,
+  nodeRoles,
+  nodeAnnotationItems,
+} = require("../dist/main/backend/resources/normalizers.js");
 
 test("Secret summary exposes metadata without values", () => {
   const row = keyValueSummary({ metadata: { name: "api-key", namespace: "tools" }, kind: "Secret", type: "Opaque", data: { token: "c2VjcmV0", password: "c2VjcmV0Mg==" } });
@@ -257,22 +266,59 @@ test("deployment conditions preserve simultaneous Lens-style labels", () => {
   assert.match(row.status, /ReplicaFailure/);
 });
 
-test("node labels prioritize readable system labels and deduplicate beta aliases", () => {
-  const items = nodeLabelItems(
-    {
-      "node-role.kubernetes.io/control-plane": "",
-      "topology.kubernetes.io/zone": "eu-1a",
-      "failure-domain.beta.kubernetes.io/zone": "eu-1a",
-      "kubernetes.io/hostname": "worker-1",
-      "example.com/team": "platform",
-    },
-    "worker-1",
-  );
+test("node labels lead with what somebody set, and roles are not labels", () => {
+  const labels = {
+    "node-role.kubernetes.io/control-plane": "",
+    "node-role.kubernetes.io/master": "true",
+    "topology.kubernetes.io/zone": "eu-1a",
+    "failure-domain.beta.kubernetes.io/zone": "eu-1a",
+    "kubernetes.io/hostname": "worker-1",
+    "kubernetes.io/os": "linux",
+    "example.com/team": "platform",
+  };
+  const items = nodeLabelItems(labels, "worker-1");
+
+  // "Role: true" said nothing - the value of a role label is empty or "true" -
+  // so roles left the chips for a column of their own, and the hostname is the
+  // row's own name. What is left leads with the label somebody in this cluster
+  // chose: "OS: linux" is on every row and tells two nodes apart never.
   assert.deepEqual(
     items.map((item) => `${item.label}:${item.value}`),
-    ["Role:control-plane", "Zone:eu-1a", "team:platform"],
+    ["team:platform", "Zone:eu-1a", "OS:linux"],
   );
-  assert.equal(items[2].full, "example.com/team=platform");
+  assert.equal(items[0].full, "example.com/team=platform");
+
+  assert.deepEqual(nodeRoles(labels), ["control-plane", "master"]);
+  // The spelling from before 1.16, which some distributions still write.
+  assert.deepEqual(nodeRoles({ "kubernetes.io/role": "worker" }), ["worker"]);
+  assert.deepEqual(nodeRoles({ "node-role.kubernetes.io/": "" }), []);
+  assert.deepEqual(nodeRoles({}), []);
+});
+
+test("node annotations reach the row, without the manifest kubectl stores on apply", () => {
+  const items = nodeAnnotationItems({
+    "kubectl.kubernetes.io/last-applied-configuration": '{"apiVersion":"v1"}',
+    "node.alpha.kubernetes.io/ttl": "0",
+    "flannel.alpha.coreos.com/backend-type": "vxlan",
+  });
+  assert.deepEqual(
+    items.map((item) => item.key),
+    ["flannel.alpha.coreos.com/backend-type", "node.alpha.kubernetes.io/ttl"],
+  );
+  assert.equal(items[1].value, "0");
+
+  const [row] = normalizeResourceItems("nodes", [
+    {
+      metadata: { name: "worker-1", labels: { "node-role.kubernetes.io/worker": "" }, annotations: { "node.alpha.kubernetes.io/ttl": "0" } },
+      spec: {},
+      status: { conditions: [{ type: "Ready", status: "True" }] },
+    },
+  ]);
+  assert.equal(row.roles, "worker");
+  assert.deepEqual(
+    row.nodeAnnotationItems.map((item) => item.key),
+    ["node.alpha.kubernetes.io/ttl"],
+  );
 });
 const { handleResourceListRequest, matchResourceListRoute } = require("../dist/main/backend/routes/resourceLists.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");

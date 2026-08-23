@@ -6,6 +6,7 @@ import { useElapsedLabel } from "../hooks/useUiClock";
 import { canonicalPhase, PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
 import { isKubernetesFailure, kubernetesStatusTone } from "../utils/kubernetesStatusTone";
 import { columnSortMetrics, sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
+import { NodeLabelsCell, NodeRolesCell } from "./NodeLabelsCell";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTableSortMenu } from "./ResourceTableSortMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
@@ -284,7 +285,7 @@ export function ResourceTable({
                           {String(row.namespace)}
                         </button>
                       ) : (
-                        formatCell(row, column.key)
+                        formatCell(row, column.key, setQuery)
                       );
                     return <td key={`${key}-${column.key}`}>{cellContent}</td>;
                   })}
@@ -326,7 +327,7 @@ export function ResourceTable({
   );
 }
 
-function formatCell(row: ResourceRow, key: string): ReactNode {
+function formatCell(row: ResourceRow, key: string, onFilter?: (query: string) => void): ReactNode {
   if (key === "phase") {
     const reason = rowHealthReason(row);
     const phase = canonicalPhase(row);
@@ -341,7 +342,8 @@ function formatCell(row: ResourceRow, key: string): ReactNode {
   if (key === "namespaceResources") return <NamespaceResourceUsage row={row} />;
   if (key === "podResources") return <PodResourceUsage row={row} />;
   if (key === "status" && Array.isArray(row.workloadConditions)) return <WorkloadConditions row={row} />;
-  if (key === "labelsText" && Array.isArray(row.nodeLabelItems)) return <NodeLabels row={row} />;
+  if (key === "labelsText" && Array.isArray(row.nodeLabelItems)) return <NodeLabelsCell row={row} onFilter={onFilter} />;
+  if (key === "roles" && row.roles !== undefined) return <NodeRolesCell row={row} />;
   if (key !== "createdAt") return String(row[key] ?? "");
   return <AgeCell createdAt={String(row.createdAt ?? "")} />;
 }
@@ -536,32 +538,6 @@ function WorkloadConditions({ row }: { row: ResourceRow }) {
           {String(condition.label)}
         </span>
       ))}
-    </span>
-  );
-}
-
-type NodeLabel = { key?: unknown; label?: unknown; value?: unknown; full?: unknown };
-
-function NodeLabels({ row }: { row: ResourceRow }) {
-  const labels = (row.nodeLabelItems as NodeLabel[]).filter(Boolean);
-  const visible = labels.slice(0, 3);
-  const full = labels
-    .map((label) => String(label.full || label.key || ""))
-    .filter(Boolean)
-    .join(", ");
-  return (
-    <span className="node-label-list" aria-label={full || "No labels"}>
-      {visible.map((label) => (
-        <span className="node-label-chip" title={String(label.full || "")} key={String(label.key)}>
-          {String(label.label || label.key)}
-          {label.value ? `: ${String(label.value)}` : ""}
-        </span>
-      ))}
-      {labels.length > visible.length ? (
-        <span className="node-label-more" title={full} tabIndex={0}>
-          +{labels.length - visible.length}
-        </span>
-      ) : null}
     </span>
   );
 }

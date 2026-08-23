@@ -3,6 +3,7 @@ export function buildResourceTableColumns(t: (key: string) => string): Record<st
     nodes: [
       { key: "name", label: t("col.name") },
       { key: "status", label: t("col.status") },
+      { key: "roles", label: "Roles" },
       { key: "nodeResources", label: "Usage" },
       { key: "labelsText", label: "Labels" },
       { key: "kubeletVersion", label: t("col.kubernetes") },
