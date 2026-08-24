@@ -1,3 +1,40 @@
+## 2.20.11 - Closing the refactor plan out against itself
+
+Tests and documentation only. `apps/desktop/src` is byte-identical to 2.20.10.
+No route changes. Node-only ownership stays at Node 58 / Python 0.
+
+`docs/file-structure-refactor-plan.md` ran for eight sections and eleven
+releases. Read back against the tree afterwards, four of its claims were not
+true. Three were documentation; one was real and self-inflicted.
+
+Section C (2.20.3) split the renderer test junk drawer and set a criterion: no
+test file over 700 lines. Four releases later `node-ssh.contract.test.cjs` was
+849 - because section G and 2.20.10 appended tests to it. It had been 674 when
+section C measured it, comfortably under, so nobody looked again. A criterion
+that lives in a plan rather than in a gate breaks quietly, and this one did.
+
+It is four files now: `tests/helpers/ssh.cjs` (307, the fake ssh2 client and
+channel, the gateway wired to them, the websocket helpers),
+`node-ssh-host-keys.contract.test.cjs` (241, the prompt, the decisions, a
+changed key, the jump host checked separately, the known-hosts store),
+`ssh-payload.contract.test.cjs` (206, the connect message and every field
+limit - pure, no gateway, no fakes) and `node-ssh.contract.test.cjs` (142, the
+session itself). Same 154 gateway tests, none rewritten.
+
+The documentation ones: `ssh/nodeSshWebSocket.ts` at 704 lines had its
+justification in section G but was missing from the exceptions section the
+programme criterion pointed at; `resource-lists.contract.test.cjs` (798) and
+`llm.contract.test.cjs` (794) had the same gap; and the "Автоматический gate"
+block was seven unticked checkboxes that read like seven undone tasks rather
+than the template it was. All three are fixed, and the programme criterion now
+says plainly what was achieved and what was not instead of restating targets two
+sections had already recorded as unreachable.
+
+Left open deliberately, and marked as such: the manual regression passes for
+sections B and H, and expressing precedence by specificity instead of
+`!important` in `drawer-controls.css` and `related-panel.css`, which needs the
+running application rather than analysis.
+
 ## 2.20.10 - An SSH port that cannot work is refused, not quietly replaced
 
 No user-visible change. No route changes. Node-only ownership stays at Node 58 /
