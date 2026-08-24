@@ -52,8 +52,19 @@ export function normalizeHost(value: unknown, field = "host"): string {
   return host;
 }
 
+export const DEFAULT_SSH_PORT = 22;
+
+/**
+ * An absent port is 22. A port that was given and cannot work is refused.
+ *
+ * These used to be the same case: the check read `Number(value || 22)`, so 0 -
+ * falsy - became 22 and was accepted. Nothing could reach it that way, because
+ * the SSH form defaults an empty field before sending, but a validator that
+ * silently substitutes a value for one it was given is not a validator.
+ */
 export function normalizePort(value: unknown, field = "port"): number {
-  const port = Number(value || 22);
+  if (value === undefined || value === null || value === "") return DEFAULT_SSH_PORT;
+  const port = Number(value);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new RequestValidationError(400, "INVALID_SSH_PORT", `${field} must be between 1 and 65535`);
   }
@@ -92,7 +103,7 @@ export function normalizeConnection(payload: Record<string, unknown>, prefix: ""
   const authMethod = normalizeAuthMethod(payload[authField], authField);
   const connection: NormalizedConnection = {
     host: normalizeHost(payload[hostField], hostField),
-    port: normalizePort(payload[portField] || 22, portField),
+    port: normalizePort(payload[portField], portField),
     username: normalizeUsername(payload[usernameField] || fallbackUsername, usernameField),
     authMethod,
     password: limitedText(payload[passwordField], MAX_SECRET_BYTES, passwordField),

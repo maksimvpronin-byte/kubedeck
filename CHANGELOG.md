@@ -1,3 +1,31 @@
+## 2.20.10 - An SSH port that cannot work is refused, not quietly replaced
+
+No user-visible change. No route changes. Node-only ownership stays at Node 58 /
+Python 0.
+
+The SSH connect validator read `Number(value || 22)`. Zero is falsy, so a
+message asking for port 0 was read as one that had not asked for a port at all,
+silently became 22, and connected there - the same for the jump host. Nothing in
+the application could reach it, because the SSH form does `Number(port) || 22`
+before sending, and that is exactly why it survived: unreachable, therefore
+invisible. But a validator that substitutes a value for one it was given is not
+validating, and this module is the boundary in front of `ssh2`.
+
+"Not given" and "given and cannot work" are now two cases. A message that omits
+the port or sends an empty one still gets 22. One asking for `0`, `-1`, `70000`,
+`22.5` or `"ssh"` is refused with `INVALID_SSH_PORT`, which is what the last four
+already did. `normalizeConnection` was also doing `payload[portField] || 22`
+before handing the value over, which would have defeated the check it just
+gained; that is gone too.
+
+Nothing behaves differently, since the form still defaults an empty Port field
+on the way out. The change is worth having anyway: the next thing to talk to this
+websocket - a test, a script, a future feature building the payload itself - gets
+told when its port is wrong instead of being connected somewhere else.
+
+Ten assertions cover the two cases, including that a numeric string like "2200"
+still works, since a port arrives from a text field as a string.
+
 ## 2.20.9 - A node's disk percentage stops being worked out twice
 
 No route changes. Node-only ownership stays at Node 58 / Python 0.

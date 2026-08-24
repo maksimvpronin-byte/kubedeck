@@ -718,10 +718,20 @@ test("a host, port, username or auth method that could not work is refused", () 
     () => sshPayload.normalizeSshConnectPayload(connectMessage({ host: "node;rm -rf /" })),
     (error) => error.code === "INVALID_SSH_HOST",
   );
-  // Port 0 is falsy, so it reads as "not set" and becomes 22 rather than being
-  // refused. Not a hole - 22 is the safe answer - but it is silent, and worth
-  // knowing before anyone reads a port of 0 as rejected.
-  assert.equal(sshPayload.normalizeSshConnectPayload(connectMessage({ port: 0 })).target.port, 22);
+  // 2.20.10: a port that was given and cannot work is refused, including 0.
+  // It used to read as "not set" - it is falsy - and became 22 without a word.
+  assert.throws(
+    () => sshPayload.normalizeSshConnectPayload(connectMessage({ port: 0 })),
+    (error) => error.code === "INVALID_SSH_PORT",
+  );
+  assert.throws(
+    () => sshPayload.normalizeSshConnectPayload(connectMessage({ port: -1 })),
+    (error) => error.code === "INVALID_SSH_PORT",
+  );
+  assert.throws(
+    () => sshPayload.normalizeSshConnectPayload(connectMessage({ port: "ssh" })),
+    (error) => error.code === "INVALID_SSH_PORT",
+  );
   assert.throws(
     () => sshPayload.normalizeSshConnectPayload(connectMessage({ port: 70000 })),
     (error) => error.code === "INVALID_SSH_PORT",
@@ -811,4 +821,29 @@ test("the command preview shows the connection the user actually asked for", () 
 
   // The preview is shown to the user; a password must never reach it.
   assert.doesNotMatch(preview({ authMethod: "password", password: "s3cret" }), /s3cret/);
+});
+
+test("an absent port is 22, and that is a different case from a port that cannot work", () => {
+  // The SSH form fills an empty field in before sending, so in practice the
+  // backend sees a number - but a message that omits the port is still valid.
+  for (const absent of [undefined, null, ""]) {
+    const payload = sshPayload.normalizeSshConnectPayload({ type: "connect", host: "10.0.0.5", username: "ops", authMethod: "agent", port: absent });
+    assert.equal(payload.target.port, 22);
+  }
+  const omitted = sshPayload.normalizeSshConnectPayload({ type: "connect", host: "10.0.0.5", username: "ops", authMethod: "agent" });
+  assert.equal(omitted.target.port, 22);
+
+  // A jump host omitting its port gets the same default, and a jump port that
+  // cannot work is refused just like the target's.
+  const jump = sshPayload.normalizeSshConnectPayload(connectMessage({ useJumpHost: true, jumpHost: "bastion" }));
+  assert.equal(jump.jump.port, 22);
+  assert.throws(
+    () => sshPayload.normalizeSshConnectPayload(connectMessage({ useJumpHost: true, jumpHost: "bastion", jumpPort: 0 })),
+    (error) => error.code === "INVALID_SSH_PORT",
+  );
+
+  // The edges stay usable.
+  assert.equal(sshPayload.normalizeSshConnectPayload(connectMessage({ port: 1 })).target.port, 1);
+  assert.equal(sshPayload.normalizeSshConnectPayload(connectMessage({ port: 65535 })).target.port, 65535);
+  assert.equal(sshPayload.normalizeSshConnectPayload(connectMessage({ port: "2200" })).target.port, 2200, "a port arrives from a text field as a string");
 });
