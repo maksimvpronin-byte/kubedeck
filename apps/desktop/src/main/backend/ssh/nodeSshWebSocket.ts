@@ -1,3 +1,18 @@
+// The payload checks and the ssh preview live next door; they are re-exported
+// here because the gateway has always reached for them through this module.
+export { buildSshCommandPreview, matchNodeSshWebSocket, normalizeSshConnectPayload } from "./sshPayload";
+export type { NodeSshTarget } from "./sshPayload";
+import {
+  buildSshCommandPreview,
+  limitedText,
+  MAX_PRIVATE_KEY_BYTES,
+  matchNodeSshWebSocket,
+  type NodeSshTarget,
+  type NormalizedConnection,
+  type NormalizedConnectPayload,
+  normalizeSshConnectPayload,
+} from "./sshPayload";
+import { DEFAULT_COLS, DEFAULT_ROWS, MAX_CLIENT_MESSAGE_BYTES, MAX_COLS, MAX_ROWS, MIN_COLS, MIN_ROWS } from "../terminal/ptyGeometry";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
@@ -9,24 +24,13 @@ import { WebSocket, WebSocketServer, type RawData } from "ws";
 
 import type { AuditStore } from "../audit/auditStore";
 import { writePolicyViolation } from "../auth";
-import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
+import { RequestValidationError } from "../validation";
 import { clampInteger, rawDataByteLength, rawDataText, safeSend } from "../webSocketMessages";
 import { sshKeyAlgorithm, sshSha256Fingerprint, type SshHostKeyStore } from "./sshHostKeyStore";
 
-const MAX_CLIENT_MESSAGE_BYTES = 256 * 1024;
-const MAX_SECRET_BYTES = 128 * 1024;
-const MAX_PRIVATE_KEY_BYTES = 2 * 1024 * 1024;
 const FIRST_MESSAGE_TIMEOUT_MS = 90_000;
 const CONNECT_TIMEOUT_MS = 20_000;
 const HOST_KEY_DECISION_TIMEOUT_MS = 120_000;
-const DEFAULT_ROWS = 30;
-const DEFAULT_COLS = 100;
-const MIN_ROWS = 8;
-const MAX_ROWS = 200;
-const MIN_COLS = 20;
-const MAX_COLS = 500;
-
-type SshAuthMethod = "password" | "privateKey" | "agent";
 
 export type SshHostKeyRole = "target" | "jump";
 
@@ -86,29 +90,6 @@ export interface SshClientLike {
 
 export type SshClientFactory = () => SshClientLike;
 
-export interface NodeSshTarget {
-  clusterId: string;
-  name: string;
-}
-
-interface NormalizedConnection {
-  host: string;
-  port: number;
-  username: string;
-  authMethod: SshAuthMethod;
-  password: string;
-  keyPath: string;
-  keyPassphrase: string;
-}
-
-interface NormalizedConnectPayload {
-  target: NormalizedConnection;
-  useJumpHost: boolean;
-  jump: NormalizedConnection | null;
-  rows: number;
-  cols: number;
-}
-
 interface SshSession {
   id: string;
   target: NodeSshTarget;
@@ -125,132 +106,6 @@ interface NodeSshWebSocketOptions {
   firstMessageTimeoutMs?: number;
   connectTimeoutMs?: number;
   hostKeyDecisionTimeoutMs?: number;
-}
-
-function limitedText(value: unknown, maxBytes: number, field: string): string {
-  const text = typeof value === "string" ? value : String(value ?? "");
-  if (Buffer.byteLength(text, "utf8") > maxBytes) {
-    throw new RequestValidationError(400, "SSH_VALUE_TOO_LARGE", `${field} is too large`);
-  }
-  return text;
-}
-
-function normalizeHost(value: unknown, field = "host"): string {
-  const host = limitedText(value, 1024, field).trim();
-  if (!host) {
-    throw new RequestValidationError(400, "SSH_HOST_REQUIRED", `${field} is required`);
-  }
-  if (/\s/.test(host) || !/^[A-Za-z0-9_.:-]+$/.test(host)) {
-    throw new RequestValidationError(400, "INVALID_SSH_HOST", `${field} contains unsupported characters`);
-  }
-  return host;
-}
-
-function normalizePort(value: unknown, field = "port"): number {
-  const port = Number(value || 22);
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new RequestValidationError(400, "INVALID_SSH_PORT", `${field} must be between 1 and 65535`);
-  }
-  return port;
-}
-
-function normalizeUsername(value: unknown, field = "username"): string {
-  const username = limitedText(value, 1024, field).trim();
-  if (!username) {
-    throw new RequestValidationError(400, "SSH_USERNAME_REQUIRED", `${field} is required`);
-  }
-  if (/\s/.test(username) || !/^[A-Za-z0-9_.@\\-]+$/.test(username)) {
-    throw new RequestValidationError(400, "INVALID_SSH_USERNAME", `${field} contains unsupported characters`);
-  }
-  return username;
-}
-
-function normalizeAuthMethod(value: unknown, field = "authMethod"): SshAuthMethod {
-  const method = limitedText(value || "agent", 64, field).trim();
-  if (!new Set(["password", "privateKey", "agent"]).has(method)) {
-    throw new RequestValidationError(400, "INVALID_SSH_AUTH_METHOD", `${field} must be password, privateKey, or agent`);
-  }
-  return method as SshAuthMethod;
-}
-
-function normalizeConnection(payload: Record<string, unknown>, prefix: "" | "jump", fallbackUsername = ""): NormalizedConnection {
-  const capitalized = prefix ? "Jump" : "";
-  const field = (name: string) => `${prefix}${prefix ? name[0].toUpperCase() + name.slice(1) : name}`;
-  const hostField = field("host");
-  const portField = field("port");
-  const usernameField = field("username");
-  const authField = field("authMethod");
-  const passwordField = field("password");
-  const keyPathField = field("keyPath");
-  const keyPassphraseField = field("keyPassphrase");
-  const authMethod = normalizeAuthMethod(payload[authField], authField);
-  const connection: NormalizedConnection = {
-    host: normalizeHost(payload[hostField], hostField),
-    port: normalizePort(payload[portField] || 22, portField),
-    username: normalizeUsername(payload[usernameField] || fallbackUsername, usernameField),
-    authMethod,
-    password: limitedText(payload[passwordField], MAX_SECRET_BYTES, passwordField),
-    keyPath: limitedText(payload[keyPathField], 4096, keyPathField).trim(),
-    keyPassphrase: limitedText(payload[keyPassphraseField], MAX_SECRET_BYTES, keyPassphraseField),
-  };
-  if (authMethod === "password" && !connection.password) {
-    throw new RequestValidationError(400, "SSH_PASSWORD_REQUIRED", `${capitalized || "SSH"} password is required`);
-  }
-  if (authMethod === "privateKey" && !connection.keyPath) {
-    throw new RequestValidationError(400, "SSH_PRIVATE_KEY_REQUIRED", `${capitalized || "SSH"} private key path is required`);
-  }
-  return connection;
-}
-
-export function normalizeSshConnectPayload(value: unknown): NormalizedConnectPayload {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new RequestValidationError(400, "INVALID_SSH_MESSAGE", "SSH connect message must be an object");
-  }
-  const payload = value as Record<string, unknown>;
-  if (payload.type !== "connect") {
-    throw new RequestValidationError(400, "INVALID_SSH_MESSAGE", "First SSH websocket message must be type=connect");
-  }
-  const target = normalizeConnection(payload, "");
-  const useJumpHost = Boolean(payload.useJumpHost);
-  return {
-    target,
-    useJumpHost,
-    jump: useJumpHost ? normalizeConnection(payload, "jump", target.username) : null,
-    cols: clampInteger(payload.cols, DEFAULT_COLS, MIN_COLS, MAX_COLS),
-    rows: clampInteger(payload.rows, DEFAULT_ROWS, MIN_ROWS, MAX_ROWS),
-  };
-}
-
-export function matchNodeSshWebSocket(request: IncomingMessage): NodeSshTarget | null {
-  const url = new URL(request.url ?? "/", "http://127.0.0.1");
-  const match = url.pathname.match(/^\/clusters\/([^/]+)\/nodes\/([^/]+)\/ssh$/);
-  if (!match) return null;
-  return {
-    clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
-    name: validateIdentifier(decodePathPart(match[2], "name"), "name", 253),
-  };
-}
-
-function quotePreview(value: string): string {
-  if (!/[\s"]/u.test(value)) return value;
-  return `"${value.replaceAll('"', '\\"')}"`;
-}
-
-export function buildSshCommandPreview(payload: NormalizedConnectPayload): string {
-  const parts = ["ssh"];
-  if (payload.target.port !== 22) {
-    parts.push("-p", String(payload.target.port));
-  }
-  if (payload.target.authMethod === "privateKey") {
-    parts.push("-i", quotePreview(payload.target.keyPath));
-  }
-  if (payload.jump) {
-    let jump = `${payload.jump.username}@${payload.jump.host}`;
-    if (payload.jump.port !== 22) jump += `:${payload.jump.port}`;
-    parts.push("-J", quotePreview(jump));
-  }
-  parts.push(`${payload.target.username}@${payload.target.host}`);
-  return parts.join(" ");
 }
 
 function defaultPrivateKeyPath(): string | null {

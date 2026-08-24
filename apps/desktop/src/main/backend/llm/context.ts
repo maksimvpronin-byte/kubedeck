@@ -1,3 +1,4 @@
+import { formatBytes, formatCpuMillicores } from "../../../shared/formatQuantity";
 import type { LlmAnalyzeResourceRequest } from "./types";
 
 export const REDACTED = "[REDACTED]";
@@ -333,23 +334,10 @@ function asObject(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
-function formatCpu(value: unknown): string {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "unknown";
-  return number >= 1000 ? `${Math.round((number / 1000) * 100) / 100} cores` : `${Math.round(number * 10) / 10}m`;
-}
-
-function formatMemory(value: unknown): string {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "unknown";
-  const units: Array<[string, number]> = [
-    ["Gi", 1024 ** 3],
-    ["Mi", 1024 ** 2],
-    ["Ki", 1024],
-  ];
-  const [suffix, divisor] = units.find(([, threshold]) => number >= threshold) ?? ["B", 1];
-  return `${Math.round((number / divisor) * 10) / 10}${suffix}`;
-}
+// The prompt says a quantity the same way the interface does, so a reader
+// comparing the two is not left wondering whether they are the same number.
+const formatCpu = (value: unknown): string => formatCpuMillicores(value, { fallback: "unknown" });
+const formatMemory = (value: unknown): string => formatBytes(value, { digits: 1, fallback: "unknown" });
 
 function usageStatLine(label: string, stat: unknown, format: (value: unknown) => string): string {
   const values = asObject(stat);

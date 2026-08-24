@@ -622,7 +622,9 @@ test("the analysis is asked to judge request and limit against the recorded hist
   // configured, and how the two compare.
   assert.match(context, /pod cpu: p50 120m/);
   assert.match(context, /cpu request: 500m; sustained p95 120m is 24% of the request/);
-  assert.match(context, /cpu limit: 1 cores; peak 120m is 12% of the limit/);
+  // 2.20.7: the prompt uses the same quantity format the interface does - GiB
+  // rather than Gi, and one core rather than "1 cores".
+  assert.match(context, /cpu limit: 1 core; peak 120m is 12% of the limit/);
 
   let reply;
   const server = http.createServer(async (request, response) => {
@@ -678,7 +680,7 @@ test("the context does the sizing arithmetic so the answer only has to read it",
   // p95 of 3m is 33x, and an answer once reported it as fourfold because the
   // prompt's example said so.
   assert.match(noLimits, /cpu request: 100m; sustained p95 3m is 3% of the request/);
-  assert.match(noLimits, /memory request: 70Mi; sustained p95 77Mi is 110% of the request/);
+  assert.match(noLimits, /memory request: 70 MiB; sustained p95 77 MiB is 110% of the request/);
 
   // Usage above a request is not an OOMKill when there is no limit to exceed.
   assert.match(noLimits, /memory limit: not set\. There is no limit to exceed, so a limit-driven OOMKill cannot happen here/);

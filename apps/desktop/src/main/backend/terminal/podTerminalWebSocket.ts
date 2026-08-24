@@ -1,3 +1,4 @@
+import { DEFAULT_COLS, DEFAULT_ROWS, MAX_CLIENT_MESSAGE_BYTES, MAX_COLS, MAX_ROWS, MIN_COLS, MIN_ROWS } from "./ptyGeometry";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import type { IncomingMessage } from "node:http";
@@ -15,15 +16,8 @@ import type { KubectlRunner } from "../kubectl/runner";
 import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
 import { clampInteger, rawDataByteLength, rawDataText, safeSend } from "../webSocketMessages";
 
-const MAX_CLIENT_MESSAGE_BYTES = 256 * 1024;
 const AUTH_TIMEOUT_SECONDS = 15;
 const AUTH_MAX_OUTPUT_BYTES = 1024 * 1024;
-const DEFAULT_ROWS = 24;
-const DEFAULT_COLS = 100;
-const MIN_ROWS = 5;
-const MAX_ROWS = 200;
-const MIN_COLS = 20;
-const MAX_COLS = 500;
 const ERROR_TEXT_LIMIT = 12_000;
 const EXTRA_PTY_PATH_DIRS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 

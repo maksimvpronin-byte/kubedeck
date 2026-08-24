@@ -1,3 +1,4 @@
+import { formatBytes } from "../../shared/formatQuantity";
 import type { ReactNode } from "react";
 import type { ResourceRow, ServiceEndpointsResponse, UsageHistoryResponse } from "../types";
 import { NodeMetadataSection } from "./NodeMetadataSection";
@@ -437,16 +438,7 @@ export function quantityRatio(used: string, hard: string) {
 export function formatQuotaQuantity(resource: string, value: string) {
   if (!value || value === "0" || !/(memory|storage)/i.test(resource)) return value;
   const bytes = parseKubeQuantity(value);
-  if (bytes === null) return value;
-  const units: Array<[string, number]> = [
-    ["TiB", 1024 ** 4],
-    ["GiB", 1024 ** 3],
-    ["MiB", 1024 ** 2],
-    ["KiB", 1024],
-  ];
-  const [suffix, divisor] = units.find(([, threshold]) => bytes >= threshold) ?? ["B", 1];
-  const rounded = Math.round((bytes / divisor) * 100) / 100;
-  return `${rounded} ${suffix}`;
+  return bytes === null ? value : formatBytes(bytes);
 }
 
 function parseKubeQuantity(value: string) {

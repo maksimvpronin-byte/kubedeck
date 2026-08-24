@@ -316,15 +316,19 @@ test("container cubes are built from states when there are any, and from names o
 });
 
 test("usage values are formatted at the unit a reader thinks in", () => {
-  assert.equal(rowStatus.formatCpuValue(2000), "2", "whole cores lose the millicores");
+  // The table prints Kubernetes notation here, not the display format: these
+  // are the limit and request shown beside row.cpuUsage, which the backend
+  // writes the same way. One bar cannot read "403840Ki used · 1.5 cores limit".
+  assert.equal(rowStatus.formatCpuValue(2000), "2");
   assert.equal(rowStatus.formatCpuValue(1500), "1500m");
+  assert.equal(rowStatus.formatCpuValue(250), "250m");
   assert.equal(rowStatus.formatCpuValue(0), "", "an unset limit prints nothing, not a zero");
   assert.equal(rowStatus.formatCpuValue(null), "");
 
-  assert.equal(rowStatus.formatByteValue(1024 ** 3), "1 GiB");
-  assert.equal(rowStatus.formatByteValue(1024 ** 2 * 512), "512 MiB");
-  assert.equal(rowStatus.formatByteValue(2048), "2 KiB");
-  assert.equal(rowStatus.formatByteValue(512), "512 B");
+  assert.equal(rowStatus.formatByteValue(1024 ** 3), "1Gi");
+  assert.equal(rowStatus.formatByteValue(1024 ** 2 * 512), "512Mi");
+  assert.equal(rowStatus.formatByteValue(2048), "2Ki");
+  assert.equal(rowStatus.formatByteValue(512), "512B");
   assert.equal(rowStatus.formatByteValue(0), "");
 });
 
@@ -336,4 +340,61 @@ test("a percentage against a request is rounded but not clamped", () => {
   assert.equal(rowStatus.unclampedPercent(-5), 0);
   assert.equal(rowStatus.unclampedPercent("N/A"), null);
   assert.equal(rowStatus.unclampedPercent(undefined), null);
+});
+
+// One implementation behind every quantity the application prints. Eight copies
+// with four different rounding rules became this in 2.20.7.
+const quantity = loadTypeScript("../shared/formatQuantity.ts");
+
+test("CPU is printed as cores above a core and as millicores below it", () => {
+  assert.equal(quantity.formatCpuMillicores(2500), "2.5 cores");
+  assert.equal(quantity.formatCpuMillicores(1000), "1 core");
+  assert.equal(quantity.formatCpuMillicores(999), "999m");
+  assert.equal(quantity.formatCpuMillicores(250.44), "250.4m", "millicores keep one decimal");
+  assert.equal(quantity.formatCpuMillicores(2333), "2.33 cores", "cores keep two");
+  assert.equal(quantity.formatCpuMillicores(null), "", "an absent value prints nothing by default");
+  assert.equal(quantity.formatCpuMillicores("nonsense", { fallback: "unknown" }), "unknown");
+});
+
+test("bytes are printed in the largest unit that leaves a number above one", () => {
+  assert.equal(quantity.formatBytes(1024 ** 4 * 2), "2 TiB");
+  assert.equal(quantity.formatBytes(1024 ** 3), "1 GiB");
+  assert.equal(quantity.formatBytes(1024 ** 2 * 512), "512 MiB");
+  assert.equal(quantity.formatBytes(2048), "2 KiB");
+  assert.equal(quantity.formatBytes(512), "512 B");
+  assert.equal(quantity.formatBytes(33_690_845_184), "31.38 GiB");
+  assert.equal(quantity.formatBytes(33_690_845_184, { digits: 1 }), "31.4 GiB");
+  assert.equal(quantity.formatBytes(undefined, { fallback: "N/A" }), "N/A");
+});
+
+test("a column that must be compared down its length can pin the unit", () => {
+  // Node capacity columns: 900 MiB and 30 GiB in the same column cannot be
+  // compared at a glance, so both are printed in GiB.
+  assert.equal(quantity.formatBytesIn(1024 ** 3 * 30, "GiB"), "30 GiB");
+  assert.equal(quantity.formatBytesIn(1024 ** 2 * 900, "GiB"), "0.88 GiB");
+  assert.equal(quantity.formatBytesIn(null, "GiB", { fallback: "N/A" }), "N/A");
+});
+
+test("thousands separators are off unless asked for, because some of these strings are parsed back", () => {
+  // resources/metrics.ts formats node capacity into a row field that
+  // ResourceSummary parses with a regex; a separator would not match it.
+  assert.equal(quantity.formatCpuMillicores(1_024_000), "1024 cores");
+  assert.match(quantity.formatCpuMillicores(1_024_000, { group: true }), /1\D024 cores/);
+});
+
+test("Kubernetes notation is a separate format, and it is the one a bar's own reading uses", () => {
+  // `kubectl top` prints these, the sampler stores them, and the usage bar
+  // shows a limit beside a reading that came from there.
+  assert.equal(quantity.formatCpuNotation(2000), "2");
+  assert.equal(quantity.formatCpuNotation(1500), "1500m");
+  assert.equal(quantity.formatCpuNotation(0), "0m");
+  assert.equal(quantity.formatCpuNotation(null, { fallback: "N/A" }), "N/A");
+
+  assert.equal(quantity.formatMemoryNotation(1024 ** 3), "1Gi");
+  assert.equal(quantity.formatMemoryNotation(1024 ** 2 * 512), "512Mi");
+  // Magnitude picks the unit, not exact division: 403840Ki divides by 1024
+  // evenly but a reader wants the Mi.
+  assert.equal(quantity.formatMemoryNotation(413_532_160), "394.4Mi");
+  assert.equal(quantity.formatMemoryNotation(0), "0Mi");
+  assert.equal(quantity.formatMemoryNotation(null, { fallback: "N/A" }), "N/A");
 });

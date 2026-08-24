@@ -1,3 +1,5 @@
+import { formatBytesIn } from "../../../../shared/formatQuantity";
+import { parseMemoryBytes } from "../quantity";
 import { type JsonObject, meta, record, records, type ResourceRow, text } from "./primitives";
 
 const NODE_ROLE_PREFIX = "node-role.kubernetes.io/";
@@ -89,29 +91,15 @@ export function nodeLabelItems(labelsValue: unknown, nodeName: string): NodeLabe
     .sort((left, right) => left.priority - right.priority || left.key.localeCompare(right.key));
 }
 
+// Always GiB, never the largest fitting unit: these are node capacity columns,
+// and a column that mixes MiB and GiB down its length cannot be compared at a
+// glance. The result is also parsed back by ResourceSummary, so it keeps the
+// number-space-unit shape.
 function formatBytesQuantity(value: unknown): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
-
-  const suffixes: Array<[string, number]> = [
-    ["Ki", 1024],
-    ["Mi", 1024 ** 2],
-    ["Gi", 1024 ** 3],
-    ["Ti", 1024 ** 4],
-  ];
-
-  for (const [suffix, multiplier] of suffixes) {
-    if (raw.endsWith(suffix)) {
-      const numeric = Number(raw.slice(0, -suffix.length));
-      return Number.isFinite(numeric) ? `${((numeric * multiplier) / 1024 ** 3).toFixed(2)} GiB` : raw;
-    }
-  }
-
-  if (/^\d+$/.test(raw)) {
-    return `${(Number(raw) / 1024 ** 3).toFixed(2)} GiB`;
-  }
-
-  return raw;
+  const bytes = parseMemoryBytes(raw);
+  return bytes === null ? raw : formatBytesIn(bytes, "GiB", { fixed: true });
 }
 
 export function nodeSummary(item: JsonObject): ResourceRow {

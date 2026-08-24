@@ -1,3 +1,4 @@
+import { formatBytes as sharedBytes } from "../../shared/formatQuantity";
 import { Copy, Eye, EyeOff, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiClient } from "../api";
@@ -280,9 +281,4 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
   );
 }
 
-function formatBytes(value: number) {
-  if (!Number.isFinite(value) || value < 0) return "0 B";
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MiB`;
-}
+const formatBytes = (value: number) => (value < 0 ? "0 B" : sharedBytes(value, { digits: 1, fallback: "0 B" }));

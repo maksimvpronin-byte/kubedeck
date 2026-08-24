@@ -1,3 +1,4 @@
+import { formatBytes as sharedBytes, formatCpuMillicores as sharedCpu } from "../../shared/formatQuantity";
 import { useState } from "react";
 import type { UsageAggregate, UsageHistoryPoint, UsageHistoryResponse } from "../types";
 
@@ -12,22 +13,9 @@ interface Props {
   memoryLimit: number | null;
 }
 
-export function formatCpuMillicores(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) return "—";
-  if (value >= 1000) return `${Math.round((value / 1000) * 100) / 100} cores`;
-  return `${Math.round(value * 10) / 10}m`;
-}
+export const formatCpuMillicores = (value: number | null): string => sharedCpu(value, { fallback: "—" });
 
-export function formatMemoryBytes(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) return "—";
-  const units: Array<[string, number]> = [
-    ["GiB", 1024 ** 3],
-    ["MiB", 1024 ** 2],
-    ["KiB", 1024],
-  ];
-  const [suffix, divisor] = units.find(([, threshold]) => value >= threshold) ?? ["B", 1];
-  return `${Math.round((value / divisor) * 10) / 10} ${suffix}`;
-}
+export const formatMemoryBytes = (value: number | null): string => sharedBytes(value, { digits: 1, fallback: "—" });
 
 export function formatWindow(aggregate: UsageAggregate | null): string {
   if (!aggregate || aggregate.firstSampleAt === null || aggregate.lastSampleAt === null) return "";

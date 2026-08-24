@@ -1,3 +1,54 @@
+## 2.20.7 - One quantity formatter, one set of PTY limits, SSH checks of their own
+
+Small display changes, listed below. No route changes. Node-only ownership stays
+at Node 58 / Python 0.
+
+The audit that opened this refactor found seven places formatting a CPU or
+memory value. There were nine - `resources/metrics.ts` held two, one of which
+the first sweep missed entirely - with four different rounding rules and two
+spellings of the same unit. They are now `src/shared/formatQuantity.ts`, a new
+directory beside `main`, `preload` and `renderer` that both processes use: tsc
+emits it to `dist/shared`, vite bundles it. The PTY size limits, declared twice
+and already drifted, are `backend/terminal/ptyGeometry.ts`. The pure checks on
+an SSH connect message are `backend/ssh/sshPayload.ts`, which takes
+`nodeSshWebSocket.ts` from 849 lines to 704 without touching the session class.
+
+Collapsing everything into one shape would have been a mistake, and it nearly
+happened. The first pass brought the table's limit label into the common format
+- `1500m` became `1.5 cores` - but the table prints that limit next to the
+reading itself, which the backend writes in Kubernetes notation. The bar would
+have read `403840Ki used · 1.5 cores limit`: one bar, two ways of writing a
+quantity. The old format there was not an outlier, it matched its neighbour. So
+the shared module carries two formats and the difference now has a name: display
+(`31.38 GiB`, `1.5 cores`, `250m`) for what a person reads, and Kubernetes
+notation (`403840Ki`, `1500m`, `2`) for what `kubectl top` prints, what the
+sampler stores and what the usage column shows.
+
+On screen: the LLM prompt says `31.4 GiB` rather than `31.4Gi`, and `1 core`
+rather than `1 cores`; Overview's CPU capacity says `250m` rather than
+`250 mCPU`, keeping its thousands separators, and its memory capacity gains TiB
+above 1024 GiB; a Secret size says `1 KiB` rather than `1.0 KiB`; node disk and
+memory usage carry two decimals at KiB scale instead of one and gain TiB; and
+anywhere a value is exactly one core it now says `1 core`. Node SSH adopts the
+pod terminal's PTY defaults - 24 rows instead of 30, a floor of 5 instead of 8 -
+because nothing explained the difference and nothing depended on it. Deliberately
+unchanged: the table's usage column, for the reason above, and the node capacity
+columns, where `8.00 GiB` above `31.38 GiB` lines the decimal points up.
+
+Two things found on the way and left alone. SSH port 0 silently becomes 22,
+because `payload.port || 22` reads zero as unset - not a hole, but a user who
+typed 0 is not told it was ignored; a test records it as it is. And
+`ResourceSummary` takes `row.diskAllocatable` - a string the main process
+formatted - and picks it apart with a regex to work out a percentage, while
+`diskAllocatableRaw` sits in the same row with the number in it. That coupling is
+why the two backend formatters could not be changed freely; fixing it changes a
+percentage calculation, so it belongs in its own patch.
+
+Twelve new behavioural tests: five on the shared formatter and seven on
+`sshPayload`. The renderer suite is at 114, the gateway suite at 153.
+
+Seventh of the sections in `docs/file-structure-refactor-plan.md`.
+
 ## 2.20.6 - Internal cleanup: table cells and problem classification get their own files
 
 No behaviour change. No route changes. Node-only ownership stays at Node 58 /

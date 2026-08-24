@@ -197,7 +197,7 @@ test("the LLM context states coverage and how to read the percentiles", () => {
   // The configured values arrive already compared against the measurements,
   // so the answer never has to divide anything.
   assert.match(context, /cpu request: 500m; sustained p95 120m is 24% of the request/);
-  assert.match(context, /memory request: 1Gi; sustained p95 400Mi is 39% of the request/);
+  assert.match(context, /memory request: 1 GiB; sustained p95 400 MiB is 39% of the request/);
   assert.match(context, /p50\/p95 are percentiles of five-minute averages \(sustained load, what a request should cover\)/);
   assert.match(context, /max is the highest five-minute peak \(what a limit must survive\)/);
 

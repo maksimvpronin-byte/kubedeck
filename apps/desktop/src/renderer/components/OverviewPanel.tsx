@@ -1,3 +1,4 @@
+import { formatBytes, formatCpuMillicores } from "../../shared/formatQuantity";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Gauge, RefreshCw, Server, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ApiClient } from "../api";
@@ -374,22 +375,11 @@ function capacityGroupName(name: string, t: (key: string) => string): string {
   return name;
 }
 
-function formatCpuCapacity(value?: number): string {
-  if (value === undefined) return "N/A";
-  if (value < 1000) return `${Math.round(value)} mCPU`;
-  return `${formatCapacityNumber(value / 1000)} cores`;
-}
+// Grouping is on here and nowhere else: a cluster total can run into thousands
+// of cores, and this string is read, not parsed.
+const formatCpuCapacity = (value?: number): string => formatCpuMillicores(value, { group: true, fallback: "N/A" });
 
-function formatMemoryCapacity(value?: number): string {
-  if (value === undefined) return "N/A";
-  const gibibytes = value / 1024 ** 3;
-  if (gibibytes >= 1) return `${formatCapacityNumber(gibibytes)} GiB`;
-  return `${formatCapacityNumber(value / 1024 ** 2)} MiB`;
-}
-
-function formatCapacityNumber(value: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
-}
+const formatMemoryCapacity = (value?: number): string => formatBytes(value, { group: true, fallback: "N/A" });
 
 function loadCapacityViewKey(clusterId?: string): string {
   if (!clusterId) return "role";

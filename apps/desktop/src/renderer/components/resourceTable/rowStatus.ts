@@ -1,3 +1,4 @@
+import { formatCpuNotation, formatMemoryNotation } from "../../../shared/formatQuantity";
 import type { ResourceRow } from "../../types";
 import { isKubernetesFailure } from "../../utils/kubernetesStatusTone";
 
@@ -75,21 +76,10 @@ export function unclampedPercent(value: unknown): number | null {
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
 }
 
-export function formatCpuValue(value: unknown) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return "";
-  return parsed % 1000 === 0 ? String(parsed / 1000) : `${Math.round(parsed * 100) / 100}m`;
-}
+// Kubernetes notation, not the display format: the bar prints these beside
+// row.cpuUsage, which metrics.ts writes in the same notation, and one bar
+// cannot read "403840Ki used · 1.5 cores limit". An unset limit prints nothing
+// rather than a zero, which would read as a limit of zero.
+export const formatCpuValue = (value: unknown) => (Number(value) > 0 ? formatCpuNotation(value) : "");
 
-export function formatByteValue(value: unknown) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return "";
-  for (const [label, divisor] of [
-    ["GiB", 1024 ** 3],
-    ["MiB", 1024 ** 2],
-    ["KiB", 1024],
-  ] as const) {
-    if (parsed >= divisor) return `${Math.round((parsed / divisor) * 100) / 100} ${label}`;
-  }
-  return `${parsed} B`;
-}
+export const formatByteValue = (value: unknown) => (Number(value) > 0 ? formatMemoryNotation(value) : "");
