@@ -23,11 +23,12 @@
   // makes the bar move inside a stage. Both are replaced by the measurements of
   // the previous start as soon as there is one.
   const STAGES = [
-    { id: "ui", weight: 0.42, expectedMs: 1200 },
-    { id: "gateway", weight: 0.13, expectedMs: 320 },
-    { id: "config", weight: 0.05, expectedMs: 120 },
-    { id: "kubectl", weight: 0.15, expectedMs: 500 },
-    { id: "cluster", weight: 0.25, expectedMs: 900 },
+    { id: "ui", weight: 0.34, expectedMs: 1200 },
+    { id: "gateway", weight: 0.1, expectedMs: 320 },
+    { id: "config", weight: 0.04, expectedMs: 120 },
+    { id: "kubectl", weight: 0.12, expectedMs: 500 },
+    { id: "cluster", weight: 0.22, expectedMs: 900 },
+    { id: "resources", weight: 0.18, expectedMs: 700 },
   ];
 
   const TEXT = {
@@ -44,6 +45,7 @@
         config: ["Settings", "config.json"],
         kubectl: ["kubectl", "client version"],
         cluster: ["Cluster", "kubeconfig · namespaces · API resources"],
+        resources: ["Resources", "first table"],
       },
     },
     ru: {
@@ -59,6 +61,7 @@
         config: ["Настройки", "config.json"],
         kubectl: ["kubectl", "версия клиента"],
         cluster: ["Кластер", "kubeconfig · namespaces · API-ресурсы"],
+        resources: ["Ресурсы", "первая таблица"],
       },
     },
   };
@@ -241,6 +244,8 @@
   let finished = false;
   let failed = false;
   let handover = 0;
+  let idleRequested = false;
+  let idleTimer = 0;
 
   const skipTimer = setTimeout(() => {
     if (!finished) skip.dataset.visible = "true";
@@ -301,11 +306,23 @@
     }
   }
 
+  // "Nothing more is coming, unless something is already running." The caller
+  // that knows the start is over - the cluster is open - does not know whether a
+  // resource load is about to begin off the back of it, only that it would begin
+  // within a moment. So it asks for the screen to end once nothing is in flight,
+  // and a stage that starts inside the grace period keeps the screen up until it
+  // finishes.
+  function finishIfIdle() {
+    if (finished || stages.some((stage) => stage.state === "active")) return;
+    finish();
+  }
+
   function finish() {
     if (finished) return;
     finished = true;
     cancelAnimationFrame(frame);
     clearTimeout(skipTimer);
+    clearTimeout(idleTimer);
     clearTimeout(handover);
     persist();
     fill.style.width = "100%";
@@ -332,13 +349,20 @@
     },
     complete(id) {
       const stage = stageById(id);
-      if (!stage || finished || stage.state === "done") return;
+      if (!stage || finished || stage.state === "done" || stage.state === "failed") return;
       stage.durationMs = elapsed(stage);
       stage.timed = stage.startedAt > 0;
       stage.state = "done";
       stage.row.dataset.state = "done";
       if (id === "ui") handover = setTimeout(finish, HANDOVER_AFTER_UI_MS);
       if (stages.every((entry) => entry.state === "done")) finish();
+      else if (idleRequested) finishIfIdle();
+    },
+    finishWhenIdle(graceMs) {
+      if (finished) return;
+      idleRequested = true;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(finishIfIdle, Math.max(0, graceMs));
     },
     fail(id, message) {
       const stage = stageById(id);

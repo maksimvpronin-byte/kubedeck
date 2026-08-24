@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ApiClient } from "../api";
+import { beginBootStage, completeBootStage, failBootStage } from "../bootProgress";
 import type { Cluster, ErrorInfo, ResourceRow } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { loadNamespaceResourceBatches, normalizeNamespaceSelection, resourceScopeKey } from "../utils/kubeResources";
@@ -107,6 +108,10 @@ export function useResourceLoader({
         clearPendingActions();
       }
 
+      // While the boot screen is still up this is the stage it ends on: a
+      // window handed over before its first table has rows looks like it is
+      // still starting, which is exactly what it was doing before.
+      beginBootStage("resources", nextResource);
       if (!silent) setLoading(true);
       try {
         const responses = await loadNamespaceResourceBatches(api, clusterId, nextResource, normalizedNamespaces, controller.signal, { useCache: false, forceRefresh: true });
@@ -134,6 +139,7 @@ export function useResourceLoader({
         }
 
         const info = asErrorInfo(error);
+        failBootStage("resources", info.message);
         if (isClusterUnavailableError(info)) {
           void api.clearResourceCache(clusterId).catch(() => undefined);
           setRows({});
@@ -152,6 +158,7 @@ export function useResourceLoader({
         setError(info);
         return false;
       } finally {
+        completeBootStage("resources");
         window.clearTimeout(timeoutId);
         if (requestSequenceRef.current === requestId) {
           if (abortRef.current === controller) abortRef.current = null;

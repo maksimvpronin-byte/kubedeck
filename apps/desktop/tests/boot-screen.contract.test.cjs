@@ -123,7 +123,7 @@ function startBootScreen({ storage = {}, language = "en-US" } = {}) {
   return { ...environment, boot: window.__kubedeckBoot };
 }
 
-function completeStart(boot, environment, { clusterMs = 400 } = {}) {
+function completeStart(boot, environment, { clusterMs = 400, resourcesMs = 300 } = {}) {
   environment.advance(1200);
   boot.complete("ui");
   boot.begin("gateway");
@@ -136,6 +136,10 @@ function completeStart(boot, environment, { clusterMs = 400 } = {}) {
   boot.complete("kubectl");
   environment.advance(clusterMs - 100);
   boot.complete("cluster");
+  boot.finishWhenIdle(600);
+  boot.begin("resources", "pods");
+  environment.advance(resourcesMs);
+  boot.complete("resources");
 }
 
 test("the boot screen is on screen before the bundle, already waiting on it", () => {
@@ -163,12 +167,12 @@ test("the bar follows the work, not the clock, and hands over when the work is d
   try {
     boot.complete("ui");
     environment.paint();
-    assert.equal(environment.percent(), 42);
+    assert.equal(environment.percent(), 34);
 
     boot.begin("gateway");
     environment.advance(200);
     const creeping = environment.percent();
-    assert.ok(creeping > 42 && creeping < 55, `bar crept past its stage: ${creeping}%`);
+    assert.ok(creeping > 34 && creeping < 44, `bar crept past its stage: ${creeping}%`);
 
     boot.complete("gateway");
     boot.begin("config");
@@ -176,13 +180,21 @@ test("the bar follows the work, not the clock, and hands over when the work is d
     boot.begin("kubectl");
     boot.complete("kubectl");
     environment.paint();
-    assert.equal(environment.percent(), 75);
+    assert.equal(environment.percent(), 60);
 
     boot.begin("cluster", "prod-eu");
     assert.equal(environment.stage("cluster").children.at(-1).textContent, "prod-eu");
     assert.equal(environment.screen.removed, false);
 
+    // An open cluster is not a usable window: the first table is still coming.
     boot.complete("cluster");
+    boot.finishWhenIdle(600);
+    boot.begin("resources", "pods");
+    environment.advance(200);
+    assert.equal(environment.screen.dataset.done, "false");
+    assert.ok(environment.percent() < 100, "the bar filled before the first table had rows");
+
+    boot.complete("resources");
     assert.equal(environment.percent(), 100);
     assert.equal(environment.screen.dataset.done, "true");
     environment.advance(300);
@@ -208,7 +220,7 @@ test("a start is measured so the next one can say how long is left", () => {
   const second = startBootScreen({ storage });
   try {
     // The cluster took forty times longer than the gateway last time, so it now
-    // owns most of the bar instead of a fixed quarter of it.
+    // owns most of the bar instead of a fixed share of it.
     second.boot.complete("ui");
     second.paint();
     const afterInterface = second.percent();
@@ -216,6 +228,42 @@ test("a start is measured so the next one can say how long is left", () => {
     assert.match(second.eta(), /^about \d+ s left$/);
   } finally {
     second.restore();
+  }
+});
+
+test("the screen ends when nothing is in flight, not when the cluster opens", () => {
+  // The cluster is open and the hook that opened it hands over - but the load of
+  // the first table begins a moment later, and the window is not usable until it
+  // lands. The screen has to wait for it without being told it is coming.
+  const waiting = startBootScreen();
+  try {
+    waiting.boot.complete("ui");
+    waiting.boot.begin("cluster");
+    waiting.boot.complete("cluster");
+    waiting.boot.finishWhenIdle(600);
+    waiting.advance(100);
+    waiting.boot.begin("resources", "pods");
+    waiting.advance(2000);
+    assert.equal(waiting.screen.dataset.done, "false", "the screen left before the first table had rows");
+    assert.equal(waiting.stage("resources").dataset.state, "active");
+    waiting.boot.complete("resources");
+    assert.equal(waiting.screen.dataset.done, "true");
+  } finally {
+    waiting.restore();
+  }
+
+  // A section that loads no table at all - Overview, Settings, an empty cluster
+  // list - must not be made to sit through the grace period twice over.
+  const nothingComing = startBootScreen();
+  try {
+    nothingComing.boot.complete("ui");
+    nothingComing.boot.finishWhenIdle(600);
+    nothingComing.advance(400);
+    assert.equal(nothingComing.screen.dataset.done, "false");
+    nothingComing.advance(300);
+    assert.equal(nothingComing.screen.dataset.done, "true");
+  } finally {
+    nothingComing.restore();
   }
 });
 
@@ -278,7 +326,7 @@ test("the renderer wrapper forwards stages and is silent without a boot screen",
       begin: (stage, detail) => calls.push(["begin", stage, detail]),
       complete: (stage) => calls.push(["complete", stage]),
       fail: (stage, message) => calls.push(["fail", stage, message]),
-      finish: () => calls.push(["finish"]),
+      finishWhenIdle: (graceMs) => calls.push(["finishWhenIdle", graceMs]),
       isFinished: () => false,
     },
   };
@@ -287,8 +335,13 @@ test("the renderer wrapper forwards stages and is silent without a boot screen",
     model.beginBootStage("cluster", "prod-eu");
     model.completeBootStage("cluster");
     model.failBootStage("gateway", "connection refused");
-    model.finishBoot();
-    assert.deepEqual(calls, [["begin", "cluster", "prod-eu"], ["complete", "cluster"], ["fail", "gateway", "connection refused"], ["finish"]]);
+    model.finishBootWhenIdle(600);
+    assert.deepEqual(calls, [
+      ["begin", "cluster", "prod-eu"],
+      ["complete", "cluster"],
+      ["fail", "gateway", "connection refused"],
+      ["finishWhenIdle", 600],
+    ]);
 
     // Once the screen has handed over - and in the renderer tests, where there
     // is no screen at all - every call is a no-op rather than a crash.
@@ -296,7 +349,7 @@ test("the renderer wrapper forwards stages and is silent without a boot screen",
     model.beginBootStage("cluster");
     global.window = {};
     model.completeBootStage("cluster");
-    model.finishBoot();
+    model.finishBootWhenIdle(600);
     assert.equal(calls.length, 4);
   } finally {
     global.window = previous;
@@ -308,6 +361,7 @@ test("the boot screen is wired into the page and the stages it reports exist", (
   const html = fs.readFileSync(path.join(rendererRoot, "index.html"), "utf8");
   const entry = fs.readFileSync(path.join(rendererRoot, "main.tsx"), "utf8");
   const controller = fs.readFileSync(path.join(rendererRoot, "hooks/useClusterController.ts"), "utf8");
+  const loader = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceLoader.ts"), "utf8");
   const model = loadTypeScript("bootProgress.ts");
 
   assert.match(html, /<div id="boot-screen"><\/div>/);
@@ -317,7 +371,12 @@ test("the boot screen is wired into the page and the stages it reports exist", (
     assert.match(controller, new RegExp(`beginBootStage\\("${stage}"`), `useClusterController never begins ${stage}`);
     assert.match(controller, new RegExp(`completeBootStage\\("${stage}"\\)`), `useClusterController never completes ${stage}`);
   }
-  assert.match(controller, /\.finally\(\(\) => \{\s*completeBootStage\("cluster"\);\s*finishBoot\(\);/);
+  assert.match(controller, /\.finally\(\(\) => \{\s*completeBootStage\("cluster"\);\s*finishBootWhenIdle\(BOOT_HANDOVER_GRACE_MS\);/);
+  // The stage the screen ends on lives in the loader, not the controller: it is
+  // the first table, and only the loader knows when its rows are in.
+  assert.match(loader, /beginBootStage\("resources", nextResource\)/);
+  assert.match(loader, /completeBootStage\("resources"\)/);
+  assert.match(loader, /failBootStage\("resources", info\.message\)/);
 
   const declared = [...bootScreenSource.matchAll(/\{ id: "(\w+)", weight: ([\d.]+), expectedMs: \d+ \}/g)];
   assert.deepEqual(

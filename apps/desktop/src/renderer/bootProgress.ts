@@ -2,7 +2,7 @@
 // and the calls that move it along. Every call is a no-op when the screen is
 // gone (it removes itself once the start is over) or absent (renderer tests,
 // a page opened outside Electron), so callers never have to check.
-export const BOOT_STAGES = ["ui", "gateway", "config", "kubectl", "cluster"] as const;
+export const BOOT_STAGES = ["ui", "gateway", "config", "kubectl", "cluster", "resources"] as const;
 
 export type BootStage = (typeof BOOT_STAGES)[number];
 
@@ -11,7 +11,7 @@ export interface BootScreenApi {
   begin(stage: string, detail?: string): void;
   complete(stage: string): void;
   fail(stage: string, message?: string): void;
-  finish(): void;
+  finishWhenIdle(graceMs: number): void;
   isFinished(): boolean;
 }
 
@@ -33,6 +33,9 @@ export function failBootStage(stage: BootStage, message?: string) {
   bootScreen()?.fail(stage, message);
 }
 
-export function finishBoot() {
-  bootScreen()?.finish();
+// For the caller that knows the start is over but not whether one more stage is
+// about to begin off the back of it: the screen ends once nothing is in flight,
+// and a stage that starts inside the grace period holds it open until it lands.
+export function finishBootWhenIdle(graceMs: number) {
+  bootScreen()?.finishWhenIdle(graceMs);
 }

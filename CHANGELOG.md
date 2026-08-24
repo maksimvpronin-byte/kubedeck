@@ -1,3 +1,32 @@
+## 2.21.1 - The start screen leaves when the first table has rows
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
+
+2.21.0 ended the boot screen when the last cluster finished opening. That is the
+last thing the hook owning the start does, but not the last thing that has to
+happen before the window is usable: the first resource table is loaded afterwards
+from an effect that hook cannot see, and until its rows arrive the application is
+an empty shell. Measured on a warm start, the screen handed over at 750ms and the
+rows arrived at 1060ms - and on a cluster with real load that gap is seconds, not
+300ms. The blank wait the screen was built to replace was simply moved to the end
+of it.
+
+There is now a sixth stage, Resources, reported by `useResourceLoader` with the
+kind it is fetching, and the screen ends when those rows land - measured again
+afterwards, within a millisecond of them.
+
+The hook that opens the cluster cannot begin that stage, because it does not know
+whether a load is coming, only that one would begin within a moment. So it no
+longer ends the screen at all: it asks for the screen to end once nothing is in
+flight, with 600ms of grace against a measured 96ms gap. A load that begins
+inside the grace period holds the screen open until it finishes; a section that
+loads no table - Overview, Settings, no clusters configured - lets it go at the
+end of the grace period.
+
+Stage weights were re-cut for six stages, and `complete` no longer overwrites a
+stage that has already failed, which matters now that the loader reports both.
+Renderer suite is 124 tests.
+
 ## 2.21.0 - The window opens first and says what it is waiting for
 
 New start-up screen. No route changes. Node-only ownership stays at Node 58 /

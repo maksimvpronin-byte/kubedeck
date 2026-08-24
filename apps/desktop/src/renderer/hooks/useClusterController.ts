@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { ApiClient } from "../api";
-import { beginBootStage, completeBootStage, failBootStage, finishBoot } from "../bootProgress";
+import { beginBootStage, completeBootStage, failBootStage, finishBootWhenIdle } from "../bootProgress";
 import type { AppConfig, Cluster, ClusterLiveSessions, ErrorInfo, ResourceDefinition, ResourceRow } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { normalizeSettingsSsh } from "../utils/sshDefaults";
@@ -15,6 +15,11 @@ interface Options {
   setLoading: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<ErrorInfo | null>>;
 }
+
+// Long enough for the resource load that follows an open cluster to begin -
+// it was 96ms when this was measured - and short enough not to sit on a window
+// that has nothing else to wait for.
+const BOOT_HANDOVER_GRACE_MS = 600;
 
 function normalizeConfig(config: AppConfig): AppConfig {
   return { ...config, settings: normalizeSettingsSsh(config.settings) };
@@ -136,12 +141,15 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
             failBootStage("cluster", info.message);
             setError(info);
           })
-          // Whether a cluster was restored, there was none to restore or it
-          // refused to open, the start is over and the window belongs to the
-          // application from here.
+          // The cluster is open, but the window is not usable until its first
+          // table has rows - and that load starts a moment later, from an effect
+          // this hook cannot see. So the screen is asked to end once nothing is
+          // in flight: a resource load that begins inside the grace period holds
+          // it open until the rows land, and a section that loads no table at
+          // all lets it go immediately.
           .finally(() => {
             completeBootStage("cluster");
-            finishBoot();
+            finishBootWhenIdle(BOOT_HANDOVER_GRACE_MS);
           });
       })
       .catch((error) => {
