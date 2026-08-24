@@ -26,10 +26,10 @@ Earlier 2.13.x through 2.20.7 checklists still apply.
 
 ## The one intended change
 
-- [ ] **Watch diagnostics → Start watch button.** It should now be the muted
+- [x] **Watch diagnostics → Start watch button.** It should now be the muted
   `--surface-active` colour, not the filled primary blue. It has been wrong
   since the rule was written; this is what it was always meant to look like.
-- [ ] Check it on **light** and on one dark theme - the two tokens differ most
+- [x] Check it on **light** and on one dark theme - the two tokens differ most
   there.
 
 ## Every primary button, every theme
@@ -39,22 +39,22 @@ graphite, system. A primary button is filled; a secondary one is outlined; a
 danger one is red. None of them should have become flat, transparent, or the
 wrong shade.
 
-- [ ] **Drawer**: Apply, Save, Run, Dry run - filled, and their hover state.
-- [ ] **Drawer**: Delete, Restart - still red, hover still red.
-- [ ] **YAML toolbar**: the action buttons and the icon actions.
-- [ ] **Logs toolbar**: the same.
-- [ ] **Terminal toolbar** and **SSH toolbar**: Connect, Reconnect, Clear -
+- [x] **Drawer**: Apply, Save, Run, Dry run - filled, and their hover state.
+- [x] **Drawer**: Delete, Restart - still red, hover still red.
+- [x] **YAML toolbar**: the action buttons and the icon actions.
+- [x] **Logs toolbar**: the same.
+- [x] **Terminal toolbar** and **SSH toolbar**: Connect, Reconnect, Clear -
   these had their own `!important` chain, so they matter.
-- [ ] **SSH host key prompt**: Trust / Reject.
-- [ ] **LLM tab**: Analyse, and the prompt-preview buttons.
-- [ ] **Modals**: delete confirmation, YAML apply, port forward, rename cluster,
+- [x] **SSH host key prompt**: Trust / Reject.
+- [x] **LLM tab**: Analyse, and the prompt-preview buttons.
+- [x] **Modals**: delete confirmation, YAML apply, port forward, rename cluster,
   disconnect cluster, terminal container picker.
-- [ ] **Settings**: Save, Import kubeconfig, and the per-cluster buttons.
-- [ ] **Cluster rail**: import, connect, disconnect.
-- [ ] **Problems** and **Port forwards** panels.
-- [ ] **Manifest compare** toolbar.
-- [ ] **Command palette** (Ctrl+K).
-- [ ] A **disabled** primary button anywhere: still visibly disabled, not
+- [x] **Settings**: Save, Import kubeconfig, and the per-cluster buttons.
+- [x] **Cluster rail**: import, connect, disconnect.
+- [x] **Problems** and **Port forwards** panels.
+- [x] **Manifest compare** toolbar.
+- [x] **Command palette** (Ctrl+K).
+- [x] A **disabled** primary button anywhere: still visibly disabled, not
   suddenly full-strength.
 
 ## Related tab and drawer controls
@@ -62,13 +62,13 @@ wrong shade.
 These two stylesheets still carry 211 of the 227 remaining `!important` and were
 not restructured, so nothing in them should have moved at all.
 
-- [ ] Related tab: chips, group headers, cards, hover, relation badges.
-- [ ] Drawer sort indicators in the resource table.
-- [ ] Resource Summary tiles.
+- [x] Related tab: chips, group headers, cards, hover, relation badges.
+- [x] Drawer sort indicators in the resource table.
+- [x] Resource Summary tiles.
 
 ## Nothing else moved
 
-- [ ] Resource tables, Overview, Global Search.
-- [ ] Run an **LLM** analysis on a pod: no Secret value or log line reaches the
+- [x] Resource tables, Overview, Global Search.
+- [x] Run an **LLM** analysis on a pod: no Secret value or log line reaches the
   prompt.
-- [ ] Help and About report **2.20.8**.
+- [x] Help and About report **2.20.8**.

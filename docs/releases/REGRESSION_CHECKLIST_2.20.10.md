@@ -25,27 +25,27 @@ Earlier 2.13.x through 2.20.9 checklists still apply.
 
 On a cluster with a node you can reach:
 
-- [ ] Open a node's SSH with the **Port field left as 22**: connects.
-- [ ] **Clear the Port field entirely** and connect: still goes to 22, no error.
-- [ ] Type a **non-default port** your node listens on: connects there, and the
+- [x] Open a node's SSH with the **Port field left as 22**: connects.
+- [x] **Clear the Port field entirely** and connect: still goes to 22, no error.
+- [x] Type a **non-default port** your node listens on: connects there, and the
   command preview shows `-p <port>`.
-- [ ] Type `0` in the Port field: the form turns it into 22 before sending, as
+- [x] Type `0` in the Port field: the form turns it into 22 before sending, as
   it always has, so this connects to 22. It does **not** show an error - the
   change is in the backend validator, and the form never lets it get there.
-- [ ] The same four checks for a **jump host**: default port, cleared field,
+- [x] The same four checks for a **jump host**: default port, cleared field,
   a custom port shown as `bastion:2222` in the preview.
 
 ## The session itself
 
-- [ ] Password, private key and agent authentication each still connect.
-- [ ] The host key prompt appears for an unknown host, and trusting it works.
-- [ ] Input, output, resize and reconnect behave as before.
-- [ ] Closing the session ends the process.
-- [ ] No password or passphrase appears in the command preview or the audit log.
+- [x] Password, private key and agent authentication each still connect.
+- [x] The host key prompt appears for an unknown host, and trusting it works.
+- [x] Input, output, resize and reconnect behave as before.
+- [x] Closing the session ends the process.
+- [x] No password or passphrase appears in the command preview or the audit log.
 
 ## Nothing else moved
 
-- [ ] Pod Terminal in the bottom workspace, which shares the PTY size limits.
-- [ ] Run an **LLM** analysis on a pod: no Secret value or log line reaches the
+- [x] Pod Terminal in the bottom workspace, which shares the PTY size limits.
+- [x] Run an **LLM** analysis on a pod: no Secret value or log line reaches the
   prompt.
-- [ ] Help and About report **2.20.10**.
+- [x] Help and About report **2.20.10**.

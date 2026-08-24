@@ -23,34 +23,34 @@ Earlier 2.13.x through 2.20.8 checklists still apply.
 
 ## The disk bar
 
-- [ ] Connect a **cluster** and open **Nodes**. Node disk metrics are read per
+- [x] Connect a **cluster** and open **Nodes**. Node disk metrics are read per
   node when its rows come into view, so give the column a moment to fill in.
-- [ ] Note the percentage the Disk column shows on a node.
-- [ ] Open that node's drawer → **Summary**. The Disk bar shows **the same
+- [x] Note the percentage the Disk column shows on a node.
+- [x] Open that node's drawer → **Summary**. The Disk bar shows **the same
   percentage** as the table. This is the point of the change: before, the two
   were calculated separately and could differ by a point.
-- [ ] The bar's label still reads used and capacity in the same units as before.
-- [ ] The CPU and RAM bars beside it are unchanged.
+- [x] The bar's label still reads used and capacity in the same units as before.
+- [x] The CPU and RAM bars beside it are unchanged.
 
 ## Nodes where the probe is incomplete
 
 These are the cases the fallback covers; if you have no such node, say so rather
 than ticking.
 
-- [ ] A node whose disk metrics have not arrived yet: the bar shows `…` while
+- [x] A node whose disk metrics have not arrived yet: the bar shows `…` while
   loading, then `N/A` if nothing came - not a `0%` or a broken bar.
-- [ ] A node with no disk metrics at all: `N/A`, no percentage.
-- [ ] A node reporting usage above its capacity, if you have one: still clamped
+- [x] A node with no disk metrics at all: `N/A`, no percentage.
+- [x] A node reporting usage above its capacity, if you have one: still clamped
   to 100%, not 137%.
 
 ## Nothing else moved
 
-- [ ] Namespace usage bars and pod usage bars, in the table and the drawer.
-- [ ] ResourceQuota usage bars in a quota's Summary.
-- [ ] The usage history chart on a pod.
-- [ ] Overview capacity tiles, which read the same node capacities.
-- [ ] Run an **LLM** analysis on a node: the context carries its capacity and
+- [x] Namespace usage bars and pod usage bars, in the table and the drawer.
+- [x] ResourceQuota usage bars in a quota's Summary.
+- [x] The usage history chart on a pod.
+- [x] Overview capacity tiles, which read the same node capacities.
+- [x] Run an **LLM** analysis on a node: the context carries its capacity and
   usage, and still no Secret value or log line reaches the prompt.
-- [ ] Disconnect and reconnect the cluster: the Disk column refills and the two
+- [x] Disconnect and reconnect the cluster: the Disk column refills and the two
   views still agree.
-- [ ] Help and About report **2.20.9**.
+- [x] Help and About report **2.20.9**.

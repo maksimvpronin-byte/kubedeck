@@ -26,55 +26,55 @@ Earlier 2.13.x through 2.20.4 checklists still apply.
 
 ## The LLM tab
 
-- [ ] Run an analysis on a pod: the answer, model, elapsed time and context
+- [x] Run an analysis on a pod: the answer, model, elapsed time and context
   size appear as before.
-- [ ] **While the answer is on screen, open a different pod**: the answer is
+- [x] **While the answer is on screen, open a different pod**: the answer is
   gone, not showing the previous pod's text under the new name.
-- [ ] Do the same by clicking a different row in the table, and by switching
+- [x] Do the same by clicking a different row in the table, and by switching
   workspace tabs.
-- [ ] Start an analysis and switch object mid-flight: the spinner clears and no
+- [x] Start an analysis and switch object mid-flight: the spinner clears and no
   late answer lands on the new object.
-- [ ] An analysis that errors shows the error, and switching object clears it.
-- [ ] Hide the prompt preview while an analysis runs (the 2.13.3 behaviour).
-- [ ] No Secret value and no log line reaches the prompt.
+- [x] An analysis that errors shows the error, and switching object clears it.
+- [x] Hide the prompt preview while an analysis runs (the 2.13.3 behaviour).
+- [x] No Secret value and no log line reaches the prompt.
 
 ## Every drawer tab
 
 Open a pod, a deployment, a node, a service, a secret and a CRD instance, and
 walk the tabs each offers.
 
-- [ ] **Summary** - tiles, container rows, restart card, events, endpoints, the
+- [x] **Summary** - tiles, container rows, restart card, events, endpoints, the
   usage history chart, and the age ticking once a second.
-- [ ] **YAML** - editing, the dirty marker, Reset, Reload from cluster, Dry run,
+- [x] **YAML** - editing, the dirty marker, Reset, Reload from cluster, Dry run,
   Apply with its confirmation, and the compare picker.
-- [ ] A **CRD definition** opens read-only with its notice; a **CRD instance**
+- [x] A **CRD definition** opens read-only with its notice; a **CRD instance**
   shows its own notice and can be edited.
-- [ ] **Describe** renders.
-- [ ] **Logs** - container picker, tail, previous, timestamps, follow, filter,
+- [x] **Describe** renders.
+- [x] **Logs** - container picker, tail, previous, timestamps, follow, filter,
   refresh, copy, download visible, download full. On a **deployment**, the pod
   picker and all-containers option.
-- [ ] **Related** - the group list, the resource filter, opening a related
+- [x] **Related** - the group list, the resource filter, opening a related
   object, deleting related pods.
-- [ ] **Secret** - reveal, copy, auto-hide; no value in the audit log.
-- [ ] A tab a resource does not offer is not shown, and a remembered tab that
+- [x] **Secret** - reveal, copy, auto-hide; no value in the audit log.
+- [x] A tab a resource does not offer is not shown, and a remembered tab that
   does not apply falls back to Summary.
 
 ## The drawer around the tabs
 
-- [ ] Header, resource title, copy-name button, close.
-- [ ] Actions: delete, restart, redeploy, scale, trigger a CronJob by hand.
-- [ ] Cordon, uncordon and drain from a node drawer.
-- [ ] Start a port forward; the drawer reports the URL and jumps to Port
+- [x] Header, resource title, copy-name button, close.
+- [x] Actions: delete, restart, redeploy, scale, trigger a CronJob by hand.
+- [x] Cordon, uncordon and drain from a node drawer.
+- [x] Start a port forward; the drawer reports the URL and jumps to Port
   forwards.
-- [ ] Open a Pod Terminal, including the container picker on a multi-container
+- [x] Open a Pod Terminal, including the container picker on a multi-container
   pod, and a Node SSH session.
-- [ ] Edit YAML and try to close: the unsaved-changes prompt appears, Continue
+- [x] Edit YAML and try to close: the unsaved-changes prompt appears, Continue
   editing returns focus to the editor, Discard closes.
-- [ ] Edit YAML and navigate away in the table: the same prompt guards it.
-- [ ] Resize the drawer; the width survives a restart.
+- [x] Edit YAML and navigate away in the table: the same prompt guards it.
+- [x] Resize the drawer; the width survives a restart.
 
 ## Nothing else moved
 
-- [ ] Resource tables, Overview, Problems, Global Search, Settings.
-- [ ] Switch themes and languages.
-- [ ] Help and About report **2.20.5**.
+- [x] Resource tables, Overview, Problems, Global Search, Settings.
+- [x] Switch themes and languages.
+- [x] Help and About report **2.20.5**.

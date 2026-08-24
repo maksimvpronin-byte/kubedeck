@@ -22,12 +22,12 @@ Earlier 2.13.x through 2.20.2 checklists still apply.
 
 ## The suite itself
 
-- [ ] `npm run test:renderer` reports **93 passing, 0 failing**. The count
+- [x] `npm run test:renderer` reports **93 passing, 0 failing**. The count
   matters more than usual here: a file dropped from the script would still show
   green.
-- [ ] The twelve files named in `test:renderer` all exist and none is skipped.
-- [ ] `git diff --stat 2.20.2..2.20.3 -- apps/desktop/src` is **empty**.
-- [ ] Breaking one test on purpose (change an expected value) makes the suite
+- [x] The twelve files named in `test:renderer` all exist and none is skipped.
+- [x] `git diff --stat 2.20.2..2.20.3 -- apps/desktop/src` is **empty**.
+- [x] Breaking one test on purpose (change an expected value) makes the suite
   fail, so the runner really is executing the new files.
 
 ## Standard smoke test
@@ -35,13 +35,13 @@ Earlier 2.13.x through 2.20.2 checklists still apply.
 The application is byte-identical to 2.20.2; this is a sanity pass, not a
 targeted one.
 
-- [ ] Connect a cluster, browse pods, deployments, services and nodes.
-- [ ] Open the resource drawer: Summary, YAML, Describe, Events, Related, Logs.
-- [ ] Global Search and Problems.
-- [ ] A Pod Terminal and a Node SSH session in the bottom workspace.
-- [ ] A port forward starts, opens and stops.
-- [ ] Secret reveal, copy and auto-hide; no value in the audit log.
-- [ ] Run an **LLM** analysis on a pod: no Secret value or log line reaches the
+- [x] Connect a cluster, browse pods, deployments, services and nodes.
+- [x] Open the resource drawer: Summary, YAML, Describe, Events, Related, Logs.
+- [x] Global Search and Problems.
+- [x] A Pod Terminal and a Node SSH session in the bottom workspace.
+- [x] A port forward starts, opens and stops.
+- [x] Secret reveal, copy and auto-hide; no value in the audit log.
+- [x] Run an **LLM** analysis on a pod: no Secret value or log line reaches the
   prompt.
-- [ ] Switch themes and languages.
-- [ ] Help and About report **2.20.3**.
+- [x] Switch themes and languages.
+- [x] Help and About report **2.20.3**.

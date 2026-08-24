@@ -30,67 +30,67 @@ This is `useSectionNavigation`, and it is where a mistake would hide. For each
 section: click it in the sidebar and check both the tab it opens **and** what
 the namespace selector shows.
 
-- [ ] **Nodes** → the nodes table, selector shows cluster-scoped and is disabled.
-- [ ] **Namespaces** → namespaces table, cluster-scoped.
-- [ ] **CRDs** → CustomResourceDefinitions, cluster-scoped.
-- [ ] **Workloads** → pods, and the namespaces you had chosen come back.
-- [ ] **RBAC** → service accounts, namespaces come back.
-- [ ] **Network** → services, namespaces come back.
-- [ ] **Storage** → persistent volume claims, namespaces come back.
-- [ ] **Config** → config maps, namespaces come back.
-- [ ] **Events** → events, namespaces come back.
-- [ ] **Overview** → namespaces come back (it has no table of its own).
-- [ ] Pick a specific namespace, go to Nodes, come back to Workloads: **that
+- [x] **Nodes** → the nodes table, selector shows cluster-scoped and is disabled.
+- [x] **Namespaces** → namespaces table, cluster-scoped.
+- [x] **CRDs** → CustomResourceDefinitions, cluster-scoped.
+- [x] **Workloads** → pods, and the namespaces you had chosen come back.
+- [x] **RBAC** → service accounts, namespaces come back.
+- [x] **Network** → services, namespaces come back.
+- [x] **Storage** → persistent volume claims, namespaces come back.
+- [x] **Config** → config maps, namespaces come back.
+- [x] **Events** → events, namespaces come back.
+- [x] **Overview** → namespaces come back (it has no table of its own).
+- [x] Pick a specific namespace, go to Nodes, come back to Workloads: **that
   namespace is selected again**, not "all".
-- [ ] Do the same after switching clusters and back: each cluster remembers its
+- [x] Do the same after switching clusters and back: each cluster remembers its
   own selection.
-- [ ] Expand and collapse each sidebar group; the state survives a restart.
-- [ ] Expand a CRD **API group**, open one of its resources; the group stays
+- [x] Expand and collapse each sidebar group; the state survives a restart.
+- [x] Expand a CRD **API group**, open one of its resources; the group stays
   expanded and survives a restart.
-- [ ] Open **Port forwards** from under Network: the section opens and the
+- [x] Open **Port forwards** from under Network: the section opens and the
   drawer closes.
-- [ ] With unsaved YAML in the drawer, click another section: the discard
+- [x] With unsaved YAML in the drawer, click another section: the discard
   prompt appears, and cancelling leaves you where you were.
 
 ## The lazy panels
 
 Each should appear with the brief loading state and no flash of an error.
 
-- [ ] Overview, Help, About, Settings, Problems, Port forwards.
-- [ ] A resource drawer, and a Pod Terminal in the bottom workspace.
-- [ ] Switch between two of them repeatedly: no panel gets stuck loading.
-- [ ] A placeholder section (one with no table yet) still shows its placeholder.
+- [x] Overview, Help, About, Settings, Problems, Port forwards.
+- [x] A resource drawer, and a Pod Terminal in the bottom workspace.
+- [x] Switch between two of them repeatedly: no panel gets stuck loading.
+- [x] A placeholder section (one with no table yet) still shows its placeholder.
 
 ## The shell
 
-- [ ] Cluster rail sits left of the resource tree; selecting, connecting,
+- [x] Cluster rail sits left of the resource tree; selecting, connecting,
   disconnecting and importing all behave as in 2.20.3.
-- [ ] Drag the **sidebar** edge to resize; the width survives a restart.
-- [ ] Drag the **drawer** edge to resize; the width survives a restart.
-- [ ] Namespace selector, global search and Ctrl+K command palette.
-- [ ] Backend and kubectl status line reads as before.
-- [ ] The resource tab strip appears only when there is more than one tab.
+- [x] Drag the **sidebar** edge to resize; the width survives a restart.
+- [x] Drag the **drawer** edge to resize; the width survives a restart.
+- [x] Namespace selector, global search and Ctrl+K command palette.
+- [x] Backend and kubectl status line reads as before.
+- [x] The resource tab strip appears only when there is more than one tab.
 
 ## The resource workspace
 
-- [ ] Open a row: the drawer appears in the right column.
-- [ ] Pin rows with double click, up to the tab limit; close tabs.
-- [ ] A tab still loading shows its status line with a working **Retry**.
-- [ ] Switching drawer tabs remembers the choice per resource kind.
-- [ ] Start a port forward from the drawer: it jumps to Port forwards.
-- [ ] Open a Pod Terminal and a Node SSH session from the drawer.
-- [ ] Delete a pod from the drawer's Related tab.
-- [ ] Cordon and uncordon a node from the drawer.
+- [x] Open a row: the drawer appears in the right column.
+- [x] Pin rows with double click, up to the tab limit; close tabs.
+- [x] A tab still loading shows its status line with a working **Retry**.
+- [x] Switching drawer tabs remembers the choice per resource kind.
+- [x] Start a port forward from the drawer: it jumps to Port forwards.
+- [x] Open a Pod Terminal and a Node SSH session from the drawer.
+- [x] Delete a pod from the drawer's Related tab.
+- [x] Cordon and uncordon a node from the drawer.
 
 ## Nothing else moved
 
-- [ ] The pods table's **usage column** keeps updating while the table sits
+- [x] The pods table's **usage column** keeps updating while the table sits
   still (this is `usePodUsageRefresh`): watch a busy pod for a minute without
   refreshing.
-- [ ] The drawer's usage panel and the table agree about the same pod.
-- [ ] Bulk delete and its confirmation; rename and disconnect modals.
-- [ ] Global Search opens the right object from a hit.
-- [ ] Run an **LLM** analysis on a pod: no Secret value or log line reaches the
+- [x] The drawer's usage panel and the table agree about the same pod.
+- [x] Bulk delete and its confirmation; rename and disconnect modals.
+- [x] Global Search opens the right object from a hit.
+- [x] Run an **LLM** analysis on a pod: no Secret value or log line reaches the
   prompt.
-- [ ] Switch themes and languages.
-- [ ] Help and About report **2.20.4**.
+- [x] Switch themes and languages.
+- [x] Help and About report **2.20.4**.
