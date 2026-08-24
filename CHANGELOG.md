@@ -1,3 +1,41 @@
+## 2.21.0 - The window opens first and says what it is waiting for
+
+New start-up screen. No route changes. Node-only ownership stays at Node 58 /
+Python 0.
+
+Starting KubeDeck used to show nothing at all and then everything. The gateway
+was started and waited for before the window was even created; the window then
+sat empty through the renderer bundle, `config.json`, `kubectl version` and the
+reopening of the last cluster - which, on a cluster that is slow or gone, is
+where the entire wait lives. A start that took four seconds and a start that had
+hung looked exactly alike.
+
+The window now opens immediately, alongside the gateway rather than after it, and
+paints a boot screen with a progress bar and the five stages the start is made
+of: interface, local gateway, settings, kubectl, cluster - each with what it is
+loading and, for the cluster, which one.
+
+The bar follows the work rather than a timer: a stage fills its own share and
+stops at 92% of it until the work behind it reports back. Each start is measured
+and stored, so the next one sizes its stages by what actually took time and can
+say how long is left; the first start shows no estimate, having nothing honest to
+base one on. The screen can always be dismissed - a button after three seconds,
+and an automatic hand-over twenty seconds after the interface is up - so an
+unreachable cluster cannot hold the window. A stage that fails turns red and
+carries its error, then steps aside for the application's own error surface.
+
+Two things fall out of the new order. `kubedeck:getBackendAuth` now awaits the
+gateway's address instead of handing back an empty one, which is what makes an
+early window safe. And `BrowserWindow` no longer paints a fixed `#101317` before
+the page exists - it reads the stored theme and uses that theme's background, so
+the Light theme no longer opens with a dark flash.
+
+The screen is a plain script in `renderer/public/`, not part of the bundle: the
+longest stage it reports is that bundle loading. It therefore repeats seven theme
+backgrounds and a two-language dictionary, and `tests/boot-screen.contract.test.cjs`
+(8 tests) fails if either drifts from the sources they were copied from. Renderer
+suite is 123 tests; the gateway suite is unchanged at 154.
+
 ## 2.20.11 - Closing the refactor plan out against itself
 
 Tests and documentation only. `apps/desktop/src` is byte-identical to 2.20.10.

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell } from "electron";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -12,6 +12,7 @@ let mainWindow: BrowserWindow | null = null;
 let gatewayUrl = "";
 let gateway: GatewayHandle | null = null;
 let gatewaySessionToken = "";
+let gatewayReady: Promise<void> | null = null;
 let gatewayShutdown: Promise<void> | null = null;
 let quitAfterGatewayShutdown = false;
 
@@ -122,6 +123,32 @@ function resolveWindowIcon() {
   return undefined;
 }
 
+// The window paints its own background before the page exists, and it now does
+// that while the gateway is still starting - so a fixed dark grey was a flash of
+// the wrong colour for everyone not on a dark theme. These are the backgrounds
+// of `renderer/public/boot-screen.js`, which paints next; the two lists are held
+// together by tests/boot-screen.contract.test.cjs.
+const THEME_BACKGROUNDS: Record<string, string> = {
+  midnight: "#18212b",
+  graphite: "#20252b",
+  nord: "#242b38",
+  forest: "#172623",
+  plum: "#25212b",
+  mocha: "#29231f",
+  light: "#eef3f8",
+};
+
+function windowBackgroundColor() {
+  let theme = "system";
+  try {
+    const stored = JSON.parse(fs.readFileSync(path.join(appDataRoot(), "config.json"), "utf-8"))?.settings?.theme;
+    if (typeof stored === "string") theme = stored === "dark" ? "midnight" : stored;
+  } catch {
+    // No settings yet, or they are unreadable: the system theme decides.
+  }
+  return THEME_BACKGROUNDS[theme] ?? (nativeTheme.shouldUseDarkColors ? THEME_BACKGROUNDS.midnight : THEME_BACKGROUNDS.light);
+}
+
 async function createWindow() {
   const icon = resolveWindowIcon();
   mainWindow = new BrowserWindow({
@@ -129,7 +156,7 @@ async function createWindow() {
     height: 920,
     minWidth: 1120,
     minHeight: 720,
-    backgroundColor: "#101317",
+    backgroundColor: windowBackgroundColor(),
     ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
@@ -191,7 +218,12 @@ function isAllowedRendererNavigation(url: string, devUrl: string) {
   }
 }
 
-ipcMain.handle("kubedeck:getBackendAuth", () => ({ baseUrl: gatewayUrl, token: gatewaySessionToken }));
+// The window is now opened while the gateway is still starting, so the first
+// call from the renderer can arrive before there is an address to hand back.
+ipcMain.handle("kubedeck:getBackendAuth", async () => {
+  if (gatewayReady) await gatewayReady;
+  return { baseUrl: gatewayUrl, token: gatewaySessionToken };
+});
 ipcMain.handle("kubedeck:selectKubeconfig", async () => {
   const result = await dialog.showOpenDialog({
     title: "Select kubeconfig",
@@ -259,8 +291,12 @@ if (!gotSingleInstanceLock) {
     .then(async () => {
       Menu.setApplicationMenu(null);
       logDesktop("desktop startup");
-      await startNodeGateway();
-      await createWindow();
+      // Starting the gateway first meant nothing at all was on screen until it
+      // was listening. The window now opens alongside it and shows the boot
+      // screen from `renderer/public/boot-screen.js`, which waits on the same
+      // promise through `kubedeck:getBackendAuth`.
+      gatewayReady = startNodeGateway();
+      await Promise.all([gatewayReady, createWindow()]);
     })
     .catch((error) => {
       const message = error instanceof Error ? error.message : String(error);

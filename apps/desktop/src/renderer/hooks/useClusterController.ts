@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { ApiClient } from "../api";
+import { beginBootStage, completeBootStage, failBootStage, finishBoot } from "../bootProgress";
 import type { AppConfig, Cluster, ClusterLiveSessions, ErrorInfo, ResourceDefinition, ResourceRow } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { normalizeSettingsSsh } from "../utils/sshDefaults";
@@ -59,9 +60,13 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
   useEffect(() => {
     if (!window.kubedeck) {
       setRuntimeError("KubeDeck requires the Electron desktop runtime.");
+      failBootStage("gateway", "no Electron runtime");
       return;
     }
     let cancelled = false;
+    // The boot screen is on top of the window until this whole chain settles,
+    // so every branch through it has to report what it is waiting for.
+    beginBootStage("gateway");
     void window.kubedeck
       .getBackendAuth()
       .then(({ baseUrl, token }) => {
@@ -70,22 +75,47 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
         setApi(client);
         void client
           .health()
-          .then(() => setBackendOk(true))
-          .catch((error) => setError(asErrorInfo(error)));
+          .then(() => {
+            setBackendOk(true);
+            completeBootStage("gateway");
+          })
+          .catch((error) => {
+            const info = asErrorInfo(error);
+            failBootStage("gateway", info.message);
+            setError(info);
+          });
+        beginBootStage("config");
         void client
           .config()
-          .then((next) => setConfig(normalizeConfig(next)))
-          .catch((error) => setError(asErrorInfo(error)));
+          .then((next) => {
+            setConfig(normalizeConfig(next));
+            completeBootStage("config");
+          })
+          .catch((error) => {
+            const info = asErrorInfo(error);
+            failBootStage("config", info.message);
+            setError(info);
+          });
+        beginBootStage("kubectl");
         void client
           .kubectlStatus()
-          .then((status) => setKubectlVersion(status.version.gitVersion ?? "ok"))
-          .catch((error) => setError(asErrorInfo(error)));
+          .then((status) => {
+            setKubectlVersion(status.version.gitVersion ?? "ok");
+            completeBootStage("kubectl");
+          })
+          .catch((error) => {
+            const info = asErrorInfo(error);
+            failBootStage("kubectl", info.message);
+            setError(info);
+          });
         const requestId = clusterOpenSequenceRef.current + 1;
         clusterOpenSequenceRef.current = requestId;
+        beginBootStage("cluster");
         void client
           .openLastCluster()
           .then(async (result) => {
             if (cancelled || clusterOpenSequenceRef.current !== requestId || !result.cluster) return;
+            beginBootStage("cluster", result.cluster.displayName);
             const definitions = await client.resourceDefinitions(result.cluster.id);
             if (cancelled || clusterOpenSequenceRef.current !== requestId) return;
             namespaceController.activateClusterNamespaces(
@@ -101,10 +131,24 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
             setConfig(normalizeConfig(await client.config()));
           })
           .catch((error) => {
-            if (!cancelled && clusterOpenSequenceRef.current === requestId) setError(asErrorInfo(error));
+            if (cancelled || clusterOpenSequenceRef.current !== requestId) return;
+            const info = asErrorInfo(error);
+            failBootStage("cluster", info.message);
+            setError(info);
+          })
+          // Whether a cluster was restored, there was none to restore or it
+          // refused to open, the start is over and the window belongs to the
+          // application from here.
+          .finally(() => {
+            completeBootStage("cluster");
+            finishBoot();
           });
       })
-      .catch((error) => setError(asErrorInfo(error)));
+      .catch((error) => {
+        const info = asErrorInfo(error);
+        failBootStage("gateway", info.message);
+        setError(info);
+      });
     return () => {
       cancelled = true;
     };
