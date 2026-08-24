@@ -1,3 +1,38 @@
+## 2.22.0 - A request the client walked away from stops
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
+
+The renderer cancels requests constantly: switching a resource tab, namespace or
+cluster aborts the list load still running, every keystroke in the command
+palette aborts the previous global search, and closing a drawer abandons the
+related-resources fan-out behind it. The backend never knew. No route listened
+for the connection closing, so the fetch went away and the work did not - the
+kubectl processes behind it read their output to the end, parsed it, normalized
+it and serialized a response nobody could read. Clicking through five kinds in
+the resource tree left five full cluster-wide list loads running against the API
+server; typing a twelve-character query left several search fan-outs running at
+once, each to be discarded.
+
+The connection closing before an answer was written is now an AbortSignal, and it
+is threaded into the five routes that fan out: resource lists (with their
+readiness probe and `kubectl top` companion), global search, problems, overview
+and related resources. `KubectlRunner` has been able to kill its process on a
+signal since 2.13; it simply was never given one.
+
+A cancelled command is not a failure: it is kept out of the log and out of the
+error surface, and it no longer clears the resource cache - dropping cached
+snapshots because of a probe nobody was waiting for would have made every
+abandoned request cost the next reader a full reload. Search folds the client
+into the same controller its 12-second total timeout already used, so the sources
+still queued never start. Shared caches deliberately keep no signal:
+`api-resources` discovery and the per-node disk readings are shared through TTL
+caches and in-flight deduplication, and one abandoned drawer must not throw away
+what other callers are waiting on - the same reasoning that already applied to
+the usage sampler.
+
+`writeJson` and `writeError` now return early on a response that has already
+ended or been destroyed. Gateway suite is 157 tests.
+
 ## 2.21.1 - The start screen leaves when the first table has rows
 
 No route changes. Node-only ownership stays at Node 58 / Python 0.

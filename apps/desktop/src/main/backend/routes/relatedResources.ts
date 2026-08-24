@@ -4,6 +4,7 @@ import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import type { KubectlRunner } from "../kubectl/runner";
 import { buildRelatedResources, type RelatedLink } from "../relations/relatedResourcesEngine";
+import { isRequestCancelled, requestAbortSignal } from "../requestCancellation";
 import { getApiResourcesOutput } from "../resources/apiResourcesCache";
 // The search parser splits the API version into a bare group, which is the form
 // kubectl accepts as "<plural>.<group>".
@@ -120,6 +121,7 @@ export async function buildRelatedResourcesResponse(
   configStore: ConfigStore,
   runner: KubectlRunner,
   target: RelatedTarget,
+  signal?: AbortSignal,
 ): Promise<{
   items: RelatedLink[];
   sources: Record<string, number>;
@@ -133,8 +135,11 @@ export async function buildRelatedResourcesResponse(
   // practice; building its args from the static set lets it run alongside the
   // catalog fetch instead of waiting on it.
   const [catalog, targetRaw] = await Promise.all([
+    // The catalog is shared through a TTL cache, so it deliberately runs
+    // without the signal of this request: one abandoned drawer must not throw
+    // away the api-resources answer every other caller is waiting for.
     loadResourceCatalog(configStore, runner, target.clusterId),
-    runner.runJson(clusterCommand(configStore, target.clusterId, targetArgs(target, EMPTY_CATALOG), TARGET_TIMEOUT_SECONDS, TARGET_MAX_OUTPUT_BYTES)).then(asRecord),
+    runner.runJson(clusterCommand(configStore, target.clusterId, targetArgs(target, EMPTY_CATALOG), TARGET_TIMEOUT_SECONDS, TARGET_MAX_OUTPUT_BYTES), signal).then(asRecord),
   ]);
   const result = await buildRelatedResources({
     resource: target.resource,
@@ -142,7 +147,7 @@ export async function buildRelatedResourcesResponse(
     targetRaw,
     availableResources: catalog.available,
     loadItems: async (resource, namespace) => {
-      const data = await runner.runJson(clusterCommand(configStore, target.clusterId, sourceArgs(resource, namespace, catalog), SOURCE_TIMEOUT_SECONDS, SOURCE_MAX_OUTPUT_BYTES));
+      const data = await runner.runJson(clusterCommand(configStore, target.clusterId, sourceArgs(resource, namespace, catalog), SOURCE_TIMEOUT_SECONDS, SOURCE_MAX_OUTPUT_BYTES), signal);
       return asItems(data);
     },
   });
@@ -164,10 +169,15 @@ export function handleRelatedResourcesRequest(
   try {
     const target = matchRelatedResourcesRoute(request.method, pathname);
     if (!target) return false;
-    void buildRelatedResourcesResponse(configStore, runner, target)
+    // Closing the drawer, or opening another resource in it, abandons this
+    // fan-out: it walks a dozen resource lists to draw one relations tab.
+    const signal = requestAbortSignal(request, response);
+    void buildRelatedResourcesResponse(configStore, runner, target, signal)
       .then((body) => writeJson(response, body))
       .catch((error) =>
-        writeRouteError(response, error, log, { label: "related resources", fallbackCode: "RELATED_RESOURCES_FAILED", fallbackMessage: "Unable to load related Kubernetes resources" }),
+        isRequestCancelled(error, signal)
+          ? undefined
+          : writeRouteError(response, error, log, { label: "related resources", fallbackCode: "RELATED_RESOURCES_FAILED", fallbackMessage: "Unable to load related Kubernetes resources" }),
       );
     return true;
   } catch (error) {

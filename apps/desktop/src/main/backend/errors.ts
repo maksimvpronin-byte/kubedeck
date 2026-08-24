@@ -17,6 +17,10 @@ export function errorInfo(code: string, message: string): ErrorInfo {
 }
 
 export function writeError(response: ServerResponse, statusCode: number, code: string, message: string): void {
+  // Same reason as `writeJson`: an aborted request has no reader left, and
+  // writing to it would throw rather than reach anyone.
+  if (response.writableEnded || response.destroyed) return;
+
   if (response.headersSent) {
     response.destroy();
     return;

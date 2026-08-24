@@ -15,6 +15,7 @@ import {
   type SearchResourceSpec,
   type SearchResultRow,
 } from "../search/searchEngine";
+import { isRequestCancelled, requestAbortSignal } from "../requestCancellation";
 import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
@@ -220,6 +221,7 @@ export async function buildSearchResponse(
   log: (message: string) => void = () => {},
   now: () => Date = () => new Date(),
   runtime: { totalTimeoutSeconds?: number; concurrency?: number } = {},
+  signal?: AbortSignal,
 ): Promise<{
   items: SearchResultRow[];
   summary: Record<string, unknown>;
@@ -242,6 +244,15 @@ export async function buildSearchResponse(
   const limitPerResource = Math.max(10, Math.floor(options.limit / 3));
   let stopCollecting = false;
   const controller = new AbortController();
+  // The renderer aborts the previous search on every keystroke. Folding that
+  // into the same controller the total timeout uses means the fan-out stops on
+  // whichever comes first, and the sources still queued never start at all.
+  const abandon = () => {
+    stopCollecting = true;
+    controller.abort();
+  };
+  if (signal?.aborted) abandon();
+  else signal?.addEventListener("abort", abandon, { once: true });
 
   const totalTimeoutSeconds = runtime.totalTimeoutSeconds ?? SEARCH_TOTAL_TIMEOUT_SECONDS;
   const concurrency = runtime.concurrency ?? SEARCH_CONCURRENCY;
@@ -292,9 +303,13 @@ export function handleSearchRequest(request: IncomingMessage, response: ServerRe
     const target = matchSearchRoute(request.method, pathname);
     if (!target) return false;
     const options = requestOptions(request);
-    void buildSearchResponse(configStore, runner, target.clusterId, options, log)
+    const signal = requestAbortSignal(request, response);
+    void buildSearchResponse(configStore, runner, target.clusterId, options, log, undefined, undefined, signal)
       .then((body) => writeJson(response, body))
-      .catch((error) => writeRouteError(response, error, log, { label: "search", fallbackCode: "SEARCH_FAILED", fallbackMessage: "Unable to search Kubernetes resources" }));
+      .catch((error) => {
+        if (isRequestCancelled(error, signal)) return;
+        writeRouteError(response, error, log, { label: "search", fallbackCode: "SEARCH_FAILED", fallbackMessage: "Unable to search Kubernetes resources" });
+      });
     return true;
   } catch (error) {
     writeRouteError(response, error, log, { label: "search", fallbackCode: "SEARCH_FAILED", fallbackMessage: "Unable to search Kubernetes resources" });

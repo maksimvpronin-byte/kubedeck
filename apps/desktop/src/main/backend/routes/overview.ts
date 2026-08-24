@@ -7,6 +7,7 @@ import { KubectlError, writeKubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { buildOverviewSnapshot } from "../overview/overviewEngine";
 import { applyNodeDiskMetrics, applyNodeMetricsSnapshot, fetchNodeMetrics } from "../resources/metrics";
+import { isRequestCancelled, requestAbortSignal } from "../requestCancellation";
 import { normalizeResourceItems } from "../resources/normalizers";
 import { RequestValidationError, validateIdentifier } from "../validation";
 
@@ -29,9 +30,16 @@ function namespacesFromUrl(url: string | undefined): string[] {
   return [...new Set(values.map((value) => validateIdentifier(value, "namespace", 253)))];
 }
 
-async function loadSource(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, resource: (typeof SOURCES)[number], namespaces: string[]): Promise<Array<Record<string, unknown>>> {
+async function loadSource(
+  configStore: ConfigStore,
+  runner: KubectlRunner,
+  clusterId: string,
+  resource: (typeof SOURCES)[number],
+  namespaces: string[],
+  signal?: AbortSignal,
+): Promise<Array<Record<string, unknown>>> {
   if (!CLUSTER_SCOPED.has(resource) && namespaces.length > 1 && namespaces[0] !== "all") {
-    const rows: Array<Array<Record<string, unknown>>> = await Promise.all(namespaces.map((namespace) => loadSource(configStore, runner, clusterId, resource, [namespace])));
+    const rows: Array<Array<Record<string, unknown>>> = await Promise.all(namespaces.map((namespace) => loadSource(configStore, runner, clusterId, resource, [namespace], signal)));
     return rows.flat();
   }
   const args = ["get", resource];
@@ -42,9 +50,9 @@ async function loadSource(configStore: ConfigStore, runner: KubectlRunner, clust
   args.push("-o", "json");
   // `kubectl top nodes` does not need the node list, so it runs alongside the
   // `kubectl get` instead of after it.
-  const nodeMetrics = resource === "nodes" ? fetchNodeMetrics(configStore, runner, clusterId) : null;
+  const nodeMetrics = resource === "nodes" ? fetchNodeMetrics(configStore, runner, clusterId, signal) : null;
   nodeMetrics?.catch(() => undefined);
-  const data = await runner.runJson(clusterCommand(configStore, clusterId, args, 45, 64 * 1024 * 1024));
+  const data = await runner.runJson(clusterCommand(configStore, clusterId, args, 45, 64 * 1024 * 1024), signal);
   const items = data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).items) ? (data as { items: unknown[] }).items : [];
   const rows = normalizeResourceItems(resource, items);
   if (nodeMetrics) {
@@ -54,13 +62,13 @@ async function loadSource(configStore: ConfigStore, runner: KubectlRunner, clust
   return rows;
 }
 
-export async function buildOverviewResponse(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, namespaces: string[]) {
+export async function buildOverviewResponse(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, namespaces: string[], signal?: AbortSignal) {
   const config = configStore.load();
   configStore.getCluster(clusterId, config);
   const results = await Promise.all(
     SOURCES.map(async (resource) => {
       try {
-        return { resource, rows: await loadSource(configStore, runner, clusterId, resource, namespaces), error: null };
+        return { resource, rows: await loadSource(configStore, runner, clusterId, resource, namespaces, signal), error: null };
       } catch (error) {
         if (!(error instanceof KubectlError)) throw error;
         return { resource, rows: [], error: { ...error.info, resource } };
@@ -82,9 +90,13 @@ export function handleOverviewRequest(request: IncomingMessage, response: Server
     const clusterId = match(request.method, pathname);
     if (!clusterId) return false;
     const namespaces = namespacesFromUrl(request.url);
-    void buildOverviewResponse(configStore, runner, clusterId, namespaces)
+    // Nine cluster-wide lists per refresh - the heaviest recurring request the
+    // app makes, and the one worth stopping the moment nobody is reading it.
+    const signal = requestAbortSignal(request, response);
+    void buildOverviewResponse(configStore, runner, clusterId, namespaces, signal)
       .then((body) => writeJson(response, body))
       .catch((error) => {
+        if (isRequestCancelled(error, signal)) return;
         if (error instanceof ClusterNotFoundError) return writeError(response, 404, "CLUSTER_NOT_FOUND", error.message);
         if (error instanceof KubectlError) return writeKubectlError(response, error);
         log(`gateway overview failed: ${error instanceof Error ? error.message : String(error)}`);

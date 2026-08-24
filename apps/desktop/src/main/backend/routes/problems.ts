@@ -5,6 +5,7 @@ import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { buildProblemRows, summarizeProblems, type ProblemSourceRows } from "../problems/problemEngine";
+import { isRequestCancelled, requestAbortSignal } from "../requestCancellation";
 import { normalizeResourceItems } from "../resources/normalizers";
 import { decodePathPart, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
@@ -51,8 +52,8 @@ function resourceArgs(source: ProblemSourceDefinition): string[] {
   return args;
 }
 
-async function loadProblemSource(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, source: ProblemSourceDefinition): Promise<Array<Record<string, unknown>>> {
-  const data = await runner.runJson(clusterCommand(configStore, clusterId, resourceArgs(source), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES));
+async function loadProblemSource(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, source: ProblemSourceDefinition, signal?: AbortSignal): Promise<Array<Record<string, unknown>>> {
+  const data = await runner.runJson(clusterCommand(configStore, clusterId, resourceArgs(source), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal);
   return normalizeResourceItems(source.resource, asItems(data));
 }
 
@@ -60,6 +61,7 @@ export async function buildProblemsResponse(
   configStore: ConfigStore,
   runner: KubectlRunner,
   clusterId: string,
+  signal?: AbortSignal,
 ): Promise<{
   items: ReturnType<typeof buildProblemRows>;
   summary: ReturnType<typeof summarizeProblems>;
@@ -75,7 +77,7 @@ export async function buildProblemsResponse(
       try {
         return {
           source,
-          rows: await loadProblemSource(configStore, runner, clusterId, source),
+          rows: await loadProblemSource(configStore, runner, clusterId, source, signal),
           error: null,
         };
       } catch (error) {
@@ -113,9 +115,16 @@ export function handleProblemsRequest(request: IncomingMessage, response: Server
   try {
     const target = matchProblemsRoute(request.method, pathname);
     if (!target) return false;
-    void buildProblemsResponse(configStore, runner, target.clusterId)
+    // Five cluster-wide lists per refresh: leaving them running for a panel
+    // nobody is looking at any more is the most expensive thing this route can
+    // do.
+    const signal = requestAbortSignal(request, response);
+    void buildProblemsResponse(configStore, runner, target.clusterId, signal)
       .then((body) => writeJson(response, body))
-      .catch((error) => writeRouteError(response, error, log, { label: "problems", fallbackCode: "PROBLEMS_FAILED", fallbackMessage: "Unable to build Kubernetes problems dashboard" }));
+      .catch((error) => {
+        if (isRequestCancelled(error, signal)) return;
+        writeRouteError(response, error, log, { label: "problems", fallbackCode: "PROBLEMS_FAILED", fallbackMessage: "Unable to build Kubernetes problems dashboard" });
+      });
     return true;
   } catch (error) {
     writeRouteError(response, error, log, { label: "problems", fallbackCode: "PROBLEMS_FAILED", fallbackMessage: "Unable to build Kubernetes problems dashboard" });

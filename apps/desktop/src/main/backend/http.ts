@@ -10,6 +10,10 @@ export class RequestBodyError extends Error {
 }
 
 export function writeJson(response: ServerResponse, body: unknown, statusCode = 200): void {
+  // A client that navigated away or aborted its request leaves a response
+  // nobody can read. Serializing a few thousand rows into it is pure waste,
+  // and `end()` on a destroyed socket raises ERR_STREAM_WRITE_AFTER_END.
+  if (response.writableEnded || response.destroyed) return;
   const serialized = JSON.stringify(body);
   response.statusCode = statusCode;
   response.setHeader("Content-Type", "application/json; charset=utf-8");

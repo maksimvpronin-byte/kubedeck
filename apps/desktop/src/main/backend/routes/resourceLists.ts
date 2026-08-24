@@ -20,6 +20,7 @@ import {
   type PodMetricsSnapshot,
 } from "../resources/metrics";
 import type { UsageHistorySampler } from "../resources/usageHistorySampler";
+import { isRequestCancelled, requestAbortSignal } from "../requestCancellation";
 import { decodePathPart, parseBooleanQuery, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
@@ -99,8 +100,8 @@ function resourceArgs(target: ResourceListTarget): string[] {
   return args;
 }
 
-async function verifyClusterReadiness(configStore: ConfigStore, runner: KubectlRunner, clusterId: string): Promise<void> {
-  await runner.run(clusterCommand(configStore, clusterId, ["get", "--raw=/readyz"], READINESS_TIMEOUT_SECONDS, READINESS_MAX_OUTPUT_BYTES));
+async function verifyClusterReadiness(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, signal?: AbortSignal): Promise<void> {
+  await runner.run(clusterCommand(configStore, clusterId, ["get", "--raw=/readyz"], READINESS_TIMEOUT_SECONDS, READINESS_MAX_OUTPUT_BYTES), signal);
 }
 
 type PendingListMetrics =
@@ -109,8 +110,8 @@ type PendingListMetrics =
   | { kind: "namespaces"; snapshot: Promise<NamespaceMetricsSnapshot> }
   | null;
 
-function startListMetrics(target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner): PendingListMetrics {
-  const pending = startListMetricsCommand(target, configStore, runner);
+function startListMetrics(target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner, signal?: AbortSignal): PendingListMetrics {
+  const pending = startListMetricsCommand(target, configStore, runner, signal);
   // The list request can reject before the snapshot is awaited. Observing the
   // rejection here keeps a failing metrics command from surfacing as an
   // unhandled rejection; `applyListMetrics` still rethrows it when reached.
@@ -118,17 +119,17 @@ function startListMetrics(target: ResourceListTarget, configStore: ConfigStore, 
   return pending;
 }
 
-function startListMetricsCommand(target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner): PendingListMetrics {
+function startListMetricsCommand(target: ResourceListTarget, configStore: ConfigStore, runner: KubectlRunner, signal?: AbortSignal): PendingListMetrics {
   if (target.resource === "pods" || target.resource === "pod") {
-    return { kind: "pods", snapshot: fetchPodMetrics(configStore, runner, target.clusterId, target.namespace) };
+    return { kind: "pods", snapshot: fetchPodMetrics(configStore, runner, target.clusterId, target.namespace, signal) };
   }
 
   if (target.resource === "nodes" || target.resource === "node") {
-    return { kind: "nodes", snapshot: fetchNodeMetrics(configStore, runner, target.clusterId) };
+    return { kind: "nodes", snapshot: fetchNodeMetrics(configStore, runner, target.clusterId, signal) };
   }
 
   if (target.resource === "namespaces" || target.resource === "namespace" || target.resource === "ns") {
-    return { kind: "namespaces", snapshot: fetchNamespaceMetrics(configStore, runner, target.clusterId) };
+    return { kind: "namespaces", snapshot: fetchNamespaceMetrics(configStore, runner, target.clusterId, signal) };
   }
 
   return null;
@@ -184,6 +185,7 @@ async function loadResources(
   cache: ResourceSnapshotCache,
   usageHistory: UsageHistorySampler,
   isConnected: (clusterId: string) => boolean,
+  signal?: AbortSignal,
 ): Promise<void> {
   // Browsing a connected cluster is what starts its usage history: sampling
   // every configured cluster regardless of use would spend kubectl processes
@@ -196,9 +198,12 @@ async function loadResources(
 
     if (cached) {
       try {
-        await verifyClusterReadiness(configStore, runner, target.clusterId);
+        await verifyClusterReadiness(configStore, runner, target.clusterId, signal);
       } catch (error) {
-        cache.clear(target.clusterId, "cluster.unavailable");
+        // An abandoned request says nothing about the cluster, so its cached
+        // snapshots must survive: dropping them here would cost the next
+        // reader a full reload for a probe nobody was waiting for.
+        if (!isRequestCancelled(error, signal)) cache.clear(target.clusterId, "cluster.unavailable");
         throw error;
       }
 
@@ -211,10 +216,10 @@ async function loadResources(
   // they run alongside `kubectl get` instead of after it. The usage bars used to
   // wait for two kubectl round trips in sequence, which is what made the node and
   // pod usage columns appear long after the table itself.
-  const metrics = startListMetrics(target, configStore, runner);
+  const metrics = startListMetrics(target, configStore, runner, signal);
 
   try {
-    const data = await runner.runJson(clusterCommand(configStore, target.clusterId, resourceArgs(target), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES));
+    const data = await runner.runJson(clusterCommand(configStore, target.clusterId, resourceArgs(target), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal);
 
     const rawItems = asItems(data);
     const rows = normalizeResourceItems(target.resource, rawItems);
@@ -229,7 +234,7 @@ async function loadResources(
 
     writeJson(response, result);
   } catch (error) {
-    if (error instanceof KubectlError) {
+    if (error instanceof KubectlError && !isRequestCancelled(error, signal)) {
       cache.clear(target.clusterId, "kubectl.failure");
     }
     throw error;
@@ -275,9 +280,14 @@ export function handleResourceListRequest(
     const target = matchResourceListRoute(request.method, pathname, request.url);
     if (!target) return false;
 
-    void loadResources(response, target, configStore, runner, cache, usageHistory, isConnected).catch((error) =>
-      writeRouteError(response, error, log, { label: "resource list", fallbackCode: "RESOURCE_LIST_FAILED", fallbackMessage: "Unable to load Kubernetes resources" }),
-    );
+    // Switching resource tabs aborts the previous load in the renderer; without
+    // this the kubectl process behind it kept running for an answer that could
+    // no longer be delivered.
+    const signal = requestAbortSignal(request, response);
+    void loadResources(response, target, configStore, runner, cache, usageHistory, isConnected, signal).catch((error) => {
+      if (isRequestCancelled(error, signal)) return;
+      writeRouteError(response, error, log, { label: "resource list", fallbackCode: "RESOURCE_LIST_FAILED", fallbackMessage: "Unable to load Kubernetes resources" });
+    });
 
     return true;
   } catch (error) {
