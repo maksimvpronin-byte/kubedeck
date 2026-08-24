@@ -284,8 +284,8 @@
 .resource-title-copy:not(:disabled):hover,
 .copy-name-icon:not(:disabled):hover {
   border-color: color-mix(in srgb, var(--primary-border) 65%, transparent);
-  background: color-mix(in srgb, var(--surface) 80%, transparent) !important;
-  color: var(--text-strong) !important;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--text-strong);
 }
 /* End KubeDeck 1.1.0 drawer button style unify v2 */
 
@@ -550,11 +550,11 @@
 }
 
 .drawer .yaml-toolbar button.yaml-icon-action {
-  display: inline-flex !important;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px !important;
-  min-width: 32px !important;
+  width: 32px;
+  min-width: 32px;
   height: 32px !important;
   min-height: 32px !important;
   padding: 0 !important;
@@ -573,9 +573,9 @@
 }
 
 .drawer .yaml-toolbar {
-  display: grid !important;
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 8px !important;
+  gap: 8px;
 }
 
 .drawer .yaml-search-row,
@@ -618,11 +618,11 @@
 }
 
 .drawer .logs-toolbar button.logs-icon-action {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 32px !important;
-  min-width: 32px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
   height: 32px !important;
   min-height: 32px !important;
   padding: 0 !important;

@@ -1,3 +1,55 @@
+## 2.20.8 - The button cascade loses its keystone, and a dead rule comes back
+
+One visible change. No route changes. Node-only ownership stays at Node 58 /
+Python 0.
+
+`layout.css` declared `.primary { background: var(--primary) !important }` -
+`!important` on a selector with a specificity of 100, the weakest kind of rule
+there is, beating every stronger one. Anything that wanted a different
+primary-button colour could only win it back by carrying `!important` too, and
+those could then only settle it between themselves by growing more specific,
+which is where selectors like `.pod-drawer .drawer-content
+button.primary:not(.danger):not(.danger-button):hover` came from.
+
+What it was breaking: `diagnostics-panels.css` asks for
+`.watch-start-form button.primary { background: var(--surface-active) }` at
+specificity 201, and lost to the rule at 100. That rule was dead - the Start
+watch button in Watch diagnostics has been showing the generic primary blue
+instead of the muted colour it asks for. It now shows the right one, and that is
+the single visible change here.
+
+Removing the keystone made 52 more declarations dead, and those are gone too:
+`!important` in `renderer/styles` goes from 280 to 227. Verified with a cascade
+change report - 27 outcomes flipped, 26 of them on pairs of selectors that
+cannot land on the same element (a button against the svg inside it,
+`.yaml-toolbar` against its own child `.yaml-search-row`, each checked against
+the markup), and one real, the fix above.
+
+It stops at 227 rather than under 60 because the remaining ones live in
+`drawer-controls.css` (119) and `related-panel.css` (92), both written
+`!important`-first: inside them a weak rule routinely beats a strong one, so no
+single removal is safe. Untangling them means rewriting both so specificity
+carries the intent, and that cannot be done by analysis - it is not statically
+provable that two selectors never land on the same element. Those two files need
+rewriting against the running application, theme by theme, which is UI work
+rather than a refactoring patch, and it is not scheduled.
+
+Holding the line instead: `scripts/css-cascade.cjs`, the one tool from this
+refactor that is committed rather than thrown away. `report` says how many
+`!important` there are and what each is beating; `report --check` is a ratchet
+wired into `npm run verify` as `npm run lint:css`, refusing new `!important` on
+selectors weaker than specificity 200 unless a comment says what it overrides
+(114 exist without one, and that is the budget); `snapshot`/`diff` compares who
+wins across 18211 competing declaration pairs.
+
+`scripts/verify-release.cjs` pins the exact text of the root `verify` script so
+the gate cannot be quietly weakened; adding `lint:css` tripped that assertion,
+and the expected string is updated in the same commit.
+
+Last of the eight sections in `docs/file-structure-refactor-plan.md`. Two of this
+section's targets were not met and are marked as such rather than quietly
+dropped.
+
 ## 2.20.7 - One quantity formatter, one set of PTY limits, SSH checks of their own
 
 Small display changes, listed below. No route changes. Node-only ownership stays

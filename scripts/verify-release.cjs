@@ -67,7 +67,8 @@ function verifyVersions() {
   );
   assert(desktopPackage.dependencies?.["@kubedeck/shared-types"] === version, `Desktop shared-types dependency must match release version ${version}`);
   assert(
-    rootPackage.scripts?.verify === "npm run lint && npm run format:check && npm run test:renderer && npm run typecheck && npm run build && npm --workspace apps/desktop run test:gateway",
+    rootPackage.scripts?.verify ===
+      "npm run lint && npm run lint:css && npm run format:check && npm run test:renderer && npm run typecheck && npm run build && npm --workspace apps/desktop run test:gateway",
     "Root verify gate changed unexpectedly",
   );
   assert(/--test-concurrency=1/.test(desktopPackage.scripts?.["test:gateway"] ?? ""), "Gateway tests must remain deterministic");

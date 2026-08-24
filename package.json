@@ -1,6 +1,6 @@
 {
   "name": "kubedeck",
-  "version": "2.20.7",
+  "version": "2.20.8",
   "private": true,
   "license": "Apache-2.0",
   "workspaces": [
@@ -14,13 +14,14 @@
     "test:renderer": "npm --workspace apps/desktop run test:renderer",
     "lint": "biome lint apps/desktop/src apps/desktop/tests scripts",
     "format:check": "biome format .",
-    "verify": "npm run lint && npm run format:check && npm run test:renderer && npm run typecheck && npm run build && npm --workspace apps/desktop run test:gateway",
+    "verify": "npm run lint && npm run lint:css && npm run format:check && npm run test:renderer && npm run typecheck && npm run build && npm --workspace apps/desktop run test:gateway",
     "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-portable-windows.ps1",
     "test:gateway": "npm --workspace apps/desktop run build && npm --workspace apps/desktop run test:gateway",
     "verify:node-only": "node scripts/verify-release.cjs",
     "verify:release": "node scripts/verify-release.cjs",
     "package:mac": "bash ./scripts/build-macos.sh",
-    "package:linux": "bash ./scripts/build-linux.sh"
+    "package:linux": "bash ./scripts/build-linux.sh",
+    "lint:css": "node scripts/css-cascade.cjs report --check"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",

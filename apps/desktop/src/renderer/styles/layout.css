@@ -801,8 +801,14 @@ h2 {
   gap: 7px;
 }
 
+/* Specificity only, no !important. This rule is the generic primary button;
+   the drawer, the terminal toolbar and the Watch form each want their own
+   colour and say so with a more specific selector. While this carried
+   !important at specificity 100 they could only win it back by carrying one
+   too, which is where the chain of them came from - and .watch-start-form
+   button.primary, which never had one, was simply dead. */
 .primary {
-  background: var(--primary) !important;
+  background: var(--primary);
   border-color: var(--primary-border);
   color: var(--text-inverse);
 }
