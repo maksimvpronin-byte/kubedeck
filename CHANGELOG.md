@@ -1,3 +1,40 @@
+## 2.20.9 - A node's disk percentage stops being worked out twice
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
+
+The resource table shows how full a node's disk is using `diskUsagePercent`,
+which the main process calculates while reading the node's metrics. The resource
+Summary showed the same bar and calculated the number again - from
+`row.diskUsage` and `row.diskAllocatable`, which are **display strings**.
+`"31.38 GiB"` is a number the main process formatted for a person to read, and
+the Summary took it apart again with a regex to get the number back. A value
+went number → string → number, across the process boundary, to compute a result
+that already existed one field away.
+
+Two problems with that, one of which nearly happened. The percentage was derived
+from a rounded value - `31.38 GiB` has lost everything past two decimals. And
+the format was load-bearing without saying so: while consolidating the quantity
+formatters in 2.20.7, that exact string was a candidate for a new unit spelling
+or a thousands separator, either of which would have made the regex miss and the
+Summary's disk bar quietly lose its percentage. It was caught then and written
+down; this is the fix.
+
+The Summary now uses `row.diskUsagePercent` - the number the main process
+already worked out, and the same one the table shows, so the two views cannot
+disagree. Only when the probe returned a usage without a capacity does it fall
+back and divide, and then from `diskUsageRaw`, `diskObservedCapacityRaw` and
+`diskAllocatableRaw`: raw numbers and a Kubernetes quantity, which is a defined
+format, rather than something KubeDeck printed for a human. The regex over the
+display string is gone.
+
+On a node where the probe returned a capacity - the normal case - nothing
+changes, because the two calculations already agreed. Where it did not, the
+percentage is now computed from the unrounded allocatable; expect a percentage
+point of difference at most.
+
+Nine assertions cover it directly, which was not possible before: the function
+lived inside the React tree and was only reachable through it.
+
 ## 2.20.8 - The button cascade loses its keystone, and a dead rule comes back
 
 One visible change. No route changes. Node-only ownership stays at Node 58 /

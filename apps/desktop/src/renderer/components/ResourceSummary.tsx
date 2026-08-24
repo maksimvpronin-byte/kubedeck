@@ -210,7 +210,7 @@ function summaryFacts(row: ResourceRow, resource: string, now: number, serviceEn
       <ResourceUsageBar
         label="Disk"
         tone="disk"
-        percent={usagePercent(row.diskUsage, row.diskObservedCapacity ?? row.diskAllocatable ?? row.diskCapacity)}
+        percent={diskUsagePercent(row)}
         used={row.diskUsage}
         free={row.diskAvailable}
         allocatable={row.diskObservedCapacity ?? row.diskAllocatable ?? row.diskCapacity}
@@ -448,17 +448,28 @@ function parseKubeQuantity(value: string) {
   return Number(match[1]) * (factors[match[2] || ""] || 1);
 }
 
-function usagePercent(used: unknown, total: unknown) {
-  const left = parseDisplayBytes(used);
-  const right = parseDisplayBytes(total);
-  return left === null || right === null || right <= 0 ? null : Math.max(0, Math.min(100, Math.round((left / right) * 100)));
-}
+/**
+ * How full a node's disk is.
+ *
+ * The backend already works this out wherever it read a capacity, and the
+ * resource table shows that number - so the summary shows the same one rather
+ * than a second opinion. Only when the probe returned usage without a capacity
+ * does this fall back to the node's declared allocatable.
+ *
+ * That fallback reads `diskAllocatableRaw`, the Kubernetes quantity, not
+ * `diskAllocatable`, which is the same value formatted for display. This used
+ * to parse the formatted string back with a regex, which meant the backend
+ * could not change how it prints a size without silently breaking a percentage
+ * over here.
+ */
+export function diskUsagePercent(row: ResourceRow) {
+  const reported = metricPercent(row.diskUsagePercent);
+  if (reported !== null) return reported;
 
-function parseDisplayBytes(value: unknown) {
-  const match = String(value ?? "").match(/^(\d+(?:\.\d+)?)\s*(B|KiB|MiB|GiB|TiB)$/);
-  if (!match) return null;
-  const factors: Record<string, number> = { B: 1, KiB: 1024, MiB: 1024 ** 2, GiB: 1024 ** 3, TiB: 1024 ** 4 };
-  return Number(match[1]) * factors[match[2]];
+  const used = numeric(row.diskUsageRaw);
+  const total = numeric(row.diskObservedCapacityRaw) ?? parseKubeQuantity(String(row.diskAllocatableRaw ?? ""));
+  if (used === null || total === null || total <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((used / total) * 100)));
 }
 
 function primaryStatus(row: ResourceRow) {

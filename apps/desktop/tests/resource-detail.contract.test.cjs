@@ -259,3 +259,25 @@ test("a CronJob can be run by hand, under a name the confirmation showed", () =>
   assert.match(drawer, /\.\.\.\(action === "trigger" \? \{ jobName: triggerJobName \} : \{\}\)/);
   assert.match(api, /body: JSON\.stringify\(\{ action, replicas, jobName, confirmation \}\)/);
 });
+
+test("a node's disk percentage comes from the backend, not from re-reading its own printed size", () => {
+  const summary = loadTypeScript("components/ResourceSummary.tsx");
+
+  // The backend worked it out; the table shows that number and so does this.
+  assert.equal(summary.diskUsagePercent({ diskUsagePercent: 42 }), 42);
+  assert.equal(summary.diskUsagePercent({ diskUsagePercent: "37%" }), 37);
+
+  // Only when the probe returned usage without a capacity does it fall back -
+  // and then to the raw values, never to the formatted ones beside them.
+  assert.equal(summary.diskUsagePercent({ diskUsageRaw: 50, diskObservedCapacityRaw: 200 }), 25);
+  assert.equal(summary.diskUsagePercent({ diskUsageRaw: 32 * 1024 ** 3, diskAllocatableRaw: "64Gi" }), 50, "a Kubernetes quantity is a defined format; the display string beside it is not");
+
+  // A formatted size alone is no longer enough, which is the point: the backend
+  // can change how it prints a size without breaking this.
+  assert.equal(summary.diskUsagePercent({ diskUsage: "50 GiB", diskAllocatable: "100 GiB" }), null);
+
+  assert.equal(summary.diskUsagePercent({}), null);
+  assert.equal(summary.diskUsagePercent({ diskUsageRaw: 50 }), null, "no denominator, no percentage");
+  assert.equal(summary.diskUsagePercent({ diskUsageRaw: 50, diskObservedCapacityRaw: 0 }), null, "a zero capacity is not a division");
+  assert.equal(summary.diskUsagePercent({ diskUsageRaw: 300, diskObservedCapacityRaw: 200 }), 100, "over capacity is clamped, as it was before");
+});
