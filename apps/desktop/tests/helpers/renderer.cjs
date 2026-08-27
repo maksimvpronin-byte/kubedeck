@@ -17,7 +17,10 @@ function resolveRendererModule(fromRelativePath, specifier) {
   return "";
 }
 
-function loadTypeScript(relativePath, stubs = {}) {
+// The cache is keyed by the stubs as well as the path: the same module is
+// loaded here against a stub of React that does nothing, and in the DOM tests
+// against the real one.
+function loadTypeScript(relativePath, stubs = {}, cacheKey = "") {
   const source = fs.readFileSync(path.join(rendererRoot, relativePath), "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
@@ -28,9 +31,10 @@ function loadTypeScript(relativePath, stubs = {}) {
     if (specifier.startsWith(".")) {
       const resolved = resolveRendererModule(relativePath, specifier);
       if (resolved) {
-        if (rendererModuleCache.has(resolved)) return rendererModuleCache.get(resolved);
-        const loaded = loadTypeScript(resolved, stubs);
-        rendererModuleCache.set(resolved, loaded);
+        const cached = `${cacheKey}\u0000${resolved}`;
+        if (rendererModuleCache.has(cached)) return rendererModuleCache.get(cached);
+        const loaded = loadTypeScript(resolved, stubs, cacheKey);
+        rendererModuleCache.set(cached, loaded);
         return loaded;
       }
     }

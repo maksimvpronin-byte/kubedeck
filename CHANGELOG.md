@@ -1,3 +1,34 @@
+## 2.22.8 - The renderer can be tested by clicking on it
+
+No product code changed. Node-only ownership stays at Node 58 / Python 0.
+
+A large part of what the renderer promises was checked by reading its own source
+and matching a regular expression. The tests say so themselves - `grep contract:
+asserts on source text, not behaviour` - and they do the two things you would
+expect: they break when something is renamed, and they pass while a real
+regression walks through. Whether a click opens a row, whether a selection
+survives a refresh, whether a refresh tick steps aside for the walk already
+running: none of it was actually exercised.
+
+`jsdom` joins the dev dependencies, with a small harness that mounts a real
+renderer component using the project's own React and lets a test click, type,
+toggle and re-render it. Eleven behavioural tests come with it: eight for the
+resource table - rows and cells, click to open and double click to pin, the
+namespace pill doing neither, selection driving the bulk action, a refresh
+keeping the selection and dropping only the rows that are gone, the filter and
+its empty state, sorting - and three for the Problems panel, including the tick
+that steps aside for a walk in progress (2.22.1) and the abort on leaving
+(2.22.0), both of which were grep contracts until now.
+
+Two things are written into the harness because they cost an hour to find:
+`react-dom` decides at import time whether it has a DOM, and one loaded without
+a document never delivers a change event again; and `act` must not be handed a
+callback that returns a promise it was not meant to adopt, or the state update
+that follows is silently swallowed.
+
+jsdom is not bundled, not packaged and not shipped: `npm audit --omit=dev` stays
+at zero. Renderer suite is 138 tests.
+
 ## 2.22.7 - A release can be checked against a real cluster
 
 No product code changed. Node-only ownership stays at Node 58 / Python 0.
