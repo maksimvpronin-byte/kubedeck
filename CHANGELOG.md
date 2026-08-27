@@ -1,3 +1,29 @@
+## 2.22.3 - Preparing a kubectl command stops reading two files from disk
+
+No route changes, no API change. Node-only ownership stays at Node 58 / Python 0.
+
+Every kubectl invocation goes through `clusterCommand()`, and every one of them
+read `config.json` (plus `JSON.parse` and a full normalize) to find one cluster's
+kubeconfig path, read the kubeconfig itself to find the API server host for
+`NO_PROXY`, and copied the whole of `process.env` to hold two proxy variables -
+`process.env` being a native accessor rather than a plain object, that copy was
+the most expensive of the three. All synchronous, on the thread that also serves
+the gateway and parses watch events, and it adds up wherever commands fan out: a
+60-node table warms one kubelet request per node and the renderer then asks for
+each node again, so it was paid 120 times.
+
+Both reads are now cached and validated against the modification time and size of
+the file behind them. The config cache is dropped by `save()`, which covers this
+process, while the stamp covers a second instance or a hand-edited file; callers
+still get their own copy, because the cluster mutations write into what `load()`
+returns before saving it. The environment is kept per kubeconfig path and rebuilt
+when that file changes, appears or disappears, or when the proxy settings of the
+process itself change.
+
+Measured against the built modules with a real `ConfigStore`: `clusterCommand()`
+went from 0.342ms to 0.014ms, and the 120 commands behind a 60-node table from
+41ms of blocking setup to 1.7ms. Gateway suite is 162 tests.
+
 ## 2.22.2 - The usage sampler stops rebuilding every bucket array
 
 No route changes, no API change. Node-only ownership stays at Node 58 / Python 0.

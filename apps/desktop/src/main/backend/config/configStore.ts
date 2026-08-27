@@ -281,8 +281,20 @@ function readConfigFile(filePath: string): AppConfig {
   return normalizeConfig(JSON.parse(fs.readFileSync(filePath, "utf8")));
 }
 
+interface ConfigCacheEntry {
+  mtimeMs: number;
+  size: number;
+  value: AppConfig;
+}
+
 export class ConfigStore {
   readonly paths: AppPaths;
+  // Every kubectl invocation resolves its cluster through `load()`, so this
+  // file was read, parsed and normalized hundreds of times for one nodes table.
+  // The cache is dropped by `save()` for this process, and validated against
+  // the file stamp so a second instance - or a hand-edited file - is still
+  // noticed.
+  private cache: ConfigCacheEntry | null = null;
 
   constructor(rootOverride?: string) {
     this.paths = ensureAppPaths(rootOverride);
@@ -291,16 +303,36 @@ export class ConfigStore {
     }
   }
 
+  private configStamp(): { mtimeMs: number; size: number } | null {
+    try {
+      const stat = fs.statSync(this.paths.config);
+      return { mtimeMs: stat.mtimeMs, size: stat.size };
+    } catch {
+      return null;
+    }
+  }
+
   load(): AppConfig {
+    const stamp = this.configStamp();
+    // Callers own what they get back - `updateSettings` and the cluster
+    // mutations write into it before saving - so the cached value is never
+    // handed out itself.
+    if (stamp && this.cache && this.cache.mtimeMs === stamp.mtimeMs && this.cache.size === stamp.size) {
+      return structuredClone(this.cache.value);
+    }
+
     let raw: string;
     try {
       raw = fs.readFileSync(this.paths.config, "utf8");
     } catch (error) {
+      this.cache = null;
       throw error;
     }
 
     try {
-      return normalizeConfig(JSON.parse(raw));
+      const value = normalizeConfig(JSON.parse(raw));
+      this.cache = stamp ? { ...stamp, value: structuredClone(value) } : null;
+      return value;
     } catch {
       const brokenPath = path.join(this.paths.root, "config.broken.json");
       const backupPath = path.join(this.paths.root, "config.backup.json");
@@ -328,6 +360,9 @@ export class ConfigStore {
   }
 
   save(config: AppConfig, createBackup = true): AppConfig {
+    // The write lands within the same millisecond as its own stat often enough
+    // that the stamp alone cannot be trusted for this process.
+    this.cache = null;
     const normalized = normalizeConfig(config);
     const serialized = `${JSON.stringify(normalized, null, 2)}\n`;
     const temporaryPath = `${this.paths.config}.${process.pid}.${Date.now()}.tmp`;

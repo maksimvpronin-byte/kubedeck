@@ -9,7 +9,7 @@ const path = require("node:path");
 const { EventEmitter } = require("node:events");
 const { PassThrough } = require("node:stream");
 const { startGateway } = require("../dist/main/backend/gateway.js");
-const { createKubectlCommand } = require("../dist/main/backend/kubectl/command.js");
+const { createKubectlCommand, kubectlEnvironment, clearKubectlEnvironmentCache } = require("../dist/main/backend/kubectl/command.js");
 const { KubectlRunner } = require("../dist/main/backend/kubectl/runner.js");
 const { ConfigStore } = require("../dist/main/backend/config/configStore.js");
 const { AuditStore } = require("../dist/main/backend/audit/auditStore.js");
@@ -669,4 +669,76 @@ test("saving settings does not make connected clusters look disconnected", async
   // disconnected while the backend carried on talking to them.
   assert.deepEqual((await saved.json()).connectedClusterIds, [cluster.id]);
   assert.deepEqual((await (await fetch(`${gateway.baseUrl}/config`, { headers })).json()).connectedClusterIds, [cluster.id], "and the cluster really is still connected");
+});
+
+// Both caches exist because every kubectl invocation used to read config.json
+// and the kubeconfig from disk. Neither may hold a stale answer.
+test("the config cache is checked against the file rather than trusted", (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-config-cache-"));
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+  const source = path.join(appDataRoot, "source.yaml");
+  fs.writeFileSync(source, "apiVersion: v1\n", "utf8");
+
+  const store = new ConfigStore(appDataRoot);
+  const cluster = store.importCluster(source, "before");
+  assert.equal(store.load().clusters[0].displayName, "before");
+
+  // A save through the store is visible immediately, whatever the file stamp
+  // says: two writes can land inside the same millisecond.
+  store.renameCluster(cluster.id, "after");
+  assert.equal(store.load().clusters[0].displayName, "after");
+
+  // An edit from outside - a second instance, or a hand-edited file - is
+  // noticed as well.
+  const external = JSON.parse(fs.readFileSync(store.paths.config, "utf8"));
+  external.clusters[0].displayName = "edited by somebody else";
+  fs.writeFileSync(store.paths.config, JSON.stringify(external, null, 2), "utf8");
+  const future = new Date(Date.now() + 2000);
+  fs.utimesSync(store.paths.config, future, future);
+  assert.equal(store.load().clusters[0].displayName, "edited by somebody else");
+
+  // What a caller gets back is its own: `updateSettings` and the cluster
+  // mutations write into it before saving.
+  const first = store.load();
+  first.clusters[0].displayName = "scribbled on";
+  assert.equal(store.load().clusters[0].displayName, "edited by somebody else");
+});
+
+test("the kubectl environment is rebuilt when the kubeconfig behind it changes", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-env-cache-"));
+  t.after(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+    clearKubectlEnvironmentCache();
+  });
+  const kubeconfig = path.join(root, "cluster.yaml");
+  const withServer = (host) => `apiVersion: v1\nclusters:\n- cluster:\n    server: https://${host}:6443\n  name: c\n`;
+
+  clearKubectlEnvironmentCache();
+  fs.writeFileSync(kubeconfig, withServer("api.first.example.com"), "utf8");
+  assert.match(kubectlEnvironment(kubeconfig).NO_PROXY, /api\.first\.example\.com/);
+
+  // The same unchanged kubeconfig answers from the cache, and the environment
+  // is shared rather than copied per command - callers spread it into their own
+  // object when they need a different one.
+  assert.equal(kubectlEnvironment(kubeconfig), kubectlEnvironment(kubeconfig));
+
+  fs.writeFileSync(kubeconfig, withServer("api.second.example.com"), "utf8");
+  const future = new Date(Date.now() + 2000);
+  fs.utimesSync(kubeconfig, future, future);
+  const rebuilt = kubectlEnvironment(kubeconfig);
+  assert.match(rebuilt.NO_PROXY, /api\.second\.example\.com/);
+  assert.doesNotMatch(rebuilt.NO_PROXY, /api\.first\.example\.com/);
+  // The loopback and private ranges are still there.
+  assert.match(rebuilt.NO_PROXY, /127\.0\.0\.1/);
+  assert.equal(rebuilt.NO_PROXY, rebuilt.no_proxy);
+
+  // A proxy setting changed in the process environment is picked up too.
+  const previous = process.env.NO_PROXY;
+  process.env.NO_PROXY = "corp.example.com";
+  try {
+    assert.match(kubectlEnvironment(kubeconfig).NO_PROXY, /corp\.example\.com/);
+  } finally {
+    if (previous === undefined) delete process.env.NO_PROXY;
+    else process.env.NO_PROXY = previous;
+  }
 });
