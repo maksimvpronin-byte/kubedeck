@@ -1,3 +1,33 @@
+## 2.22.4 - Global Search stops normalizing what it is about to throw away
+
+No route changes, no API change, identical results. Node-only ownership stays at
+Node 58 / Python 0.
+
+`rankRawItems` normalized every raw object it was handed - for pods a full
+`podSummary`: containers, restart diagnostics, ports, sorted labels - and only
+then asked whether the query matched it at all. On a cluster-wide search that is
+the cost of a whole pod list, repeated for every resource kind in the fan-out, to
+keep at most a few rows. The scoring then lowercased the same text repeatedly and
+joined every field into one multi-kilobyte haystack per item.
+
+An item is now ruled out from the raw object, before any normalization, and the
+text behind that decision is reused by the scoring that follows, so a matching
+item serializes its labels, annotations, status and spec exactly once. The one
+thing a summary can add to that text is `kind` - a CRD reports the kind it
+defines rather than "CustomResourceDefinition", and a normalizer supplies a
+static kind for a list entry that carries none - so the rule-out offers every
+candidate; an extra candidate can only produce a false positive, which the real
+scoring drops, and can never hide a match. Each field is also lowercased once,
+and the haystack is no longer joined at all: a token never contains whitespace,
+so a token found in the join must lie inside a single field.
+
+400 pods, limit 40: a query matching nothing went from 2.94ms to 0.97ms, one
+matching ~8% from 0.96ms to 0.68ms, and one matching everything from 0.35ms to
+0.41ms - the 40 items that do match build their field text twice, which is
+bounded by the limit. Results were compared row by row between the two builds
+over 56 resource/query combinations and are byte-for-byte identical. Gateway
+suite is 165 tests.
+
 ## 2.22.3 - Preparing a kubectl command stops reading two files from disk
 
 No route changes, no API change. Node-only ownership stays at Node 58 / Python 0.

@@ -407,3 +407,74 @@ test("Global Search reuses the shared api-resources discovery cache across calls
   await buildSearchResponse(configStore, runner, clusterId, options);
   assert.equal(discoveryCalls, 2, "clearing the shared cache (as cluster removal/edit does) must force a fresh discovery call");
 });
+
+test("an item the query cannot match is never normalized", () => {
+  const spec = { resource: "pods", kind: "Pod", scope: "namespaced", normalizer: "resource" };
+  let containerReads = 0;
+  const item = {
+    kind: "Pod",
+    metadata: { uid: "u1", name: "api-server", namespace: "default", labels: { app: "api" }, annotations: {} },
+    status: { phase: "Running", containerStatuses: [{ name: "api", ready: true, restartCount: 0, state: { running: {} } }] },
+    spec: {
+      // Only `podSummary` walks the containers; the text a query is matched
+      // against is built from metadata, status and four spec keys.
+      get containers() {
+        containerReads += 1;
+        return [{ name: "api", image: "example/api:1", resources: {} }];
+      },
+    },
+  };
+
+  assert.deepEqual(rankRawItems(spec, [item], "no-such-thing", 10), []);
+  assert.equal(containerReads, 0, "a pod that cannot match must not be summarized");
+
+  const matched = rankRawItems(spec, [item], "api-server", 10);
+  assert.equal(matched.length, 1);
+  assert.ok(containerReads > 0, "a pod that matches is summarized as before");
+  assert.equal(matched[0].name, "api-server");
+});
+
+test("a custom resource definition is still found by the kind it defines", () => {
+  // The rule-out pass runs before normalization, so it has to know that a CRD
+  // reports "IngressRoute" rather than its own kind of
+  // "CustomResourceDefinition" - otherwise this search would find nothing.
+  const spec = { resource: "customresourcedefinitions", kind: "CustomResourceDefinition", scope: "cluster", normalizer: "resource" };
+  const item = {
+    apiVersion: "apiextensions.k8s.io/v1",
+    kind: "CustomResourceDefinition",
+    metadata: { uid: "crd-1", name: "ingressroutes.traefik.io", labels: {}, annotations: {} },
+    spec: { group: "traefik.io", scope: "Namespaced", names: { kind: "IngressRoute", plural: "ingressroutes", singular: "ingressroute" }, versions: [{ name: "v1alpha1", served: true }] },
+    status: {},
+  };
+
+  const ranked = rankRawItems(spec, [item], "IngressRoute", 10);
+  assert.equal(ranked.length, 1);
+  assert.equal(ranked[0].kind, "IngressRoute");
+  assert.ok(ranked[0].matchedFields.includes("kind"));
+
+  // A kind that is only a candidate, never the real one, still does not match.
+  assert.deepEqual(rankRawItems(spec, [item], "EgressRoute", 10), []);
+});
+
+test("scoring lowercases each field once and keeps the order of matchedFields", () => {
+  const raw = {
+    kind: "Pod",
+    metadata: {
+      name: "API-Server",
+      namespace: "Default",
+      labels: { app: "API" },
+      annotations: { owner: "API team" },
+    },
+    status: { phase: "Running", message: "api is running" },
+  };
+  const summary = { name: "API-Server", namespace: "Default", kind: "Pod" };
+
+  const scored = scoreSearchResult("api", "pods", raw, summary);
+  // name first, then the remaining fields in the order the haystack is built.
+  assert.deepEqual(scored.matchedFields, ["name", "labels", "annotations", "status"]);
+  assert.equal(scored.score, 510);
+
+  // Case is irrelevant to matching, on both sides of the comparison.
+  assert.equal(scoreSearchResult("API", "pods", raw, summary).score, scored.score);
+  assert.equal(scoreSearchResult("api-server", "pods", raw, summary).score, 1010);
+});

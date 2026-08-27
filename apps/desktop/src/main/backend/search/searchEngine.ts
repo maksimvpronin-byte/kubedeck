@@ -205,66 +205,129 @@ function resourceSummary(spec: SearchResourceSpec, raw: Record<string, unknown>)
   return rows[0] ?? genericSearchSummary(raw);
 }
 
-export function scoreSearchResult(query: string, resource: string, raw: Record<string, unknown>, summary: Record<string, unknown>): { score: number; matchedFields: string[] } {
-  const tokens = query
+function searchTokens(query: string): string[] {
+  return query
     .split(/\s+/)
     .filter(Boolean)
     .map((token) => token.toLocaleLowerCase());
+}
+
+// The parts of the haystack that cost something to build: three JSON
+// serializations, lowercased once. They depend on the raw object alone, so they
+// are built once per item and reused by both the rule-out pass and the scoring
+// that may follow it.
+interface RawSearchText {
+  name: string;
+  namespace: string;
+  resource: string;
+  labels: string;
+  annotations: string;
+  status: string;
+  spec: string;
+}
+
+function rawSearchText(raw: Record<string, unknown>, resource: string): RawSearchText {
   const metadata = record(raw.metadata);
-  const name = text(summary.name) || text(metadata.name);
-  const namespace = text(summary.namespace) || text(metadata.namespace);
-  const kind = text(summary.kind) || text(raw.kind);
-  const labels = record(metadata.labels);
-  const annotations = record(metadata.annotations);
-  const status = record(raw.status);
   const spec = record(raw.spec);
   const safeSpec: Record<string, unknown> = {};
   for (const key of ["type", "serviceName", "storageClassName", "ingressClassName"]) {
     if (key in spec) safeSpec[key] = spec[key];
   }
-  const fields: Record<string, string> = {
+  return {
+    name: text(metadata.name).toLocaleLowerCase(),
+    namespace: text(metadata.namespace).toLocaleLowerCase(),
+    resource: resource.toLocaleLowerCase(),
+    labels: jsonText(record(metadata.labels)).toLocaleLowerCase(),
+    annotations: jsonText(record(metadata.annotations)).toLocaleLowerCase(),
+    status: jsonText(record(raw.status), 4000).toLocaleLowerCase(),
+    spec: jsonText(safeSpec).toLocaleLowerCase(),
+  };
+}
+
+// Field order is part of the contract: it decides the order of `matchedFields`.
+function loweredFields(parts: RawSearchText, name: string, namespace: string, kind: string): Record<string, string> {
+  return {
     name,
     namespace,
     kind,
-    resource,
-    labels: jsonText(labels),
-    annotations: jsonText(annotations),
-    status: jsonText(status, 4000),
-    spec: jsonText(safeSpec),
+    resource: parts.resource,
+    labels: parts.labels,
+    annotations: parts.annotations,
+    status: parts.status,
+    spec: parts.spec,
   };
-  const haystack = Object.values(fields).join(" ").toLocaleLowerCase();
-  if (!tokens.every((token) => haystack.includes(token))) {
+}
+
+// Joining the fields into one haystack allocated a copy of everything - a few
+// kilobytes per item, and per pass. A token never contains whitespace, because
+// that is what the query was split on, so a token that appears in the join must
+// lie inside a single field: scanning the fields answers the same question.
+function containsEveryToken(fields: Record<string, string>, tokens: readonly string[]): boolean {
+  if (tokens.length === 0) return true;
+  const values = Object.values(fields);
+  for (const token of tokens) {
+    if (!values.some((value) => value.includes(token))) return false;
+  }
+  return true;
+}
+
+// `kind` is the one thing the summary can add to the haystack: a CRD reports
+// the kind it defines rather than "CustomResourceDefinition", and a normalizer
+// supplies a static kind for a list entry that carries none. Offering every
+// candidate here can only produce a false positive - which the real scoring
+// then drops - and never hides a match, so ruling an item out at this point is
+// safe without normalizing it first.
+function kindCandidates(spec: SearchResourceSpec, raw: Record<string, unknown>): string {
+  return [text(raw.kind), text(record(record(raw.spec).names).kind), spec.kind].filter(Boolean).join(" ").toLocaleLowerCase();
+}
+
+function scoreFromParts(query: string, tokens: readonly string[], resource: string, parts: RawSearchText, name: string, namespace: string, kind: string): { score: number; matchedFields: string[] } {
+  const lowered = loweredFields(parts, name.toLocaleLowerCase(), namespace.toLocaleLowerCase(), kind.toLocaleLowerCase());
+  if (!containsEveryToken(lowered, tokens)) {
     return { score: 0, matchedFields: [] };
   }
   let score = 10;
   const matchedFields: string[] = [];
   const normalizedQuery = query.toLocaleLowerCase();
-  if (name.toLocaleLowerCase() === normalizedQuery) {
+  if (lowered.name === normalizedQuery) {
     score += 1000;
     matchedFields.push("name");
-  } else if (name.toLocaleLowerCase().includes(normalizedQuery)) {
+  } else if (lowered.name.includes(normalizedQuery)) {
     score += 500;
     matchedFields.push("name");
   }
-  if (namespace && namespace.toLocaleLowerCase().includes(normalizedQuery)) {
+  if (namespace && lowered.namespace.includes(normalizedQuery)) {
     score += 160;
     matchedFields.push("namespace");
   }
-  if (kind && kind.toLocaleLowerCase().includes(normalizedQuery)) {
+  if (kind && lowered.kind.includes(normalizedQuery)) {
     score += 120;
     matchedFields.push("kind");
   }
-  if (resource && resource.toLocaleLowerCase().includes(normalizedQuery)) {
+  if (resource && lowered.resource.includes(normalizedQuery)) {
     score += 100;
     matchedFields.push("resource");
   }
-  for (const [field, value] of Object.entries(fields)) {
+  for (const [field, value] of Object.entries(lowered)) {
     if (matchedFields.includes(field)) continue;
-    if (tokens.some((token) => value.toLocaleLowerCase().includes(token))) {
+    if (tokens.some((token) => value.includes(token))) {
       matchedFields.push(field);
     }
   }
   return { score, matchedFields: matchedFields.slice(0, 5) };
+}
+
+export function scoreSearchResult(query: string, resource: string, raw: Record<string, unknown>, summary: Record<string, unknown>): { score: number; matchedFields: string[] } {
+  const metadata = record(raw.metadata);
+  return scoreFromParts(
+    query,
+    searchTokens(query),
+    resource,
+    rawSearchText(raw, resource),
+    text(summary.name) || text(metadata.name),
+    text(summary.namespace) || text(metadata.namespace),
+    text(summary.kind) || text(raw.kind),
+  );
 }
 
 function resultSubtitle(resource: string, namespace: string, row: Record<string, unknown>, spec: SearchResourceSpec): string {
@@ -301,13 +364,29 @@ export function searchResultRow(spec: SearchResourceSpec, summary: Record<string
 
 export function rankRawItems(spec: SearchResourceSpec, rawItems: readonly unknown[], query: string, limit: number): SearchResultRow[] {
   const collected: SearchResultRow[] = [];
+  const tokens = searchTokens(query);
   for (const value of rawItems) {
     if (!isRecord(value)) continue;
     if (spec.definitionOnly && !crdItemMatchesDefinition(value, spec.definitionFilter)) {
       continue;
     }
+    // Normalizing first meant paying for a full `podSummary` - containers,
+    // restart diagnostics, ports, sorted labels - for every pod in the cluster,
+    // only to discard the ones the query does not match at all. The text behind
+    // this rule-out is the same text the scoring below uses, built once.
+    const parts = rawSearchText(value, spec.resource);
+    if (!containsEveryToken(loweredFields(parts, parts.name, parts.namespace, kindCandidates(spec, value)), tokens)) continue;
     const summary = resourceSummary(spec, value);
-    const { score, matchedFields } = scoreSearchResult(query, spec.resource, value, summary);
+    const metadata = record(value.metadata);
+    const { score, matchedFields } = scoreFromParts(
+      query,
+      tokens,
+      spec.resource,
+      parts,
+      text(summary.name) || text(metadata.name),
+      text(summary.namespace) || text(metadata.namespace),
+      text(summary.kind) || text(value.kind),
+    );
     if (score <= 0) continue;
     collected.push(searchResultRow(spec, summary, score, matchedFields));
     if (collected.length >= limit) break;
