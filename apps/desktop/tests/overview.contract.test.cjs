@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const { buildOverviewSnapshot } = require("../dist/main/backend/overview/overviewEngine.js");
 const { buildOverviewResponse } = require("../dist/main/backend/routes/overview.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
+const { buildProblemsResponse } = require("../dist/main/backend/routes/problems.js");
+const { clearAggregateSourceCache } = require("../dist/main/backend/cache/aggregateSourceCache.js");
 
 test("overview snapshot keeps health conservative and summaries actionable", () => {
   const snapshot = buildOverviewSnapshot(
@@ -120,4 +122,43 @@ test("overview sources load concurrently and preserve partial failures", async (
   assert.ok(maximum > 1);
   assert.equal(response.verdict.tone, "neutral");
   assert.equal(response.errors.length, 1);
+});
+
+test("overview bounds how many lists it starts at once, filters events, and shares them with Problems", async () => {
+  clearAggregateSourceCache();
+  const commands = [];
+  let active = 0;
+  let maximum = 0;
+  const runner = {
+    async run() {
+      return { stdout: "", stderr: "", exitCode: 0 };
+    },
+    async runJson(command) {
+      commands.push(command.args);
+      active += 1;
+      maximum = Math.max(maximum, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      return { items: [] };
+    },
+  };
+  const configStore = {
+    load: () => ({ settings: { kubectlPath: "kubectl", restartProblemThreshold: 3 }, clusters: [{ id: "cluster-1" }] }),
+    getCluster: () => ({ id: "cluster-1" }),
+  };
+
+  await buildOverviewResponse(configStore, runner, "cluster-1", ["all"]);
+  assert.equal(commands.length, 9);
+  // Nine at once was a burst of kubectl processes every ten seconds, on top of
+  // the per-node kubelet requests the node source starts.
+  assert.ok(maximum <= 3, `expected at most 3 concurrent lists, saw ${maximum}`);
+  assert.ok(maximum > 1, "and still more than one at a time");
+  assert.deepEqual(
+    commands.find((args) => args[1] === "events"),
+    ["get", "events", "-A", "--field-selector", "type=Warning", "-o", "json"],
+  );
+
+  // Switching to the Problems panel asks for five kinds Overview just read.
+  await buildProblemsResponse(configStore, runner, "cluster-1");
+  assert.equal(commands.length, 9, "Problems reuses the lists Overview just fetched");
 });

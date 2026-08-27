@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { loadAggregateSource } from "../cache/aggregateSourceCache";
 import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
@@ -48,13 +49,27 @@ export function matchProblemsRoute(method: string | undefined, pathname: string)
 function resourceArgs(source: ProblemSourceDefinition): string[] {
   const args = ["get", source.resource];
   if (source.namespace === "all") args.push("-A");
+  // Only Warning events ever become a problem row, and in a normal cluster they
+  // are a small fraction of the stream. Filtering on the API server instead of
+  // here is the difference between reading every event in the cluster every ten
+  // seconds and reading the handful that matter.
+  if (source.resource === "events") args.push("--field-selector", "type=Warning");
   args.push("-o", "json");
   return args;
 }
 
 async function loadProblemSource(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, source: ProblemSourceDefinition, signal?: AbortSignal): Promise<Array<Record<string, unknown>>> {
-  const data = await runner.runJson(clusterCommand(configStore, clusterId, resourceArgs(source), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal);
-  return normalizeResourceItems(source.resource, asItems(data));
+  const items = await loadAggregateSource(clusterId, sourceCacheKind(source), source.namespace, async () => {
+    const data = await runner.runJson(clusterCommand(configStore, clusterId, resourceArgs(source), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal);
+    return asItems(data);
+  });
+  return normalizeResourceItems(source.resource, items);
+}
+
+// The event list is filtered to warnings, so it must not share a cache entry
+// with an unfiltered list of the same kind.
+function sourceCacheKind(source: ProblemSourceDefinition): string {
+  return source.resource === "events" ? "events:warning" : source.resource;
 }
 
 export async function buildProblemsResponse(

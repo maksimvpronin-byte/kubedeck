@@ -3,6 +3,7 @@ import type { Socket } from "node:net";
 import type { Duplex } from "node:stream";
 import { isAllowedOrigin, isAuthorized, requestOrigin, requestToken, websocketToken, writePolicyViolation } from "./auth";
 import { AuditStore } from "./audit/auditStore";
+import { clearAggregateSourceCache } from "./cache/aggregateSourceCache";
 import { ResourceSnapshotCache } from "./cache/resourceSnapshotCache";
 import { ResourceWatchEventHub } from "./watch/eventHub";
 import { ResourceWatchWebSocketServer } from "./watch/webSocket";
@@ -82,6 +83,14 @@ function applyCors(request: IncomingMessage, response: ServerResponse): boolean 
   return true;
 }
 
+// Everything that answers from a cached read of the cluster. They are cleared
+// together, because a snapshot of one kind is no more valid than a snapshot of
+// another once the cluster underneath them has changed.
+function clearClusterReadCaches(clusterId?: string): void {
+  clearResourceDefinitionCache(clusterId);
+  clearAggregateSourceCache(clusterId);
+}
+
 function requestPath(request: IncomingMessage): string {
   return new URL(request.url ?? "/", "http://127.0.0.1").pathname;
 }
@@ -119,7 +128,7 @@ async function releaseClusterRuntime(services: GatewayServices, clusterId: strin
     services.sshWebSocket.stopCluster(clusterId),
   ]);
   services.resourceCache.clear(clusterId, reason);
-  clearResourceDefinitionCache(clusterId);
+  clearClusterReadCaches(clusterId);
   clearNodeDiskMetricsCache(clusterId);
 }
 
@@ -389,7 +398,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
       services.configStore,
       services.kubectlRunner,
       services.resourceCache,
-      clearResourceDefinitionCache,
+      clearClusterReadCaches,
       services.usageHistory,
       (clusterId) => services.connections.isConnected(clusterId),
       options.log,
@@ -409,7 +418,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
   if (
     handleResourceActionRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log, async (clusterId) => {
       services.resourceCache.clear(clusterId, "mutation");
-      clearResourceDefinitionCache(clusterId);
+      clearClusterReadCaches(clusterId);
     })
   ) {
     return;
@@ -418,7 +427,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
   if (
     handleYamlRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log, async (clusterId) => {
       services.resourceCache.clear(clusterId, "mutation");
-      clearResourceDefinitionCache(clusterId);
+      clearClusterReadCaches(clusterId);
     })
   ) {
     return;

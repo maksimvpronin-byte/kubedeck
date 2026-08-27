@@ -308,3 +308,20 @@ test("a disconnected cluster is left alone, including by the polling fallback", 
   // drawer would keep offering actions the gateway now refuses.
   assert.match(controller, /if \(cluster\.id === activeCluster\?\.id\) \{\s*setRows\(\{\}\);\s*setSelectedRow\(null\);/);
 });
+
+test("a silent refresh steps aside for the walk already running", () => {
+  const refresh = loadTypeScript("utils/refresh.ts");
+  assert.equal(refresh.shouldSkipSilentRefresh(true, true), true);
+  assert.equal(refresh.shouldSkipSilentRefresh(true, false), false);
+  // A refresh somebody asked for still replaces whatever is running.
+  assert.equal(refresh.shouldSkipSilentRefresh(false, true), false);
+  assert.equal(refresh.shouldSkipSilentRefresh(false, false), false);
+
+  // grep contract: both panels walk the whole cluster per refresh - nine lists
+  // for Overview, five for Problems - so a tick that aborted the running walk
+  // meant a cluster slower than the interval never finished one.
+  for (const file of ["components/OverviewPanel.tsx", "components/ProblemsPanel.tsx"]) {
+    const source = fs.readFileSync(path.join(rendererRoot, file), "utf8");
+    assert.match(source, /shouldSkipSilentRefresh\(silent, requestRef\.current !== null\)/, file);
+  }
+});

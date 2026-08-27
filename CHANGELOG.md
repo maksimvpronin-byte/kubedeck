@@ -1,3 +1,33 @@
+## 2.22.1 - Overview and Problems stop reading the whole event stream
+
+No route changes. Node-only ownership stays at Node 58 / Python 0.
+
+Both panels answer by walking the cluster - nine cluster-wide `kubectl get` calls
+for Overview, five for Problems - on a ten-second timer. Among them was
+`get events -A -o json`, the largest list most clusters have, of which the
+problem engine keeps only the Warning entries and drops the rest. Everything else
+was read from the API server, transferred, parsed and normalized for nothing.
+Both routes now ask for `--field-selector type=Warning`, so the filtering happens
+where the events are.
+
+Overview also started all nine lists at once, on top of the per-node kubelet
+requests its node source fans out - a burst of kubectl processes every ten
+seconds. It now runs three at a time, which the answer is no slower for: it is
+bounded by the API server either way.
+
+The five kinds Problems reads are all among the nine Overview reads, and only one
+panel is on screen at a time, so switching between them used to repeat the same
+lists from scratch. A short shared cache - five seconds, well under the
+ten-second minimum refresh interval - lets the second reader use what the first
+already fetched, while a panel's own interval still reads the cluster afresh.
+In-flight requests are deliberately not shared: each carries the abort signal of
+the client that asked for it.
+
+Finally, a silent refresh no longer aborts the walk already running. On a cluster
+slower than the refresh interval, every tick used to abort the previous walk and
+start another, so a panel could restart forever without ever showing a result.
+Renderer suite is 125 tests, gateway 159.
+
 ## 2.22.0 - A request the client walked away from stops
 
 No route changes. Node-only ownership stays at Node 58 / Python 0.

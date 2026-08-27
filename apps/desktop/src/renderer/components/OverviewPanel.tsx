@@ -5,7 +5,7 @@ import type { ApiClient } from "../api";
 import type { Cluster, ClusterOverviewResponse, ErrorInfo, Settings } from "../types";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
 import { asErrorInfo, isAbortError } from "../utils/errors";
-import { getAutoRefreshIntervalSeconds } from "../utils/refresh";
+import { getAutoRefreshIntervalSeconds, shouldSkipSilentRefresh } from "../utils/refresh";
 import { formatElapsed } from "../utils/time";
 import { ThemedSelect } from "./ThemedSelect";
 
@@ -52,6 +52,7 @@ export function OverviewPanel({
   const refresh = useCallback(
     async (silent = false) => {
       if (!api || !cluster) return false;
+      if (shouldSkipSilentRefresh(silent, requestRef.current !== null)) return false;
       requestRef.current?.abort();
       const controller = new AbortController();
       requestRef.current = controller;
@@ -82,6 +83,10 @@ export function OverviewPanel({
     return () => requestRef.current?.abort();
   }, [api, cluster?.id, namespaces.join(",")]);
 
+  // Unlike the resource table, this panel keeps polling even when watches are
+  // healthy - and deliberately so: a watch is opened for the one resource the
+  // table shows, and while this panel is the active section there is no watch
+  // open at all. There is nothing here for `shouldPollResources` to consult.
   useEffect(() => {
     const seconds = getAutoRefreshIntervalSeconds(settings);
     if (!api || !cluster || seconds <= 0) return;

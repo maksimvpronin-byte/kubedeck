@@ -15,3 +15,12 @@ export function getAutoRefreshIntervalSeconds(settings?: Pick<Settings, "refresh
 export function shouldPollResources(intervalSeconds: number, watchHealthy: boolean): boolean {
   return intervalSeconds > 0 && !watchHealthy;
 }
+
+// A silent refresh exists to keep a panel current, which is exactly what the
+// load already running is doing. Aborting that one to start another means a
+// cluster slower than the interval never finishes a single walk - and for the
+// Overview and Problems panels one walk is nine and five cluster-wide kubectl
+// calls. The tick steps aside instead; the running load delivers.
+export function shouldSkipSilentRefresh(silent: boolean, refreshRunning: boolean): boolean {
+  return silent && refreshRunning;
+}

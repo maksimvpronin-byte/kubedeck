@@ -5,6 +5,7 @@ const { buildProblemRows, classifyProblem, summarizeProblems } = require("../dis
 const { buildProblemsResponse, handleProblemsRequest, matchProblemsRoute } = require("../dist/main/backend/routes/problems.js");
 const { ClusterNotFoundError } = require("../dist/main/backend/config/configStore.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
+const { clearAggregateSourceCache } = require("../dist/main/backend/cache/aggregateSourceCache.js");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -336,4 +337,32 @@ test("Problems route matcher validates method and cluster id", () => {
     () => matchProblemsRoute("GET", "/clusters/%2Fetc/problems"),
     (error) => error.code === "INVALID_IDENTIFIER",
   );
+});
+
+test("Problems asks the API server for warning events only, and reuses a list another reader just fetched", async () => {
+  clearAggregateSourceCache();
+  const commands = [];
+  const runner = {
+    async runJson(command) {
+      commands.push(command.args);
+      return { items: [] };
+    },
+  };
+
+  await buildProblemsResponse(fakeConfigStore(), runner, "cluster-1");
+  assert.equal(commands.length, 5);
+  const events = commands.find((args) => args[1] === "events");
+  // Every non-Warning event was read, parsed and then dropped by the engine.
+  assert.deepEqual(events, ["get", "events", "-A", "--field-selector", "type=Warning", "-o", "json"]);
+  // Nothing else grew a filter it did not have.
+  assert.deepEqual(commands.filter((args) => args.includes("--field-selector")).length, 1);
+
+  // The Overview panel asks for five of these same lists; a reader arriving
+  // within the window gets what the first one already paid for.
+  await buildProblemsResponse(fakeConfigStore(), runner, "cluster-1");
+  assert.equal(commands.length, 5, "a second read inside the window starts no kubectl");
+
+  clearAggregateSourceCache("cluster-1");
+  await buildProblemsResponse(fakeConfigStore(), runner, "cluster-1");
+  assert.equal(commands.length, 10, "a cleared cluster is read again");
 });

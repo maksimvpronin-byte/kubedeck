@@ -10,6 +10,7 @@ kubectl --kubeconfig <file> get pods -A -o json
 kubectl --kubeconfig <file> get deployments -A -o json
 kubectl --kubeconfig <file> get services -A -o json
 kubectl --kubeconfig <file> get events -A -o json
+kubectl --kubeconfig <file> get events -A --field-selector type=Warning -o json
 kubectl --kubeconfig <file> get pod <name> -n <namespace> -o yaml
 kubectl --kubeconfig <file> describe pod <name> -n <namespace>
 kubectl --kubeconfig <file> logs <pod> -n <namespace> --tail=500
