@@ -17,7 +17,6 @@ test("node labels and annotations are read whole, not guessed at from three chip
   const cell = fs.readFileSync(path.join(rendererRoot, "components/NodeLabelsCell.tsx"), "utf8");
   const section = fs.readFileSync(path.join(rendererRoot, "components/NodeMetadataSection.tsx"), "utf8");
   const columns = loadTypeScript("utils/resourceTableColumns.ts");
-  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
   const menu = fs.readFileSync(path.join(rendererRoot, "components/ResourceTableColumnsMenu.tsx"), "utf8");
 
   // Roles are a column now, where kubectl puts them.
@@ -37,7 +36,8 @@ test("node labels and annotations are read whole, not guessed at from three chip
   assert.doesNotMatch(menu, /function placePopover/);
 
   // Clicking a label filters the list by it, and must not open the row beneath.
-  assert.match(table, /formatCell\(row, column\.key, setQuery\)/);
+  const tableRow = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/ResourceTableRow.tsx"), "utf8");
+  assert.match(tableRow, /formatCell\(row, column\.key, handlers\.filter\)/);
   assert.match(cell, /onFilter\?\.\(labelText\(label\)\)/);
   assert.match(cell, /event\.stopPropagation\(\);\s*filterBy\(label\)/);
 

@@ -220,11 +220,34 @@ test("resource table offers a 2000 row page without changing its default", () =>
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("resource table selection pruning and derived row lists avoid O(n^2) and re-render churn", () => {
+test("selection pruning keeps its identity when it changes nothing", () => {
+  const state = loadTypeScript("hooks/useResourceTableState.ts");
+  const rows = [
+    { uid: "a", name: "one", namespace: "default" },
+    { uid: "b", name: "two", namespace: "default" },
+  ];
+
+  // Nothing selected is the usual case, and it must not hand React a new Set:
+  // that was a second full render of the table on every refresh.
+  const empty = new Set();
+  assert.equal(state.pruneSelection(empty, rows), empty);
+
+  // A selection that survives the refresh keeps its identity too.
+  const intact = new Set(["a", "b"]);
+  assert.equal(state.pruneSelection(intact, rows), intact);
+
+  // Only a row that actually disappeared produces a new Set.
+  const stale = new Set(["a", "gone"]);
+  const pruned = state.pruneSelection(stale, rows);
+  assert.notEqual(pruned, stale);
+  assert.deepEqual([...pruned], ["a"]);
+});
+
+// grep contract: asserts on source text, not behaviour.
+test("resource table derived row lists avoid O(n^2) and re-render churn", () => {
   const state = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
   assert.doesNotMatch(state, /\.filter\(\(key\) => new Set\(rows\.map\(rowKey\)\)\.has\(key\)\)/, "rows.map(rowKey) must not be rebuilt inside the per-key filter callback");
-  assert.match(state, /const rowKeys = new Set\(rows\.map\(rowKey\)\);/);
-  assert.match(state, /setSelected\(\(current\) => new Set\(Array\.from\(current\)\.filter\(\(key\) => rowKeys\.has\(key\)\)\)\);/);
+  assert.match(state, /setSelected\(\(current\) => pruneSelection\(current, rows\)\);/);
   assert.match(state, /const renderedRows = useMemo\(\(\) => visibleRows\.slice\(pageStart, pageStart \+ pageSize\), \[visibleRows, pageStart, pageSize\]\);/);
   assert.match(state, /const selectedRows = useMemo\(\(\) => visibleRows\.filter\(\(row\) => selected\.has\(rowKey\(row\)\)\), \[visibleRows, selected\]\);/);
   assert.match(state, /const selectedPageRows = useMemo\(\(\) => renderedRows\.filter\(\(row\) => selected\.has\(rowKey\(row\)\)\), \[renderedRows, selected\]\);/);
@@ -397,4 +420,23 @@ test("Kubernetes notation is a separate format, and it is the one a bar's own re
   assert.equal(quantity.formatMemoryNotation(413_532_160), "394.4Mi");
   assert.equal(quantity.formatMemoryNotation(0), "0Mi");
   assert.equal(quantity.formatMemoryNotation(null, { fallback: "N/A" }), "N/A");
+});
+
+// grep contract: asserts on source text, not behaviour.
+test("a table row is skipped when nothing about it changed", () => {
+  const tableRow = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/ResourceTableRow.tsx"), "utf8");
+  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+
+  // A page is 200 rows of a dozen cells by default; without this every one of
+  // them was rebuilt for a column drag, a checkbox, or three pods whose usage
+  // moved.
+  assert.match(tableRow, /export const ResourceTableRow = memo\(Row\);/);
+
+  // Memo is only worth anything if the props hold still. The table is handed
+  // fresh arrows on every render of the application, so the row reads them
+  // through a ref instead.
+  assert.match(table, /const rowHandlers = useMemo<ResourceTableRowHandlers>\(/);
+  assert.match(table, /\}\),\s*\[\],\s*\);/);
+  assert.match(table, /callbacksRef\.current = \{ onOpen, onPin, onNamespaceClick, toggleRow, setQuery \};/);
+  assert.match(table, /handlers=\{rowHandlers\}/);
 });

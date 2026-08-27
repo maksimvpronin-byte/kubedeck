@@ -4,7 +4,7 @@ import type { ResourceRow } from "../types";
 import { PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
 import { columnSortMetrics, sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
 import { ANNOTATION_COLUMN_KEY, annotationSortMetrics } from "../utils/annotationSort";
-import { formatCell } from "./resourceTable/formatCell";
+import { ResourceTableRow, type ResourceTableRowHandlers } from "./resourceTable/ResourceTableRow";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTableSortMenu } from "./ResourceTableSortMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
@@ -129,6 +129,23 @@ export function ResourceTable({
     toggleColumn,
     resetColumns,
   } = table;
+  // The table is handed fresh arrow functions on every render of the
+  // application; a row that read them directly could never be skipped. They go
+  // through a ref instead, so the handlers a row sees never change identity
+  // while the callbacks behind them stay current.
+  const callbacksRef = useRef({ onOpen, onPin, onNamespaceClick, toggleRow, setQuery });
+  callbacksRef.current = { onOpen, onPin, onNamespaceClick, toggleRow, setQuery };
+  const rowHandlers = useMemo<ResourceTableRowHandlers>(
+    () => ({
+      open: (row) => callbacksRef.current.onOpen?.(row),
+      pin: (row) => callbacksRef.current.onPin?.(row),
+      openNamespace: (namespace) => callbacksRef.current.onNamespaceClick?.(namespace),
+      toggle: (key) => callbacksRef.current.toggleRow(key),
+      filter: (query) => callbacksRef.current.setQuery(query),
+    }),
+    [],
+  );
+
   const tableWidth = 38 + visibleColumns.reduce((sum, column) => sum + widthFor(column), 0);
   const annotationMetrics = useMemo(() => annotationSortMetrics(rows), [rows]);
   const metricsFor = (columnKey: string) => (columnKey === ANNOTATION_COLUMN_KEY ? annotationMetrics : columnSortMetrics(columnKey));
@@ -265,31 +282,7 @@ export function ResourceTable({
           <tbody>
             {renderedRows.map((row) => {
               const key = rowKey(row);
-              return (
-                <tr key={key} className={selectedRowKey === key ? "selected" : ""} onClick={() => onOpen?.(row)} onDoubleClick={() => onPin?.(row)} onContextMenu={(event) => event.preventDefault()}>
-                  <td className="select-col" onClick={(event) => event.stopPropagation()}>
-                    <input type="checkbox" checked={selected.has(key)} onChange={() => toggleRow(key)} />
-                  </td>
-                  {visibleColumns.map((column) => {
-                    const cellContent =
-                      column.key === "namespace" && row.namespace ? (
-                        <button
-                          type="button"
-                          className="link-button namespace-pill"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onNamespaceClick?.(String(row.namespace));
-                          }}
-                        >
-                          {String(row.namespace)}
-                        </button>
-                      ) : (
-                        formatCell(row, column.key, setQuery)
-                      );
-                    return <td key={`${key}-${column.key}`}>{cellContent}</td>;
-                  })}
-                </tr>
-              );
+              return <ResourceTableRow key={key} rowKey={key} row={row} columns={visibleColumns} selected={selected.has(key)} active={selectedRowKey === key} handlers={rowHandlers} />;
             })}
           </tbody>
         </table>

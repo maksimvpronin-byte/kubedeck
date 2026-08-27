@@ -1,3 +1,28 @@
+## 2.22.6 - The table stops rebuilding every row for changes that touched none of them
+
+No route changes, no API change. Node-only ownership stays at Node 58 / Python 0.
+Last of the 2.22.x performance pass.
+
+Two things, both in the renderer. The effect that prunes the selection when rows
+are replaced returned a new Set unconditionally - including the usual case of
+nothing being selected, where there is nothing to prune - and React cannot skip a
+state update whose value is a new object, so every refresh rendered the table
+twice. And none of the row markup was memoized: a page is 200 rows of a dozen
+cells by default, and dragging a column edge (state on every mouse move), ticking
+one checkbox, or a usage refresh that touched three pods rebuilt all 2400 cells.
+
+`pruneSelection` now returns the selection it was given when nothing was removed,
+so React drops the update. Rows are a memoized component; the obstacle to that
+was the handlers, since the table is handed fresh arrow functions on every render
+of the application, so they go through a ref and what a row sees never changes
+identity while the callbacks behind it stay current.
+
+A column drag now rebuilds no rows at all, a checkbox rebuilds one, and a usage
+refresh rebuilds only the pods whose usage moved - `applyPodUsage` already
+returned the same row object for the rest, and the memo is what makes that
+visible. A list reload with new data still rebuilds everything, which it must.
+Renderer suite is 127 tests.
+
 ## 2.22.5 - Normalizing a list stops paying for a collator per label comparison
 
 No route changes, no API change, identical rows. Node-only ownership stays at

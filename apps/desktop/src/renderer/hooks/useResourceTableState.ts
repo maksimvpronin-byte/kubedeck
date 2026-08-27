@@ -29,6 +29,17 @@ export function rowKey(row: ResourceRow) {
   return row.uid || `${row.namespace ?? "_cluster"}-${row.name}`;
 }
 
+// A refresh replaces the rows, and whatever is selected has to lose the rows
+// that are gone. Returning a new Set unconditionally made React re-render the
+// whole table a second time on every refresh - including the usual case of
+// nothing being selected at all, where there is nothing to prune.
+export function pruneSelection(selected: Set<string>, rows: ResourceRow[]): Set<string> {
+  if (selected.size === 0) return selected;
+  const rowKeys = new Set(rows.map(rowKey));
+  const kept = Array.from(selected).filter((key) => rowKeys.has(key));
+  return kept.length === selected.size ? selected : new Set(kept);
+}
+
 export function orderColumns(columns: ResourceTableColumn[], order: string[]) {
   const byKey = new Map(columns.map((column) => [column.key, column]));
   const ordered = order.flatMap((key) => {
@@ -196,8 +207,7 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     return () => window.clearTimeout(timer);
   }, [columnWidths, columnOrder, hiddenColumns, columns, stateKey]);
   useEffect(() => {
-    const rowKeys = new Set(rows.map(rowKey));
-    setSelected((current) => new Set(Array.from(current).filter((key) => rowKeys.has(key))));
+    setSelected((current) => pruneSelection(current, rows));
   }, [rows]);
 
   const visibleRows = useMemo(() => {

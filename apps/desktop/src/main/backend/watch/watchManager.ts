@@ -109,6 +109,12 @@ function tailPush(target: string[], line: string): void {
   }
 }
 
+// Every event is parsed in full for three fields. A cheap textual pre-filter
+// was considered and rejected: "name" and "namespace" appear in every object a
+// watch emits, so it would skip nothing while making the parse depend on the
+// text form of the JSON. The alternative of watching in table form was rejected
+// too - it cannot tell added from modified from deleted, which is what the
+// subscribers are told.
 function parseWatchEvent(line: string): ParsedWatchEvent | null {
   const text = line.trim();
   if (!text.startsWith("{")) return null;

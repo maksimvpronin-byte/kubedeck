@@ -98,10 +98,11 @@ test("closing a background resource tab preserves the transient drawer", () => {
 
 // grep contract: asserts on source text, not behaviour.
 test("resource rows pin workspace tabs only on double click", () => {
-  const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
+  const tableRow = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/ResourceTableRow.tsx"), "utf8");
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const workspaceTabsHook = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWorkspaceTabs.ts"), "utf8");
-  assert.match(table, /onDoubleClick=\{\(\) => onPin\?\.\(row\)\}/);
+  assert.match(tableRow, /onDoubleClick=\{\(\) => handlers\.pin\(row\)\}/);
+  assert.match(tableRow, /onClick=\{\(\) => handlers\.open\(row\)\}/);
   assert.match(app, /pinNextSelectionRef\.current = true/);
   assert.match(workspaceTabsHook, /if \(!pinNextSelectionRef\.current\) return/);
 });

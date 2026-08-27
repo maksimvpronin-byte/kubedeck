@@ -222,7 +222,9 @@ export class KubectlRunner {
   async runJson(command: KubectlCommand, signal?: AbortSignal): Promise<Record<string, unknown>> {
     const result = await this.run(command, signal);
 
-    if (!result.stdout.trim()) {
+    // `trim()` copies the whole string to answer this, and stdout here can be
+    // tens of megabytes of JSON.
+    if (!/\S/.test(result.stdout)) {
       throw new KubectlError({
         code: "KUBECTL_EMPTY_RESPONSE",
         message: "kubectl returned an empty response instead of JSON",
