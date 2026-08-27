@@ -19,6 +19,10 @@ export function nodeRoles(labelsValue: unknown): string[] {
   return [...roles].sort((left, right) => left.localeCompare(right));
 }
 
+// The sorts in this file keep `localeCompare`, unlike `labelsText` in
+// primitives.ts: they run per node, of which a cluster has tens, and the cost
+// that made it worth avoiding there - a collator per comparison, tens of
+// thousands of them for a table of pods - does not arise at this size.
 export interface NodeAnnotationItem {
   key: string;
   value: string;

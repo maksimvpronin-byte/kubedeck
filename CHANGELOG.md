@@ -1,3 +1,26 @@
+## 2.22.5 - Normalizing a list stops paying for a collator per label comparison
+
+No route changes, no API change, identical rows. Node-only ownership stays at
+Node 58 / Python 0.
+
+`meta()` builds `labelsText` for every row of every list - it is what the labels
+column shows and what the table filter searches - and sorted the keys with
+`String.prototype.localeCompare`, which builds a collator behind every single
+comparison. Three thousand pods with eight labels each is tens of thousands of
+them, on every refresh, on the main process.
+
+Each key is now lowercased once and the comparison runs on those, with ties - the
+same key in two cases - broken the way the collator broke them, lowercase before
+uppercase. That tie-break is the one case where a plain `<` would have reordered
+the text, moving a capitalized key such as `Environment` to the front of the
+cell; keeping it costs about a millisecond per 3000 rows and is worth it.
+
+Measured against the built normalizer with 3000 pods: `normalizeResourceItems`
+went from 15.75ms to 12.66ms, the label sort itself from 6.43ms to 3.56ms, and
+the rows the two builds produce are byte-for-byte identical. The same call in
+`normalizers/node.ts` is left alone on purpose - it runs per node, of which a
+cluster has tens - and now says so in the code. Gateway suite is 166 tests.
+
 ## 2.22.4 - Global Search stops normalizing what it is about to throw away
 
 No route changes, no API change, identical results. Node-only ownership stays at

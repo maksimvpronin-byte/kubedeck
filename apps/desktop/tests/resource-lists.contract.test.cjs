@@ -796,3 +796,39 @@ test("browsing a disconnected cluster does not restart its usage sampling", asyn
   await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&forceRefresh=true`);
   assert.deepEqual(started, ["cluster-1"], "a connected cluster still starts sampling on first browse");
 });
+
+test("label text keeps the order localeCompare produced, without paying for it per comparison", () => {
+  const keys = [
+    "app.kubernetes.io/name",
+    "app.kubernetes.io/instance",
+    "app.kubernetes.io/managed-by",
+    "pod-template-hash",
+    "tier",
+    "Environment",
+    "team",
+    "Team",
+    "a-b",
+    "ab",
+    "app/1",
+    "app-1",
+    "v1",
+    "v10",
+  ];
+  const labels = Object.fromEntries(keys.map((key, index) => [key, `value-${index}`]));
+  const row = podSummary({ metadata: { name: "api", namespace: "default", labels }, spec: {}, status: {} });
+
+  // The collator is what this used to call per comparison; it is the contract,
+  // not a frozen string, so the test still means something if a key is added.
+  const expected = [...keys]
+    .sort((left, right) => left.localeCompare(right))
+    .map((key) => `${key}=${labels[key]}`)
+    .join(", ");
+  assert.equal(row.labelsText, expected);
+
+  // The tie-break that a plain comparison would get wrong: same key in two
+  // cases, lowercase first.
+  assert.ok(row.labelsText.indexOf("team=") < row.labelsText.indexOf("Team="));
+
+  // A row without labels still carries the empty text the table filters on.
+  assert.equal(podSummary({ metadata: { name: "api" }, spec: {}, status: {} }).labelsText, "");
+});
