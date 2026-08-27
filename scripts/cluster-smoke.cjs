@@ -17,6 +17,10 @@
 //   KUBEDECK_SMOKE_KUBECTL      kubectl binary (default: kubectl)
 //   KUBEDECK_SMOKE_NAMESPACE    namespace for the scoped calls (default: all)
 //   KUBEDECK_SMOKE_REPORT       write the timing table to this file as Markdown
+//   KUBEDECK_SMOKE_BASELINE     an earlier report to compare against; every step
+//                               gets a delta, and a step that got materially
+//                               slower is called out (it does not fail the run -
+//                               a real cluster is not a benchmark rig)
 //
 // Exit code is 1 if any check failed, 0 otherwise - including when it skipped.
 
@@ -53,6 +57,7 @@ if (!kubeconfig) {
 if (!fs.existsSync(kubeconfig)) skip(`kubeconfig not found: ${kubeconfig}`);
 if (!fs.existsSync(distGateway)) skip("the gateway is not built", "Run `npm run build` first.");
 
+const { WebSocket } = require(path.join(root, "node_modules/ws"));
 const { startGateway } = require(distGateway);
 const { ConfigStore } = require(path.join(root, "apps/desktop/dist/main/backend/config/configStore.js"));
 
@@ -61,13 +66,45 @@ const kubectlPath = process.env.KUBEDECK_SMOKE_KUBECTL || "kubectl";
 const token = crypto.randomBytes(24).toString("hex");
 const headers = { "Content-Type": "application/json", "X-KubeDeck-Token": token };
 
+// A previous report, read back from its own Markdown table.
+function readBaseline(file) {
+  if (!file) return new Map();
+  let text;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    process.stdout.write(`cluster smoke: no baseline at ${file}, reporting absolute timings only\n`);
+    return new Map();
+  }
+  const rows = new Map();
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^\|\s*(.+?)\s*\|\s*(\d+)\s*\|/);
+    if (!match || match[1] === "step") continue;
+    rows.set(match[1], Number(match[2]));
+  }
+  return rows;
+}
+
+const baseline = readBaseline(process.env.KUBEDECK_SMOKE_BASELINE);
+// A step is only worth mentioning when it moved by both a factor and an amount:
+// a 3 ms call that became 6 ms is noise on a real cluster.
+const SLOWER_FACTOR = 1.5;
+const SLOWER_MS = 100;
+
 const steps = [];
 const failures = [];
+const regressions = [];
 const logLines = [];
 
 function record(name, ms, detail) {
-  steps.push({ name, ms, detail: detail ?? "" });
-  process.stdout.write(`  ${String(Math.round(ms)).padStart(6)} ms  ${name}${detail ? `  (${detail})` : ""}\n`);
+  const previous = baseline.get(name);
+  const delta = previous === undefined ? "" : `${ms - previous >= 0 ? "+" : ""}${Math.round(ms - previous)} ms vs baseline`;
+  steps.push({ name, ms, detail: detail ?? "", previous, delta });
+  if (previous !== undefined && ms > previous * SLOWER_FACTOR && ms - previous > SLOWER_MS) {
+    regressions.push({ name, ms, previous });
+  }
+  const suffix = [detail, delta].filter(Boolean).join(", ");
+  process.stdout.write(`  ${String(Math.round(ms)).padStart(6)} ms  ${name}${suffix ? `  (${suffix})` : ""}\n`);
 }
 
 function check(name, run) {
@@ -252,6 +289,50 @@ async function main() {
     const afterStop = await get("/watches/status");
     check("a stopped watch leaves the status list", () => assert.ok(!(afterStop.watches ?? []).some((session) => session.id === watch.value.id)));
 
+    // --- following a pod's logs (2.23.0) -----------------------------------
+    if (firstPod) {
+      const streamUrl = new URL(gateway.baseUrl);
+      streamUrl.protocol = "ws:";
+      streamUrl.pathname = `/clusters/${cluster.id}/pods/${encodeURIComponent(String(firstPod.namespace))}/${encodeURIComponent(String(firstPod.name))}/logs/stream`;
+      streamUrl.searchParams.set("tail", "20");
+      streamUrl.searchParams.set("token", token);
+
+      const stream = new WebSocket(streamUrl.toString(), { origin: "http://127.0.0.1:5173" });
+      const received = [];
+      stream.on("message", (raw) => received.push(JSON.parse(String(raw))));
+      const connected = await timed(
+        "WS pod logs stream, first message",
+        () =>
+          new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error("the log stream said nothing within 10s")), 10_000);
+            stream.on("message", () => {
+              clearTimeout(timer);
+              resolve(received[0]);
+            });
+            stream.on("error", (error) => {
+              clearTimeout(timer);
+              reject(error);
+            });
+          }),
+        (message) => `${message?.type ?? "?"}`,
+      );
+      check("the log stream connects and names the pod it is following", () => {
+        assert.equal(connected.value.type, "status");
+        assert.equal(connected.value.pod, String(firstPod.name));
+      });
+
+      // Whatever the pod has written in its last 20 lines arrives without
+      // another request being made.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const lines = received.filter((message) => message.type === "lines").flatMap((message) => message.lines ?? []);
+      record("WS pod logs stream, lines in the first 1.5s", 0, `${lines.length} lines, ${received.length} messages`);
+      check("the stream is one connection, not a poll", () => assert.ok(received.length < 50, `expected a handful of messages, saw ${received.length}`));
+
+      stream.close();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      check("closing the stream leaves nothing running", () => assert.equal(stream.readyState, WebSocket.CLOSED));
+    }
+
     // --- the runtime is still node-only ------------------------------------
     const migration = await get("/migration/status");
     check("migration status stays node-only", () => {
@@ -270,10 +351,12 @@ async function main() {
     "",
     "| step | ms | detail |",
     "|---|---:|---|",
-    ...steps.map((step) => `| ${step.name} | ${Math.round(step.ms)} | ${step.detail} |`),
+    ...steps.map((step) => `| ${step.name} | ${Math.round(step.ms)} | ${[step.detail, step.delta].filter(Boolean).join(", ")} |`),
     "",
     failures.length ? `**${failures.length} check(s) failed:**` : "All checks passed.",
     ...failures.map((failure) => `- ${failure.name}: ${failure.message}`),
+    regressions.length ? `\n**${regressions.length} step(s) materially slower than the baseline:**` : "",
+    ...regressions.map((step) => `- ${step.name}: ${Math.round(step.previous)} ms -> ${Math.round(step.ms)} ms`),
     "",
   ].join("\n");
 
@@ -282,6 +365,10 @@ async function main() {
     process.stdout.write(`\nreport written to ${process.env.KUBEDECK_SMOKE_REPORT}\n`);
   }
 
+  if (regressions.length) {
+    process.stdout.write(`\ncluster smoke: ${regressions.length} step(s) materially slower than the baseline\n`);
+    for (const step of regressions) process.stdout.write(`  ${step.name}: ${Math.round(step.previous)} ms -> ${Math.round(step.ms)} ms\n`);
+  }
   process.stdout.write(failures.length ? `\ncluster smoke: ${failures.length} check(s) FAILED\n` : "\ncluster smoke: all checks passed\n");
   process.exit(failures.length ? 1 : 0);
 }

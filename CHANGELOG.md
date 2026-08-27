@@ -1,3 +1,21 @@
+## 2.23.2 - The cluster smoke follows a pod and compares itself to a baseline
+
+No product code changed. Node-only ownership stays at Node 59 / Python 0.
+
+`npm run smoke:cluster` now exercises the route 2.23.0 added: it opens the log
+stream, checks it names the pod it is following, waits a second and a half for
+whatever the pod writes, and asserts that what arrived was a handful of messages
+rather than a poll - then closes it and checks nothing is left running. On a k3s
+cluster that is nineteen lines in two messages, which is the batching doing what
+it was built for.
+
+`KUBEDECK_SMOKE_BASELINE=<report.md>` reads an earlier report - its own Markdown
+table, no second format - and prints a delta beside every step, listing at the
+end any step that got both materially slower and slower by more than 100ms. It
+does not fail the run for a slow step: a real cluster is not a benchmark rig, and
+a build that fails because somebody else was deploying at the time is a build
+nobody trusts.
+
 ## 2.23.1 - A large page keeps only the rows near the viewport in the DOM
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
