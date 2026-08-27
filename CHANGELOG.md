@@ -1,3 +1,32 @@
+## 2.22.7 - A release can be checked against a real cluster
+
+No product code changed. Node-only ownership stays at Node 58 / Python 0.
+
+The 2.22.x pass shipped seven releases through the hot paths, and every number
+behind them came from a fixture: a fake kubectl that answers instantly, or a
+benchmark over invented rows. `npm run smoke:cluster` runs the built gateway
+against a real cluster instead - it opens the cluster, loads the lists a table
+loads, walks Problems and Overview, runs two searches, opens the related-resources
+fan-out and a pod's YAML, abandons a request mid-flight, and starts and stops a
+watch, asserting the shapes the UI depends on and timing every step.
+
+It is read-only: GETs, the cluster open, and one watch that it stops again.
+Nothing is applied, deleted, scaled, restarted or exec'd, and the kubeconfig is
+copied into a temporary app-data root that is removed at the end, so the
+application's own configuration is never touched. Without
+`KUBEDECK_SMOKE_KUBECONFIG` the script explains itself and exits 0, so CI is
+unaffected; `KUBEDECK_SMOKE_REPORT` writes the timing table as Markdown.
+
+Its first run against a k3s cluster measured 2.22.1 for real: Problems takes
+229ms when it has to read the cluster and 3ms when Overview has just read the
+same lists. Every check passed, including that an abandoned request leaves no
+failure in the log and the gateway answers normally afterwards.
+
+CI also runs `verify:release` now, as a second step after `npm run verify`. Until
+now the release contract - the same version in six files, release notes and a
+regression checklist that exist and mention it - was only ever checked on the
+machine doing the release.
+
 ## 2.22.6 - The table stops rebuilding every row for changes that touched none of them
 
 No route changes, no API change. Node-only ownership stays at Node 58 / Python 0.

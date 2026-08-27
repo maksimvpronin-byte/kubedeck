@@ -1,6 +1,6 @@
 {
   "name": "kubedeck",
-  "version": "2.22.6",
+  "version": "2.22.7",
   "private": true,
   "license": "Apache-2.0",
   "workspaces": [
@@ -21,7 +21,8 @@
     "verify:release": "node scripts/verify-release.cjs",
     "package:mac": "bash ./scripts/build-macos.sh",
     "package:linux": "bash ./scripts/build-linux.sh",
-    "lint:css": "node scripts/css-cascade.cjs report --check"
+    "lint:css": "node scripts/css-cascade.cjs report --check",
+    "smoke:cluster": "node scripts/cluster-smoke.cjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",

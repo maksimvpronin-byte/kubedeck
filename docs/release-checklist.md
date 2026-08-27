@@ -45,6 +45,30 @@ npm run package:mac
 - содержит корректно собранный `node-pty` для целевой платформы;
 - запускает только Electron/Node-owned runtime.
 
+## Автоматический прогон против живого кластера
+
+До ручного smoke стоит прогнать `npm run smoke:cluster` — он поднимает собранный
+gateway против настоящего кластера и проверяет маршруты, которые обслуживают
+таблицы, панели, поиск, drawer и watch, печатая при этом реальные тайминги (а не
+цифры с фикстур):
+
+```bash
+KUBEDECK_SMOKE_KUBECONFIG=~/.kube/config npm run smoke:cluster
+```
+
+Только чтение: GET-маршруты, открытие кластера (`cluster-info` плюс список
+namespace) и один watch, который тут же останавливается. Ничего не применяется,
+не удаляется и не масштабируется, а kubeconfig копируется во временный app-data,
+который удаляется в конце. Без `KUBEDECK_SMOKE_KUBECONFIG` скрипт объясняет себя
+и выходит с нулём, поэтому в CI он не запускается.
+
+Переменные: `KUBEDECK_SMOKE_KUBECTL` (путь к kubectl), `KUBEDECK_SMOKE_NAMESPACE`
+(по умолчанию `all`), `KUBEDECK_SMOKE_REPORT` (записать таблицу таймингов в файл
+— удобно прикладывать к release notes).
+
+Прогон не заменяет ручной smoke ниже: он не открывает окно, не проверяет
+терминал, SSH и port-forward и ничего не мутирует.
+
 ## Smoke test
 
 1. Запустить packaged приложение и проверить `/health` и `/migration/status` (`node-only`, `57 Node / 0 Python`).

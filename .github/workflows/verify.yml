@@ -29,3 +29,10 @@ jobs:
 
       - name: Verify source and contracts
         run: npm run verify
+
+      # Every fix ships as its own release here, so the version lives in six
+      # files and each one needs its release notes and regression checklist.
+      # Until now nothing but a local run checked that, and a release with a
+      # half-updated version would have gone green.
+      - name: Verify release contract
+        run: npm run verify:release
