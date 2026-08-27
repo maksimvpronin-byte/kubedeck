@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import type { Duplex } from "node:stream";
@@ -10,13 +11,14 @@ import { ResourceWatchWebSocketServer } from "./watch/webSocket";
 import { WatchManager } from "./watch/watchManager";
 import { PortForwardManager } from "./portForward/portForwardManager";
 import { PodTerminalWebSocketServer } from "./terminal/podTerminalWebSocket";
+import { PodLogsWebSocketServer } from "./logs/podLogsWebSocket";
 import { NodeSshWebSocketServer } from "./ssh/nodeSshWebSocket";
 import { SshHostKeyStore } from "./ssh/sshHostKeyStore";
 import { ConfigStore } from "./config/configStore";
 import { MemorySecretStore } from "./security/memorySecretStore";
 import type { SecretStore } from "./security/secretStore";
 import { writeError } from "./errors";
-import { KubectlRunner } from "./kubectl/runner";
+import { KubectlRunner, type SpawnProcess } from "./kubectl/runner";
 import { writeAppInfo } from "./routes/appInfo";
 import { writeAudit } from "./routes/audit";
 import { writeClusters, writeImportCluster, writeNamespaces, writeOpenCluster, writeOpenLastCluster, writeRemoveCluster, writeReorderClusters, writeRenameCluster } from "./routes/clusters";
@@ -60,6 +62,7 @@ interface GatewayServices {
   usageHistory: UsageHistorySampler;
   portForwardManager: PortForwardManager;
   terminalWebSocket: PodTerminalWebSocketServer;
+  logsWebSocket: PodLogsWebSocketServer;
   sshWebSocket: NodeSshWebSocketServer;
   sshHostKeys: SshHostKeyStore;
   secretStore: SecretStore;
@@ -120,6 +123,7 @@ async function releaseClusterRuntime(services: GatewayServices, clusterId: strin
   // The registry is cleared first so a list load racing with the teardown
   // cannot start a fresh sampler behind it.
   services.connections.disconnect(clusterId);
+  services.logsWebSocket.stopCluster(clusterId);
   await Promise.all([
     services.watchManager.stopCluster(clusterId),
     services.usageHistory.forgetCluster(clusterId),
@@ -456,6 +460,7 @@ function handleUpgrade(
   watchWebSocket: ResourceWatchWebSocketServer,
   terminalWebSocket: PodTerminalWebSocketServer,
   sshWebSocket: NodeSshWebSocketServer,
+  logsWebSocket: PodLogsWebSocketServer,
   isConnected: (clusterId: string) => boolean,
 ): void {
   const origin = requestOrigin(request);
@@ -484,6 +489,7 @@ function handleUpgrade(
 
   if (sshWebSocket.handleUpgrade(request, socket, head)) return;
   if (terminalWebSocket.handleUpgrade(request, socket, head)) return;
+  if (logsWebSocket.handleUpgrade(request, socket, head)) return;
   if (watchWebSocket.handleUpgrade(request, socket, head)) return;
   writePolicyViolation(request, socket, "Unknown WebSocket route");
 }
@@ -507,6 +513,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     clientFactory: options.sshClientFactory,
     hostKeyDecisionTimeoutMs: options.sshHostKeyDecisionTimeoutMs,
   });
+  const logsWebSocket = new PodLogsWebSocketServer(configStore, options.log, options.spawnKubectl ?? (spawn as SpawnProcess));
   const secretStore = options.secretStore ?? new MemorySecretStore();
   const usageHistory = new UsageHistorySampler(configStore, kubectlRunner, options.log);
   const connections = new ClusterConnectionRegistry();
@@ -519,6 +526,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     usageHistory,
     portForwardManager,
     terminalWebSocket,
+    logsWebSocket,
     sshWebSocket,
     sshHostKeys,
     secretStore,
@@ -534,7 +542,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   });
 
   server.on("upgrade", (request, socket, head) => {
-    handleUpgrade(request, socket, head, options, watchWebSocket, terminalWebSocket, sshWebSocket, (clusterId) => connections.isConnected(clusterId));
+    handleUpgrade(request, socket, head, options, watchWebSocket, terminalWebSocket, sshWebSocket, logsWebSocket, (clusterId) => connections.isConnected(clusterId));
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -563,6 +571,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
 
       closing = (async () => {
         services.usageHistory.close();
+        services.logsWebSocket.close();
         await services.sshWebSocket.close();
         await services.terminalWebSocket.close();
         await services.portForwardManager.close();

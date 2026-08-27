@@ -71,7 +71,7 @@ namespace) и один watch, который тут же останавлива�
 
 ## Smoke test
 
-1. Запустить packaged приложение и проверить `/health` и `/migration/status` (`node-only`, `57 Node / 0 Python`).
+1. Запустить packaged приложение и проверить `/health` и `/migration/status` (`node-only`, `59 Node / 0 Python`).
 2. Импортировать или открыть kubeconfig-backed cluster.
 3. Проверить namespace selector, resource list, refresh, cache и watch-driven update.
 4. Открыть resource drawer: Summary, YAML, Describe, Events, Related и Logs.

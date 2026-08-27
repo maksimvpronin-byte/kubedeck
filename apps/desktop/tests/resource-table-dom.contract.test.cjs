@@ -193,3 +193,22 @@ test("an empty list says so, and says something else once a filter is to blame",
     view.unmount();
   }
 });
+
+test("the log stream URL carries what the tab is showing, and the session token", () => {
+  const { ApiClient } = loadComponent("api.ts");
+  const api = new ApiClient("http://127.0.0.1:7788", "session-token");
+
+  const url = new URL(api.podLogsStreamUrl("cluster-1", "tools", "api-server", { container: "app", tail: 200, timestamps: true }));
+  assert.equal(url.protocol, "ws:", "the stream is a WebSocket, not a poll");
+  assert.equal(url.pathname, "/clusters/cluster-1/pods/tools/api-server/logs/stream");
+  assert.equal(url.searchParams.get("container"), "app");
+  assert.equal(url.searchParams.get("tail"), "200");
+  assert.equal(url.searchParams.get("timestamps"), "true");
+  assert.equal(url.searchParams.get("previous"), null, "what was not asked for is not sent");
+  assert.equal(url.searchParams.get("token"), "session-token");
+
+  // The batches the stream sends are what the tab appends.
+  assert.deepEqual(api.parsePodLogsStreamMessage('{"type":"lines","lines":["a","b"]}'), { type: "lines", lines: ["a", "b"] });
+  assert.equal(api.parsePodLogsStreamMessage("not json"), null);
+  assert.equal(api.parsePodLogsStreamMessage('{"lines":[]}'), null, "a message without a type is not one");
+});

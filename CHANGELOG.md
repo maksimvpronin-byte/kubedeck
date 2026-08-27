@@ -1,3 +1,32 @@
+## 2.23.0 - Following a pod's logs is a stream, not a poll
+
+One new WebSocket route. Node-only ownership moves to Node 59 / Python 0.
+
+With follow on, the Logs tab re-ran `kubectl logs --tail=500` every three seconds
+and transferred the whole tail again, whatever had changed: twenty kubectl
+processes a minute per open tab, to deliver the same five hundred lines over and
+over, and a line written just after a poll waited up to three seconds to appear.
+The HTTP endpoint refused `follow` outright, saying KubeDeck used bounded polling
+for it - this release is that decision changing.
+
+`WS /clusters/{cluster_id}/pods/{namespace}/{name}/logs/stream` holds one
+`kubectl logs -f` for as long as the tab is open and sends lines as the pod
+writes them. Both sides batch - the server flushes at most every 120ms, the tab
+appends at most every 60ms - so a pod logging a thousand lines a second is a
+handful of frames rather than a thousand. Up to 5000 lines are held for a client
+that cannot keep up, and beyond that the oldest are dropped with a note saying
+how many, because a tail is worth more than a gap. When the pod is deleted or the
+container exits, kubectl exits and the stream says so instead of quietly
+stopping. A dropped socket is retried once a second while follow is on; turning
+it off, closing the drawer or disconnecting the cluster stops the stream and the
+kubectl behind it.
+
+The bounded HTTP route is unchanged and still serves the first load, the full
+download and deployment logs, which read many pods at once. An open stream is
+deliberately not counted in the disconnect confirmation next to terminals and
+port-forwards: it carries no state a person can lose, and it is stopped either
+way. Gateway suite is 170 tests.
+
 ## 2.22.8 - The renderer can be tested by clicking on it
 
 No product code changed. Node-only ownership stays at Node 58 / Python 0.

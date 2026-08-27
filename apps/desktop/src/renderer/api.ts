@@ -27,6 +27,7 @@ import type {
   ResourceCacheStatus,
   WatchSession,
   WatchStatus,
+  PodLogsStreamMessage,
   ResourceWatchEvent,
   LlmAnalyzeResourceRequest,
   LlmAnalyzeResourceResponse,
@@ -423,6 +424,29 @@ export class ApiClient {
     url.searchParams.set("namespace", namespace || "all");
     url.searchParams.set("token", this.token);
     return url.toString();
+  }
+
+  // Following a pod is a stream, not a poll: one `kubectl logs -f` behind a
+  // socket instead of a full tail re-fetched every three seconds.
+  podLogsStreamUrl(clusterId: string, namespace: string, name: string, options: { container?: string; tail?: number; timestamps?: boolean; previous?: boolean } = {}) {
+    const url = new URL(this.baseUrl);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.pathname = `/clusters/${clusterId}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/logs/stream`;
+    if (options.container) url.searchParams.set("container", options.container);
+    if (options.tail) url.searchParams.set("tail", String(options.tail));
+    if (options.timestamps) url.searchParams.set("timestamps", "true");
+    if (options.previous) url.searchParams.set("previous", "true");
+    url.searchParams.set("token", this.token);
+    return url.toString();
+  }
+
+  parsePodLogsStreamMessage(raw: string): PodLogsStreamMessage | null {
+    try {
+      const parsed = JSON.parse(raw) as PodLogsStreamMessage;
+      return parsed && typeof parsed === "object" && typeof parsed.type === "string" ? parsed : null;
+    } catch {
+      return null;
+    }
   }
 
   parseResourceWatchEvent(raw: string): ResourceWatchEvent | null {

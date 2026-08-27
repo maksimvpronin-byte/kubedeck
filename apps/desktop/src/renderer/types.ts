@@ -484,6 +484,23 @@ export interface WatchSession {
   alreadyRunning?: boolean;
 }
 
+// What the pod logs stream sends: batches of lines, the odd error line from
+// kubectl, and the end of the stream when the pod or container goes away.
+export interface PodLogsStreamMessage {
+  type: "status" | "lines" | "error" | "ended" | "heartbeat" | "pong" | string;
+  lines?: string[];
+  dropped?: number;
+  message?: string;
+  exitCode?: number | null;
+  data?: string;
+  clusterId?: string;
+  namespace?: string;
+  pod?: string;
+  container?: string;
+  commandPreview?: string;
+  at?: number;
+}
+
 export interface ResourceWatchEvent {
   type: "resource.changed" | "status" | string;
   data?: string;

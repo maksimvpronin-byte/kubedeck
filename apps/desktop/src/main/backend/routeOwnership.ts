@@ -203,6 +203,15 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
   },
   {
     method: "WS",
+    path: "/clusters/{cluster_id}/pods/{namespace}/{name}/logs/stream",
+    transport: "websocket",
+    owner: "node",
+    targetRelease: "2.23.0",
+    migratedIn: "2.23.0",
+    sourceModule: "logs/podLogsWebSocket.ts",
+  },
+  {
+    method: "WS",
     path: "/clusters/{cluster_id}/pods/{namespace}/{name}/terminal",
     transport: "websocket",
     owner: "node",
