@@ -1054,3 +1054,11 @@
   }
 }
 /* End KubeDeck 1.0.5 responsive layout hotfix */
+
+/* Holds the scroll height of the rows a large page is not currently rendering.
+   It has no cells, so it must not pick up the row hover or border rules. */
+.resource-table tbody tr.virtual-spacer {
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}

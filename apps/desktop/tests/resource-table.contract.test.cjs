@@ -192,7 +192,7 @@ test("the pagination bar sits at the bottom of the window, not under the last ro
   // what puts it against the bottom edge.
   assert.match(styles, /\.table-scroll\s*\{[^}]*flex:\s*1 1 auto;[^}]*overflow:\s*auto;/s);
   assert.match(styles, /\.table-footer\s*\{[^}]*flex:\s*0 0 auto;/s);
-  assert.match(table, /<div className="table-scroll">[\s\S]*<ResourceTablePagination/);
+  assert.match(table, /<div className="table-scroll"[\s\S]*<ResourceTablePagination/);
 
   // With no rows there is nothing to scroll: a header row holding the free
   // space would push the empty state down beside the pagination bar.
@@ -207,7 +207,7 @@ test("resource table keeps one sticky header inside its scroll container", () =>
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
   assert.equal((table.match(/<table\b/g) ?? []).length, 1);
   assert.equal((table.match(/<colgroup>/g) ?? []).length, 1);
-  assert.match(table, /<div className="table-scroll">[\s\S]*<thead>/);
+  assert.match(table, /<div className="table-scroll"[\s\S]*<thead>/);
   assert.match(styles, /\.resource-table th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;[^}]*z-index:\s*\d+;[^}]*background:\s*var\(--table-head\);/s);
 });
 
@@ -439,4 +439,46 @@ test("a table row is skipped when nothing about it changed", () => {
   assert.match(table, /\}\),\s*\[\],\s*\);/);
   assert.match(table, /callbacksRef\.current = \{ onOpen, onPin, onNamespaceClick, toggleRow, setQuery \};/);
   assert.match(table, /handlers=\{rowHandlers\}/);
+});
+
+test("a large page renders the rows near the viewport and holds the rest as height", () => {
+  const virtual = loadTypeScript("utils/virtualRows.ts");
+
+  // The default page is 200 rows and renders whole: nobody should pay for a
+  // scrolling abstraction they did not ask for.
+  const small = virtual.virtualRowWindow({ rowCount: 200, rowHeight: 28, scrollTop: 0, viewportHeight: 600 });
+  assert.equal(small.active, false);
+  assert.deepEqual([small.start, small.end, small.paddingTop, small.paddingBottom], [0, 200, 0, 0]);
+
+  // A page of 2000 at the top: a viewport of rows plus overscan, and the rest
+  // of the height below.
+  const top = virtual.virtualRowWindow({ rowCount: 2000, rowHeight: 28, scrollTop: 0, viewportHeight: 560 });
+  assert.equal(top.active, true);
+  assert.equal(top.start, 0);
+  assert.equal(top.end, 20 + virtual.VIRTUAL_ROW_OVERSCAN * 2);
+  assert.equal(top.paddingTop, 0);
+  assert.equal(top.paddingBottom, (2000 - top.end) * 28);
+
+  // Scrolled into the middle: the window follows, and the two spacers always
+  // account for exactly the rows that are not rendered.
+  const middle = virtual.virtualRowWindow({ rowCount: 2000, rowHeight: 28, scrollTop: 28 * 500, viewportHeight: 560 });
+  assert.equal(middle.start, 500 - virtual.VIRTUAL_ROW_OVERSCAN);
+  assert.equal(middle.paddingTop, middle.start * 28);
+  assert.equal(middle.paddingTop + (middle.end - middle.start) * 28 + middle.paddingBottom, 2000 * 28, "the scroll height is unchanged by which rows are rendered");
+
+  // At the very bottom nothing is padded past the last row.
+  const bottom = virtual.virtualRowWindow({ rowCount: 2000, rowHeight: 28, scrollTop: 28 * 2000, viewportHeight: 560 });
+  assert.equal(bottom.end, 2000);
+  assert.equal(bottom.paddingBottom, 0);
+
+  // Before the table has been measured there is nothing to be near.
+  assert.equal(virtual.virtualRowWindow({ rowCount: 2000, rowHeight: 28, scrollTop: 0, viewportHeight: 0 }).active, false);
+});
+
+test("the row height is measured, and a change too small to matter is ignored", () => {
+  const virtual = loadTypeScript("utils/virtualRows.ts");
+  assert.equal(virtual.nextRowHeight(28, 44), 44, "a nodes table with two lines of usage is taller");
+  assert.equal(virtual.nextRowHeight(28, 28.4), 28, "sub-pixel noise would only cost a re-render");
+  assert.equal(virtual.nextRowHeight(28, 0), 28, "an unmeasurable row leaves the estimate alone");
+  assert.equal(virtual.nextRowHeight(28, Number.NaN), 28);
 });

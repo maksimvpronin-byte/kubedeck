@@ -1,10 +1,11 @@
 import { Search, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ResourceRow } from "../types";
 import { PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
 import { columnSortMetrics, sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
 import { ANNOTATION_COLUMN_KEY, annotationSortMetrics } from "../utils/annotationSort";
 import { ResourceTableRow, type ResourceTableRowHandlers } from "./resourceTable/ResourceTableRow";
+import { DEFAULT_VIRTUAL_ROW_HEIGHT, nextRowHeight, virtualRowWindow } from "../utils/virtualRows";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTableSortMenu } from "./ResourceTableSortMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
@@ -146,6 +147,54 @@ export function ResourceTable({
     [],
   );
 
+  // A page can be 2000 rows of a dozen cells. Past the threshold only the rows
+  // near the viewport are in the DOM; the rest are two spacer rows holding the
+  // scroll height, so the scrollbar and the keyboard behave as they always did.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [viewport, setViewport] = useState({ top: 0, height: 0 });
+  const [rowHeight, setRowHeight] = useState(DEFAULT_VIRTUAL_ROW_HEIGHT);
+  const frameRef = useRef<number | null>(null);
+
+  const readViewport = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    setViewport((current) => (current.top === element.scrollTop && current.height === element.clientHeight ? current : { top: element.scrollTop, height: element.clientHeight }));
+  }, []);
+
+  // One read per frame: a wheel gesture fires scroll events far faster than
+  // the table can usefully re-render.
+  const onScroll = useCallback(() => {
+    if (frameRef.current !== null) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      readViewport();
+    });
+  }, [readViewport]);
+
+  useEffect(() => {
+    readViewport();
+    const element = scrollRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => readViewport());
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    };
+  }, [readViewport]);
+
+  const rowWindow = virtualRowWindow({ rowCount: renderedRows.length, rowHeight, scrollTop: viewport.top, viewportHeight: viewport.height });
+  const windowRows = rowWindow.active ? renderedRows.slice(rowWindow.start, rowWindow.end) : renderedRows;
+
+  // Rows are measured rather than assumed: a nodes table with two lines of
+  // usage in a cell is taller than a pods table.
+  useLayoutEffect(() => {
+    const element = scrollRef.current?.querySelector("tbody tr:not(.virtual-spacer)");
+    if (!element) return;
+    const measured = (element as HTMLElement).getBoundingClientRect().height;
+    setRowHeight((current) => nextRowHeight(current, measured));
+  }, [windowRows.length, visibleColumns]);
+
   const tableWidth = 38 + visibleColumns.reduce((sum, column) => sum + widthFor(column), 0);
   const annotationMetrics = useMemo(() => annotationSortMetrics(rows), [rows]);
   const metricsFor = (columnKey: string) => (columnKey === ANNOTATION_COLUMN_KEY ? annotationMetrics : columnSortMetrics(columnKey));
@@ -232,7 +281,7 @@ export function ResourceTable({
         </div>
       </div>
 
-      <div className="table-scroll">
+      <div className="table-scroll" ref={scrollRef} onScroll={onScroll}>
         <table className="resource-table" style={{ width: tableWidth }}>
           <colgroup>
             <col style={{ width: 38 }} />
@@ -280,10 +329,12 @@ export function ResourceTable({
             </tr>
           </thead>
           <tbody>
-            {renderedRows.map((row) => {
+            {rowWindow.paddingTop > 0 ? <tr className="virtual-spacer" aria-hidden="true" style={{ height: rowWindow.paddingTop }} /> : null}
+            {windowRows.map((row) => {
               const key = rowKey(row);
               return <ResourceTableRow key={key} rowKey={key} row={row} columns={visibleColumns} selected={selected.has(key)} active={selectedRowKey === key} handlers={rowHandlers} />;
             })}
+            {rowWindow.paddingBottom > 0 ? <tr className="virtual-spacer" aria-hidden="true" style={{ height: rowWindow.paddingBottom }} /> : null}
           </tbody>
         </table>
       </div>

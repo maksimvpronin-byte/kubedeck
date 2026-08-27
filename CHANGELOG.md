@@ -1,3 +1,27 @@
+## 2.23.1 - A large page keeps only the rows near the viewport in the DOM
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+The page size selector offers 50 to 2000 rows, and every row was real DOM: a
+dozen cells, each a formatted component. At 2000 rows that is around 24 000
+elements built on load, laid out on every resize and walked on every paint.
+Picking a large page made the table sluggish in a way the row memoization of
+2.22.6 could not fix - that stops rows being rebuilt, not being there. It was
+deferred twice, in the 2.10.3 audit and again in the 2.22.x pass, for needing a
+dependency or a rewrite; it needed neither.
+
+Above 200 rows on a page - the default, which still renders whole - the table now
+renders the rows near the viewport plus a dozen above and below, and holds the
+rest as two spacer rows whose height is exactly what the missing rows would
+occupy. The scrollbar, the page size, the row count and keyboard scrolling mean
+what they meant before.
+
+The row height is measured rather than assumed, because a nodes table with two
+lines of usage in a cell is taller than a pods table, and a change under a pixel
+is ignored. The viewport is read once per animation frame, since a wheel gesture
+fires scroll events far faster than the table can usefully re-render. Below the
+threshold the code path is the one it always was. Renderer suite is 142 tests.
+
 ## 2.23.0 - Following a pod's logs is a stream, not a poll
 
 One new WebSocket route. Node-only ownership moves to Node 59 / Python 0.

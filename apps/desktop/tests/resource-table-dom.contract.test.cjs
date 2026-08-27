@@ -212,3 +212,63 @@ test("the log stream URL carries what the tab is showing, and the session token"
   assert.equal(api.parsePodLogsStreamMessage("not json"), null);
   assert.equal(api.parsePodLogsStreamMessage('{"lines":[]}'), null, "a message without a type is not one");
 });
+
+test("a page far past the threshold keeps only the rows near the viewport in the DOM", async () => {
+  const { window } = require("./helpers/dom.cjs");
+  const many = Array.from({ length: 1000 }, (_, index) => pod(`pod-${String(index).padStart(4, "0")}`));
+  const view = mount(table({ rows: many, stateKey: "pods-virtual" }));
+
+  try {
+    const scroll = view.first(".table-scroll");
+    // jsdom has no layout, so the table is told how tall it and its rows are -
+    // which is exactly what the component measures at runtime.
+    Object.defineProperty(scroll, "clientHeight", { configurable: true, value: 560 });
+    let scrollTop = 0;
+    Object.defineProperty(scroll, "scrollTop", {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value) => {
+        scrollTop = value;
+      },
+    });
+    window.HTMLTableRowElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      return { height: this.className === "virtual-spacer" ? Number(this.style.height.replace("px", "")) || 0 : 28, width: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0, toJSON() {} };
+    };
+
+    const settle = async () => {
+      await React.act(async () => {
+        scroll.dispatchEvent(new window.Event("scroll", { bubbles: false }));
+        await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+      });
+    };
+
+    // The default page is 200 rows and renders whole; virtualization is for
+    // the page sizes somebody chose on purpose.
+    const pageSize = view.first(".table-footer select");
+    React.act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value").set;
+      setter.call(pageSize, "1000");
+      pageSize.dispatchEvent(new window.Event("change", { bubbles: true }));
+    });
+
+    await settle();
+    const rendered = () => view.all("tbody tr:not(.virtual-spacer)");
+    const spacers = () => view.all("tbody tr.virtual-spacer");
+
+    assert.ok(rendered().length > 0 && rendered().length < 100, `expected a window of rows, rendered ${rendered().length} of 1000`);
+    assert.equal(view.rowNames()[0], "pod-0000", "the top of the page is where it starts");
+    // The rows that are not rendered are still accounted for, so the scrollbar
+    // and the page size mean the same thing they always did.
+    const heights = spacers().map((row) => Number(row.style.height.replace("px", "")));
+    assert.equal(heights.reduce((sum, value) => sum + value, 0) + rendered().length * 28, 1000 * 28, "the spacers hold exactly the height of the rows that are not rendered");
+
+    // Scrolled into the middle, the window follows the viewport.
+    scroll.scrollTop = 28 * 500;
+    await settle();
+    const names = view.all("tbody tr:not(.virtual-spacer)").map((row) => row.querySelectorAll("td")[1].textContent.trim());
+    assert.ok(names[0] > "pod-0400" && names[0] < "pod-0500", `expected the window to follow the scroll, got ${names[0]}`);
+    assert.ok(names.includes("pod-0500"));
+  } finally {
+    view.unmount();
+  }
+});
