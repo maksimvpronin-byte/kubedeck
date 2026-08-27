@@ -1,3 +1,23 @@
+## 2.22.2 - The usage sampler stops rebuilding every bucket array
+
+No route changes, no API change. Node-only ownership stays at Node 58 / Python 0.
+
+`UsageHistoryStore.record()` ends with `prune()`, and the sampler calls it every
+fifteen seconds for every connected cluster. `prune()` walked all series - up to
+2000 - and rebuilt both bucket arrays of each with `.filter()`: 4000 new arrays
+per tick, to usually drop nothing, since the coarse grid only expires something
+once every five minutes.
+
+Both grids are already sorted, because `addSample` only ever touches the last
+bucket, so everything expired sits at the front and the first element answers
+whether there is anything to drop at all. Measured against the built store with
+2000 series and both grids full, one tick reporting all 2000 pods went from
+33.7ms to 1.4ms on average (`prune()` itself from about 33ms to 0.85ms); what
+remains is the ingest the tick exists for. The saving is per connected cluster.
+
+Retention is unchanged: the same buckets expire at the same times, and a series
+whose coarse grid empties is still removed. Gateway suite is 160 tests.
+
 ## 2.22.1 - Overview and Problems stop reading the whole event stream
 
 No route changes. Node-only ownership stays at Node 58 / Python 0.

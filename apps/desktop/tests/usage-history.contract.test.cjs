@@ -3,7 +3,14 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { UsageHistoryStore, USAGE_BUCKET_MS, USAGE_RETENTION_MS, MAX_SERIES_PER_CLUSTER } = require("../dist/main/backend/resources/usageHistoryStore.js");
+const {
+  UsageHistoryStore,
+  USAGE_BUCKET_MS,
+  USAGE_RETENTION_MS,
+  USAGE_FINE_BUCKET_MS,
+  USAGE_FINE_RETENTION_MS,
+  MAX_SERIES_PER_CLUSTER,
+} = require("../dist/main/backend/resources/usageHistoryStore.js");
 const { UsageHistorySampler, samplesFromTopOutput, parseCpuMillicoresValue, parseMemoryBytesValue } = require("../dist/main/backend/resources/usageHistorySampler.js");
 const { workloadKeyForPod, formatWorkloadKey, inferWorkloadFromPodName } = require("../dist/main/backend/resources/workloadKey.js");
 const { buildResourceContext } = require("../dist/main/backend/llm/context.js");
@@ -519,4 +526,37 @@ test("the sampler reads the Metrics API rather than the table kubectl top prints
   assert.ok(args.includes("--raw"), `expected a raw API read, got ${JSON.stringify(args)}`);
   assert.ok(args.includes("/apis/metrics.k8s.io/v1beta1/pods"), `expected the pod metrics endpoint, got ${JSON.stringify(args)}`);
   assert.ok(!args.includes("top"), "kubectl top rounds the reading and drops the scrape time");
+});
+
+test("expired buckets are cut from the front of both grids, not filtered out of them", () => {
+  let now = 1_700_000_000_000;
+  const store = new UsageHistoryStore(() => now);
+  const sample = () => store.record("c1", [{ namespace: "default", pod: "web", cpuMillicores: 10, memoryBytes: 1024 }]);
+
+  // Twenty-six hours of sampling at the rate the sampler actually runs would be
+  // 6240 ticks; one per fine bucket is enough to fill both grids past their
+  // retention and is what the front-cut has to survive.
+  sample();
+  for (let index = 0; index < 26 * 60 * 4; index += 1) {
+    now += USAGE_FINE_BUCKET_MS;
+    sample();
+  }
+
+  const history = store.history("c1", "default", "web");
+  // 24h / 5min and 1h / 15s: bounded, not growing with how long the app ran.
+  assert.ok(history.points.length <= USAGE_RETENTION_MS / USAGE_BUCKET_MS + 1, `coarse grid grew to ${history.points.length}`);
+  assert.ok(history.finePoints.length <= USAGE_FINE_RETENTION_MS / USAGE_FINE_BUCKET_MS + 1, `fine grid grew to ${history.finePoints.length}`);
+
+  // Nothing outside its window survives, and the newest reading is still there.
+  assert.ok(history.points.every((point) => point.start >= now - USAGE_RETENTION_MS));
+  assert.ok(history.finePoints.every((point) => point.start >= now - USAGE_FINE_RETENTION_MS));
+  assert.equal(history.points.at(-1).start, Math.floor(now / USAGE_BUCKET_MS) * USAGE_BUCKET_MS);
+  assert.equal(history.finePoints.at(-1).start, Math.floor(now / USAGE_FINE_BUCKET_MS) * USAGE_FINE_BUCKET_MS);
+
+  // A series that stops reporting still leaves entirely once its last coarse
+  // bucket falls out of the window.
+  now += USAGE_RETENTION_MS + USAGE_BUCKET_MS;
+  store.record("c1", [{ namespace: "default", pod: "other", cpuMillicores: 1, memoryBytes: 1 }]);
+  assert.equal(store.history("c1", "default", "web").pod, null);
+  assert.equal(store.seriesCount("c1"), 1);
 });
