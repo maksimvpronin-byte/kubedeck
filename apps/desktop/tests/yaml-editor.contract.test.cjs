@@ -232,3 +232,32 @@ test("a searched-for match is highlighted rather than selected, in the manifest 
   assert.match(yamlTab, /const currentMatch = matchIndex < matchCount \? matchIndex : -1;/);
   assert.match(logsTab, /const currentMatch = matchIndex < matches\.length \? matchIndex : -1;/);
 });
+
+test("a log jump reveals the match across the pane as well as down it", () => {
+  const reveal = loadTypeScript("utils/revealMatch.ts");
+  const logsTab = fs.readFileSync(path.join(rendererRoot, "components/LogsTab.tsx"), "utf8");
+  const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
+
+  // Log lines are not wrapped, so an occurrence can sit far past the right edge
+  // of the pane. Moving the rows alone left it off screen and the jump looked
+  // like it had done nothing at all.
+  assert.match(drawerStyles, /\.logs-output\s*\{[^}]*white-space: pre;/s);
+  assert.match(logsTab, /output\.scrollLeft \+= horizontalShift\(markBox\.left - outputBox\.left, markBox\.width, output\.clientWidth\)/);
+  assert.match(logsTab, /output\.scrollTop \+= verticalShift\(markBox\.top - outputBox\.top, markBox\.height, output\.clientHeight\)/);
+
+  // Down the pane the match is centred.
+  assert.equal(reveal.verticalShift(400, 20, 200), 310);
+  assert.equal(reveal.verticalShift(90, 20, 200), 0);
+
+  // Across it a match already on screen is left where it is, so stepping down a
+  // column of matches does not shuffle the log sideways on every step.
+  assert.equal(reveal.horizontalShift(300, 40, 1000), 0);
+  // One off either edge is pulled in with room to read around it.
+  assert.equal(reveal.horizontalShift(2000, 40, 1000), 2000 + 40 - (1000 - 80));
+  assert.equal(reveal.horizontalShift(-500, 40, 1000), -580);
+  assert.equal(reveal.horizontalShift(20, 40, 1000), -60);
+  // A pane too narrow to hold the margins still frames what it can, and an
+  // occurrence wider than the pane is centred rather than pushed off both ends.
+  assert.equal(reveal.horizontalShift(0, 100, 100), 0);
+  assert.equal(reveal.horizontalShift(300, 400, 200), 400);
+});

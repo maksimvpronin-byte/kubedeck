@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Copy, Download, Search } from "lucide-react";
 import type { ReactNode, RefCallback } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useControlledAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { horizontalShift, verticalShift } from "../utils/revealMatch";
 import { matchRanges, nextMatchIndex } from "../utils/searchMatches";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
@@ -115,14 +116,18 @@ export function LogsTab({
   }
 
   // Only the log pane is scrolled, by hand rather than through scrollIntoView,
-  // which would also drag the drawer around the pane.
+  // which would also drag the drawer around the pane. Log lines are not
+  // wrapped, so the column is as much a part of "where the match is" as the
+  // row: a jump that moved rows alone left the occurrence off the right edge
+  // and the pane looking like it had not moved at all.
   useEffect(() => {
     const output = outputRef.current;
     const mark = currentMarkRef.current;
     if (currentMatch < 0 || !output || !mark) return;
     const outputBox = output.getBoundingClientRect();
     const markBox = mark.getBoundingClientRect();
-    output.scrollTop += markBox.top - outputBox.top - output.clientHeight / 2 + markBox.height / 2;
+    output.scrollTop += verticalShift(markBox.top - outputBox.top, markBox.height, output.clientHeight);
+    output.scrollLeft += horizontalShift(markBox.left - outputBox.left, markBox.width, output.clientWidth);
   }, [currentMatch]);
 
   useLayoutEffect(() => {
