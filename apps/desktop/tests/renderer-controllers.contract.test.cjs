@@ -398,3 +398,36 @@ test("the prompt preview can be hidden while an analysis is still running", () =
   // would be waiting on a request again.
   assert.match(llmTab, /if \(promptPreviewOpen\) \{\s*setPromptPreviewOpen\(false\);\s*return;/);
 });
+
+test("no source file carries text that was decoded through the wrong codepage", () => {
+  // The command palette shipped "CRD Р’В· apps" from 2.20 to 2.22. A middle dot
+  // (C2 B7) had been read as CP1251 twice on its way out of App.tsx, and each
+  // pass turned one character into two more. Nothing failed: the file is valid
+  // UTF-8, the types are strings either way, and no test read the subtitle. It
+  // was only ever visible to someone opening the palette.
+  //
+  // These sequences are what UTF-8 punctuation looks like after being read as
+  // CP1251 or Latin-1. None of them occurs in text anyone would write, so their
+  // absence is worth asserting over the whole tree rather than one file.
+  const mojibake = ["Р’", "РІ", "Ð", "â€", "Â", "Ã"];
+  const sourceRoot = path.resolve(__dirname, "../src");
+
+  const offenders = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!/\.(ts|tsx|js|json|css|html)$/.test(entry.name)) continue;
+      const text = fs.readFileSync(full, "utf8");
+      for (const sequence of mojibake) {
+        if (text.includes(sequence)) offenders.push(`${path.relative(sourceRoot, full)}: ${sequence}`);
+      }
+    }
+  };
+  walk(sourceRoot);
+
+  assert.deepEqual(offenders, []);
+});

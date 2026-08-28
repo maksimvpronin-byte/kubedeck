@@ -77,7 +77,7 @@ export function useCommandPaletteItems({
         items.push({
           id: `crd:${crd.resource}`,
           title: crd.kind || crd.plural || crd.resource,
-          subtitle: `CRD Р’В· ${group.group}`,
+          subtitle: `CRD · ${group.group}`,
           category: t("nav.crd"),
           keywords: `${crd.kind} ${crd.plural} ${crd.resource} ${group.group}`,
           run: () => selectTreeResource("crd", crd.resource),
@@ -106,7 +106,7 @@ export function useCommandPaletteItems({
       items.push({
         id: `row:${resourceTab}:${rowNamespace}:${rowName}:${String(row.uid ?? rowName)}`,
         title: rowName,
-        subtitle: `${resourceLabel(resourceTab)}${rowNamespace ? ` Р’В· ${rowNamespace}` : ""}`,
+        subtitle: `${resourceLabel(resourceTab)}${rowNamespace ? ` · ${rowNamespace}` : ""}`,
         category: t("command.category.open"),
         keywords: `${resourceTab} ${rowName} ${rowNamespace} ${String(row.kind ?? "")} ${String(row.status ?? "")} ${String(row.phase ?? "")}`,
         run: () => {
@@ -122,11 +122,11 @@ export function useCommandPaletteItems({
     for (const result of globalSearchResults) {
       const resource = String(result.resource || "");
       const resultNamespace = String(result.namespace || "");
-      const matchedFields = Array.isArray(result.matchedFields) && result.matchedFields.length ? ` Р’В· match: ${result.matchedFields.join(", ")}` : "";
+      const matchedFields = Array.isArray(result.matchedFields) && result.matchedFields.length ? ` · match: ${result.matchedFields.join(", ")}` : "";
       items.push({
         id: `global:${resource}:${resultNamespace}:${result.name}:${result.uid}`,
         title: String(result.title || result.name || resource),
-        subtitle: `${resourceLabel(resource)}${resultNamespace && resultNamespace !== "_cluster" ? ` Р’В· ${resultNamespace}` : ""}${matchedFields}`,
+        subtitle: `${resourceLabel(resource)}${resultNamespace && resultNamespace !== "_cluster" ? ` · ${resultNamespace}` : ""}${matchedFields}`,
         category: t("command.category.clusterSearch"),
         keywords: `${resource} ${result.name ?? ""} ${resultNamespace} ${result.kind ?? ""} ${result.status ?? ""} ${result.phase ?? ""} ${(result.matchedFields ?? []).join(" ")}`,
         run: () => void openResourceLocator(result),
