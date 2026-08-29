@@ -1,3 +1,43 @@
+## 2.23.4 - A highlight stops taking the words underneath it
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+The manifest editor paints three things behind text: the selection, a search
+match, and the one match the arrows are standing on. All three were laid on far
+too thick, and the selection was the worst of them.
+
+**Selected text.** Since 2.15.0 the selection has been the theme accent at 70%.
+Property names are painted in `--focus-ring`, which every theme derives from the
+same accent as `--primary-border`, so a selected key was very nearly the colour
+of its own highlight: 2.1:1 in plum, 2.0:1 in graphite, against 7-9:1 on the bare
+background. Comments fell to 1.2:1. Across all seven themes a selection took away
+between two thirds and four fifths of the contrast of everything under it.
+
+Nobody saw it for eight releases because until 2.16.0 a search match *was* a
+selection, and that was the only selection most readers ever made. 2.16.0 moved
+matches onto their own decoration to stop Enter deleting the found text, and left
+the selection colour behind with no one looking at it. It is now 30%: no token
+keeps less than half its bare contrast, and the selection still reads at 1.44:1
+or better against the editor background.
+
+**The found match.** The current match was the warning accent at 85%, leaving a
+matched number at 1.65:1 - the occurrence being stepped to was the hardest thing
+on the page to read. Those values came from the log viewer, where they are safe
+for a reason that does not carry over: a log line is one colour and `.log-line
+mark` repaints the text it covers, so no wash can cost it anything. In the editor
+the text keeps its syntax colours and nothing repaints them. Matches are now 25%
+and the current one 45%; the outline rather than the fill is what picks the
+current one out, so the smaller gap costs nothing. The log viewer is unchanged.
+
+**The rule, not the numbers.** One test reads the token and the alpha of every
+background the editor paints behind text, walks all seven themes in `tokens.css`,
+composites each background over `--code-bg`, and asserts that each of the six
+painted inks keeps at least 45% of its bare contrast and never falls below
+2.3:1 - and that the current match stays thicker than the rest. It was checked
+against the three regressions it exists for and rejects all three.
+
+Renderer suite is 146 tests, up from 145. Gateway is 170, unchanged.
+
 ## 2.23.3 - Two things the reader could see, and the gap that let one of them ship
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
