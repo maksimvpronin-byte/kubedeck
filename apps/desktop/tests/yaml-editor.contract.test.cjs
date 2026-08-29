@@ -261,3 +261,72 @@ test("a log jump reveals the match across the pane as well as down it", () => {
   assert.equal(reveal.horizontalShift(0, 100, 100), 0);
   assert.equal(reveal.horizontalShift(300, 400, 200), 400);
 });
+
+// Selected text has to stay readable in every theme. This is the one thing about
+// the editor no other test can see: the colours are valid, the CSS is valid, and
+// only a person looking at a selection would know it had swallowed the text.
+test("a selection in the manifest editor does not swallow the text under it", () => {
+  const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
+  const tokensCss = fs.readFileSync(path.join(rendererRoot, "styles/tokens.css"), "utf8");
+
+  // The selection is the accent laid over the editor's own background, so both
+  // the token it mixes and how much of it lands are read from the source rather
+  // than restated here.
+  const selection = editor.match(/\.cm-selectionBackground[^{]*\{\s*backgroundColor: "color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, transparent\)"/);
+  assert.ok(selection, "the selection background must stay a color-mix of a theme token");
+  const [, selectionToken, selectionPercent] = selection;
+  const alpha = Number(selectionPercent) / 100;
+
+  // Every theme inherits from the first block and overrides part of it.
+  const themes = new Map();
+  let base = null;
+  for (const block of tokensCss.split(/\n(?=:root|\[data-theme)/)) {
+    const name = block.split("{")[0].match(/data-theme="(\w+)"/)?.[1];
+    if (!name) continue;
+    const declared = Object.fromEntries([...block.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, key, value]) => [key, value.trim()]));
+    base ??= declared;
+    themes.set(name, { ...base, ...themes.get(name), ...declared });
+  }
+  assert.ok(themes.size >= 7, `expected every theme to be read, got ${themes.size}`);
+
+  const channels = (value) => {
+    const hex = value.trim().replace("#", "");
+    const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+    assert.match(full, /^[0-9a-f]{6}$/i, `${value} must be a hex colour`);
+    return [0, 2, 4].map((at) => Number.parseInt(full.slice(at, at + 2), 16));
+  };
+  const luminance = (rgb) => {
+    const [r, g, b] = rgb.map((c) => (c / 255 <= 0.04045 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a, b) => {
+    const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (high + 0.05) / (low + 0.05);
+  };
+  const over = (fg, bg) => fg.map((c, at) => Math.round(c * alpha + bg[at] * (1 - alpha)));
+
+  // What the editor actually paints: property names, strings, numbers,
+  // constants, comments and plain text.
+  const painted = ["--focus-ring", "--success-text", "--warning-text", "--text-strong", "--muted-soft", "--text"];
+
+  for (const [name, theme] of themes) {
+    const background = channels(theme["--code-bg"]);
+    const selected = over(channels(theme[selectionToken]), background);
+
+    // A selection nobody can see is not a selection.
+    const visible = contrast(selected, background);
+    assert.ok(visible >= 1.3, `${name}: the selection is invisible against the editor background (${visible.toFixed(2)}:1)`);
+
+    for (const token of painted) {
+      const text = channels(theme[token]);
+      const bare = contrast(text, background);
+      const onSelection = contrast(text, selected);
+      // The rule is relative, because a theme is free to choose quiet colours -
+      // what it may not do is let the selection take them away. At the 70% this
+      // shipped with, a selected property name kept 22% of its contrast.
+      const kept = onSelection / bare;
+      assert.ok(kept >= 0.45, `${name}: ${token} keeps only ${(kept * 100).toFixed(0)}% of its contrast when selected`);
+      assert.ok(onSelection >= 2.3, `${name}: ${token} falls to ${onSelection.toFixed(2)}:1 when selected`);
+    }
+  }
+});

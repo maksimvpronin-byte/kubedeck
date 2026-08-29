@@ -117,8 +117,16 @@ const yamlEditorTheme = EditorView.theme({
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--muted)" },
   // Extra selections and the rectangular one are drawn by `drawSelection`, so
   // the native ::selection colour never reaches them.
+  //
+  // The accent is laid on thinly. A selection has to sit behind syntax-coloured
+  // text rather than on top of a blank line, and property names are painted in
+  // `--focus-ring`, which every theme derives from the same accent as
+  // `--primary-border`: at the 70% this used to be, a selected key was the
+  // colour of its own highlight and simply disappeared. Thirty percent keeps
+  // the tint the theme asks for while every token holds more than half the
+  // contrast it has on the bare background.
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection": {
-    backgroundColor: "color-mix(in srgb, var(--primary-border) 70%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--primary-border) 30%, transparent)",
   },
   // Every caret of a multi-caret edit, not only the primary one.
   ".cm-cursor, .cm-dropCursor, .cm-cursor-secondary": { borderLeftColor: "var(--text)" },
