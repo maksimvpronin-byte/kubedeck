@@ -1,3 +1,49 @@
+## 2.23.3 - Two things the reader could see, and the gap that let one of them ship
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+Both fixes here are things a person looking at the screen would have noticed and
+no test could. That is the actual subject of this release.
+
+**The command palette separates its subtitles with a dot again.** Since 2.20 the
+middle dot in every palette subtitle has been `Р’В·` - "CRD Р’В· apps", "Pods Р’В·
+kube-system", and the same on every global search result. When the palette was
+extracted from App.tsx in 589ba88 the character (C2 B7) was read as CP1251 on the
+way out and again on the way back, and each pass turned one character into two
+more. Nothing could have caught it: the file is valid UTF-8 either way, the
+strings type-check either way, and no test read a subtitle. It was visible only
+to a person opening the palette, and it stayed visible for three releases.
+
+So the guard is not for that file. A contract test now walks the whole source
+tree for the sequences UTF-8 punctuation turns into when it is read through the
+wrong codepage. None of them is text anyone would type, and the tree is clean of
+them, which is what makes their absence something a test can hold.
+
+**A log search jump moves across the pane as well as down it.** Log lines are not
+wrapped, so the column an occurrence sits in is as much a part of where it is as
+the row. Stepping between matches only ever moved rows, so a match a thousand
+pixels past the right edge stayed off screen and the pane looked like the jump
+had done nothing. The scroll is now worked out per axis: down the pane the match
+is centred, across it the match is pulled in only when it is off the edge, and
+then far enough that the text around it comes too. A match already on screen
+keeps the column the reader chose, so walking a column of matches does not
+shuffle the log sideways at every step.
+
+**One Service is walked from the normalizer to the addresses it becomes.** The
+two halves were only ever tested apart, against hand-written expectations on
+either side, with a field name between them that neither test owned. Renaming it
+on one side would have left both suites green and the drawer showing a bare host
+and "the Service declares no ports" - the same shape of gap that let the palette
+ship broken. The test now walks one ClusterIP Service through the normalizer, the
+JSON round trip the list route performs, and into the addresses built from what
+survives.
+
+`npm run format:check` also stopped failing on configuration: Biome walked into
+`.claude/worktrees`, found a checkout of this project carrying its own
+`biome.json`, and refused to run at all rather than report on any file.
+
+Renderer suite is 145 tests, up from 142. Gateway is 170, unchanged.
+
 ## 2.23.2 - The cluster smoke follows a pod and compares itself to a baseline
 
 No product code changed. Node-only ownership stays at Node 59 / Python 0.
