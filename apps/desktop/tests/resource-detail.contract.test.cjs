@@ -204,6 +204,38 @@ test("a Service says how to reach it, in addresses to copy rather than links to 
   assert.match(summary, /isService\(resource\) \? <ServiceAddressesSection row=\{row\} onCopy=\{onCopy\} \/> : null/);
 });
 
+// The two halves of a Service address were only ever tested apart: the
+// normalizer against a hand-written expectation, the renderer against a
+// hand-written row. Either side could rename the field the other reads and both
+// suites would stay green, and the drawer would fall back to the bare host with
+// "the Service declares no ports". This walks one Service the whole way instead.
+test("a ClusterIP Service reaches the drawer with the ports its addresses are built from", () => {
+  const { serviceSummary } = loadTypeScript("../main/backend/resources/normalizers/network.ts");
+  const addresses = loadTypeScript("utils/serviceAddresses.ts");
+
+  // The JSON round trip is the resource list route: whatever survives it is
+  // what ResourceSummary hands to ServiceAddressesSection.
+  const row = JSON.parse(
+    JSON.stringify(
+      serviceSummary({
+        metadata: { uid: "svc-1", name: "storefront-api", namespace: "kubedeck-demo" },
+        spec: { type: "ClusterIP", clusterIP: "10.96.14.7", ports: [{ name: "http", port: 80, targetPort: 8080, protocol: "TCP" }] },
+        status: {},
+      }),
+    ),
+  );
+
+  // The printed cell and the pieces an address is built from travel together.
+  assert.equal(row.ports, "http \u00b7 80 \u2192 8080/TCP");
+  assert.deepEqual(row.servicePortItems, [{ name: "http", port: 80, targetPort: "8080", nodePort: 0, protocol: "TCP", appProtocol: "" }]);
+
+  assert.deepEqual(addresses.serviceAddresses(row), [
+    { group: "Cluster DNS", address: "http://storefront-api.kubedeck-demo.svc.cluster.local:80", hint: "http \u00b7 TCP" },
+    { group: "ClusterIP", address: "http://10.96.14.7:80", hint: "http \u00b7 TCP" },
+  ]);
+  assert.equal(addresses.portForwardCommand(row), "kubectl port-forward -n kubedeck-demo svc/storefront-api 80:80");
+});
+
 // grep contract: asserts on source text, not behaviour.
 test("the service summary renders endpoints loaded outside the Service object", () => {
   const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
