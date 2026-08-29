@@ -1,7 +1,8 @@
 // Renderer controllers that do not belong to one of the domain files beside
-// this one: the cluster rail and controller, the LLM renderer, manifest
-// compare, Secret reveal, Pod Terminal, async action feedback, navigation and
-// the small shared surfaces.
+// this one: the cluster rail and controller, manifest compare, Secret reveal,
+// Pod Terminal, async action feedback, navigation and the small shared
+// surfaces. The LLM tab moved to llm-tab-dom.contract.test.cjs, where its
+// promises are checked by clicking rather than by reading its source.
 // A test marked `grep contract` reads a source file and asserts on its text.
 // It breaks on a rename and passes through a real regression, so it is a
 // placeholder for a behavioural test rather than one. See section C of
@@ -44,26 +45,6 @@ test("cluster ordering helper moves items without mutating the source", () => {
   );
   assert.equal(model.moveCluster(clusters, 0, 0), clusters);
   assert.equal(model.moveCluster(clusters, -1, 0), clusters);
-});
-
-// grep contract: asserts on source text, not behaviour.
-test("LLM renderer never fetches or submits Kubernetes logs", () => {
-  const source = fs.readFileSync(path.join(rendererRoot, "components/LlmTab.tsx"), "utf8");
-  assert.doesNotMatch(source, /\.podLogs\(|\.deploymentLogs\(/);
-  assert.doesNotMatch(source, /previousLogs\s*:/);
-  assert.doesNotMatch(source, /logs\s*:/);
-});
-
-// grep contract: asserts on source text, not behaviour.
-test("the LLM answer language does not follow the UI language", () => {
-  const source = fs.readFileSync(path.join(rendererRoot, "components/LlmTab.tsx"), "utf8");
-  const types = fs.readFileSync(path.join(rendererRoot, "types.ts"), "utf8");
-  // The analysis is always written in Russian. Sending the UI preference made
-  // the answer switch to English, because "system" - the default - matched
-  // neither branch of the prompt's language rule.
-  assert.doesNotMatch(source, /language\s*:/);
-  const request = types.slice(types.indexOf("export interface LlmAnalyzeResourceRequest"), types.indexOf("export interface LlmAnalyzeResourceResponse"));
-  assert.doesNotMatch(request, /language/);
 });
 
 // grep contract: asserts on source text, not behaviour.
@@ -378,25 +359,6 @@ test("renderer error normalizer preserves ApiError fields and redacts sensitive 
   assert.equal(fallback.message, "Sensitive error details were redacted");
   assert.doesNotMatch(JSON.stringify(fallback), /super-secret-token/);
   assert.equal(model.toErrorInfo({ message: "timeout", rawStderr: "password=hunter2" }).rawStderr, "Sensitive error details were redacted");
-});
-
-// grep contract: asserts on source text, not behaviour.
-test("the prompt preview can be hidden while an analysis is still running", () => {
-  const llmTab = fs.readFileSync(path.join(rendererRoot, "components/LlmTab.tsx"), "utf8");
-
-  // Hiding an open prompt is local: the handler closes it and returns without
-  // touching the network. Tying the button to the shared busy flag left the
-  // prompt stuck on screen for as long as the model took to answer.
-  assert.match(llmTab, /togglePromptPreview\(\)\} disabled=\{promptPreviewLoading\}/);
-  assert.doesNotMatch(llmTab, /togglePromptPreview\(\)\} disabled=\{busy\}/);
-
-  // Starting a second analysis while one is in flight stays blocked.
-  assert.match(llmTab, /analyze\(\)\} disabled=\{busy\}/);
-  assert.match(llmTab, /const busy = loading \|\| promptPreviewLoading;/);
-
-  // The early return is what makes hiding free; if it ever goes, the button
-  // would be waiting on a request again.
-  assert.match(llmTab, /if \(promptPreviewOpen\) \{\s*setPromptPreviewOpen\(false\);\s*return;/);
 });
 
 test("no source file carries text that was decoded through the wrong codepage", () => {
