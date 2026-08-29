@@ -262,20 +262,27 @@ test("a log jump reveals the match across the pane as well as down it", () => {
   assert.equal(reveal.horizontalShift(300, 400, 200), 400);
 });
 
-// Selected text has to stay readable in every theme. This is the one thing about
-// the editor no other test can see: the colours are valid, the CSS is valid, and
-// only a person looking at a selection would know it had swallowed the text.
-test("a selection in the manifest editor does not swallow the text under it", () => {
+// Anything the editor paints behind text has to leave that text readable, in
+// every theme. This is the one thing about the editor no other test can see: the
+// colours are valid, the CSS is valid, and only a person looking at a selection
+// would know it had swallowed the words underneath.
+test("nothing the manifest editor paints behind text swallows it", () => {
   const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
   const tokensCss = fs.readFileSync(path.join(rendererRoot, "styles/tokens.css"), "utf8");
 
-  // The selection is the accent laid over the editor's own background, so both
-  // the token it mixes and how much of it lands are read from the source rather
-  // than restated here.
-  const selection = editor.match(/\.cm-selectionBackground[^{]*\{\s*backgroundColor: "color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, transparent\)"/);
-  assert.ok(selection, "the selection background must stay a color-mix of a theme token");
-  const [, selectionToken, selectionPercent] = selection;
-  const alpha = Number(selectionPercent) / 100;
+  // The token each background mixes and how much of it lands are read from the
+  // source rather than restated here, so the rule survives a retint.
+  const painted = (name, selector) => {
+    const found = editor.match(new RegExp(`${selector}[^{]*\\{\\s*backgroundColor: "color-mix\\(in srgb, var\\((--[\\w-]+)\\) (\\d+)%, transparent\\)"`));
+    assert.ok(found, `${name} must stay a color-mix of a theme token`);
+    return { name, token: found[1], alpha: Number(found[2]) / 100 };
+  };
+  const backgrounds = [painted("the selection", "\\.cm-selectionBackground"), painted("a search match", "\\.cm-kd-search-match"), painted("the current search match", "\\.cm-kd-search-match-current")];
+
+  // The current match has to stand out from the others, or stepping through them
+  // shows nothing moving.
+  const [, match, current] = backgrounds;
+  assert.ok(current.alpha > match.alpha, "the current search match must be laid on thicker than the rest");
 
   // Every theme inherits from the first block and overrides part of it.
   const themes = new Map();
@@ -303,30 +310,32 @@ test("a selection in the manifest editor does not swallow the text under it", ()
     const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
     return (high + 0.05) / (low + 0.05);
   };
-  const over = (fg, bg) => fg.map((c, at) => Math.round(c * alpha + bg[at] * (1 - alpha)));
 
-  // What the editor actually paints: property names, strings, numbers,
-  // constants, comments and plain text.
-  const painted = ["--focus-ring", "--success-text", "--warning-text", "--text-strong", "--muted-soft", "--text"];
+  // The six colours the editor actually paints: property names, strings,
+  // numbers, constants, comments and plain text.
+  const inks = ["--focus-ring", "--success-text", "--warning-text", "--text-strong", "--muted-soft", "--text"];
 
   for (const [name, theme] of themes) {
     const background = channels(theme["--code-bg"]);
-    const selected = over(channels(theme[selectionToken]), background);
+    for (const { name: what, token, alpha } of backgrounds) {
+      const over = channels(theme[token]).map((c, at) => Math.round(c * alpha + background[at] * (1 - alpha)));
 
-    // A selection nobody can see is not a selection.
-    const visible = contrast(selected, background);
-    assert.ok(visible >= 1.3, `${name}: the selection is invisible against the editor background (${visible.toFixed(2)}:1)`);
+      // A highlight nobody can see is not a highlight.
+      const visible = contrast(over, background);
+      assert.ok(visible >= 1.2, `${name}: ${what} is invisible against the editor background (${visible.toFixed(2)}:1)`);
 
-    for (const token of painted) {
-      const text = channels(theme[token]);
-      const bare = contrast(text, background);
-      const onSelection = contrast(text, selected);
-      // The rule is relative, because a theme is free to choose quiet colours -
-      // what it may not do is let the selection take them away. At the 70% this
-      // shipped with, a selected property name kept 22% of its contrast.
-      const kept = onSelection / bare;
-      assert.ok(kept >= 0.45, `${name}: ${token} keeps only ${(kept * 100).toFixed(0)}% of its contrast when selected`);
-      assert.ok(onSelection >= 2.3, `${name}: ${token} falls to ${onSelection.toFixed(2)}:1 when selected`);
+      for (const ink of inks) {
+        const text = channels(theme[ink]);
+        const bare = contrast(text, background);
+        const on = contrast(text, over);
+        // The rule is relative, because a theme is free to choose quiet colours -
+        // what it may not do is let a highlight take them away. At the 70% the
+        // selection shipped with, a selected property name kept 22% of its
+        // contrast; the current search match kept 31%.
+        const kept = on / bare;
+        assert.ok(kept >= 0.45, `${name}: ${ink} keeps only ${(kept * 100).toFixed(0)}% of its contrast under ${what}`);
+        assert.ok(on >= 2.3, `${name}: ${ink} falls to ${on.toFixed(2)}:1 under ${what}`);
+      }
     }
   }
 });

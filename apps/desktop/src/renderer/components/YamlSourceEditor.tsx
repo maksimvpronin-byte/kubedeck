@@ -131,14 +131,18 @@ const yamlEditorTheme = EditorView.theme({
   // Every caret of a multi-caret edit, not only the primary one.
   ".cm-cursor, .cm-dropCursor, .cm-cursor-secondary": { borderLeftColor: "var(--text)" },
   // Every match of the toolbar search, with the one being stepped to picked out
-  // of them. The colours are the log viewer's, so a search reads the same in
-  // both tabs.
+  // of them. The hue is the log viewer's, so a search still reads as the same
+  // thing in both tabs, but the log lays it on twice as thick: a log line is one
+  // colour and `.log-line mark` repaints it, so no amount of wash can cost it
+  // anything. Here the text underneath keeps its syntax colours, and at the 85%
+  // the current match used to be, a matched number sat at 1.65:1. The outline,
+  // not the fill, is what tells the current match from the rest.
   ".cm-kd-search-match": {
-    backgroundColor: "color-mix(in srgb, var(--warning-border) 42%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--warning-border) 25%, transparent)",
     borderRadius: "2px",
   },
   ".cm-kd-search-match-current": {
-    backgroundColor: "color-mix(in srgb, var(--warning-border) 85%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--warning-border) 45%, transparent)",
     outline: "1px solid var(--warning-text)",
   },
   ".cm-foldPlaceholder": {
