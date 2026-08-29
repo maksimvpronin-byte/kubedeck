@@ -265,10 +265,11 @@ test("a log jump reveals the match across the pane as well as down it", () => {
 // Anything the editor paints behind text has to leave that text readable, in
 // every theme. This is the one thing about the editor no other test can see: the
 // colours are valid, the CSS is valid, and only a person looking at a selection
-// would know it had swallowed the words underneath.
+// would know it had swallowed the words underneath. The rule itself lives in
+// helpers/contrast.cjs, shared with the Related panel's hover.
 test("nothing the manifest editor paints behind text swallows it", () => {
+  const { readThemes, channels, contrast, over, readabilityFailures } = require("./helpers/contrast.cjs");
   const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
-  const tokensCss = fs.readFileSync(path.join(rendererRoot, "styles/tokens.css"), "utf8");
 
   // The token each background mixes and how much of it lands are read from the
   // source rather than restated here, so the rule survives a retint.
@@ -284,58 +285,33 @@ test("nothing the manifest editor paints behind text swallows it", () => {
   const [, match, current] = backgrounds;
   assert.ok(current.alpha > match.alpha, "the current search match must be laid on thicker than the rest");
 
-  // Every theme inherits from the first block and overrides part of it.
-  const themes = new Map();
-  let base = null;
-  for (const block of tokensCss.split(/\n(?=:root|\[data-theme)/)) {
-    const name = block.split("{")[0].match(/data-theme="(\w+)"/)?.[1];
-    if (!name) continue;
-    const declared = Object.fromEntries([...block.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, key, value]) => [key, value.trim()]));
-    base ??= declared;
-    themes.set(name, { ...base, ...themes.get(name), ...declared });
-  }
-  assert.ok(themes.size >= 7, `expected every theme to be read, got ${themes.size}`);
-
-  const channels = (value) => {
-    const hex = value.trim().replace("#", "");
-    const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
-    assert.match(full, /^[0-9a-f]{6}$/i, `${value} must be a hex colour`);
-    return [0, 2, 4].map((at) => Number.parseInt(full.slice(at, at + 2), 16));
-  };
-  const luminance = (rgb) => {
-    const [r, g, b] = rgb.map((c) => (c / 255 <= 0.04045 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const contrast = (a, b) => {
-    const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-    return (high + 0.05) / (low + 0.05);
-  };
-
   // The six colours the editor actually paints: property names, strings,
   // numbers, constants, comments and plain text.
-  const inks = ["--focus-ring", "--success-text", "--warning-text", "--text-strong", "--muted-soft", "--text"];
+  const inkTokens = {
+    key: "--focus-ring",
+    string: "--success-text",
+    number: "--warning-text",
+    constant: "--text-strong",
+    comment: "--muted-soft",
+    plain: "--text",
+  };
+
+  const themes = readThemes();
+  assert.ok(themes.size >= 7, `expected every theme to be read, got ${themes.size}`);
 
   for (const [name, theme] of themes) {
     const background = channels(theme["--code-bg"]);
+    const inks = Object.fromEntries(Object.entries(inkTokens).map(([label, ink]) => [label, channels(theme[ink])]));
+
     for (const { name: what, token, alpha } of backgrounds) {
-      const over = channels(theme[token]).map((c, at) => Math.round(c * alpha + background[at] * (1 - alpha)));
+      const painted = over(channels(theme[token]), background, alpha);
+
+      const failures = readabilityFailures({ background, over: painted, inks });
+      assert.deepEqual(failures, [], `${name}: under ${what}, ${failures.join("; ")}`);
 
       // A highlight nobody can see is not a highlight.
-      const visible = contrast(over, background);
+      const visible = contrast(painted, background);
       assert.ok(visible >= 1.2, `${name}: ${what} is invisible against the editor background (${visible.toFixed(2)}:1)`);
-
-      for (const ink of inks) {
-        const text = channels(theme[ink]);
-        const bare = contrast(text, background);
-        const on = contrast(text, over);
-        // The rule is relative, because a theme is free to choose quiet colours -
-        // what it may not do is let a highlight take them away. At the 70% the
-        // selection shipped with, a selected property name kept 22% of its
-        // contrast; the current search match kept 31%.
-        const kept = on / bare;
-        assert.ok(kept >= 0.45, `${name}: ${ink} keeps only ${(kept * 100).toFixed(0)}% of its contrast under ${what}`);
-        assert.ok(on >= 2.3, `${name}: ${ink} falls to ${on.toFixed(2)}:1 under ${what}`);
-      }
     }
   }
 });

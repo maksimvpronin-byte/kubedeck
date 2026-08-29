@@ -431,3 +431,33 @@ test("no source file carries text that was decoded through the wrong codepage", 
 
   assert.deepEqual(offenders, []);
 });
+
+test("hovering a related resource does not hide what the card says", () => {
+  const { readThemes, channels, contrast, over, readabilityFailures } = require("./helpers/contrast.cjs");
+  const relatedCss = fs.readFileSync(path.join(rendererRoot, "styles/related-panel.css"), "utf8");
+  const layoutCss = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
+
+  // The polished card overrides the plain one's hover with !important, so the
+  // token and the alpha are read from the rule that actually wins.
+  const hover = relatedCss.match(/\.related-card-polished:hover \{\s*background: color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, transparent\) !important;/);
+  assert.ok(hover, "the polished hover must stay a color-mix of a theme token");
+  const [, token, percent] = hover;
+  const alpha = Number(percent) / 100;
+
+  // A card is a name, a subtitle and a body, on the card's own background.
+  assert.match(layoutCss, /\.related-card \{[^}]*background: var\(--panel-muted\);/s);
+  const inkTokens = { name: "--text", subtitle: "--muted", body: "--muted-strong" };
+
+  for (const [name, theme] of readThemes()) {
+    const card = channels(theme["--panel-muted"]);
+    const painted = over(channels(theme[token]), card, alpha);
+    const inks = Object.fromEntries(Object.entries(inkTokens).map(([label, ink]) => [label, channels(theme[ink])]));
+
+    const failures = readabilityFailures({ background: card, over: painted, inks });
+    assert.deepEqual(failures, [], `${name}: hovering a related card ${failures.join("; ")}`);
+
+    // A hover nobody can see is not a hover.
+    const visible = contrast(painted, card);
+    assert.ok(visible >= 1.2, `${name}: the hover is invisible against the card (${visible.toFixed(2)}:1)`);
+  }
+});

@@ -349,9 +349,15 @@
   border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
 }
 
+/* Thin enough to read a card through. At the 70% this was, hovering a related
+   resource dropped its subtitle from about 7:1 to 1.7:1 in every theme - the
+   card answered the mouse by hiding what it said. The plain `.related-card`
+   rule this one overrides had it right, using `--surface-hover`; 30% of the
+   accent keeps that legible while staying the more noticeable hover this card
+   was polished to have. */
 .related-group .event-list .event-item.related-card-polished:hover,
 .related-card-polished:hover {
-  background: color-mix(in srgb, var(--primary-border) 70%, transparent) !important;
+  background: color-mix(in srgb, var(--primary-border) 30%, transparent) !important;
 }
 
 .related-card-main {
