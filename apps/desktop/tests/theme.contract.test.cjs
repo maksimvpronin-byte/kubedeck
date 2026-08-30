@@ -249,7 +249,10 @@ test("the YAML editor is themed by the application palette rather than a bundled
   // Themes are switched at runtime through CSS variables, so a theme built out
   // of literal colours would freeze the editor on whichever one was bundled.
   assert.doesNotMatch(editor, /@codemirror[/]theme-|oneDark/);
-  const theme = editor.slice(editor.indexOf("const yamlEditorTheme"), editor.indexOf("const intelliJStyleKeymap"));
+  // Comments are stripped first: the point is that no colour is *declared*
+  // literally, and a comment naming the colour CodeMirror's own base theme
+  // ships is evidence rather than a violation.
+  const theme = editor.slice(editor.indexOf("const yamlEditorTheme"), editor.indexOf("const intelliJStyleKeymap")).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
   assert.ok(theme.includes("var(--text)") && theme.includes("var(--focus-ring)"), "the editor theme reads the application palette");
   assert.doesNotMatch(theme, /#[0-9a-fA-F]{3}/, "no literal colours in the editor theme");
 
