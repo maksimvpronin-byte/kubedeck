@@ -143,7 +143,7 @@
 
 .themed-select-option svg.is-visible {
   opacity: 1;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 /* The host key confirmation lives inside the Terminal Workspace and reuses the

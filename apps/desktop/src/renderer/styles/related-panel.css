@@ -646,7 +646,7 @@
 :root[data-theme="light"] .related-group > header span,
 :root[data-theme="light"] .relation-badge,
 :root[data-theme="light"] .related-namespace {
-  color: var(--primary) !important;
+  color: var(--primary-text) !important;
 }
 
 :root[data-theme="light"] .related-relation-row code,

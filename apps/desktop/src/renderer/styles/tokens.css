@@ -32,6 +32,11 @@
   --button-disabled-text: #728397;
   --focus-ring: #70b5d6;
   --primary: #2f6f8f;
+  /* The accent as a text colour. `--primary` fills a button and has to be dark
+     enough for white on it; a chip has to be light enough to read on a panel.
+     One token cannot be both, so this is the second one. Hue and saturation
+     are the theme's own - only lightness differs. */
+  --primary-text: #66abcd;
   --primary-hover: #327ca2;
   --primary-border: #4d94b7;
   --primary-soft: rgb(77 148 183 / 0.18);
@@ -115,6 +120,11 @@
   --button-disabled-text: #7f8a94;
   --focus-ring: #55b7df;
   --primary: #246f92;
+  /* The accent as a text colour. `--primary` fills a button and has to be dark
+     enough for white on it; a chip has to be light enough to read on a panel.
+     One token cannot be both, so this is the second one. Hue and saturation
+     are the theme's own - only lightness differs. */
+  --primary-text: #5cb0d7;
   --primary-hover: #287da4;
   --primary-border: #49a5cc;
   --primary-soft: rgb(73 165 204 / 0.18);
@@ -186,6 +196,11 @@
   --button-disabled-text: #828e9e;
   --focus-ring: #9bd3df;
   --primary: #456e7e;
+  /* The accent as a text colour. `--primary` fills a button and has to be dark
+     enough for white on it; a chip has to be light enough to read on a panel.
+     One token cannot be both, so this is the second one. Hue and saturation
+     are the theme's own - only lightness differs. */
+  --primary-text: #98b9c7;
   --primary-hover: #437c91;
   --primary-border: #88c0d0;
   --primary-soft: rgb(136 192 208 / 0.2);
@@ -231,6 +246,11 @@
   --button-disabled-text: #728c84;
   --focus-ring: #79c9b8;
   --primary: #357368;
+  /* The accent as a text colour. `--primary` fills a button and has to be dark
+     enough for white on it; a chip has to be light enough to read on a panel.
+     One token cannot be both, so this is the second one. Hue and saturation
+     are the theme's own - only lightness differs. */
+  --primary-text: #67b9aa;
   --primary-hover: #3e8074;
   --primary-border: #5fb3a2;
   --primary-soft: rgb(95 179 162 / 0.2);
@@ -276,6 +296,11 @@
   --button-disabled-text: #897a91;
   --focus-ring: #c5a9d8;
   --primary: #7b5d91;
+  /* The accent as a text colour. `--primary` fills a button and has to be dark
+     enough for white on it; a chip has to be light enough to read on a panel.
+     One token cannot be both, so this is the second one. Hue and saturation
+     are the theme's own - only lightness differs. */
+  --primary-text: #b7a4c5;
   --primary-hover: #8b66a7;
   --primary-border: #b194c7;
   --primary-soft: rgb(177 148 199 / 0.2);
@@ -320,6 +345,11 @@
   --button-disabled-text: #8f8073;
   --focus-ring: #e0b982;
   --primary: #85623b;
+  /* The accent as a text colour. `--primary` fills a button and has to be dark
+     enough for white on it; a chip has to be light enough to read on a panel.
+     One token cannot be both, so this is the second one. Hue and saturation
+     are the theme's own - only lightness differs. */
+  --primary-text: #c8a782;
   --primary-hover: #946d42;
   --primary-border: #d0a66e;
   --primary-soft: rgb(208 166 110 / 0.2);
@@ -366,6 +396,11 @@
   --button-disabled-text: #8b98a9;
   --focus-ring: #2d84a8;
   --primary: #1f6f8f;
+  /* The accent as a text colour. `--primary` fills a button and has to be dark
+     enough for white on it; a chip has to be light enough to read on a panel.
+     One token cannot be both, so this is the second one. Hue and saturation
+     are the theme's own - only lightness differs. */
+  --primary-text: #1f6f8f;
   --primary-hover: #1a5f7c;
   --primary-border: #2d84a8;
   --primary-soft: rgb(31 111 143 / 0.14);

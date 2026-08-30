@@ -163,7 +163,7 @@
   color: var(--success-text);
 }
 .workload-condition.is-info {
-  color: var(--primary);
+  color: var(--primary-text);
 }
 .workload-condition.is-warning {
   color: var(--warning-text);
@@ -206,7 +206,7 @@
   padding: 0 2px;
   border: 0;
   background: none;
-  color: var(--primary);
+  color: var(--primary-text);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -243,7 +243,7 @@
 
 .node-role-chip.is-control-plane {
   border-color: var(--primary-border);
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 /* The rest of the labels, which used to be a comma-joined native tooltip. */

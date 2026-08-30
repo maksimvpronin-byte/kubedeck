@@ -18,7 +18,11 @@
 // those are held by a floor at what they measure rather than by a standard.
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { readThemes, channels, contrast } = require("./helpers/contrast.cjs");
+
+const stylesRoot = path.resolve(__dirname, "../src/renderer/styles");
 
 const themes = readThemes();
 
@@ -108,29 +112,38 @@ test("a disabled control stays as legible as it is today", () => {
   }
 });
 
-// The accent is used as a text colour in five places - the `+N` node-label chip,
-// the control-plane role chip, the `is-info` workload condition, a code span in
-// the Related panel, and the tick in a themed select. On `--panel` it sits far
-// below the text standard in every dark theme, and 2.23.6 made it slightly worse
-// by darkening the accent so white on the primary button could be read.
+// The accent does two jobs with opposite requirements: a filled button wants it
+// dark enough for white text on it, a chip wants it light enough to read on a
+// panel. Until 2026-08-30 one token did both, and the chips lost - 2.12 to 2.60
+// on a panel in every dark theme, made slightly worse by 2.23.6 darkening the
+// accent for the button's sake.
 //
-// One token cannot do both jobs: a filled button wants an accent dark enough for
-// white text, and a chip wants one light enough to read on a panel. Splitting
-// them is a palette change and belongs to whoever owns the palette - open in
-// section B of docs/unseen-defects-plan.md. Until then this holds the line.
-const ACCENT_AS_TEXT_FLOOR = {
-  midnight: 2.55,
-  graphite: 2.45,
-  nord: 2.1,
-  forest: 2.35,
-  plum: 2.4,
-  mocha: 2.3,
-  light: 5.6,
-};
+// `--primary-text` is the second token. Each theme keeps its own hue and
+// saturation and only lightness differs, so a chip still reads as its theme's
+// colour. These two tests are what stop the roles being merged again.
+const CHIP_BACKGROUNDS = ["--panel", "--panel-muted", "--surface", "--surface-2", "--surface-hover"];
 
-test("the accent used as text does not get fainter than it already is", () => {
+test("the accent used as text is readable on every surface a chip sits on", () => {
   for (const theme of EVERY_THEME) {
-    const measured = ratio(theme, "--primary", "--panel");
-    assert.ok(measured >= ACCENT_AS_TEXT_FLOOR[theme], `${theme}: the accent as text fell to ${measured.toFixed(2)}:1, below the ${ACCENT_AS_TEXT_FLOOR[theme]} it held`);
+    for (const surface of CHIP_BACKGROUNDS) {
+      const measured = ratio(theme, "--primary-text", surface);
+      assert.ok(measured >= 4.5, `${theme}: the text accent is ${measured.toFixed(2)}:1 on ${surface}`);
+    }
   }
+});
+
+test("no stylesheet paints text with the accent meant for filled surfaces", () => {
+  // The five that did - the `+N` chip, the control-plane chip, the `is-info`
+  // condition, a code span in Related, the tick in a themed select - now use
+  // --primary-text. This is what keeps a sixth from quietly appearing: nothing
+  // about the two colours stops `color: var(--primary)` from compiling.
+  const styles = fs.readdirSync(stylesRoot).filter((name) => name.endsWith(".css"));
+  const offenders = [];
+  for (const name of styles) {
+    const css = fs.readFileSync(path.join(stylesRoot, name), "utf8");
+    for (const [line] of css.split("\n").map((text, index) => [text, index])) {
+      if (/color:\s*var\(--primary\)/.test(line) && !/background|border|outline|fill/.test(line)) offenders.push(`${name}: ${line.trim()}`);
+    }
+  }
+  assert.deepEqual(offenders, [], "use --primary-text for text");
 });
