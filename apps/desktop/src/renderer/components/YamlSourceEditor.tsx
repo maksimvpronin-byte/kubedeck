@@ -125,7 +125,21 @@ const yamlEditorTheme = EditorView.theme({
   // colour of its own highlight and simply disappeared. Thirty percent keeps
   // the tint the theme asks for while every token holds more than half the
   // contrast it has on the bare background.
-  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection": {
+  // The selectors are this long because CodeMirror's own base theme is longer.
+  // It ships `&light .cm-selectionBackground` and, for a focused editor,
+  // `&light.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground`
+  // - five classes, since `&light` resolves to one generated class. A theme
+  // written as `&.cm-focused .cm-selectionBackground` is three, so it loses, and
+  // the selection a reader sees is CodeMirror's `#d7d4f0` rather than anything
+  // this file says. That is what was on screen from 2.15.0 until 2026-08-30,
+  // through a release that thought it had changed the colour.
+  //
+  // `.cm-editor` is on the editor root beside the generated class, so naming it
+  // buys the specificity to win outright rather than on source order.
+  "&.cm-editor .cm-selectionBackground, .cm-content ::selection": {
+    backgroundColor: "color-mix(in srgb, var(--primary-border) 30%, transparent)",
+  },
+  "&.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
     backgroundColor: "color-mix(in srgb, var(--primary-border) 30%, transparent)",
   },
   // Every caret of a multi-caret edit, not only the primary one.

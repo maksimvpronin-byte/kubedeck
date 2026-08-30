@@ -329,3 +329,58 @@ test("nothing the manifest editor paints behind text swallows it", () => {
     }
   }
 });
+
+// The value a file declares is not the value a reader sees. From 2.15.0 until
+// 2026-08-30 the editor's selection colour never applied at all: CodeMirror's
+// own base theme carries
+// `&light.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground`,
+// which resolves to five classes, and the editor's theme said
+// `&.cm-focused .cm-selectionBackground`, which is three. The base theme won and
+// painted `#d7d4f0` - a pale lilac that swallowed the syntax colours - while the
+// contrast test above measured the colour this file declares and passed.
+//
+// So this test does not measure a colour. It measures which rule wins.
+test("the editor's own selection colour outranks the one CodeMirror ships", () => {
+  const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
+  // The package does not export its dist path, so it is read from disk rather
+  // than resolved through the module system.
+  const codemirror = fs.readFileSync(path.resolve(__dirname, "../../../node_modules/@codemirror/view/dist/index.js"), "utf8");
+
+  // CodeMirror's `buildTheme` finishes a selector one of two ways: one that
+  // contains `&` has the `&`, `&light` or `&dark` replaced by a single generated
+  // class, and one that does not is prefixed with the theme's class. So a bare
+  // `.cm-content` is really `.<theme> .cm-content` - two classes, not one - and
+  // getting that wrong is what makes this look like a specificity problem in
+  // places where it is only a tie that source order settles.
+  const specificity = (selector) => {
+    const parts = (selector.match(/&\w*|\.[\w-]+|\[[^\]]+\]|:[\w-]+/g) ?? []).length;
+    return selector.includes("&") ? parts : parts + 1;
+  };
+
+  const selectorsFor = (source) =>
+    [...source.matchAll(/"([^"]*cm-selectionBackground[^"]*)"\s*:/g)]
+      .flatMap(([, head]) => head.split(","))
+      .map((part) => part.trim())
+      .filter((part) => part.includes("cm-selectionBackground"));
+
+  const theirs = selectorsFor(codemirror);
+  const ours = selectorsFor(editor);
+  assert.ok(theirs.length >= 2, "CodeMirror's base theme must still be the thing being outranked");
+  assert.ok(ours.length >= 1, "the editor must still style its own selection");
+
+  // Every rule of theirs has to be beaten by at least one of ours that could
+  // match the same element - which, for a focused editor, is the long one.
+  const strongestOfOurs = Math.max(...ours.map(specificity));
+  for (const selector of theirs) {
+    assert.ok(strongestOfOurs > specificity(selector), `CodeMirror's "${selector}" is ${specificity(selector)} classes and the editor's strongest is ${strongestOfOurs}: the shipped colour would win`);
+  }
+
+  // And the focused case specifically, because that is the one a reader is
+  // always in while selecting.
+  const focused = ours.filter((selector) => selector.includes("cm-focused"));
+  assert.ok(focused.length >= 1, "a focused editor needs its own rule");
+  const theirsFocused = theirs.filter((selector) => selector.includes("cm-focused"));
+  for (const selector of theirsFocused) {
+    assert.ok(Math.max(...focused.map(specificity)) > specificity(selector), `the focused selection rule must outrank "${selector}"`);
+  }
+});
