@@ -124,16 +124,21 @@
 }
 
 .terminal-toolbar .themed-select-option {
-  border: 0 !important;
-  border-radius: 4px !important;
+  border: 0;
+  border-radius: 4px;
+  /* The only load-bearing one left in this file. `.themed-select-option.is-selected`
+     is more specific and paints `--surface-hover`, which in a toolbar reads as a
+     hover the pointer is not on. The rule below restores that colour for the
+     states that really are hovered or selected. Verified by removing it: eight
+     resolved values change. See section C of docs/unseen-defects-plan.md. */
   background: transparent !important;
-  color: var(--text) !important;
+  color: var(--text);
 }
 
 .terminal-toolbar .themed-select-option:hover,
 .terminal-toolbar .themed-select-option:focus-visible,
 .terminal-toolbar .themed-select-option.is-selected {
-  background: var(--surface-hover) !important;
+  background: var(--surface-hover);
 }
 
 .themed-select-option svg {
@@ -209,9 +214,9 @@
 
 .terminal-toolbar button.primary,
 .ssh-host-key-actions button.primary {
-  border-color: var(--kd-action-primary-border) !important;
-  background: var(--kd-action-primary-bg) !important;
-  color: var(--text-inverse) !important;
+  border-color: var(--kd-action-primary-border);
+  background: var(--kd-action-primary-bg);
+  color: var(--text-inverse);
 }
 
 .terminal-toolbar button.primary:hover:not(:disabled),
