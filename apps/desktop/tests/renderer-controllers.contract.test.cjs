@@ -76,15 +76,17 @@ test("manifest compare marks equal, changed, added, and removed lines", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("revealed text secrets edit immediately with themed safe confirmation", () => {
-  const component = fs.readFileSync(path.join(rendererRoot, "components/SecretTab.tsx"), "utf8");
+// Stays one, and here is why. What the Secret tab *does* - reveal a value only
+// when asked, open a text value for editing at once, refuse to edit binary or
+// immutable ones, confirm in a dialog that never shows the decoded value, hide
+// on a timer and take an open confirmation down with it - is checked by
+// revealing and clicking in secret-tab-dom.contract.test.cjs. What is left is
+// the colour of the field the value is typed into, and jsdom has no cascade:
+// nothing it reports would tell whether the caret is visible against the
+// background. Section B of docs/unseen-defects-plan.md is where that kind of
+// question gets an answer with arithmetic behind it.
+test("the Secret editing field is themed rather than left to the browser", () => {
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");
-  assert.doesNotMatch(component, /window\.confirm|<Pencil|>Edit<\/button>/);
-  assert.match(component, /if \(!data\.binary && !response\?\.immutable\)/);
-  assert.match(component, /setDraft\(data\.value\)/);
-  assert.match(component, /className="confirm-modal" role="dialog" aria-modal="true"/);
-  assert.match(component, /The decoded value is not shown in this confirmation\./);
-  assert.doesNotMatch(component, /<code>\{draft\}|<p>\{draft\}/);
   assert.match(styles, /\.secret-edit textarea\s*\{[^}]*background:\s*var\(--code-bg\);[^}]*color:\s*var\(--text\);[^}]*caret-color:\s*var\(--focus-ring\);/s);
 });
 
