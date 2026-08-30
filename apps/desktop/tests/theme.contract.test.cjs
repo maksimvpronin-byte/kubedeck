@@ -79,16 +79,17 @@ test("theme application updates data attributes and persists the preference", ()
   }
 });
 
-// White on the primary accent, measured 2026-08-29. Anything at or above 4.5
-// meets WCAG AA; the rest are recorded so they cannot slip further while the
-// palette question is open. See section B of docs/unseen-defects-plan.md.
+// White on the primary accent, re-measured 2026-08-30 after the five failing
+// accents were darkened. Every theme now clears WCAG AA in both the idle and
+// the hover state, so these floors sit just under the measurement and the
+// ratchet holds the fix in place. See section B of docs/unseen-defects-plan.md.
 const PRIMARY_BUTTON_FLOOR = {
-  midnight: { primary: 5.5, "primary-hover": 4.4 },
+  midnight: { primary: 5.5, "primary-hover": 4.6 },
   graphite: { primary: 5.55, "primary-hover": 4.6 },
-  nord: { primary: 3.45, "primary-hover": 2.65 },
-  forest: { primary: 4.1, "primary-hover": 3.1 },
-  plum: { primary: 4.5, "primary-hover": 3.55 },
-  mocha: { primary: 4.15, "primary-hover": 3.2 },
+  nord: { primary: 5.5, "primary-hover": 4.6 },
+  forest: { primary: 5.5, "primary-hover": 4.6 },
+  plum: { primary: 5.5, "primary-hover": 4.6 },
+  mocha: { primary: 5.5, "primary-hover": 4.6 },
   light: { primary: 5.6, "primary-hover": 7.0 },
 };
 
@@ -166,11 +167,11 @@ test("every color theme exposes the shared token contract", () => {
     }
 
     // A primary button is text on a filled accent, and it is the pairing these
-    // themes get wrong: measured 2026-08-29, five of the seven put white below
-    // WCAG AA on the button, the hover state worst. Raising them is a change to
-    // how the application looks and belongs to whoever owns the palette, so this
-    // is a ratchet rather than a standard - no theme may get worse than it is
-    // today. The numbers are the measurement, not an endorsement of it.
+    // themes used to get wrong: measured 2026-08-29, five of the seven put white
+    // below WCAG AA on the button, the hover state worst. The accents were
+    // darkened on 2026-08-30 - lightness only, so each theme keeps its hue - and
+    // the floors moved up with them. The ratchet stays because a palette edit is
+    // the easiest way to lose this again, but it now sits above 4.5 everywhere.
     for (const [surface, floor] of Object.entries(PRIMARY_BUTTON_FLOOR[name])) {
       const ratio = contrast(channels(palette["--text-inverse"]), channels(palette[`--${surface}`]));
       assert.ok(ratio >= floor, `${name} text-inverse on ${surface} fell to ${ratio.toFixed(2)}:1, below the ${floor} it held`);
