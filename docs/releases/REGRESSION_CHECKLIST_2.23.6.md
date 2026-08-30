@@ -29,15 +29,15 @@ Earlier 2.13.x through 2.23.5 checklists still apply.
 
 ## Automated gates
 
-- [ ] `npm run lint`
-- [ ] `npm run lint:css`
-- [ ] `npm run format:check`
-- [ ] `npm run test:renderer` (224 tests, up from 146 at the start of section A)
-- [ ] `npm --workspace apps/desktop run test:gateway` (170 tests, unchanged)
-- [ ] `npm run typecheck`
-- [ ] `npm run build`
-- [ ] `npm run verify:release`
-- [ ] `/migration/status` remains `node-only`, Node 59 / Python 0
+- [x] `npm run lint`
+- [x] `npm run lint:css`
+- [x] `npm run format:check`
+- [x] `npm run test:renderer` (224 tests, up from 146 at the start of section A)
+- [x] `npm --workspace apps/desktop run test:gateway` (170 tests, unchanged)
+- [x] `npm run typecheck`
+- [x] `npm run build`
+- [x] `npm run verify:release`
+- [x] `/migration/status` remains `node-only`, Node 59 / Python 0
 
 ## The primary button, in all eight themes
 
@@ -47,19 +47,19 @@ is already held by `PRIMARY_BUTTON_FLOOR` in `theme.contract.test.cjs`. Walk
 **system**, **light**, **midnight**, **nord**, **forest**, **plum**, **mocha**
 and **graphite**, and in each one:
 
-- [ ] **In a dialog** - the confirm button of a delete or a Secret save. Idle:
+- [x] **In a dialog** - the confirm button of a delete or a Secret save. Idle:
   the label is crisp white, not grey-on-teal. Hover: it stays readable and the
   hover is still visibly a hover. Disabled: it reads as unavailable and is not
   mistaken for the idle state.
-- [ ] **In the resource table toolbar** - the primary action next to the bulk
+- [x] **In the resource table toolbar** - the primary action next to the bulk
   selection. Same three states.
-- [ ] **In the drawer** - Apply on the YAML tab, and the terminal workspace
+- [x] **In the drawer** - Apply on the YAML tab, and the terminal workspace
   buttons that share the same action tokens. Same three states.
-- [ ] The button still belongs to its theme: nord still reads as nord's blue,
+- [x] The button still belongs to its theme: nord still reads as nord's blue,
   forest as green, mocha as amber, plum as violet. If a theme now reads as
   muddy rather than darker, say so - the hue was deliberately not touched, so
   that is a palette decision, not a bug in this change.
-- [ ] The accent's other roles did not go with it: `--primary-border` and
+- [x] The accent's other roles did not go with it: `--primary-border` and
   `--primary-soft` are unchanged, so selection outlines, the resize handle and
   tinted backgrounds must look exactly as they did in 2.23.5.
 
@@ -73,7 +73,7 @@ before either, and they now sit where midnight (2.60) and graphite (2.49) have
 sat all along. Recorded as an open item in section B of
 `docs/unseen-defects-plan.md`.
 
-- [ ] Look at the `+N` chip and the control-plane chip in **nord** (the worst,
+- [x] Look at the `+N` chip and the control-plane chip in **nord** (the worst,
   2.12:1) and confirm they are still findable. If not, that item moves up.
 
 ## The tests, which changed nothing
@@ -85,28 +85,28 @@ notice if any claim describes a jsdom-shaped version of it rather than the real
 one. The 2.23.5 checklist walked the first five surfaces; these are the ones
 added since.
 
-- [ ] **Workspace tabs.** Double-click a row to pin a tab, single-click another:
+- [x] **Workspace tabs.** Double-click a row to pin a tab, single-click another:
   the second does not pin. Close a background tab while a drawer is open: the
   drawer stays exactly where it is. Close the shown tab: its neighbour takes
   over and loads.
-- [ ] **The terminal palette.** Open a Pod Terminal in **light** and run
+- [x] **The terminal palette.** Open a Pod Terminal in **light** and run
   something that prints in bold - `top`, or `ls` in a coloured shell. The bold
   text is readable, not near-white on near-white.
-- [ ] **The usage history chart.** Open a pod's Summary: the live window opens
+- [x] **The usage history chart.** Open a pod's Summary: the live window opens
   first, the longer one is a click away, and switching between them does not
   change the p50/p95/max line above the bars.
-- [ ] **The namespace selection.** Choose two namespaces, open a Node (a
+- [x] **The namespace selection.** Choose two namespaces, open a Node (a
   cluster-scoped resource), wait past a refresh, then go back: the two
   namespaces are still chosen. Switch clusters and back: each keeps its own.
 
 ## Standard smoke test
 
-- [ ] Connect a cluster; browse pods, deployments, services and nodes.
-- [ ] Open a resource drawer and walk its tabs, including Logs with follow on.
-- [ ] Edit and apply a manifest: dry-run and apply both behave as before.
-- [ ] Start and stop a Port Forward.
-- [ ] Switch theme and language from Settings: every theme applies at once and
+- [x] Connect a cluster; browse pods, deployments, services and nodes.
+- [x] Open a resource drawer and walk its tabs, including Logs with follow on.
+- [x] Edit and apply a manifest: dry-run and apply both behave as before.
+- [x] Start and stop a Port Forward.
+- [x] Switch theme and language from Settings: every theme applies at once and
   the primary button in Settings itself follows.
-- [ ] Run an LLM analysis on a pod: no Secret value or log line reaches the
+- [x] Run an LLM analysis on a pod: no Secret value or log line reaches the
   prompt, and the prompt preview shows what was sent.
-- [ ] Help and About report **2.23.6**.
+- [x] Help and About report **2.23.6**.
