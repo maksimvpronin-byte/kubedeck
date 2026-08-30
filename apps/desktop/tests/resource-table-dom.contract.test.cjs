@@ -6,7 +6,7 @@
 // expression over ResourceTable.tsx, or nothing at all.
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { loadComponent, mount, React } = require("./helpers/dom.cjs");
+const { loadComponent, mount, React, window } = require("./helpers/dom.cjs");
 
 const { ResourceTable } = loadComponent("components/ResourceTable.tsx");
 
@@ -268,6 +268,34 @@ test("a page far past the threshold keeps only the rows near the viewport in the
     const names = view.all("tbody tr:not(.virtual-spacer)").map((row) => row.querySelectorAll("td")[1].textContent.trim());
     assert.ok(names[0] > "pod-0400" && names[0] < "pod-0500", `expected the window to follow the scroll, got ${names[0]}`);
     assert.ok(names.includes("pod-0500"));
+  } finally {
+    view.unmount();
+  }
+});
+
+test("the default page is 200 rows, and 2000 is on offer without being the default", () => {
+  // Replaces a grep contract that read PAGE_SIZE_OPTIONS and DEFAULT_PAGE_SIZE
+  // out of the hook as text. A constant with the right value is not the same as
+  // a table that shows that many rows: the slice that applies it is a separate
+  // line, and reading both still would not say they agree.
+  const rows = Array.from({ length: 300 }, (_, index) => pod(`pod-${String(index).padStart(3, "0")}`));
+  const view = mount(table({ rows }));
+  try {
+    assert.equal(view.rows().length, 200, "the default page is 200 rows of 300");
+    assert.match(view.text(".table-footer"), /^Rows 1-200 of 300/);
+
+    const sizes = [...view.first(".table-footer select").querySelectorAll("option")].map((option) => Number(option.value));
+    assert.deepEqual(sizes, [50, 100, 200, 500, 1000, 2000]);
+    assert.equal(Number(view.first(".table-footer select").value), 200, "2000 is on offer, not in force");
+
+    // Choosing a bigger page shows more of the same rows rather than more pages.
+    const select = view.first(".table-footer select");
+    React.act(() => {
+      Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value").set.call(select, "500");
+      select.dispatchEvent(new window.Event("change", { bubbles: true }));
+    });
+    assert.equal(view.rows().length, 300, "a page larger than the list shows all of it");
+    assert.match(view.text(".table-footer"), /^Rows 1-300 of 300/);
   } finally {
     view.unmount();
   }

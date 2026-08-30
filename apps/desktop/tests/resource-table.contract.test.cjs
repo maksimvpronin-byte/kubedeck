@@ -12,6 +12,12 @@ const path = require("node:path");
 const { loadTypeScript, rendererRoot } = require("./helpers/renderer.cjs");
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. Everything here is about clipping: the panel is
+// only as tall as its table and hides what overflows, and its container-type
+// makes it the containing block even for a fixed child. jsdom lays nothing out,
+// so it cannot tell a popover that escaped from one that is cut in half. The
+// dismissal behaviour of the popover itself is checked by clicking in
+// anchored-popover-dom.contract.test.cjs.
 test("the columns popover leaves the table panel so a short table cannot clip it", () => {
   const menu = fs.readFileSync(path.join(rendererRoot, "components/ResourceTableColumnsMenu.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
@@ -136,21 +142,16 @@ test("rows without a usage metric sort to the low end instead of scattering", ()
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("pod usage falls back from limit to request to the raw reading", () => {
-  const usageCells = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/UsageCells.tsx"), "utf8");
-  const bar = fs.readFileSync(path.join(rendererRoot, "components/ResourceUsageBar.tsx"), "utf8");
+// Stays one, and here is why. Which baseline a pod bar measures against - limit,
+// then request, then the raw reading - is checked by rendering real rows in
+// usage-cells-dom.contract.test.cjs, along with the reading that keeps the real
+// number while the track stops at full. What is left is the rule that paints a
+// bar over its request differently, and jsdom has no cascade: it can report the
+// class name, which the DOM test already does, but not that the class changes
+// anything a reader would see. Section B of docs/unseen-defects-plan.md is where
+// a question about colour gets arithmetic behind it.
+test("a bar measured over its request is painted differently", () => {
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
-
-  // The three tiers, in order.
-  const cell = usageCells.slice(usageCells.indexOf("function PodUsageBar"));
-  assert.ok(cell.indexOf('denominatorLabel="limit"') < cell.indexOf('denominatorLabel="request"'), "a limit must win over a request");
-  assert.match(cell, /unavailableLabel=\{usedText \|\| "N\/A"\}/);
-  assert.doesNotMatch(cell, /"No limit"/);
-
-  // A request ratio may exceed 100%: the track clamps, the reading does not.
-  assert.match(bar, /width: `\$\{Math\.min\(100, percent\)\}%`/);
-  assert.match(bar, /<small>\{percent === null \? unavailableLabel : `\$\{percent\}%`\}<\/small>/);
-  assert.match(bar, /const over = percent !== null && percent > 100;/);
   assert.match(styles, /\.resource-usage-bar\.is-soft\.is-over/);
 });
 
@@ -174,6 +175,11 @@ test("resource table normalization keeps known columns and one visible column", 
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. This is a flexbox arrangement and nothing else:
+// who takes the free space when the rows do not fill the window. The bug it was
+// written for was a rule naming an element no component renders any more, which
+// left the panel as tall as its rows. Only a layout engine can see either the
+// bug or the fix.
 test("the pagination bar sits at the bottom of the window, not under the last row", () => {
   const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
@@ -202,6 +208,10 @@ test("the pagination bar sits at the bottom of the window, not under the last ro
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. `position: sticky` needs a scroll container with a
+// height, and jsdom gives every element a height of zero. What can be checked
+// without layout - that there is exactly one table and one colgroup, and that
+// the head is inside the scrolling element - is what is left here.
 test("resource table keeps one sticky header inside its scroll container", () => {
   const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
@@ -211,15 +221,6 @@ test("resource table keeps one sticky header inside its scroll container", () =>
   assert.match(styles, /\.resource-table th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;[^}]*z-index:\s*\d+;[^}]*background:\s*var\(--table-head\);/s);
 });
 
-// grep contract: asserts on source text, not behaviour.
-test("resource table offers a 2000 row page without changing its default", () => {
-  const state = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
-  assert.match(state, /PAGE_SIZE_OPTIONS\s*=\s*\[50, 100, 200, 500, 1000, 2000\]/);
-  assert.match(state, /DEFAULT_PAGE_SIZE\s*=\s*200/);
-  assert.match(state, /visibleRows\.slice\(pageStart, pageStart \+ pageSize\)/);
-});
-
-// grep contract: asserts on source text, not behaviour.
 test("selection pruning keeps its identity when it changes nothing", () => {
   const state = loadTypeScript("hooks/useResourceTableState.ts");
   const rows = [
@@ -244,6 +245,10 @@ test("selection pruning keeps its identity when it changes nothing", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. Work that is avoided has no output. A table that
+// recomputes its rows quadratically renders exactly the same rows as one that
+// does not, so no assertion over the document can tell them apart; the
+// difference is a shape in the source and a number on a clock.
 test("resource table derived row lists avoid O(n^2) and re-render churn", () => {
   const state = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceTableState.ts"), "utf8");
   assert.doesNotMatch(state, /\.filter\(\(key\) => new Set\(rows\.map\(rowKey\)\)\.has\(key\)\)/, "rows.map(rowKey) must not be rebuilt inside the per-key filter callback");
@@ -254,6 +259,8 @@ test("resource table derived row lists avoid O(n^2) and re-render churn", () => 
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, for the same reason as the one above it: a memo that is missing
+// changes how often a value is computed, never what the value is.
 test("resource table columns, YAML match count, manifest diff and log filtering are memoized", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   assert.match(app, /const tableColumns = useMemo\(\(\) => buildResourceTableColumns\(t\), \[t\]\);/);
@@ -423,6 +430,12 @@ test("Kubernetes notation is a separate format, and it is the one a bar's own re
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. React.memo stops a render function from running;
+// it does not change what that function would have produced. A row that
+// re-renders needlessly puts the same cells in the same places, and React
+// reuses the same DOM nodes either way - so there is nothing in the document to
+// assert on. Catching this would need a render counter threaded through the
+// component, which is a change to the product for the benefit of a test.
 test("a table row is skipped when nothing about it changed", () => {
   const tableRow = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/ResourceTableRow.tsx"), "utf8");
   const table = fs.readFileSync(path.join(rendererRoot, "components/ResourceTable.tsx"), "utf8");
