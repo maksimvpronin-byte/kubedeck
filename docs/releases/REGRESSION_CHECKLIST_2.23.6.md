@@ -1,10 +1,12 @@
 # KubeDeck 2.23.6 regression checklist
 
-Pending. 2.23.6 is the next patch to be cut; this file is opened early because
-the change it carries has an acceptance that only a person can perform. If the
-release that carries it takes another number, rename the file with it.
+2.23.6 carries two things: nine hex values in `tokens.css`, and section A of
+`docs/unseen-defects-plan.md` - seventy-seven new behavioural tests that changed
+no product code at all. The tests cannot regress the application; the nine hex
+values can, and they have an acceptance only a person can perform, which is what
+most of this file is.
 
-So far 2.23.6 changes nine hex values in `tokens.css` and nothing else. No route
+The palette half changes nine hex values in `tokens.css` and nothing else. No route
 changed and no logic changed. `--primary` and `--primary-hover` were darkened in
 **nord**, **forest**, **mocha** and **plum**, and `--primary-hover` in
 **midnight**, so that white text on the primary button clears WCAG AA (4.5:1) in
@@ -27,13 +29,13 @@ Earlier 2.13.x through 2.23.5 checklists still apply.
 
 ## Automated gates
 
-- [x] `npm run lint`
-- [x] `npm run lint:css`
-- [x] `npm run format:check`
-- [x] `npm run test:renderer` (209 tests, unchanged)
-- [x] `npm --workspace apps/desktop run test:gateway` (170 tests, unchanged)
-- [x] `npm run typecheck`
-- [x] `npm run build`
+- [ ] `npm run lint`
+- [ ] `npm run lint:css`
+- [ ] `npm run format:check`
+- [ ] `npm run test:renderer` (224 tests, up from 146 at the start of section A)
+- [ ] `npm --workspace apps/desktop run test:gateway` (170 tests, unchanged)
+- [ ] `npm run typecheck`
+- [ ] `npm run build`
 - [ ] `npm run verify:release`
 - [ ] `/migration/status` remains `node-only`, Node 59 / Python 0
 
@@ -73,6 +75,29 @@ sat all along. Recorded as an open item in section B of
 
 - [ ] Look at the `+N` chip and the control-plane chip in **nord** (the worst,
   2.12:1) and confirm they are still findable. If not, that item moves up.
+
+## The tests, which changed nothing
+
+Section A replaced grep contracts with tests that mount components and click on
+them. No product code changed, so nothing here can have regressed - but the tests
+now claim the application behaves in particular ways, and this is the chance to
+notice if any claim describes a jsdom-shaped version of it rather than the real
+one. The 2.23.5 checklist walked the first five surfaces; these are the ones
+added since.
+
+- [ ] **Workspace tabs.** Double-click a row to pin a tab, single-click another:
+  the second does not pin. Close a background tab while a drawer is open: the
+  drawer stays exactly where it is. Close the shown tab: its neighbour takes
+  over and loads.
+- [ ] **The terminal palette.** Open a Pod Terminal in **light** and run
+  something that prints in bold - `top`, or `ls` in a coloured shell. The bold
+  text is readable, not near-white on near-white.
+- [ ] **The usage history chart.** Open a pod's Summary: the live window opens
+  first, the longer one is a click away, and switching between them does not
+  change the p50/p95/max line above the bars.
+- [ ] **The namespace selection.** Choose two namespaces, open a Node (a
+  cluster-scoped resource), wait past a refresh, then go back: the two
+  namespaces are still chosen. Switch clusters and back: each keeps its own.
 
 ## Standard smoke test
 

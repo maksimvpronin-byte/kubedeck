@@ -1,3 +1,58 @@
+## 2.23.6 - Section A, and a button that can be read
+
+No route changes. Node-only ownership stays at Node 59 / Python 0. The only
+product change is nine hex values.
+
+**Section A of docs/unseen-defects-plan.md is done.** It began with 55 tests that
+read the source as text and matched regular expressions against it - marked
+`grep contract` in the code since 2.20.3, with a comment saying plainly what that
+costs: they break on a rename and pass through a real regression. Three defects
+found in released code this week had all walked past them.
+
+Nine slices later there are 40, and 224 renderer tests instead of 146. Nine new
+files mount components and click on them; two more were extended. The LLM tab's
+privacy promise is checked against the request that leaves it rather than against
+the spelling of a call. The Secret confirmation is checked by revealing a real
+value and reading everything the dialog renders. Menus open and close, arrows
+walk and wrap, a context menu cannot be left stranded, the terminal palette is
+built from the real stylesheet in a real document, a usage bar measures against
+the right baseline, workspace tabs keep the drawer where it is, and a background
+poll cannot quietly rewrite the namespaces a person chose.
+
+Seventy-six mutations of the product source were made and reverted across those
+slices, each caught by the right test and by no other. A test nobody has seen
+fail does not count as written, and that rule is in the plan.
+
+**Every one of the 40 that stay now says why.** Five kinds of reason, all of them
+about what a behavioural test cannot reach: layout and cascade, which jsdom has
+neither of; an absence, which leaves nothing to render; work that is avoided,
+which produces the same DOM; what cannot be mounted, like xterm without a canvas
+or the Electron main process; and wiring in App.tsx, which would mean standing up
+the whole application. Six more in `release-surface` were reclassified rather
+than annotated: they hold properties of a release - no Python runtime in the
+package, no bundled kubectl - and were never this debt.
+
+**The button.** Widening the theme contract from one theme to seven found that
+white text on the primary button missed WCAG AA in five of them, worst on hover:
+nord 2.69:1, forest 3.14, mocha 3.22, plum 3.57, midnight 4.45. It is the most
+visible control in the application. `--primary` and `--primary-hover` are
+darkened in nord, forest, mocha and plum, and `--primary-hover` in midnight;
+lightness only, so each accent keeps its hue and a theme still looks like itself.
+All seven now sit between 5.50 and 5.63 idle, 4.61 and 7.07 on hover.
+
+Darkening the accent also darkens the few places that use it as a text colour -
+the `+N` chip, the control-plane chip, the `is-info` condition - which now sit
+where midnight and graphite have sat all along. None of them met AA before
+either. Recorded as open in section B of the plan and called out for the manual
+pass.
+
+Two harness faults were fixed where the harness is defined: a DOM node handed to
+an assertion made a failing run hang for thirty-five seconds and report the file
+rather than the assertion, and a view unmounted only at the end of a test stayed
+mounted whenever an assertion threw.
+
+Renderer suite is 224 tests, up from 146. Gateway is 170, unchanged.
+
 ## 2.23.5 - Tests that click on the application instead of reading it
 
 No route changes. No product code changed at all. Node-only ownership stays at
