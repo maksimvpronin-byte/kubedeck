@@ -1,6 +1,15 @@
 /* Controls inside the resource drawer: toolbars, action buttons, sort
    indicators, the LLM panel. Loads after drawer.css and terminal.css because
-   it settles the button colours those two also set. */
+   it settles the button colours those two also set.
+
+   Loading last is why this file needed almost no `!important` at all. It had
+   119; 91 of them were removed on 2026-08-30 after checking, declaration by
+   declaration, that no selector in any of the eight themes resolves to a
+   different value without them - source order was already winning those fights.
+   What is left is 26 on `:hover`, `:focus` and `:active` rules, which cannot be
+   checked that way because the check cannot hover, and the two padding
+   declarations marked below, which genuinely are load-bearing. See section C of
+   docs/unseen-defects-plan.md. */
 .table-sort-button {
   display: inline-flex;
   align-items: center;
@@ -148,11 +157,11 @@
 .drawer button.kd-action-button,
 .drawer button.kd-secondary-button {
   min-height: 32px;
-  border: 1px solid var(--kd-action-border) !important;
-  border-radius: 8px !important;
-  padding: 6px 12px !important;
-  background: var(--kd-action-bg) !important;
-  color: var(--kd-action-text) !important;
+  border: 1px solid var(--kd-action-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: var(--kd-action-bg);
+  color: var(--kd-action-text);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.2;
@@ -222,9 +231,9 @@
 .drawer .llm-actions button:first-child:not(:disabled),
 .drawer .llm-header-actions button:first-child:not(:disabled),
 .drawer .yaml-actions button:last-child:not(:disabled) {
-  border-color: var(--kd-action-primary-border) !important;
-  background: var(--kd-action-primary-bg) !important;
-  color: var(--text-strong) !important;
+  border-color: var(--kd-action-primary-border);
+  background: var(--kd-action-primary-bg);
+  color: var(--text-strong);
 }
 
 .drawer button.primary:not(:disabled):hover,
@@ -241,9 +250,9 @@
 .drawer button.danger,
 .drawer button.is-danger,
 .drawer button[data-variant="danger"] {
-  border-color: color-mix(in srgb, var(--danger-border) 70%, transparent) !important;
-  background: var(--danger-bg) !important;
-  color: var(--danger-text) !important;
+  border-color: color-mix(in srgb, var(--danger-border) 70%, transparent);
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .drawer button.danger:not(:disabled):hover,
@@ -316,16 +325,16 @@
 .resource-drawer .drawer-content button.primary:not(.danger):not(.danger-button),
 .resource-drawer .drawer-content button.secondary:not(.danger):not(.danger-button),
 .resource-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button) {
-  appearance: none !important;
-  background: var(--button-bg) !important;
-  border: 1px solid var(--button-border) !important;
-  border-radius: 6px !important;
-  color: var(--text-strong) !important;
-  box-shadow: none !important;
-  font-weight: 600 !important;
-  min-height: 30px !important;
-  padding: 6px 12px !important;
-  line-height: 1.1 !important;
+  appearance: none;
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  color: var(--text-strong);
+  box-shadow: none;
+  font-weight: 600;
+  min-height: 30px;
+  padding: 6px 12px;
+  line-height: 1.1;
 }
 
 .pod-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
@@ -360,20 +369,20 @@
 
 .pod-drawer .drawer-content button:disabled,
 .resource-drawer .drawer-content button:disabled {
-  background: var(--button-disabled-bg) !important;
-  border-color: var(--border) !important;
-  color: var(--button-disabled-text) !important;
-  cursor: not-allowed !important;
-  opacity: 0.75 !important;
+  background: var(--button-disabled-bg);
+  border-color: var(--border);
+  color: var(--button-disabled-text);
+  cursor: not-allowed;
+  opacity: 0.75;
 }
 
 .pod-drawer .drawer-content button.danger,
 .pod-drawer .drawer-content button.danger-button,
 .resource-drawer .drawer-content button.danger,
 .resource-drawer .drawer-content button.danger-button {
-  background: var(--danger-bg) !important;
-  border: 1px solid var(--danger-border) !important;
-  color: var(--danger-text) !important;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-text);
 }
 
 .pod-drawer .drawer-content button.danger:hover,
@@ -387,17 +396,17 @@
 
 .pod-drawer .copy-resource-name-button,
 .resource-drawer .copy-resource-name-button {
-  align-items: center !important;
-  background: transparent !important;
-  border: 1px solid transparent !important;
-  border-radius: 6px !important;
-  color: var(--muted) !important;
-  display: inline-flex !important;
-  height: 26px !important;
-  justify-content: center !important;
-  margin-left: 6px !important;
-  padding: 2px 6px !important;
-  width: 28px !important;
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  display: inline-flex;
+  height: 26px;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 2px 6px;
+  width: 28px;
 }
 
 .pod-drawer .copy-resource-name-button:hover,
@@ -424,23 +433,23 @@
 .drawer .llm-tab .llm-tab-actions > button,
 .drawer .llm-tab .llm-tab-actions > button.primary,
 .drawer .llm-tab .llm-tab-actions > button.secondary {
-  appearance: none !important;
-  -webkit-appearance: none !important;
-  height: 30px !important;
-  min-height: 30px !important;
-  line-height: 28px !important;
-  padding: 0 12px !important;
-  border: 1px solid color-mix(in srgb, var(--primary-border) 70%, transparent) !important;
-  border-radius: 7px !important;
-  background: color-mix(in srgb, var(--surface) 70%, transparent) !important;
-  background-image: none !important;
-  color: var(--text, #e5e7eb) !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0 !important;
-  cursor: pointer !important;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 30px;
+  min-height: 30px;
+  line-height: 28px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--primary-border) 70%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  background-image: none;
+  color: var(--text, #e5e7eb);
+  box-shadow: none;
+  text-shadow: none;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  cursor: pointer;
 }
 
 .llm-tab .llm-tab-actions > button:hover:not(:disabled),
@@ -456,17 +465,17 @@
 
 .llm-tab .llm-tab-actions > button:disabled,
 .drawer .llm-tab .llm-tab-actions > button:disabled {
-  opacity: 0.55 !important;
-  cursor: not-allowed !important;
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* Keep the dangerous drawer buttons visually dangerous, not converted to LLM style. */
 .drawer .action-bar button.danger,
 .drawer .drawer-actions button.danger,
 .drawer button.danger {
-  border-color: color-mix(in srgb, var(--danger-border) 70%, transparent) !important;
-  background: var(--danger-bg) !important;
-  color: var(--danger-text) !important;
+  border-color: color-mix(in srgb, var(--danger-border) 70%, transparent);
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 /* KubeDeck 1.1.0 LLM button style force END */
 
@@ -488,28 +497,28 @@
 .pod-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button),
 .resource-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button),
 .drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):not(.copy-name-icon):not(.resource-title-copy) {
-  appearance: none !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 32px !important;
-  height: 32px !important;
-  padding: 0 12px !important;
-  border: 1px solid var(--kd-action-border) !important;
-  border-radius: 8px !important;
-  background: var(--kd-action-bg) !important;
-  color: var(--kd-action-text) !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  line-height: 1 !important;
-  letter-spacing: 0 !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--kd-action-border);
+  border-radius: 8px;
+  background: var(--kd-action-bg);
+  color: var(--kd-action-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  box-shadow: none;
+  text-shadow: none;
   transition:
     border-color 120ms ease,
     background 120ms ease,
     color 120ms ease,
-    opacity 120ms ease !important;
+    opacity 120ms ease;
 }
 
 .pod-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):hover:not(:disabled),
@@ -526,9 +535,9 @@
 .resource-drawer .drawer-actions button.danger-button,
 .drawer .drawer-actions button.danger,
 .drawer .drawer-actions button.danger-button {
-  border-color: var(--danger-border) !important;
-  background: var(--danger-bg) !important;
-  color: var(--danger-text) !important;
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .pod-drawer .drawer-actions button.danger:hover:not(:disabled),
@@ -545,8 +554,8 @@
 .pod-drawer .drawer-actions button:disabled,
 .resource-drawer .drawer-actions button:disabled,
 .drawer .drawer-actions button:disabled {
-  cursor: not-allowed !important;
-  opacity: 0.48 !important;
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .drawer .yaml-toolbar button.yaml-icon-action {
@@ -555,10 +564,14 @@
   justify-content: center;
   width: 32px;
   min-width: 32px;
-  height: 32px !important;
-  min-height: 32px !important;
+  height: 32px;
+  min-height: 32px;
+  /* Load-bearing, and the only two in this file that are. The shared button
+     rule sets 6px 12px, and an icon button is a 32px square: without this the
+     padding wins and the square stops being one. Verified by removing it -
+     see section C of docs/unseen-defects-plan.md. */
   padding: 0 !important;
-  border-radius: 8px !important;
+  border-radius: 8px;
 }
 
 .drawer .yaml-toolbar button.yaml-icon-action svg {
@@ -623,10 +636,14 @@
   justify-content: center;
   width: 32px;
   min-width: 32px;
-  height: 32px !important;
-  min-height: 32px !important;
+  height: 32px;
+  min-height: 32px;
+  /* Load-bearing, and the only two in this file that are. The shared button
+     rule sets 6px 12px, and an icon button is a 32px square: without this the
+     padding wins and the square stops being one. Verified by removing it -
+     see section C of docs/unseen-defects-plan.md. */
   padding: 0 !important;
-  border-radius: 8px !important;
+  border-radius: 8px;
 }
 
 .drawer .logs-toolbar button.logs-icon-action svg {
