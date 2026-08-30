@@ -88,26 +88,32 @@ test("workspace resource tabs add, deduplicate, limit, and close deterministical
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("closing a background resource tab preserves the transient drawer", () => {
+// Stays one, and here is why. That closing a background tab leaves the drawer
+// alone is checked by driving the hook in workspace-tabs-dom.contract.test.cjs.
+// What is left is which handler App.tsx hands to the drawer's close button, and
+// finding that out by clicking would mean mounting the whole application.
+test("the drawer's close button is wired to the workspace-aware handler", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
-  const workspaceTabsHook = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWorkspaceTabs.ts"), "utf8");
-  assert.match(workspaceTabsHook, /if \(!closingActiveTab\) return;/);
-  assert.match(workspaceTabsHook, /function closeDisplayedResource\(\)/);
   assert.match(app, /onClose=\{closeDisplayedResource\}/);
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("resource rows pin workspace tabs only on double click", () => {
-  const tableRow = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/ResourceTableRow.tsx"), "utf8");
+// Stays one, and here is why. Both halves are checked by clicking now - that a
+// double click pins and a single click does not, in
+// resource-table-dom.contract.test.cjs, and that the hook pins only when the
+// flag is set, in workspace-tabs-dom.contract.test.cjs. What is left is the
+// wire between them, which lives in App.tsx.
+test("a double click is what raises the pin flag", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
-  const workspaceTabsHook = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWorkspaceTabs.ts"), "utf8");
-  assert.match(tableRow, /onDoubleClick=\{\(\) => handlers\.pin\(row\)\}/);
-  assert.match(tableRow, /onClick=\{\(\) => handlers\.open\(row\)\}/);
   assert.match(app, /pinNextSelectionRef\.current = true/);
-  assert.match(workspaceTabsHook, /if \(!pinNextSelectionRef\.current\) return/);
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. The failure this guards against is not a wrong
+// value but a loop: an effect whose dependency it also sets, re-running for
+// ever. A test cannot assert on that - it does not fail, it hangs, and a suite
+// that hangs reports the file rather than the reason. What holds the line is
+// the shape of the code: a callback read through a ref cannot be a dependency.
 test("workspace callbacks do not create renderer update loops", () => {
   const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
   const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
@@ -119,6 +125,9 @@ test("workspace callbacks do not create renderer update loops", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. Fitting a terminal means measuring one, and xterm
+// measures a real canvas. jsdom has neither, so the addon cannot run and the
+// question cannot be put to it.
 test("hidden terminals never fit or resize the PTY", () => {
   const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
   const ssh = fs.readFileSync(path.join(rendererRoot, "components/NodeSshTab.tsx"), "utf8");
@@ -135,15 +144,22 @@ test("hidden terminals never fit or resize the PTY", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("activating a saved resource tab preserves the namespace selector", () => {
+// Stays one, and here is why. That activation fetches the tab's own namespace is
+// checked by driving the hook. What is left is an absence - that activation does
+// not reach for the namespace selector or the row list - and a function that is
+// never called leaves no trace to assert on. The hook is not even handed those
+// setters, which is the real guarantee; this keeps watch on it being handed them
+// again.
+test("activation is not given the namespace selector to move", () => {
   const workspaceTabsHook = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWorkspaceTabs.ts"), "utf8");
   const activation = workspaceTabsHook.slice(workspaceTabsHook.indexOf("const activateResourceTab"), workspaceTabsHook.indexOf("function closeResourceTab"));
-  assert.match(activation, /api\.resources\(tab\.clusterId, tab\.resource, tab\.namespace\)/);
-  assert.doesNotMatch(activation, /setNamespaceSelection\(tab\.namespace\)/);
+  assert.doesNotMatch(activation, /setNamespaceSelection\(/);
   assert.doesNotMatch(activation, /setRows\(/);
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. It is a single grid-row declaration, and jsdom
+// places nothing on a grid.
 test("transient resource drawer occupies the workspace content row without saved tabs", () => {
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
   assert.match(styles, /\.resource-workspace\s*>\s*\.drawer\s*\{[^}]*grid-row:\s*2;/s);
