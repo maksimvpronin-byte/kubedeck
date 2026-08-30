@@ -1,6 +1,6 @@
 {
   "name": "kubedeck",
-  "version": "2.23.4",
+  "version": "2.23.5",
   "private": true,
   "license": "Apache-2.0",
   "workspaces": [

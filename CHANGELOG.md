@@ -1,3 +1,65 @@
+## 2.23.5 - Tests that click on the application instead of reading it
+
+No route changes. No product code changed at all. Node-only ownership stays at
+Node 59 / Python 0.
+
+Three defects were found in released code this week, each visible to anyone using
+the application and to no test: a separator that had been mojibake since 2.20, an
+editor selection that took the text with it since 2.15, and a Related card that
+hid its own subtitle whenever the mouse passed over it. The reason none of them
+was caught is the subject of this release.
+
+A large part of the suite does not run the application. It reads the source as
+text and matches regular expressions against it - the repository has called those
+`grep contract` in every one of them since 2.20.3, with a comment saying plainly
+what it costs: they break on a rename and pass through a real regression. There
+were 51.
+
+2.22.8 brought in jsdom and `tests/helpers/dom.cjs`, which mounts a real component
+in a real document. This release uses it: eight of those contracts become 46
+tests that render the thing and click on it.
+
+**The LLM tab.** Its privacy promise - no log line reaches a third-party model -
+was `assert.doesNotMatch(source, /logs\s*:/)` over one file. Now nothing whose
+name mentions logs may be called at all, and the payload's key set is pinned, so
+a part added later cannot arrive unnoticed.
+
+**The Secret tab.** That the confirmation dialog never shows a decoded value was
+a search for a sentence and for two spellings of a JSX expression. Now a real
+value is revealed, the dialog is opened, and everything it renders is read.
+
+**The themed select, the anchored popover, the cluster rail.** Menus open, Escape
+closes them, a press outside dismisses and a press inside does not, arrows walk
+and wrap, and a context menu cannot be left stranded over the rail.
+
+**The pod usage bars.** Which baseline a bar measures against was proved by
+comparing where two strings appear in the file - source order, which is not
+precedence. Now four kinds of pod are rendered and read.
+
+Every one of the 46 was shown failing on the defect it exists for: 38 mutations
+of the product source, each caught by the right test and by no other. That rule
+is written into docs/unseen-defects-plan.md, which lays out the rest of this
+work: a test nobody has seen fail does not count as written.
+
+What could not be converted honestly is now marked with the reason it stays.
+Layout and colour need a cascade jsdom has not. Work that is avoided has no
+output: a table that recomputes its rows quadratically renders the same rows, and
+`React.memo` changes how often a render runs, never what it produces. The absence
+of a duplicated effect is a property of the source, because two working copies
+behave exactly like one.
+
+One marker was wrong and is gone: a test of selection pruning was labelled a grep
+contract while loading the hook and calling it. A sweep found no others.
+
+Two harness faults came out of writing these and are fixed where the harness is
+defined. `assert.equal(view.first(".x"), null)` hands a live DOM node to the
+reporter, which serialises the whole node: a failing test hung for thirty-five
+seconds and was killed, naming the file rather than the assertion. And a view
+unmounted at the end of a test is not unmounted when an assertion throws, which
+leaves a requestAnimationFrame alive and the run hanging.
+
+Renderer suite is 193 tests, up from 146. Gateway is 170, unchanged.
+
 ## 2.23.4 - A highlight stops taking the words underneath it
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
