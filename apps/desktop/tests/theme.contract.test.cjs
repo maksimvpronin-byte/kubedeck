@@ -10,23 +10,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { loadTypeScript, rendererRoot } = require("./helpers/renderer.cjs");
-
-function cssHexTokens(blocks) {
-  const result = {};
-  for (const [, , body] of blocks) {
-    for (const match of body.matchAll(/--([\w-]+):\s*(#[0-9a-f]{6})/gi)) result[match[1]] = match[2];
-  }
-  return result;
-}
-
-function contrastRatio(first, second) {
-  const luminance = (hex) => {
-    const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255).map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-  };
-  const values = [luminance(first), luminance(second)];
-  return (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05);
-}
+const { readThemes, channels, contrast } = require("./helpers/contrast.cjs");
 
 test("theme preferences normalize legacy values and resolve System safely", () => {
   const model = loadTypeScript("utils/theme.ts");
@@ -95,9 +79,23 @@ test("theme application updates data attributes and persists the preference", ()
   }
 });
 
-// grep contract: asserts on source text, not behaviour.
+// White on the primary accent, measured 2026-08-29. Anything at or above 4.5
+// meets WCAG AA; the rest are recorded so they cannot slip further while the
+// palette question is open. See section B of docs/unseen-defects-plan.md.
+const PRIMARY_BUTTON_FLOOR = {
+  midnight: { primary: 5.5, "primary-hover": 4.4 },
+  graphite: { primary: 5.55, "primary-hover": 4.6 },
+  nord: { primary: 3.45, "primary-hover": 2.65 },
+  forest: { primary: 4.1, "primary-hover": 3.1 },
+  plum: { primary: 4.5, "primary-hover": 3.55 },
+  mocha: { primary: 4.15, "primary-hover": 3.2 },
+  light: { primary: 5.6, "primary-hover": 7.0 },
+};
+
+// Not a grep contract: the required tokens are read as declarations and the
+// pairs below are measured. It shares helpers/contrast.cjs with the editor, the
+// Related panel and the terminal palette, so the arithmetic lives in one place.
 test("every color theme exposes the shared token contract", () => {
-  const tokens = fs.readFileSync(path.join(rendererRoot, "styles/tokens.css"), "utf8");
   const required = [
     "app-bg",
     "sidebar-bg",
@@ -146,28 +144,36 @@ test("every color theme exposes the shared token contract", () => {
     "scrollbar-thumb",
     "primary-resize",
   ];
-  for (const token of required) assert.match(tokens, new RegExp(`--${token}:`), `missing --${token}`);
-  for (const theme of ["midnight", "nord", "forest", "plum", "mocha", "graphite", "light"]) {
-    assert.match(tokens, new RegExp(`data-theme=["']${theme}["']`), `missing ${theme} selector`);
-  }
 
-  const blocks = [...tokens.matchAll(/([^{}]+)\{([^{}]+)\}/g)];
-  const base = cssHexTokens(blocks.filter(([, selector]) => selector.includes(":root,") || selector.includes('data-theme="midnight"')));
-  for (const theme of ["midnight", "nord", "forest", "plum", "mocha", "graphite", "light"]) {
-    const palette = {
-      ...base,
-      ...cssHexTokens(blocks.filter(([, selector]) => selector.includes(`data-theme="${theme}"`))),
-    };
+  const themes = readThemes();
+  assert.ok(themes.size >= 7, `expected every theme to be read, got ${themes.size}`);
+
+  for (const [name, palette] of themes) {
+    for (const token of required) {
+      const value = palette[`--${token}`];
+      assert.ok(value, `${name} resolves no --${token}`);
+    }
+
+    // A theme is free to choose its colours; it is not free to make its own
+    // text unreadable on its own surfaces.
     for (const [foreground, background] of [
       ["text", "app-bg"],
       ["text", "panel"],
       ["muted", "panel"],
     ]) {
-      assert.ok(contrastRatio(palette[foreground], palette[background]) >= 4.5, `${theme} ${foreground}/${background} must meet WCAG AA`);
+      const ratio = contrast(channels(palette[`--${foreground}`]), channels(palette[`--${background}`]));
+      assert.ok(ratio >= 4.5, `${name} ${foreground} on ${background} is ${ratio.toFixed(2)}:1, below WCAG AA`);
     }
-    if (theme === "graphite") {
-      assert.ok(contrastRatio(palette["text-inverse"], palette.primary) >= 4.5, "graphite primary button must meet WCAG AA");
-      assert.ok(contrastRatio(palette["text-inverse"], palette["primary-hover"]) >= 4.5, "graphite primary hover must meet WCAG AA");
+
+    // A primary button is text on a filled accent, and it is the pairing these
+    // themes get wrong: measured 2026-08-29, five of the seven put white below
+    // WCAG AA on the button, the hover state worst. Raising them is a change to
+    // how the application looks and belongs to whoever owns the palette, so this
+    // is a ratchet rather than a standard - no theme may get worse than it is
+    // today. The numbers are the measurement, not an endorsement of it.
+    for (const [surface, floor] of Object.entries(PRIMARY_BUTTON_FLOOR[name])) {
+      const ratio = contrast(channels(palette["--text-inverse"]), channels(palette[`--${surface}`]));
+      assert.ok(ratio >= floor, `${name} text-inverse on ${surface} fell to ${ratio.toFixed(2)}:1, below the ${floor} it held`);
     }
   }
 });
@@ -213,6 +219,10 @@ test("2.8.1 Kubernetes statuses distinguish pending from failure", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. It is a list of CSS declarations - which token
+// each button state paints with - and jsdom has no cascade to resolve them
+// through. What can be measured about colour is measured in the test above and
+// in helpers/contrast.cjs.
 test("resource pagination uses semantic button tokens for every state", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/ResourceTablePagination.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/resource-table.css"), "utf8");
@@ -226,6 +236,11 @@ test("resource pagination uses semantic button tokens for every state", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. Most of it is an absence: no bundled CodeMirror
+// theme, no literal colours in the editor's own theme, no leftover rules for
+// the hand-positioned gutter that CodeMirror replaced. An absence has nothing
+// to render and nothing to click. What the editor's colours actually do to the
+// text under them is checked in yaml-editor.contract.test.cjs, with arithmetic.
 test("the YAML editor is themed by the application palette rather than a bundled theme", () => {
   const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
   const drawerStyles = fs.readFileSync(path.join(rendererRoot, "styles/drawer.css"), "utf8");
@@ -245,80 +260,4 @@ test("the YAML editor is themed by the application palette rather than a bundled
   }
   // The token classes stay: the manifest diff still renders YAML lines as markup.
   assert.match(drawerStyles, /[.]yaml-key \{/);
-});
-
-// grep contract: asserts on source text, not behaviour.
-test("every ANSI colour stays readable against its own terminal background", () => {
-  const theme = fs.readFileSync(path.join(rendererRoot, "utils/terminalTheme.ts"), "utf8");
-  const slots = [
-    "black",
-    "red",
-    "green",
-    "yellow",
-    "blue",
-    "magenta",
-    "cyan",
-    "white",
-    "brightBlack",
-    "brightRed",
-    "brightGreen",
-    "brightYellow",
-    "brightBlue",
-    "brightMagenta",
-    "brightCyan",
-    "brightWhite",
-  ];
-
-  // xterm fills anything left out from its own palette, which assumes a dark
-  // background. Leaving the eight bright slots unset put #eeeeec on the light
-  // theme's #f5f7fa background, so `top`, which prints its summary values in
-  // bold white, rendered them invisible.
-  for (const slot of slots) {
-    assert.match(theme, new RegExp("\\b" + slot + ": token\\("), slot + " must be given to xterm explicitly");
-  }
-
-  const lines = fs.readFileSync(path.join(rendererRoot, "styles/tokens.css"), "utf8").split(String.fromCharCode(13)).join("").split(String.fromCharCode(10));
-  const themes = {};
-  let current = null;
-  for (const line of lines) {
-    if (line.endsWith("{")) {
-      const named = line.match(/data-theme="([a-z]+)"/);
-      current = named ? named[1] : line.startsWith(":root") ? "root" : null;
-      if (current && !themes[current]) themes[current] = {};
-      continue;
-    }
-    if (line.startsWith("}")) current = null;
-    if (!current) continue;
-    const declaration = line.match(/(--[a-z-]+):\s*([^;]+);/);
-    if (declaration) themes[current][declaration[1]] = declaration[2].trim();
-  }
-
-  const luminance = (hex) => {
-    const h = hex.replace("#", "");
-    const channels = [0, 2, 4].map((i) => Number.parseInt(h.substr(i, 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-  };
-  const contrast = (a, b) => {
-    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-  };
-
-  const base = { ...themes.root, ...themes.midnight };
-  const cssSlots = slots.map((slot) => "--terminal-" + slot.replace(/([A-Z])/g, (m) => "-" + m.toLowerCase()));
-
-  for (const name of ["midnight", "graphite", "nord", "forest", "plum", "mocha", "light"]) {
-    const resolved = { ...base, ...(themes[name] ?? {}) };
-    const background = resolved["--terminal-bg"];
-    assert.ok(background, name + " must define a terminal background");
-    const dark = luminance(background) < 0.2;
-    for (const slot of cssSlots) {
-      const colour = resolved[slot];
-      assert.ok(colour && colour.startsWith("#"), name + " is missing " + slot);
-      // ANSI black is meant to sit near a dark background; that is the palette
-      // working rather than a defect.
-      if (dark && slot === "--terminal-black") continue;
-      const ratio = contrast(colour, background);
-      assert.ok(ratio >= 2, name + " " + slot + " " + colour + " is " + ratio.toFixed(2) + ":1 against " + background);
-    }
-  }
 });
