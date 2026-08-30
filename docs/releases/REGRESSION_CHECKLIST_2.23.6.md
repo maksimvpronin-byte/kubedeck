@@ -1,8 +1,8 @@
 # KubeDeck 2.23.6 regression checklist
 
 2.23.6 carries two things: nine hex values in `tokens.css`, and section A of
-`docs/unseen-defects-plan.md` - seventy-seven new behavioural tests that changed
-no product code at all. The tests cannot regress the application; the nine hex
+`docs/unseen-defects-plan.md` - seventy-eight more tests than it began
+with, and no product code changed by them at all. The tests cannot regress the application; the nine hex
 values can, and they have an acceptance only a person can perform, which is what
 most of this file is.
 
@@ -107,4 +107,6 @@ added since.
 - [ ] Start and stop a Port Forward.
 - [ ] Switch theme and language from Settings: every theme applies at once and
   the primary button in Settings itself follows.
-- [ ] Help and About report the released version.
+- [ ] Run an LLM analysis on a pod: no Secret value or log line reaches the
+  prompt, and the prompt preview shows what was sent.
+- [ ] Help and About report **2.23.6**.
