@@ -32,7 +32,7 @@
   --button-disabled-text: #728397;
   --focus-ring: #70b5d6;
   --primary: #2f6f8f;
-  --primary-hover: #337fa5;
+  --primary-hover: #327ca2;
   --primary-border: #4d94b7;
   --primary-soft: rgb(77 148 183 / 0.18);
   --primary-resize: rgb(77 148 183 / 0.72);
@@ -185,8 +185,8 @@
   --button-disabled-bg: #303846;
   --button-disabled-text: #828e9e;
   --focus-ring: #9bd3df;
-  --primary: #5b91a5;
-  --primary-hover: #6ba6bb;
+  --primary: #456e7e;
+  --primary-hover: #437c91;
   --primary-border: #88c0d0;
   --primary-soft: rgb(136 192 208 / 0.2);
   --primary-resize: rgb(136 192 208 / 0.7);
@@ -230,8 +230,8 @@
   --button-disabled-bg: #23352f;
   --button-disabled-text: #728c84;
   --focus-ring: #79c9b8;
-  --primary: #3f897b;
-  --primary-hover: #4d9f90;
+  --primary: #357368;
+  --primary-hover: #3e8074;
   --primary-border: #5fb3a2;
   --primary-soft: rgb(95 179 162 / 0.2);
   --primary-resize: rgb(95 179 162 / 0.7);
@@ -275,8 +275,8 @@
   --button-disabled-bg: #352f3c;
   --button-disabled-text: #897a91;
   --focus-ring: #c5a9d8;
-  --primary: #896aa0;
-  --primary-hover: #9b7bb3;
+  --primary: #7b5d91;
+  --primary-hover: #8b66a7;
   --primary-border: #b194c7;
   --primary-soft: rgb(177 148 199 / 0.2);
   --primary-resize: rgb(177 148 199 / 0.7);
@@ -319,8 +319,8 @@
   --button-disabled-bg: #39312b;
   --button-disabled-text: #8f8073;
   --focus-ring: #e0b982;
-  --primary: #9d7445;
-  --primary-hover: #b38755;
+  --primary: #85623b;
+  --primary-hover: #946d42;
   --primary-border: #d0a66e;
   --primary-soft: rgb(208 166 110 / 0.2);
   --primary-resize: rgb(208 166 110 / 0.7);
