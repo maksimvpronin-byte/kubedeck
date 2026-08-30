@@ -91,8 +91,15 @@ test("the Secret editing field is themed rather than left to the browser", () =>
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("clusters are switched from the icon rail instead of a topbar dropdown", () => {
-  const component = fs.readFileSync(path.join(rendererRoot, "components/ClusterRail.tsx"), "utf8");
+// Stays one, and here is why. What the rail *does* - one button per cluster,
+// exactly one marked current, one click to switch, arrows that walk and wrap, a
+// context menu that offers only the action that applies and cannot be left
+// stranded - is checked by clicking in cluster-rail-dom.contract.test.cjs. What
+// is left has no behaviour to reach for. That a deleted component has not come
+// back is the absence of a file. Where the rail sits in App.tsx would mean
+// mounting the entire application to find out, which is a different kind of test
+// from these. And the shell's grid needs a cascade jsdom does not have.
+test("the cluster dropdown has not come back, and the rail is where it replaced it", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
   const topbar = fs.readFileSync(path.join(rendererRoot, "components/AppTopbar.tsx"), "utf8");
@@ -104,11 +111,6 @@ test("clusters are switched from the icon rail instead of a topbar dropdown", ()
   // The rail sits left of the resource navigation and keeps the drawer guard.
   assert.ok(app.indexOf("<ClusterRail") < app.indexOf("<AppSidebar"));
   assert.match(app, /onSelect=\{\(cluster\) => \{[\s\S]*?confirmDrawerNavigation\(\)[\s\S]*?openCluster\(cluster\)/);
-
-  assert.doesNotMatch(component, /<select/);
-  assert.match(component, /aria-current=\{active \? "true" : undefined\}/);
-  assert.match(component, /event\.key === "ArrowDown"/);
-  assert.match(component, /event\.key === "ArrowUp"/);
   assert.match(layout, /\.app-shell\s*\{[^}]*grid-template-columns:\s*var\(--cluster-rail-width[^}]*\}/s);
   assert.match(layout, /\.cluster-rail-item\.is-active/);
 });
