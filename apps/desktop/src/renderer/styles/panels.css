@@ -668,15 +668,6 @@
   white-space: nowrap;
 }
 
-.event-card-warning {
-  border-color: color-mix(in srgb, var(--warning-border) 70%, transparent);
-  background: color-mix(in srgb, var(--warning-border) 70%, transparent);
-}
-
-.event-card-normal {
-  border-color: var(--border);
-}
-
 .event-card-footer {
   display: flex;
   align-items: center;
