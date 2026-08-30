@@ -169,18 +169,18 @@ test("Pod Terminal delegates paste to the single xterm input path", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("Pod Terminal selectors use the themed in-app listbox", () => {
+// Stays one, and here is why. What the themed select *does* - open a listbox,
+// close on Escape, on Tab, on a press outside, report a choice once - is checked
+// by clicking in themed-select-dom.contract.test.cjs. What is left is which
+// control the terminal reaches for, and TerminalTab cannot be mounted to find
+// out: it starts xterm, which needs measurement and a canvas that jsdom does not
+// have. Until that changes, reading the source is the only way to see that a
+// native <select> has not crept back in.
+test("Pod Terminal reaches for the themed select rather than a native one", () => {
   const terminal = fs.readFileSync(path.join(rendererRoot, "components/TerminalTab.tsx"), "utf8");
-  const select = fs.readFileSync(path.join(rendererRoot, "components/ThemedSelect.tsx"), "utf8");
   assert.doesNotMatch(terminal, /<select/);
   assert.match(terminal, /<ThemedSelect\s+ariaLabel="Container"/);
   assert.match(terminal, /<ThemedSelect\s+ariaLabel="Shell"/);
-  assert.match(select, /role="listbox"/);
-  assert.match(select, /role="option"/);
-  assert.match(select, /window\.addEventListener\("pointerdown"/);
-  assert.match(select, /event\.key === "Escape"/);
-  assert.match(select, /event\.key === "ArrowDown"/);
-  assert.match(select, /event\.key === "Home"/);
 });
 
 test("async action feedback enforces pending, success, error, and duplicate protection", async () => {
@@ -307,17 +307,19 @@ test("resource navigation resolves cluster and namespace scope", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("one hook opens every anchored popover", () => {
-  const hook = fs.readFileSync(path.join(rendererRoot, "hooks/useAnchoredPopover.ts"), "utf8");
+// Stays one, and here is why. What the hook *does* - open from the trigger,
+// close on Escape, on a press outside, and pointedly not on a press on the
+// trigger itself - is checked by clicking in
+// anchored-popover-dom.contract.test.cjs, through a real consumer. What is left
+// is an absence: that no component has grown its own second copy of the same
+// effect, which is what the hook was extracted to end. An absence of duplicated
+// code is a property of the source and has no behaviour to observe - a component
+// with two working copies of the logic behaves exactly like one with a single
+// one.
+test("no popover surface carries its own copy of the hook's effect", () => {
   const menu = fs.readFileSync(path.join(rendererRoot, "components/ResourceTableColumnsMenu.tsx"), "utf8");
   const cell = fs.readFileSync(path.join(rendererRoot, "components/NodeLabelsCell.tsx"), "utf8");
 
-  // Three surfaces open one of these, and each used to carry its own copy of
-  // the same effect: place, dismiss on Escape or outside, follow on scroll.
-  assert.match(hook, /window\.addEventListener\("pointerdown", close\)/);
-  assert.match(hook, /window\.addEventListener\("keydown", closeOnEscape\)/);
-  assert.match(hook, /window\.addEventListener\("scroll", reposition, true\)/);
-  assert.match(hook, /triggerRef\.current\?\.contains\(target\) \|\| popoverRef\.current\?\.contains\(target\)/);
   for (const component of [menu, cell]) {
     assert.match(component, /useAnchoredPopover\(POPOVER_WIDTH, POPOVER_HEIGHT\)/);
     assert.doesNotMatch(component, /window\.addEventListener\("pointerdown"/);

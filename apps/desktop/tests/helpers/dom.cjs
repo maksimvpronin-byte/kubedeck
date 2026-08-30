@@ -14,6 +14,13 @@
 // work with, and an event system that was loaded without one never delivers a
 // change event again - which is why the document is installed at the top of
 // this file and react-dom is required after it, from inside `mount`.
+// One trap worth knowing before writing tests against this: never hand a DOM
+// node to an assertion that builds a diff. `assert.equal(view.first(".x"), null)`
+// on a live element makes the reporter serialise the whole node, and the run
+// hangs until the runner kills it thirty-five seconds later - reporting the file
+// rather than the assertion that failed. Write `assert.ok(!view.first(".x"))`.
+// Unmount through `t.after` too, so a failing assertion still tears the view
+// down.
 const { JSDOM } = require("jsdom");
 const { loadTypeScript, rendererRoot } = require("./renderer.cjs");
 

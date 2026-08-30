@@ -104,9 +104,10 @@ function keysDeep(value, found = new Set()) {
   return found;
 }
 
-test("analysing a resource never asks for its logs", async () => {
+test("analysing a resource never asks for its logs", async (t) => {
   const { api, calls } = recordingApi();
   const view = mount(React.createElement(LlmTab, props(api)));
+  t.after(() => view.unmount());
 
   await clickAndSettle(analyzeButton(view));
 
@@ -120,11 +121,9 @@ test("analysing a resource never asks for its logs", async () => {
     calls.some((call) => call.name === "analyzeResourceWithLlm"),
     "the tab must actually send an analysis",
   );
-
-  view.unmount();
 });
 
-test("the request is built from named parts, and logs are not one of them", () => {
+test("the request is built from named parts, and logs are not one of them", (t) => {
   // The stronger form of the promise. The old contract said the source does not
   // contain `logs:`; this says what the payload is, so a part added to it later
   // has to be added here too and cannot arrive unnoticed.
@@ -138,36 +137,36 @@ test("the request is built from named parts, and logs are not one of them", () =
   // tested there.
   const { api, calls } = recordingApi();
   const view = mount(React.createElement(LlmTab, props(api)));
+  t.after(() => view.unmount());
 
   return clickAndSettle(analyzeButton(view)).then(() => {
     const [request] = calls.find((call) => call.name === "analyzeResourceWithLlm").args;
     assert.deepEqual(Object.keys(request).sort(), ["clusterId", "describe", "events", "kind", "name", "namespace", "relatedResources", "resource", "resourceObject", "usageHistory", "yaml"]);
     assert.deepEqual(request.resourceObject, ROW);
-    view.unmount();
   });
 });
 
-test("the request carries no language preference, so the answer does not follow the interface", async () => {
+test("the request carries no language preference, so the answer does not follow the interface", async (t) => {
   // Sending the UI preference made the answer switch to English, because
   // "system" - the default - matched neither branch of the prompt's language
   // rule. The analysis is always written in one language, chosen by the prompt.
   const { api, calls } = recordingApi();
   const view = mount(React.createElement(LlmTab, props(api)));
+  t.after(() => view.unmount());
 
   await clickAndSettle(analyzeButton(view));
 
   const [request] = calls.find((call) => call.name === "analyzeResourceWithLlm").args;
   const language = [...keysDeep(request)].filter((key) => /^language$/i.test(key));
   assert.deepEqual(language, [], "the request carries a language preference");
-
-  view.unmount();
 });
 
-test("the prompt preview shows the reader exactly what the analysis would send", async () => {
+test("the prompt preview shows the reader exactly what the analysis would send", async (t) => {
   // The preview is worth having only if it previews the real thing. Both paths
   // build their payload from the same place, and this is what says so.
   const { api, calls } = recordingApi();
   const view = mount(React.createElement(LlmTab, props(api)));
+  t.after(() => view.unmount());
 
   await clickAndSettle(analyzeButton(view));
   await clickAndSettle(promptButton(view));
@@ -175,16 +174,15 @@ test("the prompt preview shows the reader exactly what the analysis would send",
   const sent = calls.find((call) => call.name === "analyzeResourceWithLlm").args[0];
   const previewed = calls.find((call) => call.name === "previewLlmResourcePrompt").args[0];
   assert.deepEqual(previewed, sent);
-
-  view.unmount();
 });
 
-test("an open prompt can be hidden while an analysis is still running", async () => {
+test("an open prompt can be hidden while an analysis is still running", async (t) => {
   // Hiding an open prompt is local: it never waits on anything. Tying the button
   // to the shared busy flag left the prompt stuck on screen for as long as the
   // model took to answer.
   const { api, calls } = recordingApi();
   const view = mount(React.createElement(LlmTab, props(api)));
+  t.after(() => view.unmount());
 
   await clickAndSettle(promptButton(view));
   assert.ok(view.first(".llm-prompt-preview"), "the preview should be open");
@@ -197,17 +195,14 @@ test("an open prompt can be hidden while an analysis is still running", async ()
   assert.equal(hide.disabled, false, "the hide button must not wait on the analysis");
   await clickAndSettle(hide);
 
-  assert.equal(view.first(".llm-prompt-preview"), null, "the preview should be closed");
+  assert.ok(!view.first(".llm-prompt-preview"), "the preview should be closed");
   assert.equal(calls.length, before, "hiding the prompt must not call the backend");
-
-  view.unmount();
 });
 
-test("a second analysis cannot be started while one is in flight", async () => {
+test("a second analysis cannot be started while one is in flight", async (t) => {
   const { api } = recordingApi();
   const view = mount(React.createElement(LlmTab, props(api, { loading: true })));
+  t.after(() => view.unmount());
 
   assert.equal(analyzeButton(view).disabled, true);
-
-  view.unmount();
 });
