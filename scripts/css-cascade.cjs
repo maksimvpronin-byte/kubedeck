@@ -25,13 +25,19 @@ const STYLES = path.join(__dirname, "..", "apps", "desktop", "src", "renderer", 
 const ENTRY = path.join(__dirname, "..", "apps", "desktop", "src", "renderer", "main.tsx");
 const LOW_SPECIFICITY = 200;
 
-// A ratchet, not a target. 114 of these live in drawer-controls.css and
-// related-panel.css, which were written `!important`-first: inside them a weak
-// rule routinely beats a strong one, so no single removal is safe and the two
-// files need rewriting against the running application rather than analysing.
-// Until someone does that, this holds the line: new ones are refused, and every
-// removal should be followed by lowering the number.
-const BUDGET = 114;
+// A ratchet, not a target. It was 114 when this said the two `!important`-first
+// files "need rewriting against the running application rather than analysing".
+// They did not: scripts/css-computed.cjs resolves what every selector ends up
+// with, in every theme, so a removal can be proved instead of risked. 173 of the
+// 227 went that way on 2026-08-30 and the count fell to 15.
+//
+// One warning in the old note was right, and the sweep found out why. Removals
+// are not independent: related-panel.css declared `.related-group { background:
+// transparent !important }` twice, and each copy tested safe on its own because
+// the other held the line. Taking both let a light-theme rule win. Whatever
+// removes these has to check the batch it is actually shipping, not only the
+// declarations one at a time.
+const BUDGET = 15;
 
 /** Import order is the cascade order, so it is read from the renderer entry. */
 function styleOrder() {
