@@ -293,6 +293,8 @@
 }
 
 .related-group {
+  /* Load-bearing. The panel restyled these groups from scratch; the theme block below still
+     declares `--panel-muted` for them, which is what the base rule uses anyway. */
   border: 0 !important;
   border-top: 1px solid var(--border);
   border-radius: 0;
@@ -311,6 +313,8 @@
   gap: 12px;
   padding: 12px 0 7px;
   border: 0;
+  /* Load-bearing. Same: the light-theme block sets a header background from a token the base
+     rule already uses, and it is more specific. */
   background: transparent !important;
 }
 
@@ -333,6 +337,7 @@
   padding: 0;
   border: 0;
   border-radius: 0;
+  /* Load-bearing. The badge's own background, against the light-theme block's. */
   background: transparent !important;
   color: var(--muted);
   font-size: 12px;
@@ -350,6 +355,7 @@
   display: grid;
   gap: 4px;
   padding: 8px 0 10px;
+  /* Load-bearing. The polished card draws its own border; the theme block draws one too. */
   border: 0 !important;
   border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   border-radius: 0;
@@ -452,6 +458,7 @@
   padding: 0;
   border: 0;
   border-radius: 0;
+  /* Load-bearing. A code span in a relation row, against the light-theme block's `--code-bg`. */
   background: transparent !important;
   color: var(--muted-soft);
   font-size: 11px;
@@ -499,13 +506,17 @@
 
 .related-group {
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  /* Load-bearing. The rounded group, against the light-theme block. */
   border-radius: 10px !important;
+  /* Load-bearing. The group's background. NOTE: this declaration exists twice in this file -
+     see the header. Either copy alone may go; both may not. */
   background: transparent !important;
   overflow: hidden;
 }
 
 .related-group > header {
   min-height: 38px;
+  /* Load-bearing. Header padding, against a more specific theme rule. */
   padding: 0 12px !important;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: color-mix(in srgb, var(--surface) 70%, transparent);
@@ -520,7 +531,9 @@
 .related-group > header span {
   min-width: 22px;
   height: 22px;
+  /* Load-bearing. Badge padding, same reason. */
   padding: 0 7px !important;
+  /* Load-bearing. Badge radius, same reason. */
   border-radius: 999px !important;
   display: inline-flex;
   align-items: center;
@@ -544,6 +557,7 @@
   border: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 0;
+  /* Load-bearing. Card backgrounds, against `:root[data-theme="light"] .related-card`. */
   background: transparent !important;
   box-shadow: none;
   padding: 11px 12px;
@@ -564,6 +578,7 @@
 }
 
 .related-card-main strong {
+  /* Load-bearing. The card title's size, against a more specific rule that sets the panel's. */
   font-size: 13px !important;
   line-height: 1.35;
 }
@@ -584,6 +599,7 @@
   border: 0;
   background: transparent;
   padding: 0;
+  /* Load-bearing. The badge's height, against the shared pill rule. */
   min-height: 0 !important;
   color: var(--text-strong);
   font-size: 12px;

@@ -29,7 +29,13 @@ const LOW_SPECIFICITY = 200;
 // files "need rewriting against the running application rather than analysing".
 // They did not: scripts/css-computed.cjs resolves what every selector ends up
 // with, in every theme, so a removal can be proved instead of risked. 173 of the
-// 227 went that way on 2026-08-30 and the count fell to 15.
+// 227 went that way on 2026-08-30 and the count fell to 15, then to 0 once the
+// fifteen that remain were made to say what they override.
+//
+// The budget was never a count of undocumented `!important`. The check read the
+// comment-blanked copy of the file, where `/*` has already been replaced by
+// spaces, so it could not pass however much was written above a declaration -
+// 114 was simply every low-specificity flag in the folder. Fixed the same day.
 //
 // One warning in the old note was right, and the sweep found out why. Removals
 // are not independent: related-panel.css declared `.related-group { background:
@@ -37,7 +43,7 @@ const LOW_SPECIFICITY = 200;
 // the other held the line. Taking both let a light-theme rule win. Whatever
 // removes these has to check the batch it is actually shipping, not only the
 // declarations one at a time.
-const BUDGET = 15;
+const BUDGET = 0;
 
 /** Import order is the cascade order, so it is read from the renderer entry. */
 function styleOrder() {
@@ -139,6 +145,11 @@ function declarations() {
   for (const file of styleOrder()) {
     const text = fs.readFileSync(path.join(STYLES, file), "utf8");
     const lines = blankComments(text).split("\n");
+    // Comments are blanked for parsing, so the documentation check needs the
+    // text as written. Reading the blanked copy is why that check could never
+    // pass: `/*` had already been replaced by spaces, so every low-specificity
+    // `!important` counted as undocumented no matter what was written above it.
+    const sourceLines = text.split("\n");
     const lineAt = (offset) => (offset < 0 ? 0 : text.slice(0, offset).split("\n").length);
     for (const rule of parse(text)) {
       for (const selector of rule.selectors) {
@@ -155,6 +166,7 @@ function declarations() {
             offsetKey: declaration.offset,
             loadBearing: false,
             lines,
+            sourceLines,
           });
         }
       }
@@ -256,7 +268,7 @@ function report(check) {
     // A low-specificity `!important` is the one that starts an arms race, so it
     // has to say what it is for.
     if (declaration.specificity < LOW_SPECIFICITY) {
-      const above = declaration.lines
+      const above = (declaration.sourceLines ?? declaration.lines)
         .slice(Math.max(0, declaration.line - 6), declaration.line)
         .join("\n")
         .includes("/*");

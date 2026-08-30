@@ -1004,6 +1004,9 @@
 
 @media (max-width: 1280px) {
   .drawer {
+    /* Beats `.resource-workspace > .drawer`, which is more specific and sets a
+       width for the roomy case. A media query cannot outrank a descendant
+       selector by being narrower, so the narrow-window width has to say it. */
     width: clamp(340px, 38vw, 500px) !important;
     min-width: 320px;
     max-width: 46vw;
