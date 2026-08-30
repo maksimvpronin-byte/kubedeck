@@ -1,3 +1,61 @@
+## 2.23.7 - The selection that was never the editor's, and 173 rules that were not needed
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**The editor's selection was never the colour this repository chose.** Reported
+from a screenshot on 2.23.6: text selected in the YAML editor is still washed
+out. It was, and 2.23.4 - which announced this as fixed - changed a value that
+never applied. CodeMirror's own base theme carries
+`&light.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground`,
+five classes once `&light` resolves; the editor's rule was three. The base theme
+won and painted `#d7d4f0`, a pale lilac, over syntax colours - since 2.15.0.
+
+The theme here is declared without `{ dark: true }`, which is why the light half
+of a bundled theme applies in every one of the application's themes. Switching
+that was the wrong lever - `&dark` is `#233`, also not the accent. The selectors
+are raised instead.
+
+The test that mattered does not measure a colour. It reads CodeMirror's base
+theme out of node_modules, computes the specificity of every selection rule on
+both sides, and asserts the editor's outranks all of them. The contrast test
+beside it had measured the colour the file declares and passed throughout: a
+value declared is not a value seen.
+
+**The accent stopped doing two jobs.** `--primary` was a text colour in five
+places - the `+N` node-label chip, the control-plane chip, the `is-info`
+condition, a code span in Related, the tick in a themed select - where it
+measured 2.12 to 2.60 on a panel in every dark theme against a standard of 4.5.
+A filled button needs an accent dark enough for white on it; a chip needs one
+light enough to read on a panel. `--primary-text` is the second token: each
+theme keeps its hue and saturation, only lightness is raised, and every theme now
+clears 4.6 on all five surfaces a chip sits on.
+
+**Every surface that puts a colour on a colour is now measured.** Status badges,
+focus rings, table rows, the terminal selection, disabled controls: six groups,
+each held to the standard that applies to it, with the judgement of which
+standard written down rather than inferred. A disabled control is exempt by WCAG
+- looking unavailable is its job - so it is held by a floor instead.
+
+**173 `!important` are gone, and each removal was proved.** 227 in the
+stylesheets, 54 now, with the lint:css ratchet from 114 to zero.
+`scripts/css-computed.cjs` resolves what every selector in every theme ends up
+with, so a removal can be checked rather than risked: drawer-controls.css 119 to
+28, related-panel.css 92 to 17, terminal.css 14 to 7. The 54 that stay are either
+on `:hover`, `:focus` and `:active` rules, which no such check can reach, or
+genuinely load-bearing and commented where they sit.
+
+Three checks in this repository turned out to be unable to fail, and all three
+were fixed here. The cascade ratchet looked for `/*` in a copy of the file where
+comments had already been blanked, so no `!important` could ever count as
+documented and "114" was simply every low-specificity flag. The literal-colour
+guard read comments as declarations. And the editor's own contrast test measured
+a declared value rather than the winning one, which is how the selection shipped
+broken through a release that fixed it.
+
+Renderer suite is 232 tests, up from 224. Gateway is 170, unchanged. No product
+behaviour changed by the `!important` work: the resolved values were diffed
+against the previous state at every step and none moved.
+
 ## 2.23.6 - Section A, and a button that can be read
 
 No route changes. Node-only ownership stays at Node 59 / Python 0. The only
