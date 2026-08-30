@@ -357,6 +357,10 @@ test("the renderer wrapper forwards stages and is silent without a boot screen",
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. The boot screen is a plain script in the page,
+// running before the bundle it is there to cover the loading of, and the stages
+// come from the Electron main process. Neither is a component: there is nothing
+// to mount and no React to mount it with.
 test("the boot screen is wired into the page and the stages it reports exist", () => {
   const html = fs.readFileSync(path.join(rendererRoot, "index.html"), "utf8");
   const entry = fs.readFileSync(path.join(rendererRoot, "main.tsx"), "utf8");
@@ -402,6 +406,9 @@ test("the boot screen is wired into the page and the stages it reports exist", (
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, for the same reason - this is main.ts, which runs in a process
+// jsdom is not. What it promises is an ordering between opening a window and
+// starting a server, and the only place that ordering exists is the source.
 test("the window opens while the gateway is still starting", () => {
   assert.match(mainProcess, /gatewayReady = startNodeGateway\(\);\s*await Promise\.all\(\[gatewayReady, createWindow\(\)\]\);/);
   // Opening the window first only works because the renderer's first call waits

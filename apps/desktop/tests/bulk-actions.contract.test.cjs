@@ -33,6 +33,11 @@ test("bulk action helpers preserve identity, scope summary, and terminating stat
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. It is an absence: no toast, no banner, no modal
+// after an action that worked. Silence has nothing to render, so a rendered
+// test can only ever confirm that the particular surfaces it thought to look
+// for are missing - which is what reading the source already does, more
+// completely.
 test("bulk delete and successful node actions stay silent", () => {
   const actions = fs.readFileSync(path.join(rendererRoot, "hooks/useBulkResourceActions.ts"), "utf8");
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
@@ -60,6 +65,12 @@ test("bulk delete and successful node actions stay silent", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. The guarantee is that a confirmation raised on
+// one cluster cannot be answered against another - so the interesting case is a
+// cluster switch between raising and confirming, which happens through the
+// application shell rather than inside this hook. Driving it would mean
+// standing up the shell; what is left here is that every target carries its own
+// clusterId and that every call reads it back off the target.
 test("bulk confirmations remain bound to their source cluster", () => {
   const actions = fs.readFileSync(path.join(rendererRoot, "hooks/useBulkResourceActions.ts"), "utf8");
   assert.match(actions, /interface BulkDeleteTarget \{\s*clusterId: string;/);

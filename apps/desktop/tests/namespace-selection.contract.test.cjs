@@ -12,6 +12,9 @@ const path = require("node:path");
 const { loadTypeScript, rendererRoot } = require("./helpers/renderer.cjs");
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. A name is readable when the element is wide
+// enough for it and does not clip - which is measurement, and jsdom gives every
+// element a width of zero.
 test("namespace selector keeps complete long names readable", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/NamespaceSelector.tsx"), "utf8");
   const layout = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
@@ -154,26 +157,14 @@ test("namespace selections are isolated and reconciled per cluster", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
-test("a namespace refresh cannot erase the selection a cluster-scoped resource hides", () => {
-  const refresh = fs.readFileSync(path.join(rendererRoot, "hooks/useNamespaceRefresh.ts"), "utf8");
+// Stays one, and here is why. The refresh itself - that a poll for another
+// cluster publishes nothing, that a `_cluster` scope's hidden selection survives
+// a background poll, that an empty answer never widens a chosen scope - is now
+// driven in namespace-refresh-dom.contract.test.cjs. What is left belongs to
+// useResourceNavigation, which decides whether opening a resource from Search or
+// Related should narrow the scope at all; that runs inside the shell.
+test("opening a resource keeps a scope that already covers it", () => {
   const navigation = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceNavigation.ts"), "utf8");
-
-  // The poll returns before it can remember anything for a cluster that is no
-  // longer active or while `_cluster` is the visible scope.
-  assert.match(refresh, /if \(clusterId !== activeClusterId\) return;/);
-  assert.match(refresh, /if \(current\.includes\("_cluster"\)\) return;\s*/);
-  const pollBody = refresh.slice(refresh.indexOf("const loadNamespaces"), refresh.indexOf("const setNamespaceSelection"));
-  assert.ok(
-    pollBody.indexOf('if (current.includes("_cluster")) return;') < pollBody.indexOf("rememberClusterSelection(clusterId, reconciled)"),
-    "the cluster-scoped guard must run before the poll writes the remembered selection",
-  );
-
-  // Restoring falls back to the scope on screen, never to all namespaces.
-  assert.match(refresh, /const restored = stored\.length \? stored : current\.length \? current : \["all"\];/);
-  assert.doesNotMatch(refresh, /const remembered = rememberedNamespacesForCluster\(selectionsRef\.current, clusterId\);\s*setSelectedNamespaces\(remembered\);/s);
-
-  // Opening a resource from Search, Events or Related keeps a scope that already
-  // covers the target instead of narrowing it to one namespace.
   assert.match(navigation, /const needsNarrowerScope = /);
   assert.match(navigation, /!activeSelection\.includes\("all"\) && !activeSelection\.includes\(target\.namespace\)/);
   assert.match(navigation, /if \(target\.clusterScoped \|\| lookupCoversSelection\) setRows\(/);

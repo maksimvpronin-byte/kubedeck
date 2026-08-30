@@ -237,6 +237,10 @@ test("a ClusterIP Service reaches the drawer with the ports its addresses are bu
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. Endpoints are fetched by the drawer's lifecycle
+// hook and handed down, so what this pins is where the fetch lives rather than
+// what the summary shows. What the summary shows for a Service is checked by
+// walking one all the way through, in the test above it.
 test("the service summary renders endpoints loaded outside the Service object", () => {
   const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
   const endpointsEffect = lifecycle.slice(lifecycle.indexOf("isServiceResource(resource)"), lifecycle.indexOf('tab !== "related"'));

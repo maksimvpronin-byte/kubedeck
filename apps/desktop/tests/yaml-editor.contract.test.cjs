@@ -52,6 +52,10 @@ test("a manifest diff fold collapses and expands both panes from one key", () =>
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. It is two absences and a boundary: that no
+// surface outside YamlSourceEditor reaches for CodeMirror, and that a
+// kubeconfig's contents are never written anywhere. Code that is not imported
+// and a write that never happens leave nothing to render.
 test("the kubeconfig editor reuses the YAML editor and never persists credentials", () => {
   const modal = fs.readFileSync(path.join(rendererRoot, "components/KubeconfigEditorModal.tsx"), "utf8");
   const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
@@ -94,6 +98,11 @@ test("YAML folding preserves full source and hides only collection descendants",
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. A rectangular selection is made by dragging
+// across coordinates, and the extensions that provide it place their ranges
+// from the geometry of laid-out text. jsdom gives every line a height and a
+// width of zero, so Alt+drag selects nothing there whether the extension is
+// present or not.
 test("the YAML editor offers column selection, multiple carets and indent shifting", () => {
   const editor = fs.readFileSync(path.join(rendererRoot, "components/YamlSourceEditor.tsx"), "utf8");
 
@@ -129,6 +138,11 @@ test("the YAML editor offers column selection, multiple carets and indent shifti
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. Almost every assertion is that something is gone:
+// the old "Edit full YAML" toggle, the state it flipped, the hand-split
+// segments folding used before CodeMirror owned it. A control that no longer
+// exists cannot be looked for by clicking - only its absence from the source
+// says it will not come back.
 test("the YAML tab is editable immediately, and folding is the editor's own", () => {
   const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
 

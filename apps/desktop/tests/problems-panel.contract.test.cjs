@@ -155,6 +155,10 @@ test("filter options are deduplicated and sorted case-insensitively", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. It is a container query: the panel responds to
+// its own width rather than the viewport's. jsdom resolves no container
+// queries and lays nothing out, so the difference between the two is exactly
+// what it cannot see.
 test("the problems panel sizes itself by its own width, not the window's", () => {
   const problems = fs.readFileSync(path.join(rendererRoot, "styles/problems-panel.css"), "utf8");
   const panels = fs.readFileSync(path.join(rendererRoot, "styles/panels.css"), "utf8");

@@ -48,6 +48,11 @@ test("cluster ordering helper moves items without mutating the source", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. Almost all of it is the four `min-height: 0` and
+// `overflow` declarations that make a flexbox child scroll instead of growing
+// its parent - the single most layout-dependent thing in the application, and
+// jsdom lays nothing out. Which controls the modal uses is checked by clicking
+// in the manifest compare tests beside this file.
 test("manifest compare scrolls inside the modal and uses themed controls", () => {
   const component = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
   const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");
@@ -238,6 +243,12 @@ test("async action feedback cleanup cancels timers and late phase changes", asyn
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. It is a convention across nine files: every
+// refresh button goes through the same feedback hook rather than growing its
+// own spinner. What the hook does is tested on its own a few tests above;
+// what this adds is that nobody has quietly stopped using it, which is a fact
+// about nine files and not about any one screen. Mounting nine components to
+// observe that each spins the same way would prove less and cost more.
 test("all manual refresh and reload surfaces use shared async feedback", () => {
   const required = [
     ["components/ProblemsPanel.tsx", /refreshActionLabels\(t\)/],

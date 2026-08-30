@@ -134,6 +134,10 @@ test("watch events are coalesced with a floor and a ceiling, so a busy cluster n
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. What it guards is that unmounting one viewer does
+// not stop a watch another viewer is still using - a negative about a process
+// in the main process, observed from a renderer that has already gone. There is
+// no rendered state at either end to assert on.
 test("resource watch lifecycle does not stop a shared backend watch", () => {
   const source = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceWatch.ts"), "utf8");
   assert.match(source, /\.startWatch\(clusterId, resource, watchNamespace\)/);
@@ -254,6 +258,9 @@ test("resource polling is only a fallback while live watch is unavailable", () =
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. It is an absence spread over three effects: a
+// disconnected cluster must not be listed, polled, or fallen back to. Work that
+// never happens leaves nothing behind, and the effects belong to the shell.
 test("a disconnected cluster is left alone, including by the polling fallback", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const rail = fs.readFileSync(path.join(rendererRoot, "components/ClusterRail.tsx"), "utf8");
@@ -317,7 +324,8 @@ test("a silent refresh steps aside for the walk already running", () => {
   assert.equal(refresh.shouldSkipSilentRefresh(false, true), false);
   assert.equal(refresh.shouldSkipSilentRefresh(false, false), false);
 
-  // grep contract: both panels walk the whole cluster per refresh - nine lists
+  // grep contract, and it stays one: both panels walk the whole cluster per
+  // refresh - nine lists
   // for Overview, five for Problems - so a tick that aborted the running walk
   // meant a cluster slower than the interval never finished one.
   for (const file of ["components/OverviewPanel.tsx", "components/ProblemsPanel.tsx"]) {

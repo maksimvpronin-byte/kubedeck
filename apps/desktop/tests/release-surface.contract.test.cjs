@@ -1,6 +1,14 @@
 // Version-stamped surface contracts.
 // Split out of renderer-controllers.contract.test.cjs; see
 // docs/file-structure-refactor-plan.md, section C.
+// Every test here is a release contract rather than a grep contract, and that
+// is a decision rather than an omission - see section A of
+// docs/unseen-defects-plan.md, 2026-08-29. What they hold are properties of a
+// release: that the package carries no Python runtime and no bundled kubectl,
+// that Help and About describe the application as it actually behaves, and that
+// surfaces promised by earlier releases are still there. A property of a file
+// has no behaviour to click, so these are marked `release contract` and are not
+// counted against the grep-contract debt.
 // A test marked `grep contract` reads a source file and asserts on its text.
 // It breaks on a rename and passes through a real regression, so it is a
 // placeholder for a behavioural test rather than one. See section C of
@@ -11,7 +19,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { loadTypeScript, rendererRoot } = require("./helpers/renderer.cjs");
 
-// grep contract: asserts on source text, not behaviour.
+// release contract: asserts on the shape of a release, which has no behaviour.
 test("2.7.4 resource surfaces stay compact and operational", () => {
   const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
   const chrome = fs.readFileSync(path.join(rendererRoot, "components/PodDrawerChrome.tsx"), "utf8");
@@ -44,7 +52,7 @@ test("2.7.4 resource surfaces stay compact and operational", () => {
   assert.doesNotMatch(terminal, /bash → sh → ash/);
 });
 
-// grep contract: asserts on source text, not behaviour.
+// release contract: asserts on the shape of a release, which has no behaviour.
 test("2.7.5 Manifest Compare uses the themed chooser and quota rows cannot overlap", () => {
   const compare = fs.readFileSync(path.join(rendererRoot, "components/ManifestCompare.tsx"), "utf8");
   const select = fs.readFileSync(path.join(rendererRoot, "components/ThemedSelect.tsx"), "utf8");
@@ -85,7 +93,7 @@ test("2.7.6 resource surfaces align compare panes and render compact operational
   assert.equal(model.formatQuotaQuantity("pods", "25"), "25");
 });
 
-// grep contract: asserts on source text, not behaviour.
+// release contract: asserts on the shape of a release, which has no behaviour.
 test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contracted", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const yamlTab = fs.readFileSync(path.join(rendererRoot, "components/YamlTab.tsx"), "utf8");
@@ -110,7 +118,7 @@ test("2.8.0 usage, local lazy boundaries, folding, and seamless tabs stay contra
   assert.match(terminalStyles, /\.bottom-terminal-tab\.active::after/);
 });
 
-// grep contract: asserts on source text, not behaviour.
+// release contract: asserts on the shape of a release, which has no behaviour.
 test("2.9.0 overview and navigation polish stay contracted", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const navigation = fs.readFileSync(path.join(rendererRoot, "navigation.ts"), "utf8");
@@ -161,7 +169,7 @@ test("2.9.0 overview and navigation polish stay contracted", () => {
   assert.match(tableStyles, /\.table-view-controls\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;/s);
 });
 
-// grep contract: asserts on source text, not behaviour.
+// release contract: asserts on the shape of a release, which has no behaviour.
 test("Help uses runtime version metadata and documents the shared Terminal Workspace", () => {
   const help = fs.readFileSync(path.join(rendererRoot, "components/HelpPanel.tsx"), "utf8");
   const english = JSON.parse(fs.readFileSync(path.join(rendererRoot, "locales/en.json"), "utf8"));
@@ -178,7 +186,7 @@ test("Help uses runtime version metadata and documents the shared Terminal Works
   }
 });
 
-// grep contract: asserts on source text, not behaviour.
+// release contract: asserts on the shape of a release, which has no behaviour.
 test("About and Help describe the application as it actually behaves", () => {
   const about = fs.readFileSync(path.join(rendererRoot, "components/AboutPanel.tsx"), "utf8");
   const help = fs.readFileSync(path.join(rendererRoot, "components/HelpPanel.tsx"), "utf8");

@@ -12,6 +12,11 @@ const path = require("node:path");
 const { loadTypeScript, rendererRoot } = require("./helpers/renderer.cjs");
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. Both halves live in App.tsx: that the drawer's
+// selection moves in one step rather than two, and that the namespace scope is
+// stored per cluster. The scope half is now driven for real in
+// namespace-refresh-dom.contract.test.cjs; the atomicity half is a shape of the
+// shell's own state, and reaching it means mounting the whole application.
 test("App keeps drawer selection atomic and persists namespace scope by cluster", () => {
   const app = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
   const persistence = fs.readFileSync(path.join(rendererRoot, "hooks/usePersistUiState.ts"), "utf8");
@@ -68,6 +73,10 @@ test("drawer request generations reject stale responses and reset resource data"
 });
 
 // grep contract: asserts on source text, not behaviour.
+// Stays one, and here is why. It is about what does not happen on a refresh -
+// no remount, no lost tab, no second request - inside a hook wired to the whole
+// drawer. A component that is not remounted looks exactly like one that is, in
+// the document.
 test("drawer auto-refresh keeps stable lifecycle and YAML uses compact results", () => {
   const lifecycle = fs.readFileSync(path.join(rendererRoot, "hooks/usePodDrawerResourceLifecycle.ts"), "utf8");
   const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
