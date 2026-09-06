@@ -35,7 +35,11 @@ test("macOS is signed ad-hoc only when nothing else will sign it", () => {
   const plan = signingPlan(packContext("darwin"), { CSC_IDENTITY_AUTO_DISCOVERY: "false" });
   assert.ok(plan, "an unsigned macOS build must be signed ad-hoc");
   assert.equal(plan.command, "codesign");
-  assert.deepEqual(plan.args, ["--force", "--deep", "--sign", "-", "/tmp/kubedeck-out/KubeDeck.app"]);
+  // Joined rather than written out: the hook only ever runs on macOS, but this
+  // test runs wherever the gate runs, and a literal "/tmp/x/KubeDeck.app" is a
+  // backslash short of the truth on the Windows runner.
+  const bundle = path.join("/tmp/kubedeck-out", "KubeDeck.app");
+  assert.deepEqual(plan.args, ["--force", "--deep", "--sign", "-", bundle]);
 });
 
 // release contract: asserts on the shape of a release, which has no behaviour.
