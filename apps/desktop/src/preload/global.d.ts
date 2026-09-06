@@ -2,6 +2,7 @@ export {};
 
 import type { BootScreenApi } from "../renderer/bootProgress";
 import type { AppFolder, DesktopInfo } from "../renderer/types";
+import type { UpdateState } from "../shared/updateState";
 
 declare global {
   interface Window {
@@ -14,6 +15,12 @@ declare global {
       openLogsFolder(): Promise<void>;
       openAppFolder(folder: AppFolder): Promise<void>;
       getDesktopInfo(): Promise<DesktopInfo>;
+      getUpdateState(): Promise<UpdateState>;
+      checkForUpdates(): Promise<UpdateState>;
+      downloadUpdate(): Promise<UpdateState>;
+      installUpdate(): Promise<UpdateState>;
+      openReleases(): Promise<void>;
+      onUpdateState(listener: (state: UpdateState) => void): () => void;
     };
   }
 }

@@ -27,7 +27,6 @@ step "Checking required tools"
 require_command node
 require_command npm
 require_command xcode-select
-require_command kubectl
 xcode-select -p >/dev/null 2>&1 || fail "Xcode Command Line Tools are not installed."
 
 node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)' ||
@@ -37,18 +36,34 @@ ROOT_VERSION="$(node -p 'require("./package.json").version')"
 DESKTOP_VERSION="$(node -p 'require("./apps/desktop/package.json").version')"
 [[ "$ROOT_VERSION" == "$DESKTOP_VERSION" ]] || fail "Version mismatch: root=$ROOT_VERSION desktop=$DESKTOP_VERSION"
 
+# electron-builder reaches for 7zip-bin's own binary. A system 7za is preferred
+# where there is one, because npm has been seen to leave that file behind
+# incomplete; where there is not - a CI runner with no Homebrew - the packaged
+# binary is used as it comes, and only a missing pair is a failure.
+BUNDLED_SEVEN_ZA="$ROOT/node_modules/7zip-bin/mac/arm64/7za"
 SEVEN_ZA="$(command -v 7za || true)"
-[[ -n "$SEVEN_ZA" && -x "$SEVEN_ZA" ]] ||
-  fail "7za is required. Install it with: brew install p7zip"
-
-mkdir -p "$ROOT/node_modules/7zip-bin/mac/arm64"
-ln -sf "$SEVEN_ZA" "$ROOT/node_modules/7zip-bin/mac/arm64/7za"
+if [[ -n "$SEVEN_ZA" && -x "$SEVEN_ZA" ]]; then
+  mkdir -p "$(dirname "$BUNDLED_SEVEN_ZA")"
+  ln -sf "$SEVEN_ZA" "$BUNDLED_SEVEN_ZA"
+  printf '7za: %s\n' "$SEVEN_ZA"
+elif [[ -x "$BUNDLED_SEVEN_ZA" ]]; then
+  printf '7za: %s (bundled)\n' "$BUNDLED_SEVEN_ZA"
+else
+  fail "7za is required and 7zip-bin did not provide one. Install it with: brew install p7zip"
+fi
 
 node -e "require('node-pty')" >/dev/null 2>&1 || fail "node-pty is not usable for darwin arm64. Reinstall npm dependencies on this Mac."
 
 printf 'Node: %s\n' "$(node -v)"
 printf 'npm: %s\n' "$(npm -v)"
-printf 'kubectl: %s\n' "$(kubectl version --client --output=yaml 2>/dev/null | awk '/gitVersion:/ {print $2; exit}')"
+# KubeDeck talks to kubectl at runtime and ships none - the release contract
+# forbids bundling one - so a build machine without it builds a perfectly good
+# artifact. Worth reporting, not worth refusing over.
+if command -v kubectl >/dev/null 2>&1; then
+  printf 'kubectl: %s\n' "$(kubectl version --client --output=yaml 2>/dev/null | awk '/gitVersion:/ {print $2; exit}')"
+else
+  printf 'kubectl: not installed on this machine (not needed to build)\n'
+fi
 printf 'KubeDeck: %s\n' "$ROOT_VERSION"
 
 step "Cleaning macOS release output"

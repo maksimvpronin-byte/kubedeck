@@ -2,6 +2,7 @@ import type { ErrorInfo, SshSettings } from "@kubedeck/shared-types";
 
 export type { ApiKeyUpdate, AppConfig, Cluster, ErrorInfo, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "@kubedeck/shared-types";
 export type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
+export type { UpdateState, UpdateStatus } from "../shared/updateState";
 
 export interface LlmStatus {
   enabled: boolean;

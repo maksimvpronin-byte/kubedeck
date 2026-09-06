@@ -552,6 +552,22 @@
   grid-template-columns: 170px minmax(0, 1fr) auto;
 }
 
+/* The update buttons sit in the value column, so the card keeps one label
+   column throughout instead of the actions starting a layout of their own.
+   `.about-row dd` truncates to a single line, which is right for a path and
+   wrong for a row of buttons. */
+.about-update-row {
+  align-items: start;
+}
+
+.about-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow: visible;
+  white-space: normal;
+}
+
 .about-checklist {
   display: grid;
   gap: 8px;

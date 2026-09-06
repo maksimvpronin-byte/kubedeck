@@ -28,6 +28,7 @@ modify those files.
 | Component | Version | License |
 |---|---|---|
 | `diff` | 9.0.0 | BSD-3-Clause |
+| `electron-updater` | 6.6.2 | MIT |
 | `node-pty` | 1.1.0 | MIT |
 | `ssh2` | 1.17.0 | MIT |
 | `ws` | 8.21.0 | MIT |
@@ -37,14 +38,29 @@ modify those files.
 
 | Component | Version | License | Required by |
 |---|---|---|---|
+| `argparse` | 2.0.1 | Python-2.0 | `js-yaml` |
 | `asn1` | 0.2.6 | MIT | `ssh2` |
 | `bcrypt-pbkdf` | 1.0.2 | BSD-3-Clause | `ssh2` |
 | `buildcheck` | 0.0.7 | MIT | `cpu-features` |
+| `builder-util-runtime` | 9.3.1 | MIT | `electron-updater` |
 | `cpu-features` | 0.0.10 | MIT | `ssh2` |
+| `debug` | 4.4.3 | MIT | `builder-util-runtime` |
+| `fs-extra` | 10.1.0 | MIT | `electron-updater` |
+| `graceful-fs` | 4.2.11 | ISC | `fs-extra`, `jsonfile` |
+| `js-yaml` | 4.3.2 | MIT | `electron-updater` |
+| `jsonfile` | 6.2.1 | MIT | `fs-extra` |
+| `lazy-val` | 1.0.5 | MIT | `electron-updater` |
+| `lodash.escaperegexp` | 4.1.2 | MIT | `electron-updater` |
+| `lodash.isequal` | 4.5.0 | MIT | `electron-updater` |
+| `ms` | 2.1.3 | MIT | `debug` |
 | `nan` | 2.27.0 | MIT | `ssh2`, `cpu-features` |
 | `node-addon-api` | 7.1.1 | MIT | `node-pty` |
 | `safer-buffer` | 2.1.2 | MIT | `asn1` |
+| `sax` | 1.6.0 | BlueOak-1.0.0 | `builder-util-runtime` |
+| `semver` | 7.8.5 | ISC | `electron-updater` |
+| `tiny-typed-emitter` | 2.1.0 | MIT | `builder-util-runtime` |
 | `tweetnacl` | 0.14.5 | Unlicense | `bcrypt-pbkdf` |
+| `universalify` | 2.0.1 | MIT | `fs-extra`, `jsonfile` |
 
 ## Renderer dependencies
 

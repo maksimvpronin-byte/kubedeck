@@ -7,6 +7,7 @@ import { startGateway } from "./backend/gateway";
 import type { GatewayHandle } from "./backend/types";
 import { ElectronSafeStorageSecretStore } from "./security/electronSafeStorageSecretStore";
 import { migratePlaintextLlmSecret } from "./backend/security/migrateSecrets";
+import { createUpdateController, type UpdateController } from "./updates";
 
 let mainWindow: BrowserWindow | null = null;
 let gatewayUrl = "";
@@ -15,6 +16,7 @@ let gatewaySessionToken = "";
 let gatewayReady: Promise<void> | null = null;
 let gatewayShutdown: Promise<void> | null = null;
 let quitAfterGatewayShutdown = false;
+let updates: UpdateController | null = null;
 
 type AppFolder = "root" | "logs" | "config" | "kubeconfigs";
 
@@ -108,6 +110,26 @@ function stopNodeGateway(reason: string): Promise<void> {
   });
   return gatewayShutdown;
 }
+// Built on first use rather than at startup: asking codesign whether this
+// bundle is signed costs a process, and a run that never opens About never
+// needs the answer.
+function updateController(): UpdateController {
+  if (updates) return updates;
+  updates = createUpdateController({
+    log: logDesktop,
+    publish: (state) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("kubedeck:updateState", state);
+    },
+    prepareForRestart: async () => {
+      await stopNodeGateway("update-install");
+      // The shutdown `before-quit` exists to perform has already happened, so
+      // the installer is not left waiting on a second one.
+      quitAfterGatewayShutdown = true;
+    },
+  });
+  return updates;
+}
+
 // Windows takes the window, taskbar and Alt+Tab icon from the running
 // executable unless the window carries its own icon, so the packaged app used
 // to show the default Electron icon even though the artifact had ours.
@@ -268,6 +290,14 @@ ipcMain.handle("kubedeck:getDesktopInfo", () => ({
     kubeconfigs: kubeconfigsDir(),
   },
 }));
+// The renderer asks; nothing is fetched or installed without someone pressing
+// something. `kubedeck:updateState` carries progress the other way.
+ipcMain.handle("kubedeck:getUpdateState", () => updateController().state());
+ipcMain.handle("kubedeck:checkForUpdates", () => updateController().check());
+ipcMain.handle("kubedeck:downloadUpdate", () => updateController().download());
+ipcMain.handle("kubedeck:installUpdate", () => updateController().install());
+ipcMain.handle("kubedeck:openReleases", () => updateController().openReleases());
+
 // Without an explicit AppUserModelID Windows groups the window under the host
 // process, which shows the wrong taskbar icon and breaks pinning. The value
 // must stay in sync with `appId` in electron-builder.yml.

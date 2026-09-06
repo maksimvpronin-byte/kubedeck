@@ -91,6 +91,21 @@ brew install node@22 kubectl p7zip
   `./KubeDeck-<version>-x86_64.AppImage --appimage-extract` and start the
   extracted `AppRun`.
 
+## Releases and updates
+
+Packaged builds are published on the
+[releases page](https://github.com/maksimvpronin-byte/kubedeck/releases): a
+Windows installer and portable executable, a macOS Apple Silicon DMG and ZIP,
+and a Linux x64 AppImage. Each is built by `.github/workflows/release.yml` from
+a `v<version>` tag, by the same scripts a build by hand uses.
+
+**About - Updates** checks that page and reports what it finds. Nothing is
+downloaded until it is asked for. Two builds are told what exists and no more,
+because neither can replace itself: the Windows portable executable, which has
+no installation to replace, and an unsigned macOS build, which macOS refuses to
+update in place. Both are pointed at the release page instead - see
+[docs/macos-signing.md](./docs/macos-signing.md).
+
 ## Getting started
 
 Clone the repository and install the locked dependencies from the project root.

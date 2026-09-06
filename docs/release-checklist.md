@@ -92,6 +92,7 @@ namespace) и один watch, который тут же останавлива�
 13. Проверить dark/light/system theme и ru/en/system language.
 14. Проверить Help/About: версия совпадает с packaged app, описание terminal workspace актуально, diagnostics не включают kubeconfig content или Secret values.
 15. Windows: проверить иконку KubeDeck у окна, в панели задач и Alt+Tab, а также ProductName/версию в свойствах распакованного `KubeDeck.exe`.
+16. Открыть About → Обновления и нажать «Проверить обновления». Установленная сборка должна сообщить, что версия последняя; portable-файл и неподписанная сборка macOS — что заменить себя они не могут, со ссылкой на страницу релизов.
 
 ## После проверки
 
@@ -100,3 +101,47 @@ namespace) и один watch, который тут же останавлива�
 - зафиксировать platform/architecture и имена artifacts;
 - отметить результаты typecheck, build, tests, packaging и manual smoke;
 - commit/tag выполняются только после успешного release gate.
+
+## Публикация
+
+Пакеты собирает и выкладывает `.github/workflows/release.yml` — теми же
+скриптами `package:mac`, `package:win`, `package:linux`, что и ручная сборка,
+так что CI и рабочий стол не расходятся.
+
+1. Поднять версию во всех шести местах (`package.json`, `apps/desktop/package.json`,
+   `packages/shared-types/package.json`, зависимость `@kubedeck/shared-types`,
+   `package-lock.json` в трёх записях) и написать
+   `docs/releases/RELEASE_NOTES_<версия>.md` и
+   `docs/releases/REGRESSION_CHECKLIST_<версия>.md`, обновив ссылки на них в
+   обоих README и changelog entry.
+2. Локально прогнать `npm run verify` и `npm run verify:release`.
+3. Закоммитить и запушить в `main`; дождаться зелёного workflow **Verify**.
+4. Поставить тег и запушить его:
+
+```bash
+git tag v<версия>
+git push origin v<версия>
+```
+
+5. Workflow **Release** сначала проверяет контракт и совпадение тега с версией
+   (job `guard`, около полуминуты, без `npm ci`), затем собирает три платформы и
+   одним последним job создаёт **черновик** релиза со всеми артефактами и
+   `latest*.yml`. Notes берутся из `docs/releases/RELEASE_NOTES_<версия>.md`, а
+   не генерируются.
+6. Открыть черновик, проверить список файлов и опубликовать его. До публикации
+   обновление никому не предлагается.
+
+Проверить сборку, не выпуская релиз, можно через **Run workflow** на вкладке
+Actions: собираются все три платформы, артефакты остаются на самом run, а job
+публикации пропускается.
+
+Тег должен совпадать с версией в `package.json`: electron-updater сравнивает
+именно её, а не тег, и релиз с расхождением — это релиз, который никому не
+предложат. Это проверяет `node scripts/verify-release.cjs --tag v<версия>`,
+и то же самое делает `guard` до того, как что-либо начнёт собираться.
+
+Подпись macOS опциональна и настраивается секретами `APPLE_ID`,
+`APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` — см.
+[docs/macos-signing.md](./macos-signing.md). Без них сборка подписывается ad-hoc:
+этого достаточно, чтобы приложение запускалось на Apple Silicon, но недостаточно,
+чтобы обновлять себя на месте.

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ApiClient } from "../api";
-import type { AppConfig, BackendInfo, Cluster, DesktopInfo, ErrorInfo } from "../types";
+import type { AppConfig, BackendInfo, Cluster, DesktopInfo, ErrorInfo, UpdateState } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
@@ -137,6 +137,8 @@ export function AboutPanel({
           <InfoRow label={t("about.node")} value={desktopInfo?.nodeVersion || "-"} />
         </AboutCard>
 
+        <UpdatesCard t={t} />
+
         <AboutCard title={t("about.storage")} wide>
           <PathRow label={t("about.appData")} value={backendInfo?.paths.root || desktopInfo?.paths.root} action={() => window.kubedeck.openAppFolder("root")} t={t} />
           <PathRow label={t("about.configPath")} value={backendInfo?.paths.config || desktopInfo?.paths.config} action={() => window.kubedeck.openAppFolder("config")} t={t} />
@@ -174,6 +176,87 @@ function llmSummary(backendInfo: BackendInfo | null, t: (key: string) => string)
   const llm = backendInfo?.settings.llm;
   if (!llm?.enabled || !llm.configured) return t("about.llmOff");
   return llm.model ? `${llm.model} · ${llm.baseUrl}` : llm.baseUrl;
+}
+
+// Updates ask, download and install nothing on their own: a release is a couple
+// of hundred megabytes and the person in front of the screen may be on a
+// tethered phone in a datacentre. What the card can offer depends on how this
+// copy was installed - see `canInstall` in src/shared/updateState.ts - and the
+// builds that cannot replace themselves are sent to the release page rather
+// than told nothing.
+function UpdatesCard({ t }: { t: (key: string) => string }) {
+  const [update, setUpdate] = useState<UpdateState | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    window.kubedeck
+      .getUpdateState()
+      .then((state) => {
+        if (active) setUpdate(state);
+      })
+      .catch(() => undefined);
+    // Progress arrives on its own; the disposer keeps a listener from being
+    // left behind every time this section is closed and opened again.
+    const dispose = window.kubedeck.onUpdateState((state) => {
+      if (active) setUpdate(state);
+    });
+    return () => {
+      active = false;
+      dispose();
+    };
+  }, []);
+
+  const busy = update?.status === "checking" || update?.status === "downloading";
+  const reason = update && !update.canInstall ? translateUpdateReason(update.message, t) : "";
+
+  return (
+    <AboutCard title={t("about.updates")} wide>
+      <InfoRow label={t("about.updateStatus")} value={updateStatusText(update, t)} />
+      {reason ? <InfoRow label={t("about.updateInstallable")} value={reason} /> : null}
+      <div className="about-row about-update-row">
+        <dt>{t("about.updateActions")}</dt>
+        <dd className="about-update-actions">
+          <button className="secondary-btn" onClick={() => void window.kubedeck.checkForUpdates()} disabled={busy}>
+            {t("about.updateCheck")}
+          </button>
+          {update?.status === "available" && update.canInstall ? (
+            <button className="primary" onClick={() => void window.kubedeck.downloadUpdate()}>
+              {t("about.updateDownload")}
+            </button>
+          ) : null}
+          {update?.status === "downloaded" ? (
+            <button className="primary" onClick={() => void window.kubedeck.installUpdate()}>
+              {t("about.updateInstall")}
+            </button>
+          ) : null}
+          <button className="secondary-btn" onClick={() => void window.kubedeck.openReleases()}>
+            {t("about.updateReleases")}
+          </button>
+        </dd>
+      </div>
+    </AboutCard>
+  );
+}
+
+function updateStatusText(update: UpdateState | null, t: (key: string) => string): string {
+  if (!update) return "-";
+  if (update.status === "checking") return t("about.updateChecking");
+  if (update.status === "current") return `${t("about.updateCurrent")} (${update.currentVersion})`;
+  if (update.status === "available") return `${t("about.updateAvailable")} ${update.availableVersion}`;
+  if (update.status === "downloading") return `${t("about.updateDownloading")} ${update.percent}%`;
+  if (update.status === "downloaded") return `${t("about.updateReady")} ${update.availableVersion}`;
+  if (update.status === "unsupported") return translateUpdateReason(update.message, t);
+  if (update.status === "error") return `${t("about.updateFailed")}: ${update.message}`;
+  return t("about.updateIdle");
+}
+
+// The main process cannot translate: it has no catalogue and no idea which
+// language is selected. It sends a key for the reasons it knows in advance and
+// plain text for whatever the updater itself reported, and this tells the two
+// apart rather than printing "about.update.reason.portable" at a user.
+function translateUpdateReason(message: string, t: (key: string) => string): string {
+  if (!message) return "";
+  return message.startsWith("about.update.reason.") ? t(message) : message;
 }
 
 function AboutCard({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {

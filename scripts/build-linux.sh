@@ -26,7 +26,6 @@ cd "$ROOT"
 step "Checking required tools"
 require_command node
 require_command npm
-require_command kubectl
 
 node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)' ||
   fail "Node.js 22.12 or newer is required for Electron 43 tooling."
@@ -39,7 +38,14 @@ node -e "require('node-pty')" >/dev/null 2>&1 || fail "node-pty is not usable fo
 
 printf 'Node: %s\n' "$(node -v)"
 printf 'npm: %s\n' "$(npm -v)"
-printf 'kubectl: %s\n' "$(kubectl version --client --output=yaml 2>/dev/null | awk '/gitVersion:/ {print $2; exit}')"
+# KubeDeck talks to kubectl at runtime and ships none - the release contract
+# forbids bundling one - so a build machine without it builds a perfectly good
+# artifact. Worth reporting, not worth refusing over.
+if command -v kubectl >/dev/null 2>&1; then
+  printf 'kubectl: %s\n' "$(kubectl version --client --output=yaml 2>/dev/null | awk '/gitVersion:/ {print $2; exit}')"
+else
+  printf 'kubectl: not installed on this machine (not needed to build)\n'
+fi
 printf 'KubeDeck: %s\n' "$ROOT_VERSION"
 
 step "Cleaning Linux release output"

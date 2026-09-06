@@ -1,0 +1,185 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# The release is created and uploaded to from the last job here; the default
+# token is read-only in repositories created after the permissions change.
+permissions:
+  contents: write
+
+jobs:
+  # The cheapest thing in this workflow and the one most likely to fail, so it
+  # runs alone and first. `npm ci` is deliberately absent: the verifier is plain
+  # Node and reads the repository rather than its dependencies, which makes this
+  # job about thirty seconds against the half hour three packaging runners cost.
+  guard:
+    name: Release contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12
+
+      # electron-updater compares against the version baked into the
+      # application, not against the tag. A tag that disagrees with the six
+      # files holding the version publishes a release nobody is ever offered.
+      - name: Verify the release contract and the tag
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            node scripts/verify-release.cjs --tag "$GITHUB_REF_NAME"
+          else
+            node scripts/verify-release.cjs
+          fi
+
+  build:
+    name: Package ${{ matrix.artifact }}
+    needs: guard
+
+    strategy:
+      # One platform failing should not deny the other two the chance to say
+      # whether they build, which is most of what a release run is for.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: package:mac
+            artifact: mac
+          - os: windows-latest
+            script: package:win
+            artifact: windows
+          - os: ubuntu-latest
+            script: package:linux
+            artifact: linux
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12
+          cache: npm
+
+      # `ci`, never `install`: a lockfile refresh as a side effect of a release
+      # is exactly what the release checklist forbids, and a stray lock diff is
+      # indistinguishable from one.
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # A certificate is optional and there is none today, so macOS builds are
+      # ad-hoc signed by the afterPack hook and Windows builds are unsigned. A
+      # missing secret expands to an empty string rather than being unset, and
+      # build-macos.sh reads "set" as "sign and notarize" - so these are only
+      # exported when they actually hold something.
+      - name: Configure macOS signing
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$APPLE_TEAM_ID" ]; then
+            echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+            echo "Signing and notarizing with team $APPLE_TEAM_ID."
+          else
+            echo "No Apple team configured - producing an ad-hoc signed build. See docs/macos-signing.md."
+          fi
+
+      # The same script that builds a release by hand, rather than a second
+      # recipe that drifts from it. Each one runs the source gate, the release
+      # contract, the node-pty rebuild for its platform, electron-builder and
+      # the payload check on what came out.
+      - name: Package
+        run: npm run ${{ matrix.script }}
+
+      - name: Keep what was built
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.artifact }}
+          # The packages and the update metadata, and none of the directories
+          # they were made from: `release/` also holds the unpacked application,
+          # which is the same bytes again and several times the size.
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest*.yml
+          if-no-files-found: error
+          retention-days: 7
+
+  # The release itself, assembled once, by one job, from what the three built.
+  #
+  # electron-builder is not allowed to upload for itself, which is why every
+  # packaging script passes `--publish never`. It looks a release up by tag, and
+  # a draft has no published tag, so the lookup answers 404 for a release that
+  # plainly exists: every publish that asks is told there is none and creates
+  # one of its own. A single runner publishes several groups of artifacts at
+  # once, so this is not even a race between the three - one platform alone is
+  # enough to produce two drafts with half the files in each.
+  #
+  # A run that is not a tag skips this and leaves the packages on the run
+  # itself, which is what makes "Run workflow" a way to test a build.
+  release:
+    name: Draft the release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # For the release notes, which are written in the repository rather than
+      # generated: the last tag before this system existed is v2.0.0-beta.1, and
+      # --generate-notes against it would produce hundreds of commits of prose
+      # nobody wrote.
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+
+      # electron-updater reads these, not the packages: without them a release
+      # is one nobody is ever offered, and that is worth failing over rather
+      # than finding out from a user who never got the update.
+      - name: Check the update metadata is there
+        run: |
+          for file in latest.yml latest-mac.yml latest-linux.yml; do
+            if [ ! -f "packages/$file" ]; then
+              echo "::error::packages/$file is missing - electron-updater needs it to offer this version"
+              exit 1
+            fi
+          done
+          ls -la packages
+
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes="docs/releases/RELEASE_NOTES_${version}.md"
+          if [ ! -f "$notes" ]; then
+            echo "::error::$notes is missing - the release contract requires notes for every version"
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --title "$version" \
+            --notes-file "$notes" \
+            packages/*

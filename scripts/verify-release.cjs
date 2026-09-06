@@ -6,6 +6,18 @@ const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 
+// Where releases are published. electron-builder writes the update metadata
+// against this, the application offers this release page to the builds that
+// cannot replace themselves, and the release workflow uploads here - three
+// files that have to agree, so the value lives in one.
+const GITHUB_OWNER = "maksimvpronin-byte";
+const GITHUB_REPO = "kubedeck";
+
+// What electron-updater fetches to learn a new version exists. A release
+// without these is a release nobody is ever offered, and that is worth failing
+// the build over rather than hearing about from a user who never got it.
+const UPDATE_METADATA = { windows: "latest.yml", mac: "latest-mac.yml", linux: "latest-linux.yml" };
+
 function argument(name) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : "";
@@ -175,8 +187,45 @@ function verifyArtifactVersioning(version) {
   const builder = read("apps/desktop/electron-builder.yml");
   assert(builder.includes("artifactName: ${productName}-${version}-${arch}.${ext}"), "macOS artifact name must use the package version");
   assert(builder.includes("artifactName: ${productName}-Portable-${version}-${arch}.${ext}"), "Windows portable artifact name must use the package version");
+  assert(builder.includes("artifactName: ${productName}-Setup-${version}-${arch}.${ext}"), "Windows installer artifact name must use the package version");
   assert(/^appImage:\s*$/m.test(builder) && /^linux:\s*$/m.test(builder), "electron-builder must define a Linux AppImage target");
+  // An artifact name is also a URL. electron-builder writes the name into
+  // latest*.yml, which is what the updater fetches, while GitHub turns spaces
+  // in an uploaded file name into dots - so a name with a space in it is one
+  // the updater asks for and never finds, and a failed update shows nothing.
+  for (const match of builder.matchAll(/^\s*artifactName:\s*(.+)$/gm)) {
+    const name = match[1].trim();
+    assert(!/\s/.test(name), `Artifact name must not contain spaces, because it becomes a URL: ${name}`);
+  }
   ok(`Cross-platform artifact versioning: ${version}`);
+}
+
+function verifyAutoUpdate(desktopPackage) {
+  assert(desktopPackage.dependencies?.["electron-updater"], "electron-updater must ship with the application, not merely be a development dependency");
+
+  const builder = read("apps/desktop/electron-builder.yml");
+  assert(/^publish:$/m.test(builder), "electron-builder must declare where releases are published, or it writes no update metadata at all");
+  assert(/^\s+provider: github$/m.test(builder), "Releases are published to GitHub");
+  assert(new RegExp(`^\\s+owner: ${GITHUB_OWNER}$`, "m").test(builder), `electron-builder must publish to ${GITHUB_OWNER}`);
+  assert(new RegExp(`^\\s+repo: ${GITHUB_REPO}$`, "m").test(builder), `electron-builder must publish to ${GITHUB_REPO}`);
+
+  // Nothing uploads from a packaging run. The release is assembled by one job
+  // at the end of the workflow, because electron-builder looks a release up by
+  // tag, a draft has no published tag, and every publish that asks is therefore
+  // told there is none and creates one of its own.
+  for (const script of ["dist:win", "dist:mac", "dist:linux"]) {
+    assert(/--publish never/.test(desktopPackage.scripts?.[script] ?? ""), `${script} must not publish for itself`);
+  }
+
+  const updates = read("apps/desktop/src/main/updates.ts");
+  assert(updates.includes(`https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`), "the release page the application offers must be the repository it publishes to");
+  assert(/autoUpdater\.autoDownload = false/.test(updates), "an update must not download itself unasked");
+
+  const main = read("apps/desktop/src/main/main.ts");
+  for (const channel of ["kubedeck:getUpdateState", "kubedeck:checkForUpdates", "kubedeck:downloadUpdate", "kubedeck:installUpdate", "kubedeck:openReleases"]) {
+    assert(main.includes(channel), `Main process must handle ${channel}`);
+  }
+  ok("Auto-update: publishes to GitHub, downloads nothing unasked");
 }
 
 function verifyLineEndingPolicy() {
@@ -187,6 +236,17 @@ function verifyLineEndingPolicy() {
   }
   assert(/^\*\.sh text eol=lf$/m.test(attributes), "Shell scripts must use LF");
   ok("Cross-platform line-ending policy");
+}
+
+// Run from the release workflow with the tag that triggered it. electron-updater
+// compares against the version baked into the application, not against the tag,
+// so a tag that disagrees publishes a release nobody is ever offered - and it is
+// cheaper to fail here than after three runners have spent half an hour.
+function verifyTag(version) {
+  const tag = argument("--tag");
+  if (!tag) return;
+  assert(tag === `v${version}`, `Tag ${tag} does not match the packaged version ${version}. Bump one to match the other.`);
+  ok(`Tag matches the packaged version: ${tag}`);
 }
 
 function verifyMacSignature(appBundle) {
@@ -206,8 +266,14 @@ function verifyReleasePayload(releaseDir, artifact, version, signed) {
     assert(!forbiddenNames.test(path.basename(target)), `Forbidden release payload: ${target}`);
     assert(!/[\\/]resources[\\/]backend(?:[\\/]|$)/i.test(target), `Forbidden backend payload: ${target}`);
   }
+  if (artifact) {
+    const metadata = UPDATE_METADATA[artifact];
+    assert(metadata, `Unknown artifact platform: ${artifact}`);
+    assert(fs.existsSync(path.join(resolved, metadata)), `${metadata} is missing - electron-updater needs it to offer this version`);
+  }
   if (artifact === "windows") {
     assert(fs.existsSync(path.join(resolved, `KubeDeck-Portable-${version}-x64.exe`)), "Windows portable artifact is missing");
+    assert(fs.existsSync(path.join(resolved, `KubeDeck-Setup-${version}-x64.exe`)), "Windows installer artifact is missing");
   }
   if (artifact === "mac") {
     assert(fs.existsSync(path.join(resolved, `KubeDeck-${version}-arm64.dmg`)), "macOS DMG artifact is missing");
@@ -243,7 +309,9 @@ try {
   verifyDocuments(contract, version);
   verifyLicensing();
   verifyArtifactVersioning(version);
+  verifyAutoUpdate(desktopPackage);
   verifyLineEndingPolicy();
+  verifyTag(version);
   verifyReleasePayload(argument("--release-dir"), argument("--artifact"), version, args.includes("--signed"));
   process.stdout.write("Release verification passed.\n");
 } catch (error) {

@@ -1,10 +1,25 @@
 name: Verify
 
+# Every branch, not only main. Until this said `'**'` the first time a commit
+# was compiled was after it had been merged - or, for a branch nobody opened a
+# pull request from, after its tag had been pushed and three packaging runners
+# had already started.
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
   workflow_dispatch:
+
+# A quick series of pushes should leave one run to read, not a queue of them.
+#
+# Keyed on the branch name, which the two events have to be made to say: a push
+# reports `refs/heads/foo` in `github.ref` while a pull request reports `foo` in
+# `head_ref`. Keying on either of those verbatim puts the two in different
+# groups and builds the same commit twice, once for the push and once for the
+# pull request from a branch in this repository.
+concurrency:
+  group: verify-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -30,9 +45,10 @@ jobs:
       - name: Verify source and contracts
         run: npm run verify
 
-      # Every fix ships as its own release here, so the version lives in six
-      # files and each one needs its release notes and regression checklist.
-      # Until now nothing but a local run checked that, and a release with a
-      # half-updated version would have gone green.
+      # The version lives in six files, and each release needs its notes and its
+      # regression checklist. Until this existed nothing but a local run checked
+      # that, and a release with a half-updated version would have gone green.
+      # The same verifier runs again in .github/workflows/release.yml, there
+      # with `--tag`, which is the check this one cannot make.
       - name: Verify release contract
         run: npm run verify:release

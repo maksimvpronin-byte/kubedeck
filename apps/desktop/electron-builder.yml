@@ -6,6 +6,20 @@ nodeGypRebuild: false
 buildDependenciesFromSource: false
 afterPack: scripts/electron-after-pack.cjs
 
+# Where the update metadata says the update lives. electron-updater reads
+# `latest*.yml` from the GitHub release, and electron-builder only writes those
+# files when it knows where the release will be - so without this block a
+# published release is one nobody is ever offered.
+#
+# Nothing is published from here. Every packaging script passes `--publish
+# never`, and the release is assembled by a single job at the end of
+# .github/workflows/release.yml; see the comment there for why electron-builder
+# is not allowed to upload for itself.
+publish:
+  provider: github
+  owner: maksimvpronin-byte
+  repo: kubedeck
+
 directories:
   output: release
 
@@ -27,9 +41,24 @@ win:
   # with CSC_IDENTITY_AUTO_DISCOVERY=false.
   signAndEditExecutable: true
   target:
+    # The installer is the only Windows artifact an update can replace in place,
+    # so it comes first and `latest.yml` points at it.
+    - target: nsis
+      arch:
+        - x64
     - target: portable
       arch:
         - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  # Named without spaces, because the name is also a URL. electron-builder
+  # writes the hyphenated form into `latest.yml` - which is what the updater
+  # fetches - while GitHub turns spaces in an uploaded file name into dots. The
+  # default "KubeDeck Setup 2.23.7.exe" is therefore asked for under a name the
+  # release does not hold, and a failed update shows the user nothing at all.
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
 
 portable:
   artifactName: ${productName}-Portable-${version}-${arch}.${ext}
@@ -45,6 +74,8 @@ mac:
     - target: dmg
       arch:
         - arm64
+    # Not an alternative download: Squirrel.Mac updates from a ZIP and only from
+    # a ZIP, so this is the file `latest-mac.yml` points at.
     - target: zip
       arch:
         - arm64
