@@ -56,7 +56,7 @@ nsis:
   # Named without spaces, because the name is also a URL. electron-builder
   # writes the hyphenated form into `latest.yml` - which is what the updater
   # fetches - while GitHub turns spaces in an uploaded file name into dots. The
-  # default "KubeDeck Setup 2.23.7.exe" is therefore asked for under a name the
+  # default, "KubeDeck Setup <version>.exe", is therefore asked for under a name
   # release does not hold, and a failed update shows the user nothing at all.
   artifactName: ${productName}-Setup-${version}-${arch}.${ext}
 

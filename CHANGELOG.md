@@ -1,3 +1,41 @@
+## 2.24.0 - A release you can be handed, rather than one you have to come and fetch
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**There had never been a release here.** The last tag is `v2.0.0-beta.1`, every
+build since was carried off the machine that made it, and the application had no
+way to learn that a newer version existed. A `v*` tag now runs
+`.github/workflows/release.yml`: a guard job checks the release contract and the
+tag against the version without installing anything, three runners package the
+platforms with the same scripts a build by hand uses, and one last job assembles
+a single draft. electron-builder is never allowed to upload for itself - it
+looks a release up by tag, a draft has no published tag, and every publish that
+asks is told there is none and creates a draft of its own.
+
+**About knows when it is out of date.** Nothing downloads unasked. The Windows
+portable build and an unsigned macOS build are told what exists and pointed at
+the release page, because neither can replace itself; the second is asked of
+`codesign` at runtime rather than assumed, so it corrects itself the day a
+certificate is configured. Windows gains an NSIS installer beside the portable
+executable, named without spaces, because the name is also a URL.
+
+**Three things had never worked, and nothing could have known.** An unsigned
+arm64 macOS bundle is refused by the kernel and reported as a damaged download -
+invisible while the DMG was carried by hand from the machine that built it. The
+Linux package had never been built at all: electron-builder names the executable
+after the npm package, and this one is scoped. And the Windows builder died on a
+diagnostic, because PowerShell turns a native command's redirected stderr into a
+terminating error and Node writes a warning while answering the question
+correctly. All three were found by packaging on a machine that had never built
+KubeDeck before.
+
+The contract grew to match: the tag against the version, the `publish` block
+without which no update metadata is written at all, `--publish never` in every
+packaging script, no whitespace in any artifact name, and `latest*.yml` in the
+payload. Verify now runs on every branch.
+
+Release notes: [docs/releases/RELEASE_NOTES_2.24.0.md](./docs/releases/RELEASE_NOTES_2.24.0.md)
+
 ## 2.23.7 - The selection that was never the editor's, and 173 rules that were not needed
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

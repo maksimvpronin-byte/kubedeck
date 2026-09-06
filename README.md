@@ -1,4 +1,4 @@
-# KubeDeck 2.23.7
+# KubeDeck 2.24.0
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -171,8 +171,11 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Portable-2.23.7-x64.exe
+apps\desktop\release\KubeDeck-Setup-2.24.0-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.24.0-x64.exe
 ```
+
+The installer is the artifact an update can replace in place; the portable executable has no installation to replace and is offered the release page instead.
 
 ## macOS Apple Silicon build
 
@@ -183,8 +186,8 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.23.7-arm64.dmg
-apps/desktop/release/KubeDeck-2.23.7-arm64.zip
+apps/desktop/release/KubeDeck-2.24.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.24.0-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
@@ -198,7 +201,7 @@ npm run package:linux
 Output:
 
 ```text
-apps/desktop/release/KubeDeck-2.23.7-x86_64.AppImage
+apps/desktop/release/KubeDeck-2.24.0-x86_64.AppImage
 ```
 
 The builder runs the full source gate, rebuilds `node-pty` for Electron, produces the AppImage, and validates the release payload. The AppImage is not signed.
@@ -284,8 +287,8 @@ Linux:
 
 ## Documentation
 
-- [Release notes 2.23.7](./docs/releases/RELEASE_NOTES_2.23.7.md)
-- [Regression checklist 2.23.7](./docs/releases/REGRESSION_CHECKLIST_2.23.7.md)
+- [Release notes 2.24.0](./docs/releases/RELEASE_NOTES_2.24.0.md)
+- [Regression checklist 2.24.0](./docs/releases/REGRESSION_CHECKLIST_2.24.0.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)
 - [Third-party notices](./docs/third-party-notices.md)
 
