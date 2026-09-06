@@ -149,9 +149,12 @@ jobs:
       # nobody wrote.
       - uses: actions/checkout@v4
 
+      # Not `packages`: this repository has a `packages/` of its own, and the
+      # checkout above puts it in exactly this directory. `packages/*` then
+      # globbed `packages/shared-types` and gh was asked to upload a folder.
       - uses: actions/download-artifact@v4
         with:
-          path: packages
+          path: release-artifacts
           merge-multiple: true
 
       # electron-updater reads these, not the packages: without them a release
@@ -160,12 +163,12 @@ jobs:
       - name: Check the update metadata is there
         run: |
           for file in latest.yml latest-mac.yml latest-linux.yml; do
-            if [ ! -f "packages/$file" ]; then
-              echo "::error::packages/$file is missing - electron-updater needs it to offer this version"
+            if [ ! -f "release-artifacts/$file" ]; then
+              echo "::error::release-artifacts/$file is missing - electron-updater needs it to offer this version"
               exit 1
             fi
           done
-          ls -la packages
+          ls -la release-artifacts
 
       - name: Draft the release
         env:
@@ -177,9 +180,19 @@ jobs:
             echo "::error::$notes is missing - the release contract requires notes for every version"
             exit 1
           fi
+          # Named one by one rather than globbed. A glob is always one stray
+          # directory away from asking gh to upload a folder, which is how the
+          # first attempt at this release ended.
+          mapfile -t assets < <(find release-artifacts -maxdepth 1 -type f | sort)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "::error::no artifacts were produced to publish"
+            exit 1
+          fi
+          printf 'Publishing %s files:\n' "${#assets[@]}"
+          printf '  %s\n' "${assets[@]}"
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --draft \
             --title "$version" \
             --notes-file "$notes" \
-            packages/*
+            "${assets[@]}"
