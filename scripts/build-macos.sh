@@ -128,7 +128,16 @@ if [[ -f "$ELECTRON_CACHE_ZIP" ]] && unzip -tqq "$ELECTRON_CACHE_ZIP" >/dev/null
   printf 'Using cached Electron archive: %s\n' "$ELECTRON_CACHE_ZIP"
   BUILDER_ARGS+=("--config.electronDist=$ELECTRON_CACHE_ZIP")
 fi
-npm --workspace apps/desktop run dist:mac -- "${BUILDER_ARGS[@]}"
+# Spelled out rather than expanded, because `set -u` and an empty array are the
+# pair that bash 3.2 - which is the bash macOS ships - treats as an unbound
+# variable. It never showed on a machine that had built KubeDeck before, where
+# the cache exists and the array never is empty; it failed on the first CI
+# runner, which by definition has no cache.
+if [[ ${#BUILDER_ARGS[@]} -gt 0 ]]; then
+  npm --workspace apps/desktop run dist:mac -- "${BUILDER_ARGS[@]}"
+else
+  npm --workspace apps/desktop run dist:mac
+fi
 
 step "Validating release artifacts"
 DMG="$RELEASE_DIR/KubeDeck-${ROOT_VERSION}-arm64.dmg"

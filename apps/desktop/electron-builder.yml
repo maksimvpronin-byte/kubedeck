@@ -85,6 +85,12 @@ dmg:
 
 linux:
   icon: assets/icon-512.png
+  # electron-builder names the Linux executable after the npm package rather
+  # than after productName, and this one is scoped: `@kubedeck/desktop` becomes
+  # `@kubedeckdesktop`, which it then refuses as a file name. Nothing caught it
+  # because the Linux package had never actually been built - the AppImage the
+  # README describes has been a description of an intention.
+  executableName: kubedeck
   category: Development
   synopsis: Desktop Kubernetes IDE
   desktop:

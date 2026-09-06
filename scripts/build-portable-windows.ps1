@@ -130,12 +130,32 @@ function Ensure-NpmDependencies {
     Write-Ok "npm dependencies OK."
 }
 
+function Test-NodeExpression {
+    param([Parameter(Mandatory = $true)][string]$Expression)
+    # Asks node a yes/no question without letting the asking fail the build.
+    #
+    # Under `$ErrorActionPreference = "Stop"` anything a native command writes
+    # to stderr becomes a terminating error, whatever its exit code - and node
+    # writes an ExperimentalWarning to stderr the moment a CommonJS `require`
+    # reaches an ES module, which is what rolldown now is. So the probe below
+    # reported "rolldown loads fine" as a failure of the whole build, and did it
+    # only where PowerShell 5.1 is the shell, which is every Windows runner.
+    $Previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & node -e $Expression 2>&1 | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    }
+    finally {
+        $ErrorActionPreference = $Previous
+    }
+}
+
 function Ensure-RolldownNativeModule {
     param([Parameter(Mandatory = $true)][string]$Root)
     Push-Location $Root
     try {
-        & node -e "require('rolldown')" 2>$null
-        if ($LASTEXITCODE -eq 0) {
+        if (Test-NodeExpression -Expression "require('rolldown')") {
             Write-Ok "Rolldown native module OK."
             return
         }
