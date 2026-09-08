@@ -42,6 +42,10 @@ export function truncateKubectlText(value: string, limit = ERROR_SNIPPET_CHARS):
 export function classifyKubectlError(stderr: string): string {
   const lowered = (stderr || "").toLowerCase();
 
+  // A stale resourceVersion comes back as a plain non-zero exit, and the line
+  // that explains it is redacted for anything named like a Secret - so the code
+  // is the only part of the failure a caller can still act on.
+  if (lowered.includes("operation cannot be fulfilled") || lowered.includes("please apply your changes to the latest version")) return "CONFLICT";
   if (lowered.includes("forbidden")) return "FORBIDDEN";
   if (lowered.includes("unauthorized") || lowered.includes("the server has asked for the client to provide credentials")) return "UNAUTHORIZED";
   if (lowered.includes("not found")) return "NOT_FOUND";

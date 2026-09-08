@@ -262,3 +262,125 @@ test("Secret HTTP handler does not log or audit decoded values", async (t) => {
   assert.equal(logs.join("\n").includes(secretValue), false);
   assert.equal(logs.join("\n").includes(largeEncoded), false);
 });
+
+test("Secret update contract", async (t) => {
+  const commands = [];
+  const auditEvents = [];
+  const logs = [];
+  const newValue = "n6r8#G2^9xBAgX3";
+
+  const configStore = {
+    load() {
+      return { settings: { kubectlPath: "kubectl", secretRevealTimeoutSeconds: 45 } };
+    },
+    getCluster() {
+      return { kubeconfigPath: "C:\\KubeDeck\\demo.yaml" };
+    },
+  };
+
+  const auditStore = {
+    append(event) {
+      auditEvents.push(event);
+    },
+  };
+
+  const runner = {
+    async runJson(command) {
+      commands.push(command);
+      const name = command.args[2];
+      return {
+        apiVersion: "v1",
+        kind: "Secret",
+        type: "Opaque",
+        immutable: name === "locked-secret",
+        metadata: {
+          namespace: "default",
+          name,
+          ...(name === "unversioned-secret" ? {} : { resourceVersion: "4711" }),
+        },
+        data: {
+          AWX_PASS: Buffer.from("old-password", "utf8").toString("base64"),
+          AWX_LOGIN: Buffer.from("awx", "utf8").toString("base64"),
+        },
+      };
+    },
+    async run(command) {
+      commands.push(command);
+      // The name travels inside the manifest on standard input, not in argv.
+      if (JSON.parse(command.stdinText).metadata.name === "stale-secret") {
+        throw new KubectlError({
+          code: "CONFLICT",
+          message: "kubectl command failed",
+          rawStderr: "[redacted sensitive line]",
+          commandPreview: "[redacted sensitive line]",
+        });
+      }
+      return { ok: true, stdout: "secret/app-secret\n", stderr: "", commandPreview: "kubectl replace", returnCode: 0 };
+    },
+  };
+
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    const handled = handleSecretRequest(request, response, pathname, configStore, auditStore, runner, (message) => logs.push(message));
+    if (!handled) {
+      response.statusCode = 404;
+      response.end();
+    }
+  });
+
+  const baseUrl = await listen(server);
+  t.after(async () => close(server));
+
+  const update = (name, payload) =>
+    fetch(`${baseUrl}/clusters/demo/secrets/default/${name}/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+  const okResponse = await update("app-secret", { key: "AWX_PASS", value: newValue });
+  assert.equal(okResponse.status, 200);
+  assert.deepEqual(await okResponse.json(), { ok: true });
+
+  // kubectl reads a manifest from standard input, but never a --patch-file:
+  // "-" there is a file name, and the update failed on every platform.
+  const written = commands.at(-1);
+  assert.deepEqual(written.args, ["replace", "-f", "-", "-n", "default", "-o", "name"]);
+  assert.equal(
+    written.args.some((arg) => arg.includes("--patch-file")),
+    false,
+  );
+
+  const sent = JSON.parse(written.stdinText);
+  assert.equal(sent.kind, "Secret");
+  assert.equal(sent.metadata.resourceVersion, "4711");
+  assert.equal(Buffer.from(sent.data.AWX_PASS, "base64").toString("utf8"), newValue);
+  assert.equal(Buffer.from(sent.data.AWX_LOGIN, "base64").toString("utf8"), "awx");
+  assert.equal(auditEvents.at(-1).action, "secret.update");
+  assert.equal(auditEvents.at(-1).status, "success");
+
+  const conflictResponse = await update("stale-secret", { key: "AWX_PASS", value: newValue });
+  assert.equal(conflictResponse.status, 409);
+  assert.equal((await conflictResponse.json()).detail.code, "SECRET_CONFLICT");
+  assert.equal(auditEvents.at(-1).action, "secret.update");
+  assert.equal(auditEvents.at(-1).status, "failed");
+
+  const unversionedResponse = await update("unversioned-secret", { key: "AWX_PASS", value: newValue });
+  assert.equal(unversionedResponse.status, 409);
+  assert.equal((await unversionedResponse.json()).detail.code, "SECRET_CONFLICT");
+
+  const immutableResponse = await update("locked-secret", { key: "AWX_PASS", value: newValue });
+  assert.equal(immutableResponse.status, 409);
+  assert.equal((await immutableResponse.json()).detail.code, "SECRET_IMMUTABLE");
+
+  const missingKeyResponse = await update("app-secret", { key: "NOPE", value: newValue });
+  assert.equal(missingKeyResponse.status, 404);
+  assert.equal((await missingKeyResponse.json()).detail.code, "SECRET_KEY_NOT_FOUND");
+
+  const missingValueResponse = await update("app-secret", { key: "AWX_PASS" });
+  assert.equal(missingValueResponse.status, 422);
+  assert.equal((await missingValueResponse.json()).detail.code, "INVALID_REQUEST");
+
+  assert.equal(JSON.stringify(auditEvents).includes(newValue), false);
+  assert.equal(logs.join("\n").includes(newValue), false);
+});

@@ -3,6 +3,7 @@ import type { AuditStore } from "../audit/auditStore";
 import { type ConfigStore } from "../config/configStore";
 import { readJsonBody, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
+import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
@@ -236,14 +237,39 @@ async function writeSecretUpdate(request: IncomingMessage, response: ServerRespo
   if (!Object.hasOwn(data, key)) throw new RequestValidationError(404, "SECRET_KEY_NOT_FOUND", "Secret key was not found");
   const metadata = isRecord(secret.metadata) ? secret.metadata : {};
   const resourceVersion = String(metadata.resourceVersion || "");
-  const escape = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
-  const patch = JSON.stringify([
-    { op: "test", path: "/metadata/resourceVersion", value: resourceVersion },
-    { op: "replace", path: `/data/${escape(key)}`, value: Buffer.from(body.value, "utf8").toString("base64") },
-  ]);
-  const command = clusterCommand(configStore, target.clusterId, ["patch", "secret", target.name, "-n", target.namespace, "--type=json", "--patch-file=-"], 30, SECRET_JSON_MAX_OUTPUT_BYTES);
-  command.stdinText = patch;
-  await runner.run(command);
+  // Without it the write has nothing to lose a race against, so refuse rather
+  // than overwrite whatever the cluster holds now.
+  if (!resourceVersion) throw new RequestValidationError(409, "SECRET_CONFLICT", "Secret was read without a resourceVersion; reload it and try again");
+
+  // `kubectl patch --patch-file` opens the path it is given, and has no reading
+  // of "-" as standard input, so the patch used to be looked for in a file
+  // named "-" and the update always failed. `replace -f -` does read standard
+  // input, which is what keeps the value out of the command line, the command
+  // preview and the log.
+  const next = { ...secret, data: { ...data, [key]: Buffer.from(body.value, "utf8").toString("base64") } };
+  const command = clusterCommand(configStore, target.clusterId, ["replace", "-f", "-", "-n", target.namespace, "-o", "name"], 30, SECRET_JSON_MAX_OUTPUT_BYTES);
+  command.stdinText = JSON.stringify(next);
+
+  try {
+    await runner.run(command);
+  } catch (error) {
+    auditStore.append({
+      action: "secret.update",
+      status: "failed",
+      clusterId: target.clusterId,
+      namespace: target.namespace,
+      resource: "secrets",
+      name: target.name,
+      message: "secret update failed",
+      extra: { key, decodedBytes: bytes },
+    });
+    // The resourceVersion travels inside the object, so a concurrent write is
+    // rejected by the API server rather than silently won.
+    if (error instanceof KubectlError && error.info.code === "CONFLICT") {
+      throw new RequestValidationError(409, "SECRET_CONFLICT", "Secret changed in the cluster since it was loaded; reload it and try again");
+    }
+    throw error;
+  }
   auditStore.append({
     action: "secret.update",
     status: "success",
