@@ -1,3 +1,27 @@
+## 2.24.1 - Saving a Secret, which had never worked
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**Editing a Secret value could not be saved, on any platform.** The update ran
+`kubectl patch --type=json --patch-file=-`, and `--patch-file` has no reading of
+`-` - kubectl opens the path it is handed, so the patch was looked for in a file
+named `-` and every save ended in `unable to read patch file`. It had shipped
+that way because the Secret contract covered keys, reveal and copy, and stopped
+where the write began. The write now goes through `kubectl replace -f -` with the
+manifest on standard input, the way the YAML route already applies one - which is
+also what keeps the value out of argv, out of the command preview and out of the
+log. The `resourceVersion` now travels inside the object instead of as a JSON
+Patch `test`, so a concurrent write is still refused rather than silently won.
+
+**A conflict says what happened.** Every kubectl line containing "secret" is
+redacted, and the message about a modified object names the resource - so the one
+sentence that explained the failure was replaced by `[redacted sensitive line]`.
+The classifier reads the raw output, names it `CONFLICT`, and the route turns it
+into 409 with a sentence a person can act on. A failed update is now written to
+the audit log, which recorded only successes before.
+
+Gateway tests: 174, up from 173.
+
 ## 2.24.0 - A release you can be handed, rather than one you have to come and fetch
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
