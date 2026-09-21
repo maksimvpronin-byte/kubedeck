@@ -6,6 +6,8 @@ import { containerNames, downloadTextFile, isAbortError } from "../components/po
 import type { ErrorInfo, ResourceRow } from "../types";
 import { toErrorInfo } from "../utils/errors";
 
+export const LOG_STREAM_RETRY_DELAYS_MS = [1000, 2000, 5000, 10_000, 30_000];
+
 interface Options {
   api: ApiClient;
   clusterId: string;
@@ -35,6 +37,10 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
   const podUid = pod?.uid ? String(pod.uid) : "";
   const podName = pod?.name ?? "";
   const podNamespace = pod ? String(pod.namespace || "_cluster") : "";
+  // The stream is keyed by what it reads, never by the row object: every table
+  // refresh hands the drawer a new object for the same pod, and a stream keyed
+  // by it was torn down and reopened - blanking the tab - on each one.
+  const streamContainer = logsContainer || (pod ? containerNames(pod)[0] : "") || "";
 
   useEffect(() => {
     setLogsFollow(false);
@@ -128,20 +134,35 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
   // transfer the whole tail again, whatever had changed. One socket carries one
   // `kubectl logs -f`, and lines arrive as the pod writes them.
   useEffect(() => {
-    if (!streaming || !pod) return;
-    const container = logsContainer || containerNames(pod)[0] || "";
+    if (!streaming || !podName) return;
+    const container = streamContainer;
     let socket: WebSocket | null = null;
     let closed = false;
     let reconnect: number | null = null;
     // Lines are appended in batches rather than one setState per line.
     let buffered: string[] = [];
     let flush: number | null = null;
+    // A new stream starts from its own tail, so its first batch replaces what
+    // the tab shows rather than being appended to it. Replacing on the first
+    // batch - not on open - keeps the old lines readable until the new ones are
+    // there; clearing on open is what made a reconnect flash "No log lines".
+    let replaceOnNextBatch = false;
+    // kubectl exiting 0 means the stream reached its end - the container
+    // stopped, the pod went away - and there is nothing to reconnect to.
+    // Any other exit is a failure to retry, further apart each time it repeats.
+    let finished = false;
+    let failures = 0;
 
     const commit = () => {
       flush = null;
       if (closed || buffered.length === 0) return;
       const appended = buffered.join("\n");
       buffered = [];
+      if (replaceOnNextBatch) {
+        replaceOnNextBatch = false;
+        setContent(appended);
+        return;
+      }
       setContent((current) => (current ? `${current}\n${appended}` : appended));
     };
 
@@ -155,15 +176,15 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
         if (socket !== next || closed) return;
         setLogsLoading(false);
         setError(null);
-        // The stream starts from its own tail, so the tab starts from it too
-        // rather than showing the previous load twice.
-        setContent("");
+        buffered = [];
+        replaceOnNextBatch = true;
       };
       next.onmessage = (event) => {
         if (socket !== next || closed) return;
         const message = api.parsePodLogsStreamMessage(String(event.data ?? ""));
         if (!message) return;
         if (message.type === "lines" && Array.isArray(message.lines)) {
+          failures = 0;
           if (message.dropped) buffered.push(`… ${message.dropped} lines dropped, the stream was ahead of the window …`);
           buffered.push(...message.lines);
           if (flush === null) flush = window.setTimeout(commit, 60);
@@ -174,6 +195,8 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
           return;
         }
         if (message.type === "ended") {
+          if (message.exitCode === 0) finished = true;
+          else failures += 1;
           commit();
           setLogsLoading(false);
         }
@@ -186,9 +209,12 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
         if (socket !== next || closed) return;
         socket = null;
         setLogsLoading(false);
-        // A dropped socket is retried once a second while follow is still on;
-        // turning follow off, or leaving the tab, stops it for good.
-        reconnect = window.setTimeout(connect, 1000);
+        // A dropped stream is retried while follow is still on - after 1s, then
+        // 2, 5, 10 and 30s while it keeps failing; turning follow off, or leaving
+        // the tab, stops it for good. A finished one is not retried: kubectl
+        // would end again at once. Refresh, or toggling follow, starts it again.
+        if (finished) return;
+        reconnect = window.setTimeout(connect, LOG_STREAM_RETRY_DELAYS_MS[Math.min(failures, LOG_STREAM_RETRY_DELAYS_MS.length - 1)]);
       };
     };
 
@@ -200,7 +226,7 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
       if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
       setLogsLoading(false);
     };
-  }, [api, clusterId, podUid, podName, podNamespace, streaming, logsContainer, logsTail, logsTimestamps, logsPrevious, setContent, setError, pod]);
+  }, [api, clusterId, podUid, podName, podNamespace, streaming, streamContainer, logsTail, logsTimestamps, logsPrevious, logsRefreshToken, setContent, setError]);
 
   async function downloadFullLogs() {
     if (!pod) return;

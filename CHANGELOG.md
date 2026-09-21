@@ -1,3 +1,19 @@
+## 2.24.4 - Following a pod's logs no longer flashes
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**With Follow on, the Logs tab flashed between the log and "No log lines".**
+Every table refresh hands the drawer a new row object for the same pod, and the
+log stream was keyed by that object: each refresh closed the stream, opened a
+new one, and the new one began by clearing the tab. The stream is now keyed by
+the pod, namespace, container and tail settings; a reconnect keeps the lines on
+screen until the new tail replaces them; a stream that ended because the
+container stopped is not reopened every second, and a failing one is retried
+further apart. The hint that still said Follow "refreshes every 3 seconds" now
+says it streams.
+
+Renderer tests: 268, up from 265.
+
 ## 2.24.3 - A failed refresh keeps what you were reading
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

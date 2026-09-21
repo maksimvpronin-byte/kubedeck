@@ -281,7 +281,7 @@ export function LogsTab({
           </button>
         </span>
       </div>
-      {follow ? <p className="terminal-muted">Follow mode refreshes bounded logs every 3 seconds.</p> : null}
+      {follow ? <p className="terminal-muted">Follow streams new lines as the pod writes them.</p> : null}
       <pre className="logs-output" ref={outputRef} onScroll={updateScrollStickiness}>
         {visibleLines.length === 0 ? (
           <span className="terminal-muted">No log lines.</span>
