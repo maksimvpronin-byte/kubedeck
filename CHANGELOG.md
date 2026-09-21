@@ -1,3 +1,16 @@
+## 2.24.5 - Node disk bars no longer flicker
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**On the Nodes table the Disk bars kept flashing.** A node list refresh replaces
+every row, and the rows it brings carry no disk reading: that comes from each
+node's kubelet, separately. The watch refreshes the list whenever a kubelet
+reports in, so on a wide cluster the Disk bars went blank and came back from the
+cache over and over. A refresh now keeps the reading on screen until the disk
+loader replaces it.
+
+Renderer tests: 269, up from 268.
+
 ## 2.24.4 - Following a pod's logs no longer flashes
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

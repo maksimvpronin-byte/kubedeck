@@ -202,3 +202,33 @@ test("stopping an aligned interval stops it", (t) => {
   clock.advanceTo(1_000_000_120_000);
   assert.equal(ticks.length, 1, "a stopped interval leaves nothing behind to fire");
 });
+
+test("a node list refresh keeps the disk reading on screen instead of blanking it", () => {
+  const model = loadTypeScript("utils/nodeDiskCarry.ts");
+  const previous = [
+    { uid: "a", name: "node-a", status: "Ready", diskUsage: "40Gi", diskUsagePercent: 40, diskObservedCapacity: "100Gi" },
+    { uid: "b", name: "node-b", status: "Ready", diskMetricsUnavailable: true },
+  ];
+  const next = [
+    { uid: "a", name: "node-a", status: "NotReady" },
+    { uid: "b", name: "node-b", status: "Ready" },
+    { uid: "c", name: "node-c", status: "Ready" },
+  ];
+
+  const carried = model.carryNodeDisk(previous, next);
+  // The list's own fields are the new ones; the disk reading is the old one.
+  assert.equal(carried[0].status, "NotReady");
+  assert.equal(carried[0].diskUsagePercent, 40);
+  assert.equal(carried[0].diskUsage, "40Gi");
+  assert.equal(carried[1].diskMetricsUnavailable, true);
+  // A node that was not there before has nothing to carry and is the same object.
+  assert.equal(carried[2], next[2]);
+
+  // A row that brings its own reading keeps it.
+  const own = [{ uid: "a", name: "node-a", diskUsagePercent: 55 }];
+  assert.equal(model.carryNodeDisk(previous, own)[0], own[0]);
+
+  // With nothing on screen the refresh is taken as it is.
+  assert.equal(model.carryNodeDisk(undefined, next), next);
+  assert.equal(model.carryNodeDisk([], next), next);
+});

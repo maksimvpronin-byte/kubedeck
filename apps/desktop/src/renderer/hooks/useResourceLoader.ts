@@ -5,6 +5,7 @@ import { beginBootStage, completeBootStage, failBootStage } from "../bootProgres
 import type { Cluster, ErrorInfo, ResourceRow } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { loadNamespaceResourceBatches, normalizeNamespaceSelection, resourceScopeKey } from "../utils/kubeResources";
+import { carryNodeDisk } from "../utils/nodeDiskCarry";
 
 const RESOURCE_LOAD_TIMEOUT_MS = 30_000;
 
@@ -151,10 +152,10 @@ export function useResourceLoader({
       try {
         const responses = await loadNamespaceResourceBatches(api, clusterId, nextResource, normalizedNamespaces, controller.signal, { useCache: false, forceRefresh: true });
         if (requestSequenceRef.current !== requestId) return false;
-        setRows((current) => ({
-          ...current,
-          [nextResource]: responses.flatMap((response) => response.items),
-        }));
+        setRows((current) => {
+          const items = responses.flatMap((response) => response.items);
+          return { ...current, [nextResource]: nextResource === "nodes" ? carryNodeDisk(current.nodes, items) : items };
+        });
         loadedScopeRef.current.set(nextResource, scopeKey);
         loadedAtRef.current.set(nextResource, Date.now());
         setLoadFailure?.((current) => (current?.resource === nextResource ? null : current));
