@@ -159,6 +159,172 @@ export function createWatchRestartController(
   };
 }
 
+export interface WatchStartReply {
+  id: string;
+  status?: string;
+  alreadyRunning?: boolean;
+}
+
+export interface WatchSocketMessage {
+  type?: string;
+  watchId?: string;
+}
+
+interface ResourceWatchSessionDeps {
+  startWatch: () => Promise<WatchStartReply>;
+  requestRefresh: () => void;
+  setHealthy: (healthy: boolean) => void;
+  schedule: (callback: () => void, delayMs: number) => number;
+  cancel: (timer: number) => void;
+  now: () => number;
+}
+
+export interface ResourceWatchSession {
+  start(): void;
+  socketConnecting(): void;
+  socketOpened(): void;
+  socketErrored(): void;
+  socketClosed(): void;
+  message(payload: WatchSocketMessage | null): void;
+  stop(): void;
+}
+
+// Whether a table may trust its live updates, kept apart from React and from
+// the socket so every order of events can be driven directly. It has twice
+// been where a race hid, so the rules are written down here:
+//
+// - Healthy means the socket is open AND the gateway has confirmed, since that
+//   socket opened, a kubectl watch that is running and was not reported ended.
+// - The watch is asked for on start and again on every socket open: an end
+//   announced while no socket listened is otherwise never heard of. The
+//   gateway shares one watch per scope, so asking again starts nothing.
+// - Losing the watch, a socket gap, or the gateway reporting a different watch
+//   than before means changes were missed: the table is reloaded, and reloaded
+//   once more when a confirmed watch is back, because the watch is
+//   `--watch-only` and does not replay the list.
+// - A lost watch is started again with a growing delay (see
+//   createWatchRestartController).
+export function createResourceWatchSession(deps: ResourceWatchSessionDeps): ResourceWatchSession {
+  const restarts = createWatchRestartController(deps.schedule, deps.cancel, deps.now);
+  let closed = false;
+  let backendReady = false;
+  let socketReady = false;
+  let watchId: string | null = null;
+  let starting = false;
+  let verifyAfterStart = false;
+  const endedDuringStart = new Set<string>();
+  let reloadWhenBack = false;
+  // The last watch the gateway reported, confirmed or not. A different one
+  // later means the old one ended at some point - possibly while no socket
+  // was listening - and whatever it missed has to be reloaded.
+  let lastReportedId: string | null = null;
+
+  const updateHealth = () => {
+    if (!closed) deps.setHealthy(backendReady && socketReady);
+  };
+
+  const watchLost = () => {
+    watchId = null;
+    backendReady = false;
+    reloadWhenBack = true;
+    updateHealth();
+    deps.requestRefresh();
+    restarts.lost(ensureWatch);
+  };
+
+  function ensureWatch(verifySocket = false) {
+    if (closed) return;
+    if (starting) {
+      // A request begun before the socket opened can describe a watch whose
+      // end had no subscriber. Confirm it once the socket is listening.
+      if (verifySocket) verifyAfterStart = true;
+      return;
+    }
+    starting = true;
+    endedDuringStart.clear();
+    deps
+      .startWatch()
+      .then((started) => {
+        starting = false;
+        if (closed) return;
+        if (lastReportedId !== null && started.id !== lastReportedId) reloadWhenBack = true;
+        lastReportedId = started.id;
+        if (started.status !== "running" || endedDuringStart.has(started.id)) {
+          verifyAfterStart = false;
+          watchLost();
+          return;
+        }
+        if (verifyAfterStart) {
+          verifyAfterStart = false;
+          ensureWatch();
+          return;
+        }
+        if (started.id !== watchId) restarts.started();
+        watchId = started.id;
+        backendReady = true;
+        updateHealth();
+        if (reloadWhenBack && socketReady) {
+          reloadWhenBack = false;
+          deps.requestRefresh();
+        }
+      })
+      .catch(() => {
+        starting = false;
+        if (closed) return;
+        verifyAfterStart = false;
+        watchId = null;
+        backendReady = false;
+        // Until a watch is back, nothing reports changes; the ones in between
+        // are for the reload that follows it.
+        reloadWhenBack = true;
+        updateHealth();
+        restarts.lost(ensureWatch);
+      });
+  }
+
+  return {
+    start() {
+      ensureWatch();
+    },
+    socketConnecting() {
+      socketReady = false;
+      updateHealth();
+    },
+    socketOpened() {
+      if (closed) return;
+      socketReady = true;
+      backendReady = false;
+      updateHealth();
+      ensureWatch(true);
+    },
+    socketErrored() {
+      if (closed) return;
+      socketReady = false;
+      reloadWhenBack = true;
+      updateHealth();
+    },
+    socketClosed() {
+      if (closed) return;
+      socketReady = false;
+      backendReady = false;
+      reloadWhenBack = true;
+      updateHealth();
+    },
+    message(payload) {
+      if (closed || !payload) return;
+      if (payload.type === "resource.changed") deps.requestRefresh();
+      if (payload.type !== "watch.ended") return;
+      if (starting && payload.watchId) endedDuringStart.add(payload.watchId);
+      // An end of a watch that was already replaced is old news.
+      if (!watchId || !payload.watchId || payload.watchId === watchId) watchLost();
+    },
+    stop() {
+      closed = true;
+      restarts.stop();
+    },
+  };
+}
+
 export function useResourceWatch({ api, clusterId, resource, namespaces, clusterScoped, enabled, refresh }: UseResourceWatchOptions) {
   const [watchHealthy, setWatchHealthy] = useState(false);
 
@@ -168,11 +334,6 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
     const watchNamespace = clusterScoped ? "_cluster" : namespaces.length === 1 ? namespaces[0] : "all";
     let socket: WebSocket | null = null;
     let closed = false;
-    let backendReady = false;
-    let socketReady = false;
-    const updateHealth = () => {
-      if (!closed) setWatchHealthy(backendReady && socketReady);
-    };
 
     const coalescer = createWatchRefreshCoalescer(
       () => {
@@ -182,73 +343,16 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
       window.clearTimeout,
       Date.now,
     );
-
-    // Healthy means a kubectl watch is running behind the socket, not only that
-    // the socket is open. The watch is (re)started here, and asked for again
-    // whenever the socket (re)opens: an end announced while no socket was
-    // listening is otherwise never heard of. The backend shares one watch per
-    // scope, so asking for a running one costs a request and starts nothing.
-    const restarts = createWatchRestartController(window.setTimeout, window.clearTimeout, Date.now);
-    let watchId: string | null = null;
-    let starting = false;
-    let verifyAfterStart = false;
-    const endedDuringStart = new Set<string>();
-    // The table missed whatever happened between losing the watch and getting
-    // it back (it is `--watch-only`, so a new one does not replay the list).
-    let reloadWhenBack = false;
-    const ensureWatch = (verifySocket = false) => {
-      if (closed) return;
-      if (starting) {
-        // A request begun before the socket opened can describe a watch whose
-        // end had no subscriber. Confirm it once the socket is listening.
-        if (verifySocket) verifyAfterStart = true;
-        return;
-      }
-      starting = true;
-      endedDuringStart.clear();
-      void api
-        .startWatch(clusterId, resource, watchNamespace)
-        .then((started) => {
-          starting = false;
-          if (closed) return;
-          if (started.status !== "running" || endedDuringStart.has(started.id)) {
-            verifyAfterStart = false;
-            watchLost();
-            return;
-          }
-          if (verifyAfterStart) {
-            verifyAfterStart = false;
-            ensureWatch();
-            return;
-          }
-          if (started.id !== watchId) restarts.started();
-          watchId = started.id;
-          backendReady = true;
-          updateHealth();
-          if (reloadWhenBack && socketReady) {
-            reloadWhenBack = false;
-            coalescer.requestRefresh();
-          }
-        })
-        .catch(() => {
-          starting = false;
-          if (closed) return;
-          verifyAfterStart = false;
-          watchId = null;
-          backendReady = false;
-          updateHealth();
-          restarts.lost(ensureWatch);
-        });
-    };
-    const watchLost = () => {
-      watchId = null;
-      backendReady = false;
-      reloadWhenBack = true;
-      updateHealth();
-      coalescer.requestRefresh();
-      restarts.lost(ensureWatch);
-    };
-    ensureWatch();
+    // The socket belongs to this hook; what its events mean is the session's.
+    const session = createResourceWatchSession({
+      startWatch: () => api.startWatch(clusterId, resource, watchNamespace),
+      requestRefresh: () => coalescer.requestRefresh(),
+      setHealthy: setWatchHealthy,
+      schedule: window.setTimeout,
+      cancel: window.clearTimeout,
+      now: Date.now,
+    });
+    session.start();
 
     const reconnectController = createWatchReconnectController(window.setTimeout, window.clearTimeout);
     const connectSocket = () => {
@@ -256,37 +360,22 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
       try {
         const nextSocket = new WebSocket(api.resourceWatchEventsUrl(clusterId, resource, watchNamespace));
         socket = nextSocket;
-        socketReady = false;
-        updateHealth();
+        session.socketConnecting();
         const generation = reconnectController.connectionStarted();
+        // Every handler ignores a socket that has already been replaced.
         nextSocket.onopen = () => {
-          if (socket !== nextSocket || closed) return;
-          socketReady = true;
-          backendReady = false;
-          updateHealth();
-          ensureWatch(true);
+          if (socket === nextSocket && !closed) session.socketOpened();
         };
         nextSocket.onmessage = (event) => {
-          if (socket !== nextSocket || closed) return;
-          const payload = api.parseResourceWatchEvent(String(event.data ?? ""));
-          if (payload?.type === "resource.changed") coalescer.requestRefresh();
-          if (starting && payload?.type === "watch.ended" && payload.watchId) endedDuringStart.add(payload.watchId);
-          // An end of a watch that was already replaced is old news.
-          if (payload?.type === "watch.ended" && (!watchId || !payload.watchId || payload.watchId === watchId)) watchLost();
+          if (socket === nextSocket && !closed) session.message(api.parseResourceWatchEvent(String(event.data ?? "")));
         };
         nextSocket.onerror = () => {
-          if (socket !== nextSocket || closed) return;
-          socketReady = false;
-          reloadWhenBack = true;
-          updateHealth();
+          if (socket === nextSocket && !closed) session.socketErrored();
         };
         nextSocket.onclose = () => {
           if (socket === nextSocket) {
             socket = null;
-            socketReady = false;
-            backendReady = false;
-            reloadWhenBack = true;
-            updateHealth();
+            session.socketClosed();
           }
           reconnectController.connectionClosed(generation, connectSocket);
         };
@@ -299,9 +388,9 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
 
     return () => {
       closed = true;
+      session.stop();
       setWatchHealthy(false);
       reconnectController.stop();
-      restarts.stop();
       coalescer.stop();
       if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
     };

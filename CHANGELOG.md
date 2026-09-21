@@ -1,3 +1,24 @@
+## 2.24.3 - A failed refresh keeps what you were reading
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**A failed refresh keeps the last good rows** of the scope on screen, with a bar
+naming the time they were read, the reason, and Retry. A permission error, a
+different scope or a lost cluster still clear them.
+
+**The error panel offers the next step**: Open Settings when kubectl is missing,
+Retry when the error is the table's own failed load - and nothing where a retry
+would repeat the wrong request. **The port-forward window** follows the
+interface language.
+
+**Live updates are checked through every order of events.** The logic moved out
+of the React hook into a session driven by a test through all 46,656 sequences
+of six events against a model of the gateway. It found two gaps: a watch that
+died before its socket opened, and a refused start, both left changes
+unreloaded once a watch came back. Both reload now.
+
+Renderer tests: 265, up from 259. Gateway tests: 182.
+
 ## 2.24.2 - What the screen says is what the cluster is doing
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

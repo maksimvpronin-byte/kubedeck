@@ -11,6 +11,7 @@ const { createTestScheduler } = require("./helpers/renderer.cjs");
 const { useNamespaceRefresh } = loadComponent("hooks/useNamespaceRefresh.ts");
 const { useCrdDefinitions } = loadComponent("hooks/useCrdDefinitions.ts");
 const { ErrorPanel } = loadComponent("components/ErrorPanel.tsx");
+const { PortForwardModal } = loadComponent("components/PortForwardModal.tsx");
 // The test loader does not read JSON, so the dictionary is handed over as i18n.ts would.
 const russian = JSON.parse(fs.readFileSync(path.join(rendererRoot, "locales/ru.json"), "utf8"));
 const translateRu = (key) => russian[key] ?? key;
@@ -188,5 +189,65 @@ test("an error names what was refused, in the interface language, with the code 
     assert.doesNotMatch(english.container.textContent, /hotfix/);
   } finally {
     english.unmount();
+  }
+});
+
+test("an error offers the step that fixes it, and only one that makes sense", () => {
+  const calls = [];
+  const kubectlMissing = { code: "KUBECTL_NOT_FOUND", message: "kubectl not found: kubectl", rawStderr: "", commandPreview: "" };
+  const view = mount(React.createElement(ErrorPanel, { error: kubectlMissing, copyLabel: "Copy", t: translateRu, onRetry: () => calls.push("retry"), onOpenSettings: () => calls.push("settings") }));
+  try {
+    const buttons = view.all(".error-actions button").map((button) => button.textContent);
+    assert.deepEqual(buttons, ["Открыть настройки"], "trying again does not find a missing kubectl");
+    view.click(view.first(".error-actions button"));
+    assert.deepEqual(calls, ["settings"]);
+  } finally {
+    view.unmount();
+  }
+
+  const timeout = { code: "RESOURCE_LOAD_TIMEOUT", message: "pods refresh did not finish", rawStderr: "", commandPreview: "" };
+  const retryable = mount(React.createElement(ErrorPanel, { error: timeout, copyLabel: "Copy", t: translateRu, onRetry: () => calls.push("retry") }));
+  try {
+    assert.deepEqual(
+      retryable.all(".error-actions button").map((button) => button.textContent),
+      ["Повторить"],
+    );
+  } finally {
+    retryable.unmount();
+  }
+
+  const withoutActions = mount(React.createElement(ErrorPanel, { error: timeout, copyLabel: "Copy" }));
+  try {
+    assert.ok(!withoutActions.first(".error-actions"), "no button when the caller cannot say what again means");
+  } finally {
+    withoutActions.unmount();
+  }
+});
+
+test("the port-forward window speaks the interface language", () => {
+  const draft = { namespace: "default", resource: "pod", name: "api", localPort: 0, remotePort: 8080 };
+  const view = mount(
+    React.createElement(PortForwardModal, {
+      draft,
+      row: { uid: "1", name: "api", namespace: "default", ports: "8080/TCP" },
+      error: null,
+      copyLabel: "Copy",
+      loading: false,
+      onDraftChange: () => {},
+      onCancel: () => {},
+      onStart: () => {},
+      t: translateRu,
+    }),
+  );
+  try {
+    assert.equal(view.text("#port-forward-title"), "Проброс порта");
+    assert.match(view.container.textContent, /Сделать pod\/api доступным на localhost/);
+    assert.deepEqual(
+      view.all("footer button").map((button) => button.textContent),
+      ["Отмена", "Запустить"],
+    );
+    assert.doesNotMatch(view.container.textContent, /Remote port|Auto-pick|Cancel/);
+  } finally {
+    view.unmount();
   }
 });

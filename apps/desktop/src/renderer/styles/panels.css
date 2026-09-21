@@ -124,6 +124,32 @@
   max-width: 560px;
 }
 
+.resource-table-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--danger-border);
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.resource-table-stale span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.resource-table-stale button {
+  flex: 0 0 auto;
+}
+
+.error-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
 .error-scope {
   font-weight: 600;
 }

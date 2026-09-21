@@ -11,27 +11,49 @@ interface PortForwardModalProps {
   onDraftChange: (draft: PortForwardStartRequest) => void;
   onCancel: () => void;
   onStart: () => void;
+  t?: (key: string) => string;
 }
 
-export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraftChange, onCancel, onStart }: PortForwardModalProps) {
+const ENGLISH: Record<string, string> = {
+  "portForward.title": "Port forward",
+  "portForward.close": "Close",
+  "portForward.expose": "Expose {target} on localhost.",
+  "portForward.detectedPorts": "Detected ports",
+  "portForward.noPorts": "No ports were detected for this resource. Enter the remote container port explicitly.",
+  "portForward.remotePort": "Remote port",
+  "portForward.remotePlaceholder": "remote port",
+  "portForward.localPort": "Local port",
+  "portForward.auto": "auto",
+  "portForward.autoPick": "Auto-pick free local port",
+  "portForward.autoNote": "KubeDeck will replace auto with a free high local port after Start.",
+  "portForward.busyNote": "If the requested local port is busy, KubeDeck will fail clearly instead of stealing another process port.",
+  "portForward.cancel": "Cancel",
+  "portForward.start": "Start",
+  "portForward.starting": "Starting...",
+};
+
+export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraftChange, onCancel, onStart, t }: PortForwardModalProps) {
   const portChoices = portChoicesForRow(row, draft.remotePort);
+  // Without a translator the window speaks English, as it always did.
+  const say = (key: string) => {
+    const translated = t?.(key);
+    return translated && translated !== key ? translated : (ENGLISH[key] ?? key);
+  };
 
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="confirm-modal port-forward-modal" role="dialog" aria-modal="true" aria-labelledby="port-forward-title">
         <header>
-          <h2 id="port-forward-title">Port forward</h2>
-          <button className="icon-button" onClick={onCancel} title="Close">
+          <h2 id="port-forward-title">{say("portForward.title")}</h2>
+          <button className="icon-button" onClick={onCancel} title={say("portForward.close")}>
             <X size={16} />
           </button>
         </header>
         <div className="confirm-body">
-          <p>
-            Expose {draft.resource}/{draft.name} on localhost.
-          </p>
-          <ErrorPanel error={error} copyLabel={copyLabel} />
+          <p>{say("portForward.expose").replace("{target}", `${draft.resource}/${draft.name}`)}</p>
+          <ErrorPanel error={error} copyLabel={copyLabel} t={t} />
           {portChoices.length ? (
-            <div className="port-forward-port-pills" aria-label="Detected ports">
+            <div className="port-forward-port-pills" aria-label={say("portForward.detectedPorts")}>
               {portChoices.map((port) => (
                 <button key={port} type="button" className={draft.remotePort === port ? "active" : ""} onClick={() => onDraftChange({ ...draft, remotePort: port })}>
                   {port}
@@ -39,28 +61,28 @@ export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraf
               ))}
             </div>
           ) : (
-            <p className="muted">No ports were detected for this resource. Enter the remote container port explicitly.</p>
+            <p className="muted">{say("portForward.noPorts")}</p>
           )}
           <div className="port-forward-grid">
             <label className="confirm-field">
-              Remote port
+              {say("portForward.remotePort")}
               <input
                 type="number"
                 min="1"
                 max="65535"
                 value={draft.remotePort === 0 ? "" : draft.remotePort}
-                placeholder="remote port"
+                placeholder={say("portForward.remotePlaceholder")}
                 onChange={(event) => onDraftChange({ ...draft, remotePort: event.target.value ? Number(event.target.value) : 0 })}
               />
             </label>
             <label className="confirm-field">
-              Local port
+              {say("portForward.localPort")}
               <input
                 type="number"
                 min="1"
                 max="65535"
                 value={draft.localPort === 0 ? "" : draft.localPort}
-                placeholder="auto"
+                placeholder={say("portForward.auto")}
                 disabled={draft.localPort === 0}
                 onChange={(event) => onDraftChange({ ...draft, localPort: Number(event.target.value) })}
               />
@@ -68,20 +90,20 @@ export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraf
           </div>
           <label className="inline-check">
             <input type="checkbox" checked={draft.localPort === 0} onChange={(event) => onDraftChange({ ...draft, localPort: event.target.checked ? 0 : suggestedLocalPort(draft.remotePort) })} />
-            Auto-pick free local port
+            {say("portForward.autoPick")}
           </label>
           <code>
             kubectl port-forward -n {draft.namespace} {draft.resource}/{draft.name} {portForwardLocalPreview(draft.localPort)}:{portForwardRemotePreview(draft.remotePort)}
           </code>
-          {draft.localPort === 0 ? <p className="muted">KubeDeck will replace auto with a free high local port after Start.</p> : null}
-          <p className="muted">If the requested local port is busy, KubeDeck will fail clearly instead of stealing another process port.</p>
+          {draft.localPort === 0 ? <p className="muted">{say("portForward.autoNote")}</p> : null}
+          <p className="muted">{say("portForward.busyNote")}</p>
         </div>
         <footer>
           <button onClick={onCancel} disabled={loading}>
-            Cancel
+            {say("portForward.cancel")}
           </button>
           <button className="primary" onClick={onStart} disabled={loading || !validLocalPort(draft.localPort) || !validPort(draft.remotePort)}>
-            {loading ? "Starting..." : "Start"}
+            {loading ? say("portForward.starting") : say("portForward.start")}
           </button>
         </footer>
       </section>

@@ -8,6 +8,10 @@ interface Props {
   copyLabel: string;
   // Without a translator the panel speaks English, as it did before.
   t?: (key: string) => string;
+  // What the user can do about it from here. Offered only when the caller
+  // knows what "again" means - a retry of the wrong request is worse than none.
+  onRetry?: () => void;
+  onOpenSettings?: () => void;
 }
 
 type ErrorKind = "timeout" | "forbidden" | "kubectl" | "cluster" | "backend" | "notFound" | "generic";
@@ -15,6 +19,8 @@ type ErrorKind = "timeout" | "forbidden" | "kubectl" | "cluster" | "backend" | "
 const ENGLISH: Record<string, string> = {
   "error.whatToCheck": "What to check",
   "error.details": "Technical details",
+  "error.retry": "Retry",
+  "error.openSettings": "Open Settings",
   "error.kind.timeout": "The cluster did not answer in time",
   "error.kind.forbidden": "Access denied",
   "error.kind.kubectl": "kubectl not found",
@@ -38,7 +44,7 @@ const ENGLISH: Record<string, string> = {
   "error.hint.notFound.2": "Refresh the table and open the newest instance.",
 };
 
-export function ErrorPanel({ error, title, copyLabel, t }: Props) {
+export function ErrorPanel({ error, title, copyLabel, t, onRetry, onOpenSettings }: Props) {
   if (!error) return null;
   const say = (key: string) => {
     const translated = t?.(key);
@@ -49,6 +55,9 @@ export function ErrorPanel({ error, title, copyLabel, t }: Props) {
   const hints = kind === "generic" ? [] : [say(`error.hint.${kind}.1`), say(`error.hint.${kind}.2`)];
   const text = [error.code, error.message, sanitizeCommandPreview(error.commandPreview), error.rawStderr].filter(Boolean).join("\n\n");
   const hasDetails = Boolean(error.code || error.commandPreview || error.rawStderr);
+  // A missing kubectl is not fixed by trying again; the path is in Settings.
+  const settingsAction = kind === "kubectl" && onOpenSettings;
+  const retryAction = kind !== "kubectl" && onRetry;
   return (
     <section className="error-panel" role="alert">
       <div className="error-header">
@@ -71,6 +80,20 @@ export function ErrorPanel({ error, title, copyLabel, t }: Props) {
               <li key={hint}>{hint}</li>
             ))}
           </ul>
+        </div>
+      ) : null}
+      {settingsAction || retryAction ? (
+        <div className="error-actions">
+          {settingsAction ? (
+            <button className="secondary-btn" type="button" onClick={onOpenSettings}>
+              {say("error.openSettings")}
+            </button>
+          ) : null}
+          {retryAction ? (
+            <button className="secondary-btn" type="button" onClick={onRetry}>
+              {say("error.retry")}
+            </button>
+          ) : null}
         </div>
       ) : null}
       {hasDetails ? (

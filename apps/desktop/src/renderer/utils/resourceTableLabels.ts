@@ -22,5 +22,7 @@ export function createResourceTableLabels(t: (key: string) => string) {
     updating: t("resources.updating"),
     loadFailedTitle: t("resources.loadFailedTitle"),
     retry: t("resources.retry"),
+    staleSince: t("resources.staleSince"),
+    staleUnknown: t("resources.staleUnknown"),
   };
 }

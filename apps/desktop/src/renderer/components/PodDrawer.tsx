@@ -378,6 +378,7 @@ export function PodDrawer({
           onDraftChange={setPortForwardDraft}
           onCancel={closePortForwardDraft}
           onStart={startPortForward}
+          t={t}
         />
       ) : null}
       {yamlApplyConfirmOpen && pod ? (

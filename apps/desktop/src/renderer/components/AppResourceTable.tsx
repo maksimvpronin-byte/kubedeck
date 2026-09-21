@@ -11,7 +11,7 @@ interface Props {
   rows: ResourceRow[];
   columns: Column[];
   loading: boolean;
-  loadError?: { message: string } | null;
+  loadError?: { message: string; staleSince?: number } | null;
   selectedRow: ResourceRow | null;
   canBulkDelete: boolean;
   t: (key: string) => string;

@@ -198,7 +198,10 @@ export function App() {
     setError,
     setLoadFailure: setResourceLoadFailure,
   });
-  const resourceLoadError = resourceLoadFailure && resourceLoadFailure.clusterId === activeCluster?.id && resourceLoadFailure.resource === resourceTab ? resourceLoadFailure.error : null;
+  const resourceLoadError =
+    resourceLoadFailure && resourceLoadFailure.clusterId === activeCluster?.id && resourceLoadFailure.resource === resourceTab
+      ? { message: resourceLoadFailure.error.message, staleSince: resourceLoadFailure.staleSince }
+      : null;
   actionReloadRef.current = async (clusterId, resource, targetNamespaces) => {
     await loadResources(clusterId, resource, targetNamespaces);
   };
@@ -522,7 +525,16 @@ export function App() {
                   </div>
                 </section>
               ) : null}
-              <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} t={t} />
+              <ErrorPanel
+                error={error}
+                title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined}
+                copyLabel={t("error.copy")}
+                t={t}
+                // Retry only when the error is this table's failed load: the same panel
+                // also shows errors of searches and actions, which a table reload would not repeat.
+                onRetry={error && resourceLoadFailure?.error === error ? () => void loadResources() : undefined}
+                onOpenSettings={() => selectSection("settings")}
+              />
               <AppSectionRouter
                 section={section}
                 resourceTab={resourceTab}

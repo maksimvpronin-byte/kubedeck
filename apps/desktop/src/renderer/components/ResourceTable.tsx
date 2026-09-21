@@ -21,7 +21,7 @@ interface Props {
   loading: boolean;
   // Why the last load of this table failed, if it did. Without it an
   // unreadable list and an empty one look the same.
-  loadError?: { message: string } | null;
+  loadError?: { message: string; staleSince?: number } | null;
   onRefresh: () => void | boolean | Promise<void | boolean>;
   onOpen?: (row: ResourceRow) => void;
   onPin?: (row: ResourceRow) => void;
@@ -59,6 +59,8 @@ interface Props {
     updating: string;
     loadFailedTitle: string;
     retry: string;
+    staleSince: string;
+    staleUnknown: string;
   }>;
 }
 
@@ -105,6 +107,8 @@ export function ResourceTable({
     updating: labels?.updating ?? "updating...",
     loadFailedTitle: labels?.loadFailedTitle ?? "The list could not be loaded",
     retry: labels?.retry ?? "Retry",
+    staleSince: labels?.staleSince ?? "Could not refresh. Showing the list from {time}.",
+    staleUnknown: labels?.staleUnknown ?? "Could not refresh. The list shown may be out of date.",
   };
 
   const filterInputRef = useRef<HTMLInputElement | null>(null);
@@ -220,6 +224,10 @@ export function ResourceTable({
   const showErrorState = !loading && Boolean(loadError) && rows.length === 0;
   const showEmptyState = !loading && !showErrorState && renderedRows.length === 0;
   const refreshing = loading && rows.length > 0;
+  // A failed refresh that kept the last good rows says so, and how old they are.
+  const showStaleNotice = !loading && Boolean(loadError) && rows.length > 0;
+  const staleText =
+    loadError?.staleSince !== undefined ? ui.staleSince.replace("{time}", new Date(loadError.staleSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) : ui.staleUnknown;
   const emptyTitle = filteredEmpty ? ui.emptyFilteredTitle : ui.emptyTitle;
   const emptyText = filteredEmpty ? ui.emptyFilteredText : ui.emptyText;
 
@@ -304,6 +312,17 @@ export function ResourceTable({
           </div>
         </div>
       </div>
+
+      {showStaleNotice ? (
+        <div className="resource-table-stale" role="alert">
+          <span>
+            <strong>{staleText}</strong> {loadError?.message}
+          </span>
+          <button className="secondary-btn" type="button" onClick={() => void onRefresh()}>
+            {ui.retry}
+          </button>
+        </div>
+      ) : null}
 
       <div className="table-scroll" ref={scrollRef} onScroll={onScroll}>
         <table className="resource-table" style={{ width: tableWidth }}>

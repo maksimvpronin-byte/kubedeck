@@ -359,6 +359,47 @@ test("a failed load is recorded for its table and cleared by the next success", 
   }
 });
 
+test("a failed refresh keeps the last good rows of the same scope, with their age", async () => {
+  const previousWindow = global.window;
+  global.window = { setTimeout: () => 0, clearTimeout: () => undefined };
+  const realNow = Date.now;
+  try {
+    const { load, batches, state } = createResourceLoaderHarness();
+    Date.now = () => 1_000_000;
+    const first = load("cluster-a", "pods", ["team-a"]);
+    batches[0].resolve([{ items: [{ uid: "pod-a" }] }]);
+    assert.equal(await first, true);
+
+    // The VPN drops: the next refresh of the same scope fails.
+    Date.now = () => 2_000_000;
+    const refresh = load("cluster-a", "pods", ["team-a"]);
+    batches[1].reject(new Error("read tcp: connection reset by peer"));
+    assert.equal(await refresh, false);
+    assert.deepEqual(state.rows.pods, [{ uid: "pod-a" }], "the rows stay on screen");
+    assert.equal(state.loadFailure.staleSince, 1_000_000, "marked with when they were read");
+
+    // A refusal does not keep them: access was withdrawn.
+    const refused = load("cluster-a", "pods", ["team-a"]);
+    batches[2].reject(new Error('pods is forbidden: User "dev" cannot list resource "pods"'));
+    assert.equal(await refused, false);
+    assert.deepEqual(state.rows.pods, []);
+    assert.equal(state.loadFailure.staleSince, undefined);
+
+    // Nor does a failure of another scope: those rows were never this scope's.
+    const good = load("cluster-a", "pods", ["team-a"]);
+    batches[3].resolve([{ items: [{ uid: "pod-a" }] }]);
+    await good;
+    const other = load("cluster-a", "pods", ["team-b"]);
+    batches[4].reject(new Error("read tcp: connection reset by peer"));
+    assert.equal(await other, false);
+    assert.deepEqual(state.rows.pods, []);
+    assert.equal(state.loadFailure.staleSince, undefined);
+  } finally {
+    Date.now = realNow;
+    global.window = previousWindow;
+  }
+});
+
 test("resource polling is only a fallback while live watch is unavailable", () => {
   const refresh = loadTypeScript("utils/refresh.ts");
   assert.equal(refresh.shouldPollResources(10, false), true);

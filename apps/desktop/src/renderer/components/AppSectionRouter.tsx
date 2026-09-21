@@ -43,7 +43,7 @@ interface Props {
   rows: ResourceRow[];
   columns: Column[];
   loading: boolean;
-  resourceLoadError?: { message: string } | null;
+  resourceLoadError?: { message: string; staleSince?: number } | null;
   selectedRow: ResourceRow | null;
   selectedDefinition: ResourceDefinition | undefined;
   isCrdDefinitionTab: boolean;

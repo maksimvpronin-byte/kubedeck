@@ -37,6 +37,18 @@ export interface ResourceLoadFailure {
   clusterId: string;
   resource: string;
   error: ErrorInfo;
+  // When the rows on screen are the last good list of the same scope, kept
+  // through a failed refresh: the time that list was read. Absent when there
+  // is nothing on screen to trust.
+  staleSince?: number;
+}
+
+// A refused list is not a stale one: rows read before access was withdrawn
+// must not stay on screen as if they were still allowed.
+function isPermissionError(info: ErrorInfo) {
+  const code = (info.code ?? "").toUpperCase();
+  const text = `${info.message ?? ""} ${info.rawStderr ?? ""}`.toLowerCase();
+  return code.includes("FORBIDDEN") || text.includes("forbidden") || (text.includes("cannot") && text.includes("resource"));
 }
 
 interface UseResourceLoaderOptions {
@@ -83,6 +95,7 @@ export function useResourceLoader({
   // silent refresh superseded an explicit load: the explicit one was no
   // longer current, and the silent one never touches the flag.
   const loadingOwnerRef = useRef<number | null>(null);
+  const loadedAtRef = useRef(new Map<string, number>());
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -118,6 +131,7 @@ export function useResourceLoader({
       // so an aborted or failing load cannot leave another scope on screen.
       if (loadedScopeRef.current.get(nextResource) !== scopeKey) {
         loadedScopeRef.current.delete(nextResource);
+        loadedAtRef.current.delete(nextResource);
         pendingSilentRefreshRef.current = false;
         setRows((current) => (current[nextResource]?.length ? { ...current, [nextResource]: [] } : current));
         setLoadFailure?.((current) => (current?.resource === nextResource ? null : current));
@@ -142,6 +156,7 @@ export function useResourceLoader({
           [nextResource]: responses.flatMap((response) => response.items),
         }));
         loadedScopeRef.current.set(nextResource, scopeKey);
+        loadedAtRef.current.set(nextResource, Date.now());
         setLoadFailure?.((current) => (current?.resource === nextResource ? null : current));
         setError(null);
         setUnavailableCluster((current) => (current?.id === clusterId ? null : current));
@@ -156,7 +171,9 @@ export function useResourceLoader({
               rawStderr: "",
               commandPreview: `kubectl get ${nextResource}`,
             };
-            setLoadFailure?.({ clusterId, resource: nextResource, error: timeout });
+            // A timed-out refresh leaves the rows alone, so they are the last
+            // good list of this scope if there was one.
+            setLoadFailure?.({ clusterId, resource: nextResource, error: timeout, staleSince: loadedAtRef.current.get(nextResource) });
             setError(timeout);
           }
           return false;
@@ -169,13 +186,25 @@ export function useResourceLoader({
           setRows({});
           setNamespaces([]);
           loadedScopeRef.current.clear();
+          loadedAtRef.current.clear();
           setUnavailableCluster((current) => current ?? activeCluster ?? null);
           setActiveCluster((current) => (current?.id === clusterId ? null : current));
         } else {
+          // A refresh of the scope on screen that fails keeps the last good
+          // list, marked with its age - a dropped VPN should not blank a table
+          // the user is reading. A refusal does not: those rows were read
+          // before access was withdrawn.
+          const lastGoodAt = loadedScopeRef.current.get(nextResource) === scopeKey ? loadedAtRef.current.get(nextResource) : undefined;
+          if (lastGoodAt !== undefined && !isPermissionError(info)) {
+            setLoadFailure?.({ clusterId, resource: nextResource, error: info, staleSince: lastGoodAt });
+            setError(info);
+            return false;
+          }
           setRows((current) => ({ ...current, [nextResource]: [] }));
           // An empty table belongs to the scope that failed, so the next refresh
           // of the same scope does not need to clear it again.
           loadedScopeRef.current.set(nextResource, scopeKey);
+          loadedAtRef.current.delete(nextResource);
           setLoadFailure?.({ clusterId, resource: nextResource, error: info });
         }
         setSelectedRow(null);

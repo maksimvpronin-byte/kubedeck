@@ -343,3 +343,20 @@ test("the default page is 200 rows, and 2000 is on offer without being the defau
     view.unmount();
   }
 });
+
+test("rows kept through a failed refresh say how old they are, and offer a retry", () => {
+  const retries = [];
+  const staleSince = new Date(2026, 8, 21, 14, 5).getTime();
+  const view = mount(table({ loadError: { message: "connection reset by peer", staleSince }, onRefresh: () => retries.push(1) }));
+  try {
+    assert.deepEqual(view.rowNames(), ["api-server", "cache", "worker"], "the rows stay readable");
+    const notice = view.first(".resource-table-stale");
+    assert.ok(notice, "and the table says they are not current");
+    assert.match(notice.textContent, /Showing the list from 14:05/);
+    assert.match(notice.textContent, /connection reset by peer/);
+    view.click(notice.querySelector("button"));
+    assert.equal(retries.length, 1);
+  } finally {
+    view.unmount();
+  }
+});
