@@ -352,7 +352,10 @@ test("rows kept through a failed refresh say how old they are, and offer a retry
     assert.deepEqual(view.rowNames(), ["api-server", "cache", "worker"], "the rows stay readable");
     const notice = view.first(".resource-table-stale");
     assert.ok(notice, "and the table says they are not current");
-    assert.match(notice.textContent, /Showing the list from 14:05/);
+    // The time is in the viewer's own format: 14:05 here, 02:05 PM on an
+    // en-US runner. The assertion builds it the same way.
+    const shownAt = new Date(staleSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    assert.ok(notice.textContent.includes(`Showing the list from ${shownAt}.`), notice.textContent);
     assert.match(notice.textContent, /connection reset by peer/);
     view.click(notice.querySelector("button"));
     assert.equal(retries.length, 1);
