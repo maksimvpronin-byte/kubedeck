@@ -7,6 +7,8 @@ export type CommandPaletteItem = {
   subtitle: string;
   category: string;
   keywords: string;
+  // Cluster search already matches labels, annotations and separate query tokens.
+  searchMatched?: boolean;
   run: () => void | Promise<void>;
 };
 
@@ -14,6 +16,7 @@ export function CommandPalette({
   query,
   items,
   loading,
+  notice,
   placeholder,
   t,
   onQueryChange,
@@ -23,6 +26,7 @@ export function CommandPalette({
   query: string;
   items: CommandPaletteItem[];
   loading?: boolean;
+  notice?: "partial" | "limited" | "failed" | null;
   placeholder: string;
   t: (key: string) => string;
   onQueryChange: (value: string) => void;
@@ -33,9 +37,9 @@ export function CommandPalette({
   const [activeIndex, setActiveIndex] = useState(0);
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = useMemo(() => {
-    const source = normalizedQuery ? items.filter((item) => `${item.title} ${item.subtitle} ${item.category} ${item.keywords}`.toLowerCase().includes(normalizedQuery)) : items;
-    return source.slice(0, 60);
+    return normalizedQuery ? items.filter((item) => item.searchMatched || `${item.title} ${item.subtitle} ${item.category} ${item.keywords}`.toLowerCase().includes(normalizedQuery)) : items;
   }, [items, normalizedQuery]);
+  const visibleItems = filtered.slice(0, 60);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -46,7 +50,7 @@ export function CommandPalette({
   }, [query, items]);
 
   function runActive() {
-    const item = filtered[activeIndex];
+    const item = visibleItems[activeIndex];
     if (item) onRun(item);
   }
 
@@ -67,7 +71,7 @@ export function CommandPalette({
               }
               if (event.key === "ArrowDown") {
                 event.preventDefault();
-                setActiveIndex((current) => Math.min(current + 1, Math.max(filtered.length - 1, 0)));
+                setActiveIndex((current) => Math.min(current + 1, Math.max(visibleItems.length - 1, 0)));
               }
               if (event.key === "ArrowUp") {
                 event.preventDefault();
@@ -82,9 +86,23 @@ export function CommandPalette({
           <kbd>Esc</kbd>
         </div>
         <div className="command-palette-results">
-          {loading ? <div className="command-palette-empty">{t("command.searchingCluster")}</div> : null}
-          {filtered.length ? (
-            filtered.map((item, index) => (
+          {loading ? (
+            <div className="command-palette-empty" role="status">
+              {t("command.searchingCluster")}
+            </div>
+          ) : null}
+          {!loading && notice ? (
+            <div className="command-palette-empty" role="status">
+              {t(`command.search.${notice}`)}
+            </div>
+          ) : null}
+          {!loading && filtered.length > visibleItems.length && notice !== "limited" ? (
+            <div className="command-palette-empty" role="status">
+              {t("command.search.limited")}
+            </div>
+          ) : null}
+          {visibleItems.length ? (
+            visibleItems.map((item, index) => (
               <button key={item.id} className={index === activeIndex ? "active" : ""} onMouseEnter={() => setActiveIndex(index)} onClick={() => onRun(item)}>
                 <span>
                   <strong>{item.title}</strong>
@@ -93,9 +111,9 @@ export function CommandPalette({
                 <em>{item.category}</em>
               </button>
             ))
-          ) : (
+          ) : !loading && !notice ? (
             <div className="command-palette-empty">{t("command.noMatches")}</div>
-          )}
+          ) : null}
         </div>
         <footer>
           <span>{t("command.openShortcut")}</span>

@@ -4,7 +4,7 @@ import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { getApiResourcesOutput } from "../resources/apiResourcesCache";
+import { ApiResourcesWaitAbandoned, getApiResourcesOutput } from "../resources/apiResourcesCache";
 import {
   buildSearchResourceSpecs,
   compareSearchResults,
@@ -107,8 +107,8 @@ export function matchSearchRoute(method: string | undefined, pathname: string): 
   };
 }
 
-async function discoverResourceDefinitions(configStore: ConfigStore, runner: KubectlRunner, clusterId: string): Promise<ApiResourceDefinition[]> {
-  const output = await getApiResourcesOutput(configStore, runner, clusterId);
+async function discoverResourceDefinitions(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, wait: { signal?: AbortSignal; timeoutMs?: number }): Promise<ApiResourceDefinition[]> {
+  const output = await getApiResourcesOutput(configStore, runner, clusterId, Date.now, wait);
   return parseApiResources(output.stdout);
 }
 
@@ -230,16 +230,32 @@ export async function buildSearchResponse(
   const config = configStore.load();
   configStore.getCluster(clusterId, config);
 
+  // The budget covers discovery too. It used to start after it, and discovery
+  // alone may take 30 seconds on a cold cache - a search the user was told
+  // stops after 12 could run for 42. Discovery gets at most half: without it
+  // the built-in kinds are still searched, only custom resources are missing,
+  // and the response says so.
+  const totalTimeoutSeconds = runtime.totalTimeoutSeconds ?? SEARCH_TOTAL_TIMEOUT_SECONDS;
+  const startedAt = Date.now();
+  const errors: Array<Record<string, unknown>> = [];
   let definitions: ApiResourceDefinition[] = [];
   try {
-    definitions = await discoverResourceDefinitions(configStore, runner, clusterId);
+    definitions = await discoverResourceDefinitions(configStore, runner, clusterId, { signal, timeoutMs: (totalTimeoutSeconds * 1000) / 2 });
   } catch (error) {
+    if (signal?.aborted) {
+      return { items: [], summary: { query: options.query, total: 0, sources: {}, errors: 0, limited: false, generatedAt: now().toISOString() }, errors: [] };
+    }
     const message = error instanceof Error ? error.message : String(error);
     log(`global search: api-resources unavailable message=${message}`);
+    errors.push({
+      code: error instanceof ApiResourcesWaitAbandoned ? "SEARCH_DISCOVERY_TIMEOUT" : "SEARCH_DISCOVERY_FAILED",
+      message: "Custom resource discovery was unavailable; only built-in kinds were searched.",
+      rawStderr: "",
+      commandPreview: "kubectl api-resources",
+    });
   }
   const specs = buildSearchResourceSpecs(options.query, options.includeCrdInstances, definitions, SEARCH_MAX_CRD_INSTANCE_RESOURCES);
   const results: SearchResultRow[] = [];
-  const errors: Array<Record<string, unknown>> = [];
   const sources: Record<string, number> = {};
   const limitPerResource = Math.max(10, Math.floor(options.limit / 3));
   let stopCollecting = false;
@@ -254,8 +270,8 @@ export async function buildSearchResponse(
   if (signal?.aborted) abandon();
   else signal?.addEventListener("abort", abandon, { once: true });
 
-  const totalTimeoutSeconds = runtime.totalTimeoutSeconds ?? SEARCH_TOTAL_TIMEOUT_SECONDS;
   const concurrency = runtime.concurrency ?? SEARCH_CONCURRENCY;
+  const remainingSeconds = Math.max(0, totalTimeoutSeconds - (Date.now() - startedAt) / 1000);
   const completed = await collectSearchSources(
     specs,
     async (spec) => {
@@ -266,7 +282,7 @@ export async function buildSearchResponse(
       results.push(...source.items);
       if (results.length >= options.limit * 2) stopCollecting = true;
     },
-    totalTimeoutSeconds,
+    remainingSeconds,
     concurrency,
     () => {
       stopCollecting = true;

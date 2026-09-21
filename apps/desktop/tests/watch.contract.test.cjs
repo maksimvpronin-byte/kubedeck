@@ -294,6 +294,71 @@ test("Node WatchManager sweeps crashed sessions from status() only after the ret
   await manager.close();
 });
 
+test("a watch that ends on its own is announced, a stopped one is not", async () => {
+  const state = { commands: [], children: [], kills: [] };
+  const hub = new ResourceWatchEventHub();
+  const events = [];
+  hub.subscribe((event) => events.push(event));
+  const manager = new WatchManager(() => {}, { clearResource: () => 0 }, hub, createWatchSpawn(state));
+  const command = createKubectlCommand({
+    clusterId: "cluster-a",
+    kubectlPath: "kubectl",
+    args: ["get", "pods", "-o", "json", "--watch-only=true", "--output-watch-events=true", "-n", "default"],
+    timeoutSeconds: 0,
+    maxOutputBytes: 0,
+  });
+
+  // kubectl lost the API server: the socket would stay up on its heartbeat,
+  // so this event is the only way a subscriber learns nobody is watching.
+  const crashed = await manager.start(command, "pods", "default");
+  state.children[0].exitCode = 1;
+  state.children[0].emit("error", new Error("boom"));
+  state.children[0].emit("close", 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(
+    events.map(({ type, watchId, namespace, status, exitCode }) => ({ type, watchId, namespace, status, exitCode })),
+    [{ type: "watch.ended", watchId: crashed.id, namespace: "default", status: "failed", exitCode: null }],
+    "announced once, although both error and close fired",
+  );
+  const filter = { clusterId: "cluster-a", resource: "pods", namespace: "default" };
+  assert.equal(resourceWatchEventMatches(events[0], filter), true);
+  assert.equal(resourceWatchEventMatches(events[0], { ...filter, namespace: "all" }), false, "only the socket of the same scope hears it");
+
+  // The API server closing a long watch makes kubectl exit cleanly - still an end.
+  const closedByServer = await manager.start(command, "pods", "default");
+  assert.equal(closedByServer.alreadyRunning, false, "the ended watch no longer counts as running");
+  state.children[1].exitCode = 0;
+  state.children[1].emit("close", 0);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(events.length, 2);
+  assert.equal(events[1].status, "stopped");
+
+  const stopped = await manager.start(command, "pods", "default");
+  await manager.stop(stopped.id);
+  await manager.start(command, "pods", "default");
+  await manager.close();
+  assert.equal(events.length, 2, "stopping a watch or shutting down announces nothing");
+});
+
+test("a delayed close of the replaced watch cannot remove its replacement from deduplication", async () => {
+  const state = { commands: [], children: [], kills: [] };
+  const manager = new WatchManager(() => {}, { clearResource: () => 0 }, new ResourceWatchEventHub(), createWatchSpawn(state));
+  const command = createKubectlCommand({ clusterId: "cluster-a", kubectlPath: "kubectl", args: ["get", "pods", "--watch-only=true"], timeoutSeconds: 0, maxOutputBytes: 0 });
+  try {
+    await manager.start(command, "pods", "all");
+    state.children[0].emit("error", new Error("connection lost"));
+    const replacement = await manager.start(command, "pods", "all");
+    state.children[0].exitCode = 1;
+    state.children[0].emit("close", 1);
+    const reused = await manager.start(command, "pods", "all");
+    assert.equal(reused.id, replacement.id);
+    assert.equal(reused.alreadyRunning, true);
+    assert.equal(state.children.length, 2, "the late close must not cause a third kubectl process");
+  } finally {
+    await manager.close();
+  }
+});
+
 test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", async (t) => {
   const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-watch-"));
   const source = path.join(appDataRoot, "cluster.yaml");
@@ -407,6 +472,24 @@ test("Node Gateway owns watch HTTP and resource watch WebSocket contracts", asyn
   });
   assert.equal(stopResponse.status, 200);
   assert.equal((await stopResponse.json()).watch.status, "stopped");
+
+  // The end of a watch reaches the socket of its scope.
+  const endedPromise = nextMessage(socket, (message) => message.type === "watch.ended");
+  const restarted = await (
+    await fetch(`${gateway.baseUrl}/clusters/${cluster.id}/watches`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ resource: "pods", namespace: "all" }),
+    })
+  ).json();
+  assert.equal(restarted.alreadyRunning, false);
+  const child = state.children.at(-1);
+  child.exitCode = 1;
+  child.emit("close", 1);
+  const ended = await endedPromise;
+  assert.equal(ended.watchId, restarted.id);
+  assert.equal(ended.namespace, "all");
+  assert.equal(ended.status, "failed");
 });
 
 test("invalid watch WebSocket origin is rejected with policy violation", async (t) => {

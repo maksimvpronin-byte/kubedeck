@@ -14,9 +14,10 @@ interface RelatedTabProps {
   onOpenRelated: (resource: string, namespace: string, name: string) => void;
   onDeletePods: (rows: ResourceRow[]) => void;
   sourceResource: string;
+  t?: (key: string) => string;
 }
 
-export function RelatedTab({ pod, relatedLinks, loading, error, copyLabel, sources, errors, resourceFilter, onResourceFilterChange, onOpenRelated, onDeletePods, sourceResource }: RelatedTabProps) {
+export function RelatedTab({ pod, relatedLinks, loading, error, copyLabel, sources, errors, resourceFilter, onResourceFilterChange, onOpenRelated, onDeletePods, sourceResource, t }: RelatedTabProps) {
   const ownerLinks = ownerReferences(pod).map((owner) => {
     const resource = resourceForKind(owner.kind) || "";
     return {
@@ -62,7 +63,7 @@ export function RelatedTab({ pod, relatedLinks, loading, error, copyLabel, sourc
       </div>
       {relationSummary.length ? <RelationSummaryChips items={relationSummary} /> : null}
       {loading ? <div className="muted">Loading...</div> : null}
-      <ErrorPanel error={error} copyLabel={copyLabel} />
+      <ErrorPanel error={error} copyLabel={copyLabel} t={t} />
       <RelatedDiagnostics sources={sources} errors={errors} />
       {groups.length === 0 && !loading ? <p className="muted">No related resources.</p> : null}
       <div className="related-group-list">

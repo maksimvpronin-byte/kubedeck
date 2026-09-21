@@ -59,6 +59,7 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
   usageRef.current = namespaceUsageByClusterId;
   const namespaceLoadAbortRef = useRef<AbortController | null>(null);
   const namespaceLoadSeqRef = useRef(0);
+  const namespaceLoadClusterRef = useRef<string | null>(null);
   selectedNamespacesRef.current = selectedNamespaces;
 
   useEffect(() => {
@@ -106,17 +107,23 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
   }, []);
 
   const loadNamespaces = useCallback(
-    async (clusterId = activeClusterId, silent = true) => {
+    async (clusterId = activeClusterId, silent = true, background = false) => {
       if (!api || !clusterId) return;
+      // A background tick waits for the list it already asked for. Aborting it
+      // instead meant a cluster that answers slower than the refresh interval
+      // never got its namespace list at all - each tick killed the last one.
+      // A cluster switch or an explicit load still supersedes the running one.
+      if (background && namespaceLoadAbortRef.current && namespaceLoadClusterRef.current === clusterId) return;
       const requestId = namespaceLoadSeqRef.current + 1;
       namespaceLoadSeqRef.current = requestId;
       namespaceLoadAbortRef.current?.abort();
       const controller = new AbortController();
       namespaceLoadAbortRef.current = controller;
+      namespaceLoadClusterRef.current = clusterId;
 
       try {
         const result = await api.namespaces(clusterId, controller.signal);
-        if (namespaceLoadSeqRef.current !== requestId) return;
+        if (controller.signal.aborted || namespaceLoadSeqRef.current !== requestId) return;
         // A poll that was started for a cluster the user has already left must not
         // publish that cluster's namespace list, and must not touch any selection.
         if (clusterId !== activeClusterId) return;
@@ -142,11 +149,12 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
         rememberClusterSelection(clusterId, reconciled);
         if (!arraysEqual(current, reconciled)) setSelectedNamespaces(reconciled);
       } catch (err) {
-        if (isAbortError(err) || namespaceLoadSeqRef.current !== requestId) return;
+        if (controller.signal.aborted || isAbortError(err) || namespaceLoadSeqRef.current !== requestId) return;
         if (!silent) onError(asErrorInfo(err));
       } finally {
         if (namespaceLoadSeqRef.current === requestId && namespaceLoadAbortRef.current === controller) {
           namespaceLoadAbortRef.current = null;
+          namespaceLoadClusterRef.current = null;
         }
       }
     },
@@ -194,14 +202,19 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
     const intervalSeconds = getAutoRefreshIntervalSeconds(settings);
     if (intervalSeconds <= 0) return;
     const timer = window.setInterval(() => {
-      loadNamespaces(activeClusterId, true);
+      loadNamespaces(activeClusterId, true, true);
     }, intervalSeconds * 1000);
     return () => window.clearInterval(timer);
   }, [api, activeClusterId, settings?.refreshIntervalSeconds, loadNamespaces]);
 
   useEffect(() => {
-    return () => namespaceLoadAbortRef.current?.abort();
-  }, []);
+    return () => {
+      namespaceLoadSeqRef.current += 1;
+      namespaceLoadAbortRef.current?.abort();
+      namespaceLoadAbortRef.current = null;
+      namespaceLoadClusterRef.current = null;
+    };
+  }, [api, activeClusterId]);
 
   return {
     namespaces,

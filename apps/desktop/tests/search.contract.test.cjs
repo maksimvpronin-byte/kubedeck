@@ -5,7 +5,7 @@ const { buildSearchResourceSpecs, deduplicateSearchResults, parseApiResources, r
 const { buildSearchResponse, handleSearchRequest, matchSearchRoute } = require("../dist/main/backend/routes/search.js");
 const { ClusterNotFoundError } = require("../dist/main/backend/config/configStore.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
-const { clearApiResourcesCache } = require("../dist/main/backend/resources/apiResourcesCache.js");
+const { clearApiResourcesCache, getApiResourcesOutput } = require("../dist/main/backend/resources/apiResourcesCache.js");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -477,4 +477,158 @@ test("scoring lowercases each field once and keeps the order of matchedFields", 
   // Case is irrelevant to matching, on both sides of the comparison.
   assert.equal(scoreSearchResult("API", "pods", raw, summary).score, scored.score);
   assert.equal(scoreSearchResult("api-server", "pods", raw, summary).score, 1010);
+});
+
+function singleClusterStore(clusterId) {
+  return {
+    load() {
+      return { settings: { kubectlPath: "kubectl" }, clusters: [{ id: clusterId, kubeconfigPath: `C:\temp\${clusterId}.yaml` }] };
+    },
+    getCluster(id, config = this.load()) {
+      const cluster = config.clusters.find((item) => item.id === id);
+      if (!cluster) throw new ClusterNotFoundError(id);
+      return cluster;
+    },
+  };
+}
+
+function slowDiscoveryRunner() {
+  const discoveries = [];
+  return {
+    discoveries,
+    run() {
+      return new Promise((resolve) => discoveries.push(() => resolve({ ok: true, stdout: apiResourcesOutput(), stderr: "", commandPreview: "kubectl api-resources", returnCode: 0 })));
+    },
+    async runJson() {
+      return { items: [] };
+    },
+  };
+}
+
+test("searches typed against a cold cache share one discovery", async () => {
+  const clusterId = "cluster-shared-discovery";
+  clearApiResourcesCache(clusterId);
+  const runner = slowDiscoveryRunner();
+  const options = { query: "api", namespaces: ["all"], limit: 10, includeCrdInstances: true };
+  // Three keystrokes, 300ms apart in real life: each one used to start its own
+  // `kubectl api-resources`.
+  const searches = [1, 2, 3].map(() => buildSearchResponse(singleClusterStore(clusterId), runner, clusterId, options));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(runner.discoveries.length, 1);
+  runner.discoveries[0]();
+  const bodies = await Promise.all(searches);
+  assert.ok(bodies.every((body) => body.errors.length === 0));
+  clearApiResourcesCache(clusterId);
+});
+
+test("slow discovery counts against the search budget, and the search still answers", async () => {
+  const clusterId = "cluster-slow-discovery";
+  clearApiResourcesCache(clusterId);
+  const runner = slowDiscoveryRunner();
+  const started = Date.now();
+  const body = await buildSearchResponse(
+    singleClusterStore(clusterId),
+    runner,
+    clusterId,
+    { query: "api", namespaces: ["all"], limit: 10, includeCrdInstances: true },
+    () => {},
+    () => new Date(),
+    {
+      totalTimeoutSeconds: 0.2,
+    },
+  );
+  assert.ok(Date.now() - started < 1000, "the whole search stays near its budget");
+  assert.ok(
+    body.errors.some((error) => error.code === "SEARCH_DISCOVERY_TIMEOUT"),
+    "and says custom resources were left out",
+  );
+  assert.ok(body.summary.sources.pods !== undefined || body.errors.some((error) => error.code === "SEARCH_TIMEOUT"), "built-in kinds were still searched");
+
+  // The discovery it gave up on keeps running and fills the cache for the next search.
+  runner.discoveries[0]();
+  await new Promise((resolve) => setImmediate(resolve));
+  const next = await buildSearchResponse(singleClusterStore(clusterId), runner, clusterId, { query: "api", namespaces: ["all"], limit: 10, includeCrdInstances: true });
+  assert.equal(runner.discoveries.length, 1);
+  assert.ok(!next.errors.some((error) => error.code === "SEARCH_DISCOVERY_TIMEOUT"));
+  clearApiResourcesCache(clusterId);
+});
+
+test("a search cancelled while discovery runs stops waiting at once", async () => {
+  const clusterId = "cluster-cancel-discovery";
+  clearApiResourcesCache(clusterId);
+  const runner = slowDiscoveryRunner();
+  const controller = new AbortController();
+  const search = buildSearchResponse(
+    singleClusterStore(clusterId),
+    runner,
+    clusterId,
+    { query: "api", namespaces: ["all"], limit: 10, includeCrdInstances: true },
+    () => {},
+    () => new Date(),
+    {},
+    controller.signal,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  controller.abort();
+  const body = await search;
+  assert.deepEqual(body.items, []);
+  runner.discoveries[0]();
+  clearApiResourcesCache(clusterId);
+});
+
+test("already cancelled discovery starts no process, including with a warm cache", async () => {
+  const clusterId = "cancel-before-discovery";
+  clearApiResourcesCache(clusterId);
+  const runner = slowDiscoveryRunner();
+  const store = singleClusterStore(clusterId);
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(getApiResourcesOutput(store, runner, clusterId, Date.now, { signal: controller.signal }), { name: "AbortError" });
+  assert.equal(runner.discoveries.length, 0);
+  const warmup = getApiResourcesOutput(store, runner, clusterId);
+  runner.discoveries[0]();
+  await warmup;
+  await assert.rejects(getApiResourcesOutput(store, runner, clusterId, Date.now, { signal: controller.signal }), { name: "AbortError" });
+  assert.equal(runner.discoveries.length, 1);
+  clearApiResourcesCache(clusterId);
+});
+
+test("failed discovery preserves built-in matches and declares the search incomplete", async () => {
+  const clusterId = "failed-discovery";
+  clearApiResourcesCache(clusterId);
+  const body = await buildSearchResponse(
+    singleClusterStore(clusterId),
+    {
+      async run() {
+        throw new Error("discovery failed");
+      },
+      async runJson(command) {
+        return rawForResource(command.args[1]);
+      },
+    },
+    clusterId,
+    { query: "api", namespaces: ["all"], limit: 120, includeCrdInstances: true },
+  );
+  assert.ok(body.items.some((item) => item.resource === "pods"));
+  assert.ok(body.errors.some((error) => error.code === "SEARCH_DISCOVERY_FAILED"));
+  assert.ok(body.summary.errors > 0);
+  clearApiResourcesCache(clusterId);
+});
+
+test("cancelling one discovery waiter preserves the shared result for another", async () => {
+  const clusterId = "independent-discovery-waiters";
+  clearApiResourcesCache(clusterId);
+  const runner = slowDiscoveryRunner();
+  const store = singleClusterStore(clusterId);
+  const controller = new AbortController();
+  const cancelled = getApiResourcesOutput(store, runner, clusterId, Date.now, { signal: controller.signal });
+  const surviving = getApiResourcesOutput(store, runner, clusterId);
+  const rejection = assert.rejects(cancelled, { name: "AbortError" });
+  controller.abort();
+  await rejection;
+  runner.discoveries[0]();
+  assert.equal((await surviving).stdout, apiResourcesOutput());
+  assert.equal((await getApiResourcesOutput(store, runner, clusterId)).cached, true);
+  assert.equal(runner.discoveries.length, 1);
+  clearApiResourcesCache(clusterId);
 });

@@ -1,3 +1,30 @@
+## 2.24.2 - What the screen says is what the cluster is doing
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**A table no longer stops updating silently.** When the kubectl behind a live
+table ended on its own, the socket stayed up on its heartbeat and polling stayed
+off. The gateway now announces the end (`watch.ended`); the table falls back to
+polling, reloads what it missed and restarts the watch with a growing delay. A
+watch that failed with `error` before `close` no longer erases the record of
+its replacement, which used to start a second kubectl.
+
+**A refused resource is not a lost cluster.** `forbidden` on one list no longer
+drops the cluster, its namespaces and every table.
+
+**The table tells loading, failure, empty and filtered apart**, marks a refresh
+of visible rows as *updating...*, and its loading flag is cleared by the request
+that set it rather than by a 700 ms timer.
+
+**Search** keeps the gateway's matches, ignores late answers, says when a result
+is partial, limited or failed, runs custom-resource discovery inside its budget
+and shares it between keystrokes. **Cluster switches** no longer let a late CRD
+list or namespace list land on the next cluster, and a slow namespace list is no
+longer cancelled on every refresh tick. **Errors** are titled and explained in
+the interface language, with the code folded into technical details.
+
+Gateway tests: 182, up from 174. Renderer tests: 259.
+
 ## 2.24.1 - Saving a Secret, which had never worked
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

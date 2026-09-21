@@ -243,16 +243,43 @@ export class WatchManager {
       tailPush(session.errorTail, line);
     });
 
+    // A watch that stops on its own - kubectl crashed, lost the API server, or
+    // the server closed a long watch - is announced, so a renderer that relies
+    // on it can fall back to polling and start it again. A stop somebody asked
+    // for is not, and neither is a process that never got as far as running:
+    // `start` reports that one to its caller.
+    let spawned = false;
+    let endAnnounced = false;
+    child.once("spawn", () => {
+      spawned = true;
+    });
+    const announceUnexpectedEnd = (wasRunning: boolean) => {
+      if (!spawned || endAnnounced || !wasRunning || session.stoppedByUser || this.closed) return;
+      endAnnounced = true;
+      this.eventHub.publish({
+        type: "watch.ended",
+        clusterId: key.clusterId,
+        watchId: session.id,
+        resource: key.resource,
+        namespace: key.namespace,
+        status: session.status === "stopped" ? "stopped" : "failed",
+        exitCode: session.exitCode,
+      });
+    };
+
     child.on("error", (error: NodeJS.ErrnoException) => {
+      const wasRunning = session.status === "running";
       session.updatedAt = this.now() / 1000;
       tailPush(session.errorTail, error.message);
       if (session.status !== "stopping" && session.status !== "stopped") {
         session.status = "failed";
       }
-      this.runningByKey.delete(keyText);
+      this.forgetRunning(session);
       resolveClose();
+      announceUnexpectedEnd(wasRunning);
     });
     child.on("close", (code) => {
+      const wasRunning = session.status === "running";
       session.exitCode = typeof code === "number" ? code : null;
       session.updatedAt = this.now() / 1000;
       if (session.status === "stopping" || session.stoppedByUser) {
@@ -262,11 +289,12 @@ export class WatchManager {
       } else {
         session.status = "failed";
       }
-      this.runningByKey.delete(keyText);
+      this.forgetRunning(session);
       stdoutReader.close();
       stderrReader.close();
       resolveClose();
       this.log(`node watch stopped id=${session.id} status=${session.status} exitCode=${String(session.exitCode)}`);
+      announceUnexpectedEnd(wasRunning);
     });
     child.stdin.on("error", () => {
       // stdin is intentionally closed for kubectl watch.
@@ -279,7 +307,7 @@ export class WatchManager {
       await waitForSpawn(child);
     } catch (error) {
       this.sessions.delete(session.id);
-      this.runningByKey.delete(keyText);
+      this.forgetRunning(session);
       stdoutReader.close();
       stderrReader.close();
       const message = error instanceof Error ? error.message : String(error);
@@ -408,8 +436,15 @@ export class WatchManager {
       session.status = "stopped";
       session.updatedAt = this.now() / 1000;
     }
-    this.runningByKey.delete(normalizedKey(session.key));
+    this.forgetRunning(session);
     this.sessions.delete(session.id);
+  }
+
+  private forgetRunning(session: WatchSession): void {
+    const key = normalizedKey(session.key);
+    // An error can trigger a replacement before this child's close arrives.
+    // Cleanup belongs to the old session, never to that replacement.
+    if (this.runningByKey.get(key) === session.id) this.runningByKey.delete(key);
   }
 
   async close(): Promise<void> {

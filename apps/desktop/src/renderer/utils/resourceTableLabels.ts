@@ -18,5 +18,9 @@ export function createResourceTableLabels(t: (key: string) => string) {
     columns: t("resources.columns"),
     resetColumns: t("resources.resetColumns"),
     sortBy: t("resources.sortBy"),
+    loadingTitle: t("resources.loadingTitle"),
+    updating: t("resources.updating"),
+    loadFailedTitle: t("resources.loadFailedTitle"),
+    retry: t("resources.retry"),
   };
 }

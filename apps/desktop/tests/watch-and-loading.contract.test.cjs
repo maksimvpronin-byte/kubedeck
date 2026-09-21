@@ -21,7 +21,18 @@ function normalizeNamespaceSelectionForTest(value) {
 
 function createResourceLoaderHarness() {
   const batches = [];
-  const state = { rows: {}, loading: false, error: null, clearedPendingActions: 0 };
+  const state = {
+    rows: {},
+    loading: false,
+    error: null,
+    clearedPendingActions: 0,
+    activeCluster: { id: "cluster-a" },
+    unavailableCluster: null,
+    namespaces: ["default"],
+    cacheClears: 0,
+    loadFailure: null,
+    loadingChanges: [],
+  };
   const setRows = (next) => {
     state.rows = typeof next === "function" ? next(state.rows) : next;
   };
@@ -43,20 +54,34 @@ function createResourceLoaderHarness() {
   // through a plain alias and not as a React hook.
   const buildLoader = model.useResourceLoader;
   const load = buildLoader({
-    api: {},
+    api: {
+      clearResourceCache: async () => {
+        state.cacheClears += 1;
+      },
+    },
     activeCluster: { id: "cluster-a" },
     resource: "pods",
     namespaces: ["all"],
     setRows,
-    setNamespaces: () => undefined,
-    setActiveCluster: () => undefined,
-    setUnavailableCluster: () => undefined,
+    setNamespaces: (next) => {
+      state.namespaces = typeof next === "function" ? next(state.namespaces) : next;
+    },
+    setActiveCluster: (next) => {
+      state.activeCluster = typeof next === "function" ? next(state.activeCluster) : next;
+    },
+    setUnavailableCluster: (next) => {
+      state.unavailableCluster = typeof next === "function" ? next(state.unavailableCluster) : next;
+    },
     setSelectedRow: () => undefined,
     clearPendingActions: () => {
       state.clearedPendingActions += 1;
     },
     setLoading: (value) => {
       state.loading = value;
+      state.loadingChanges.push(value);
+    },
+    setLoadFailure: (next) => {
+      state.loadFailure = typeof next === "function" ? next(state.loadFailure) : next;
     },
     setError: (value) => {
       state.error = value;
@@ -64,6 +89,44 @@ function createResourceLoaderHarness() {
   });
   return { load, batches, state };
 }
+
+test("a resource permission denial keeps the cluster and other resources available", async () => {
+  const previousWindow = global.window;
+  global.window = { setTimeout: () => 0, clearTimeout: () => undefined };
+  try {
+    const { load, batches, state } = createResourceLoaderHarness();
+    state.rows.pods = [{ uid: "visible-pod" }];
+    const denied = load("cluster-a", "deployments", ["default"]);
+    batches[0].reject(new Error('deployments.apps is forbidden: User "reader" cannot list resource "deployments"'));
+    assert.equal(await denied, false);
+    assert.equal(state.activeCluster.id, "cluster-a");
+    assert.equal(state.unavailableCluster, null);
+    assert.deepEqual(state.namespaces, ["default"]);
+    assert.deepEqual(state.rows.pods, [{ uid: "visible-pod" }]);
+    assert.equal(state.cacheClears, 0);
+    assert.match(state.error.message, /forbidden/);
+    assert.equal(state.loading, false);
+  } finally {
+    global.window = previousWindow;
+  }
+});
+
+test("a connection failure still marks the cluster unavailable", async () => {
+  const previousWindow = global.window;
+  global.window = { setTimeout: () => 0, clearTimeout: () => undefined };
+  try {
+    const { load, batches, state } = createResourceLoaderHarness();
+    const failed = load();
+    batches[0].reject(new Error("Unable to connect to the server: connection refused"));
+    assert.equal(await failed, false);
+    assert.equal(state.activeCluster, null);
+    assert.equal(state.unavailableCluster.id, "cluster-a");
+    assert.deepEqual(state.rows, {});
+    assert.equal(state.cacheClears, 1);
+  } finally {
+    global.window = previousWindow;
+  }
+});
 
 test("watch reconnect controller keeps one pending reconnect and stops cleanly", () => {
   const model = loadTypeScript("hooks/useResourceWatch.ts");
@@ -237,6 +300,60 @@ test("manual refresh and scope changes still supersede a running load", async ()
     assert.deepEqual(state.rows.pods, []);
     batches[2].resolve([{ items: [{ uid: "pod-kube-system" }] }]);
     assert.equal(await switched, true);
+  } finally {
+    global.window = previousWindow;
+  }
+});
+
+test("the request that turned loading on turns it off, even when a silent refresh superseded it", async () => {
+  const previousWindow = global.window;
+  global.window = { setTimeout: () => 0, clearTimeout: () => undefined };
+  try {
+    const { load, batches, state } = createResourceLoaderHarness();
+
+    // An explicit load of one scope, then a silent refresh of another: the
+    // explicit one is aborted and is no longer current, and the silent one
+    // used to leave the flag alone - so the table said "loading" for good.
+    const explicit = load("cluster-a", "pods", ["team-a"]);
+    assert.equal(state.loading, true);
+    const silent = load("cluster-a", "pods", ["team-b"], true);
+    assert.equal(batches[0].signal.aborted, true);
+    batches[0].reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    assert.equal(await explicit, false);
+    assert.equal(state.loading, true, "the table is still waiting for its rows");
+
+    batches[1].resolve([{ items: [{ uid: "pod-b" }] }]);
+    assert.equal(await silent, true);
+    assert.equal(state.loading, false);
+
+    // A silent refresh on its own never touches the flag.
+    state.loadingChanges.length = 0;
+    const quiet = load("cluster-a", "pods", ["team-b"], true);
+    batches[2].resolve([{ items: [{ uid: "pod-b" }] }]);
+    assert.equal(await quiet, true);
+    assert.deepEqual(state.loadingChanges, []);
+  } finally {
+    global.window = previousWindow;
+  }
+});
+
+test("a failed load is recorded for its table and cleared by the next success", async () => {
+  const previousWindow = global.window;
+  global.window = { setTimeout: () => 0, clearTimeout: () => undefined };
+  try {
+    const { load, batches, state } = createResourceLoaderHarness();
+
+    const failed = load("cluster-a", "deployments", ["team-a"]);
+    batches[0].reject(new Error('deployments.apps is forbidden: User "dev" cannot list resource "deployments"'));
+    assert.equal(await failed, false);
+    assert.equal(state.loadFailure.resource, "deployments");
+    assert.equal(state.loadFailure.clusterId, "cluster-a");
+    assert.match(state.loadFailure.error.message, /forbidden/);
+
+    const retried = load("cluster-a", "deployments", ["team-a"]);
+    batches[1].resolve([{ items: [] }]);
+    assert.equal(await retried, true);
+    assert.equal(state.loadFailure, null, "an empty list after a success is just empty");
   } finally {
     global.window = previousWindow;
   }

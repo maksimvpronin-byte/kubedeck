@@ -124,6 +124,26 @@
   max-width: 560px;
 }
 
+.error-scope {
+  font-weight: 600;
+}
+
+.error-details {
+  border-top: 1px solid var(--danger-border);
+  padding: 8px 14px 12px;
+}
+
+.error-details summary {
+  cursor: pointer;
+  color: var(--muted-strong);
+  font-size: 12px;
+}
+
+.error-details summary code {
+  margin-left: 8px;
+  font-size: 11px;
+}
+
 .error-hints {
   border-top: 1px solid var(--danger-border);
   padding: 10px 14px 12px;

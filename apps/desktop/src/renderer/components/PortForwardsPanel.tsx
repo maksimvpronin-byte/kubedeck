@@ -124,7 +124,7 @@ export function PortForwardsPanel({
         </div>
         <AsyncActionButton className="icon-text" phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => refresh())} disabled={loading} />
       </header>
-      <ErrorPanel error={localError} copyLabel={copyLabel} />
+      <ErrorPanel error={localError} copyLabel={copyLabel} t={t} />
       {message ? <p className="muted port-forward-message">{message}</p> : null}
       <div className="port-forward-list">
         {sessions.length === 0 ? <p className="muted">{t("portForwards.empty")}</p> : null}

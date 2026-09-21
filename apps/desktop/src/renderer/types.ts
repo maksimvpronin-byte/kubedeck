@@ -503,7 +503,7 @@ export interface PodLogsStreamMessage {
 }
 
 export interface ResourceWatchEvent {
-  type: "resource.changed" | "status" | string;
+  type: "resource.changed" | "watch.ended" | "status" | string;
   data?: string;
   clusterId?: string;
   watchId?: string;

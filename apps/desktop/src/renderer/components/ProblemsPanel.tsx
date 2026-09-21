@@ -161,7 +161,7 @@ export function ProblemsPanel({
 
   return (
     <>
-      <ErrorPanel error={localError} copyLabel={copyLabel} />
+      <ErrorPanel error={localError} copyLabel={copyLabel} t={t} />
       <ProblemsSummaryBar summary={summary} loading={loading} visibleCount={filteredProblems.length} t={t} />
       <ProblemsControls
         severityFilter={severityFilter}

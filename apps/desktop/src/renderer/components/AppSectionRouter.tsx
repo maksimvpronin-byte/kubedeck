@@ -43,6 +43,7 @@ interface Props {
   rows: ResourceRow[];
   columns: Column[];
   loading: boolean;
+  resourceLoadError?: { message: string } | null;
   selectedRow: ResourceRow | null;
   selectedDefinition: ResourceDefinition | undefined;
   isCrdDefinitionTab: boolean;
@@ -202,6 +203,7 @@ export function AppSectionRouter(props: Props) {
           rows={props.rows}
           columns={props.columns}
           loading={props.loading}
+          loadError={props.resourceLoadError}
           resource={props.resourceTab}
           onRefresh={props.onRefreshResources}
           onNodeAction={props.onNodeAction}

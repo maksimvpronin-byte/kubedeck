@@ -134,6 +134,7 @@ export function PodDrawerTabBody(props: Props) {
           loading={relatedLoading}
           error={error}
           copyLabel={copyLabel}
+          t={t}
           sources={relatedSources}
           errors={relatedErrors}
           resourceFilter={props.relatedResourceFilter}
@@ -147,7 +148,7 @@ export function PodDrawerTabBody(props: Props) {
       ) : (
         <>
           {loading ? <div className="muted">Loading...</div> : null}
-          <ErrorPanel error={error} copyLabel={copyLabel} />
+          <ErrorPanel error={error} copyLabel={copyLabel} t={t} />
           {tab === "yaml" ? (
             <YamlTab
               yamlDraft={yamlDraft}

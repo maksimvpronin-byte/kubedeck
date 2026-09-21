@@ -46,6 +46,9 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
   const [disconnectTarget, setDisconnectTarget] = useState<{ cluster: Cluster; sessions: ClusterLiveSessions } | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const clusterOpenSequenceRef = useRef(0);
+  // Same rule as the resource loader: whoever turned the loading flag on turns
+  // it off, even when a silent reopen superseded it.
+  const clusterOpenLoadingOwnerRef = useRef<number | null>(null);
 
   const settings = config?.settings;
   const namespaceController = useNamespaceRefresh({
@@ -192,7 +195,10 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
       if (!api) return;
       const requestId = clusterOpenSequenceRef.current + 1;
       clusterOpenSequenceRef.current = requestId;
-      if (!silent) setLoading(true);
+      if (!silent || clusterOpenLoadingOwnerRef.current !== null) {
+        clusterOpenLoadingOwnerRef.current = requestId;
+        setLoading(true);
+      }
       if (!silent) setOpeningClusterId(cluster.id);
       try {
         await api.clearResourceCache(cluster.id).catch(() => undefined);
@@ -220,7 +226,10 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
         }
         throw error;
       } finally {
-        if (!silent && clusterOpenSequenceRef.current === requestId) setLoading(false);
+        if (clusterOpenLoadingOwnerRef.current === requestId) {
+          clusterOpenLoadingOwnerRef.current = null;
+          setLoading(false);
+        }
         if (!silent) setOpeningClusterId((current) => (current === cluster.id ? null : current));
       }
     },

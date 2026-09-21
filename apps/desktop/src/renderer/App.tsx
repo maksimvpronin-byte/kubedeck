@@ -18,11 +18,13 @@ import { useClusterController } from "./hooks/useClusterController";
 import { usePersistUiState } from "./hooks/usePersistUiState";
 import { usePodUsageRefresh } from "./hooks/usePodUsageRefresh";
 import { useResourceLoader } from "./hooks/useResourceLoader";
+import type { ResourceLoadFailure } from "./hooks/useResourceLoader";
 import { currentSelectedResourceTarget, useResourceNavigation } from "./hooks/useResourceNavigation";
 import type { SelectedResourceTarget } from "./hooks/useResourceNavigation";
 import { useResourceWatch } from "./hooks/useResourceWatch";
 import { useBottomTerminals } from "./hooks/useBottomTerminals";
 import { useCommandPaletteItems } from "./hooks/useCommandPaletteItems";
+import { useCrdDefinitions } from "./hooks/useCrdDefinitions";
 import { useNodeDiskUsage } from "./hooks/useNodeDiskUsage";
 import { useResourceWorkspaceTabs } from "./hooks/useResourceWorkspaceTabs";
 import { useSectionNavigation } from "./hooks/useSectionNavigation";
@@ -52,6 +54,7 @@ export function App() {
   const [resourceTab, setResourceTab] = useState(initialResourceTab);
   const [rows, setRows] = useState<Record<string, ResourceRow[]>>({ pods: [], deployments: [], services: [], events: [] });
   const [loading, setLoading] = useState(false);
+  const [resourceLoadFailure, setResourceLoadFailure] = useState<ResourceLoadFailure | null>(null);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<SelectedResourceTarget | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(initialUiState.drawerWidth ?? 520);
@@ -63,7 +66,6 @@ export function App() {
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
   const loadResourcesRef = useRef<number | null>(null);
   const actionReloadRef = useRef<(clusterId: string, resource: string, namespaces: string[]) => Promise<void>>(async () => undefined);
-  const crdLoadedClusterRef = useRef<string | null>(null);
   const setSelectedPod = useCallback<Dispatch<SetStateAction<ResourceRow | null>>>(
     (next) => {
       setSelectedTarget((current) => {
@@ -160,6 +162,7 @@ export function App() {
     setOpen: setCommandPaletteOpen,
     results: globalSearchResults,
     loading: globalSearchLoading,
+    notice: globalSearchNotice,
   } = useGlobalSearch({ api, activeClusterId: activeCluster?.id, namespace, onError: setError });
 
   useEffect(() => {
@@ -193,24 +196,13 @@ export function App() {
     clearPendingActions: bulkActions.clearPendingActions,
     setLoading,
     setError,
+    setLoadFailure: setResourceLoadFailure,
   });
+  const resourceLoadError = resourceLoadFailure && resourceLoadFailure.clusterId === activeCluster?.id && resourceLoadFailure.resource === resourceTab ? resourceLoadFailure.error : null;
   actionReloadRef.current = async (clusterId, resource, targetNamespaces) => {
     await loadResources(clusterId, resource, targetNamespaces);
   };
 
-  // KubeDeck 1.0.5 loading guard: if data is already visible, do not let a stale
-  // global loading flag keep table actions and Refresh disabled after startup or
-  // temporary cluster unavailability.
-  useEffect(() => {
-    if (!loading) return undefined;
-    if (isPlaceholderSection(section) || section === "overview" || section === "settings" || section === "help" || section === "port-forwards" || section === "problems") return undefined;
-    const currentRows = rows[resourceTab] ?? [];
-    if (currentRows.length === 0) return undefined;
-    const timer = window.setTimeout(() => {
-      setLoading(false);
-    }, 700);
-    return () => window.clearTimeout(timer);
-  }, [loading, rows, resourceTab, section]);
   const debouncedLoadResources = useCallback(
     (clusterId = activeCluster?.id, resource = resourceTab, ns: string | string[] = selectedNamespaces, silent = false) => {
       if (loadResourcesRef.current !== null) window.clearTimeout(loadResourcesRef.current);
@@ -261,20 +253,7 @@ export function App() {
     setSelectedTarget(null);
   }, [resourceTab, selectedNamespaces, activeCluster?.id, debouncedLoadResources, consumeKeepSelection]);
 
-  useEffect(() => {
-    if (!activeCluster || !api) return;
-    if (crdLoadedClusterRef.current === activeCluster.id && (rows.customresourcedefinitions ?? []).length > 0) return;
-    crdLoadedClusterRef.current = activeCluster.id;
-    api
-      .resources(activeCluster.id, "customresourcedefinitions", "_cluster")
-      .then((response) => {
-        setRows((current) => ({ ...current, customresourcedefinitions: response.items }));
-      })
-      .catch((err) => {
-        crdLoadedClusterRef.current = null;
-        setError(asErrorInfo(err));
-      });
-  }, [api, activeCluster?.id]);
+  useCrdDefinitions({ api, clusterId: activeCluster?.id, loaded: (rows.customresourcedefinitions ?? []).length > 0, setRows, onError: setError });
 
   useEffect(() => {
     if (!activeCluster || !api || isPlaceholderSection(section) || section === "overview" || section === "settings" || section === "help" || section === "port-forwards" || section === "problems")
@@ -371,6 +350,7 @@ export function App() {
     pinNextSelectionRef,
   });
   const commandItems = useCommandPaletteItems({
+    open: commandPaletteOpen,
     t,
     clusters,
     activeCluster,
@@ -542,7 +522,7 @@ export function App() {
                   </div>
                 </section>
               ) : null}
-              <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} />
+              <ErrorPanel error={error} title={error?.code === "TIMEOUT" ? t("cluster.unavailable") : undefined} copyLabel={t("error.copy")} t={t} />
               <AppSectionRouter
                 section={section}
                 resourceTab={resourceTab}
@@ -564,6 +544,7 @@ export function App() {
                 rows={activeRows}
                 columns={columns}
                 loading={loading}
+                resourceLoadError={resourceLoadError}
                 selectedRow={selectedTarget?.clusterId === activeCluster?.id && selectedTarget?.resource === resourceTab ? selectedTarget.row : null}
                 selectedDefinition={selectedDefinition}
                 isCrdDefinitionTab={isCrdDefinitionTab}
@@ -665,6 +646,7 @@ export function App() {
         query={globalSearch}
         items={commandItems}
         loading={globalSearchLoading}
+        notice={globalSearchNotice}
         placeholder={t("app.search")}
         t={t}
         onQueryChange={setGlobalSearch}

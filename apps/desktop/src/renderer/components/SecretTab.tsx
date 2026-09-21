@@ -182,7 +182,7 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
       </div>
 
       {loading ? <div className="muted">Loading secret keys...</div> : null}
-      <ErrorPanel error={error} copyLabel={copyLabel} />
+      <ErrorPanel error={error} copyLabel={copyLabel} t={t} />
 
       {!loading && !error && keys.length === 0 ? (
         <div className="empty-state">

@@ -19,6 +19,9 @@ interface Props {
   rows: ResourceRow[];
   columns: Column[];
   loading: boolean;
+  // Why the last load of this table failed, if it did. Without it an
+  // unreadable list and an empty one look the same.
+  loadError?: { message: string } | null;
   onRefresh: () => void | boolean | Promise<void | boolean>;
   onOpen?: (row: ResourceRow) => void;
   onPin?: (row: ResourceRow) => void;
@@ -52,6 +55,10 @@ interface Props {
     columns: string;
     resetColumns: string;
     sortBy: string;
+    loadingTitle: string;
+    updating: string;
+    loadFailedTitle: string;
+    retry: string;
   }>;
 }
 
@@ -60,6 +67,8 @@ export function ResourceTable({
   rows,
   columns,
   loading,
+  loadError,
+  onRefresh,
   onOpen,
   onPin,
   onNamespaceClick,
@@ -92,6 +101,10 @@ export function ResourceTable({
     columns: labels?.columns ?? "Columns",
     resetColumns: labels?.resetColumns ?? "Reset columns",
     sortBy: labels?.sortBy ?? "Sort by",
+    loadingTitle: labels?.loadingTitle ?? "Loading...",
+    updating: labels?.updating ?? "updating...",
+    loadFailedTitle: labels?.loadFailedTitle ?? "The list could not be loaded",
+    retry: labels?.retry ?? "Retry",
   };
 
   const filterInputRef = useRef<HTMLInputElement | null>(null);
@@ -201,7 +214,12 @@ export function ResourceTable({
   const selectedRowKey = selectedRow ? rowKey(selectedRow) : "";
   const hasFilter = query.trim().length > 0;
   const filteredEmpty = rows.length > 0 && hasFilter && visibleRows.length === 0;
-  const showEmptyState = !loading && renderedRows.length === 0;
+  // Four different answers, and the table used to give one of them for all:
+  // still loading, could not load, nothing there, nothing matches the filter.
+  const showLoadingState = loading && rows.length === 0;
+  const showErrorState = !loading && Boolean(loadError) && rows.length === 0;
+  const showEmptyState = !loading && !showErrorState && renderedRows.length === 0;
+  const refreshing = loading && rows.length > 0;
   const emptyTitle = filteredEmpty ? ui.emptyFilteredTitle : ui.emptyTitle;
   const emptyText = filteredEmpty ? ui.emptyFilteredText : ui.emptyText;
 
@@ -222,6 +240,12 @@ export function ResourceTable({
           <div className="muted small">
             {visibleRows.length} {ui.shownOf} {rows.length}
             {visibleRows.length > 0 ? `, ${ui.page} ${safePageIndex + 1}/${totalPages}` : ""}
+            {refreshing ? (
+              <span className="resource-table-updating" role="status">
+                {" · "}
+                {ui.updating}
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="resource-table-actions">
@@ -338,6 +362,22 @@ export function ResourceTable({
           </tbody>
         </table>
       </div>
+
+      {showLoadingState ? (
+        <div className="empty-state" role="status">
+          <h3>{ui.loadingTitle}</h3>
+        </div>
+      ) : null}
+
+      {showErrorState ? (
+        <div className="empty-state resource-table-load-error" role="alert">
+          <h3>{ui.loadFailedTitle}</h3>
+          <p>{loadError?.message}</p>
+          <button className="secondary-btn" type="button" onClick={() => void onRefresh()}>
+            {ui.retry}
+          </button>
+        </div>
+      ) : null}
 
       {showEmptyState ? (
         <div className="empty-state">

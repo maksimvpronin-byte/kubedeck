@@ -95,7 +95,7 @@ export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Pro
           <p className="muted small kubeconfig-path" title={path}>
             {path}
           </p>
-          <ErrorPanel error={error} copyLabel={t("error.copy")} />
+          <ErrorPanel error={error} copyLabel={t("error.copy")} t={t} />
           {!editable && !loading ? <p className="kubeconfig-readonly">{t("kubeconfig.readOnly")}</p> : null}
           {loading ? (
             <div className="panel-loading" role="status">

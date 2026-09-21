@@ -5,6 +5,7 @@ import type { Cluster, GlobalSearchItem, ResourceDefinition, ResourceRow, Sectio
 import { groupCrds } from "../utils/kubeResources";
 
 interface Options {
+  open: boolean;
   t: (key: string) => string;
   clusters: Cluster[];
   activeCluster: Cluster | null;
@@ -26,6 +27,7 @@ interface Options {
 }
 
 export function useCommandPaletteItems({
+  open,
   t,
   clusters,
   activeCluster,
@@ -46,6 +48,7 @@ export function useCommandPaletteItems({
   openResourceLocator,
 }: Options): CommandPaletteItem[] {
   return useMemo<CommandPaletteItem[]>(() => {
+    if (!open) return [];
     const items: CommandPaletteItem[] = [];
 
     for (const item of sections) {
@@ -122,9 +125,10 @@ export function useCommandPaletteItems({
     for (const result of globalSearchResults) {
       const resource = String(result.resource || "");
       const resultNamespace = String(result.namespace || "");
-      const matchedFields = Array.isArray(result.matchedFields) && result.matchedFields.length ? ` · match: ${result.matchedFields.join(", ")}` : "";
+      const matchedFields = Array.isArray(result.matchedFields) && result.matchedFields.length ? ` · ${t("command.matchedFields")}: ${result.matchedFields.join(", ")}` : "";
       items.push({
         id: `global:${resource}:${resultNamespace}:${result.name}:${result.uid}`,
+        searchMatched: true,
         title: String(result.title || result.name || resource),
         subtitle: `${resourceLabel(resource)}${resultNamespace && resultNamespace !== "_cluster" ? ` · ${resultNamespace}` : ""}${matchedFields}`,
         category: t("command.category.clusterSearch"),
@@ -134,5 +138,5 @@ export function useCommandPaletteItems({
     }
 
     return items;
-  }, [activeRows, activeCluster?.id, clusters, crdGroups, globalSearchResults, namespace, resourceDefinitions, resourceTab, t]);
+  }, [open, activeRows, activeCluster?.id, clusters, crdGroups, globalSearchResults, namespace, resourceDefinitions, resourceTab, t]);
 }

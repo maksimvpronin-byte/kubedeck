@@ -181,7 +181,7 @@ export function LlmTab({
           {promptPreviewOpen ? <button onClick={() => onCopy(promptPreview, t("llm.promptCopied"))}>{t("llm.copyPrompt")}</button> : null}
         </div>
       </header>
-      <ErrorPanel error={error} copyLabel={copyLabel} title={t("llm.analysisFailed")} />
+      <ErrorPanel error={error} copyLabel={copyLabel} title={t("llm.analysisFailed")} t={t} />
 
       {promptPreviewOpen ? (
         <section className="llm-prompt-preview">

@@ -11,6 +11,7 @@ interface Props {
   rows: ResourceRow[];
   columns: Column[];
   loading: boolean;
+  loadError?: { message: string } | null;
   selectedRow: ResourceRow | null;
   canBulkDelete: boolean;
   t: (key: string) => string;
@@ -31,6 +32,7 @@ export function AppResourceTable(props: Props) {
       rows={props.rows}
       columns={props.columns}
       loading={props.loading}
+      loadError={props.loadError}
       onRefresh={props.onRefresh}
       {...createNodeBulkActions(props.resource, props.onNodeAction)}
       onOpen={(row) => openResourceTableRow(props.resource, row, props.onOpenLocator, props.onSelect)}

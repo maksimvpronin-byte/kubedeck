@@ -15,6 +15,7 @@ export function useGlobalSearch({ api, activeClusterId, namespace, onError }: Us
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<GlobalSearchItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<"partial" | "limited" | "failed" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const seqRef = useRef(0);
 
@@ -37,23 +38,23 @@ export function useGlobalSearch({ api, activeClusterId, namespace, onError }: Us
   }, []);
 
   useEffect(() => {
+    // Invalidate even when the query is cleared or the palette is closed.
+    // Cancellation alone cannot retract a response that has already resolved.
+    const requestId = ++seqRef.current;
+    abortRef.current?.abort();
+    setResults([]);
+    setNotice(null);
     if (!api || !activeClusterId || !open) {
-      abortRef.current?.abort();
       setLoading(false);
       return;
     }
 
     const trimmed = query.trim();
     if (trimmed.length < 2) {
-      abortRef.current?.abort();
-      setResults([]);
       setLoading(false);
       return;
     }
 
-    const requestId = seqRef.current + 1;
-    seqRef.current = requestId;
-    abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading(true);
@@ -62,16 +63,18 @@ export function useGlobalSearch({ api, activeClusterId, namespace, onError }: Us
       api
         .search(activeClusterId, trimmed, namespace, 120, true, controller.signal)
         .then((response) => {
-          if (seqRef.current !== requestId) return;
+          if (controller.signal.aborted || seqRef.current !== requestId) return;
           setResults(response.items);
+          setNotice(response.errors.length || response.summary.errors ? "partial" : response.summary.limited ? "limited" : null);
         })
         .catch((err) => {
-          if (isAbortError(err) || seqRef.current !== requestId) return;
+          if (controller.signal.aborted || isAbortError(err) || seqRef.current !== requestId) return;
           setResults([]);
+          setNotice("failed");
           onError(asErrorInfo(err));
         })
         .finally(() => {
-          if (seqRef.current === requestId) setLoading(false);
+          if (!controller.signal.aborted && seqRef.current === requestId) setLoading(false);
         });
     }, 250);
 
@@ -92,5 +95,6 @@ export function useGlobalSearch({ api, activeClusterId, namespace, onError }: Us
     setOpen,
     results,
     loading,
+    notice,
   };
 }

@@ -194,6 +194,49 @@ test("an empty list says so, and says something else once a filter is to blame",
   }
 });
 
+test("loading, a failed load and an empty list are three different things on screen", () => {
+  const retries = [];
+  const view = mount(table({ rows: [], loading: true }));
+  try {
+    assert.equal(view.text(".empty-state h3"), "Loading...", "a first load is not an empty list");
+
+    view.update(
+      table({
+        stateKey: "pods-states",
+        rows: [],
+        loading: false,
+        loadError: { message: 'deployments.apps is forbidden: User "dev" cannot list resource "deployments"' },
+        onRefresh: () => retries.push(1),
+      }),
+    );
+    const failure = view.first(".resource-table-load-error");
+    assert.ok(failure, "a failed load says it failed");
+    assert.match(failure.textContent, /could not be loaded/);
+    assert.match(failure.textContent, /forbidden/);
+    assert.doesNotMatch(view.container.textContent, /No resources to display/, "and not that there is nothing there");
+    view.click(failure.querySelector("button"));
+    assert.equal(retries.length, 1);
+
+    view.update(table({ stateKey: "pods-states", rows: [], loading: false, loadError: null }));
+    assert.equal(view.text(".empty-state h3"), "No resources to display");
+  } finally {
+    view.unmount();
+  }
+});
+
+test("a refresh of rows already on screen keeps them and says it is updating", () => {
+  const view = mount(table({ loading: true }));
+  try {
+    assert.deepEqual(view.rowNames(), ["api-server", "cache", "worker"]);
+    assert.match(view.text(".resource-table-updating"), /updating/);
+    assert.ok(!view.first(".empty-state"), "rows on screen are not an empty list");
+    view.update(table({ stateKey: view.stateKey, loading: false }));
+    assert.ok(!view.first(".resource-table-updating"), "the marker goes once the refresh is done");
+  } finally {
+    view.unmount();
+  }
+});
+
 test("the log stream URL carries what the tab is showing, and the session token", () => {
   const { ApiClient } = loadComponent("api.ts");
   const api = new ApiClient("http://127.0.0.1:7788", "session-token");
