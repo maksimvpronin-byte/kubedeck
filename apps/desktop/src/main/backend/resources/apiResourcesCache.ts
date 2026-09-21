@@ -78,8 +78,10 @@ export async function getApiResourcesOutput(
     onAbort = () => reject(new ApiResourcesWaitAbandoned("aborted"));
     signal?.addEventListener("abort", onAbort, { once: true });
     if (timeoutMs !== undefined) {
+      // Not unref'd: this timer is the one thing a caller waits on, and it is
+      // cleared as soon as the wait ends. Unref'd, a caller with nothing else
+      // holding the process open was abandoned mid-await on Node 22.
       timer = setTimeout(() => reject(new ApiResourcesWaitAbandoned("timeout")), Math.max(0, timeoutMs));
-      timer.unref?.();
     }
   });
   try {
