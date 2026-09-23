@@ -463,9 +463,14 @@ function KnownSshHostsCard({ api, t, onError }: { api: ApiClient | null; t: (key
                   {host.host}:{host.port}
                 </td>
                 <td>{host.algorithm}</td>
-                <td className="settings-known-hosts-fingerprint">{host.fingerprint}</td>
+                <td className="settings-known-hosts-fingerprint" title={host.fingerprint}>
+                  {host.fingerprint}
+                </td>
                 <td>{host.rememberedAt.slice(0, 19).replace("T", " ")}</td>
-                <td className="row-actions">
+                {/* A plain cell: the flex "row-actions" class on a td took it out of the
+                    table's columns, so every row came out narrower than the header
+                    and the Forget button was cut off at its edge. */}
+                <td className="settings-known-hosts-action">
                   <button className="secondary-btn" type="button" onClick={() => void forget(host)}>
                     {t("settings.ssh.knownHosts.forget")}
                   </button>

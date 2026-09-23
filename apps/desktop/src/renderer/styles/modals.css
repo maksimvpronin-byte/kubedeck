@@ -520,17 +520,22 @@
   margin-top: 2px;
 }
 
+/* Laid out by content, unlike the resource tables: the fingerprint is what
+   this table is for, and the global fixed layout cut it to an ellipsis. */
 .settings-known-hosts {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
   font-size: 12px;
 }
 
 .settings-known-hosts th,
 .settings-known-hosts td {
+  max-width: none;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border, #233142);
   text-align: left;
+  white-space: nowrap;
 }
 
 .settings-known-hosts th {
@@ -538,9 +543,15 @@
   font-weight: 500;
 }
 
-.settings-known-hosts-fingerprint {
+.settings-known-hosts td.settings-known-hosts-fingerprint {
+  width: 100%;
+  white-space: normal;
   overflow-wrap: anywhere;
   font-family: Consolas, "Cascadia Mono", "Liberation Mono", monospace;
+}
+
+.settings-known-hosts-action {
+  text-align: right;
 }
 
 /* KubeDeck 1.0.4 Patch 5: SSH defaults settings */

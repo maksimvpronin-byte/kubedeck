@@ -1,3 +1,16 @@
+## 2.26.1 - Remembered SSH host keys fit their card
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**The remembered SSH host keys table in Settings was broken.** Its last cell
+carried a flex layout class, which took it out of the table's columns: every
+row came out narrower than the header and the Forget button was cut off at its
+edge. The fingerprint - what the table is for - was cut to an ellipsis by the
+fixed layout all tables share. The cell is a plain table cell, the table is
+laid out by content, and fingerprints wrap and are shown whole.
+
+Renderer tests: 294, up from 293.
+
 ## 2.26.0 - Compact tables
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

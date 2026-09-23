@@ -102,3 +102,23 @@ test("a fresh copy of the same settings does not wipe what is being edited", (t)
   assert.equal(view.container.querySelector("input:not([type])").value, "/usr/bin/kubectl");
   assert.equal(reports.at(-1), false);
 });
+
+test("remembered SSH hosts are table rows as wide as their header, with the fingerprint whole", async (t) => {
+  const fingerprint = "SHA256:Lcl2/VOugZVEVKaQ9n3mZcT7yX1bR4pW8sDfGhJkL0M";
+  const api = {
+    llmStatus: async () => ({ secretStorageAvailable: true }),
+    knownSshHosts: async () => ({ items: [{ host: "10.50.48.24", port: 22, algorithm: "ssh-ed25519", fingerprint, rememberedAt: "2026-08-24T12:09:08Z" }] }),
+    resourceCacheStatus: async () => ({ items: [], ttlSeconds: 15 }),
+    watchStatus: async () => ({ mode: "cache-invalidation", total: 0, active: 0, watches: [] }),
+  };
+  const view = mount(panel([], { api }));
+  t.after(() => view.unmount());
+  await React.act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  const row = view.first(".settings-known-hosts tbody tr");
+  assert.ok(row, "the remembered host is listed");
+  // A flex class on the last cell took it out of the table's columns: rows came
+  // out narrower than the header, with the Forget button cut off.
+  assert.ok(![...row.children].some((cell) => cell.classList.contains("row-actions")));
+  assert.equal(row.children.length, view.all(".settings-known-hosts thead th").length);
+  assert.equal(view.first(".settings-known-hosts-fingerprint").getAttribute("title"), fingerprint);
+});
