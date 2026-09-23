@@ -385,10 +385,12 @@ export function PodDrawer({
         />
       ) : null}
       {yamlApplyConfirmOpen && pod ? (
-        <YamlApplyConfirmModal resource={resource} row={pod} loading={loading} onCancel={() => setYamlApplyConfirmOpen(false)} onApply={() => void applyYaml(pod.name)} />
+        <YamlApplyConfirmModal t={t} resource={resource} row={pod} loading={loading} onCancel={() => setYamlApplyConfirmOpen(false)} onApply={() => void applyYaml(pod.name)} />
       ) : null}
-      {closeConfirmOpen ? <UnsavedYamlConfirmModal resource={resource} row={pod} onDiscard={discardYamlAndClose} onContinueEditing={keepEditingYaml} /> : null}
-      {terminalPickerOpen && pod ? <TerminalContainerPickerModal row={pod} containers={containerNames(pod)} onCancel={() => setTerminalPickerOpen(false)} onOpenContainer={openTerminal} /> : null}
+      {closeConfirmOpen ? <UnsavedYamlConfirmModal t={t} resource={resource} row={pod} onDiscard={discardYamlAndClose} onContinueEditing={keepEditingYaml} /> : null}
+      {terminalPickerOpen && pod ? (
+        <TerminalContainerPickerModal t={t} row={pod} containers={containerNames(pod)} onCancel={() => setTerminalPickerOpen(false)} onOpenContainer={openTerminal} />
+      ) : null}
     </aside>
   );
 }

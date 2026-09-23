@@ -16,7 +16,7 @@ interface ResourceActionConfirmModalProps {
   loading: boolean;
   onCancel: () => void;
   onConfirm: () => void;
-  t?: (key: string) => string;
+  t: (key: string) => string;
 }
 
 export function ResourceActionConfirmModal({ action, resource, row, replicas, onReplicasChange, jobName, loading, onCancel, onConfirm, t }: ResourceActionConfirmModalProps) {
@@ -26,30 +26,30 @@ export function ResourceActionConfirmModal({ action, resource, row, replicas, on
       <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
         <header>
           <h2 id="confirm-title">{actionLabel(action, resource, t)}</h2>
-          <button className="icon-button" onClick={onCancel} title={t ? t("common.close") : "Close"}>
+          <button className="icon-button" onClick={onCancel} title={t("common.close")}>
             <X size={16} />
           </button>
         </header>
         <div className="confirm-body">
-          <p>{actionDescription(action, resource, row.name)}</p>
+          <p>{actionDescription(action, resource, row.name, t)}</p>
           {action === "scale" ? (
             <label className="confirm-field">
-              Replicas
+              {t("drawer.modal.replicas")}
               <input type="number" min="0" value={replicas} onChange={(event) => onReplicasChange(Number(event.target.value))} />
             </label>
           ) : null}
           <code>
             {resource}/{row.name}
           </code>
-          <p className="muted">Review the exact kubectl action preview and confirm the action. Typing the resource name is not required.</p>
+          <p className="muted">{t("drawer.modal.reviewPreview")}</p>
           <CommandPreviewBlock command={commandPreview(action, resource, namespace, row.name, replicas, jobName)} />
         </div>
         <footer>
           <button onClick={onCancel} disabled={loading}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className={action === "delete" ? "danger" : "primary"} onClick={onConfirm} disabled={loading}>
-            Confirm
+            {t("drawer.modal.confirm")}
           </button>
         </footer>
       </section>
@@ -63,32 +63,33 @@ interface YamlApplyConfirmModalProps {
   loading: boolean;
   onCancel: () => void;
   onApply: () => void;
+  t: (key: string) => string;
 }
 
-export function YamlApplyConfirmModal({ resource, row, loading, onCancel, onApply }: YamlApplyConfirmModalProps) {
+export function YamlApplyConfirmModal({ resource, row, loading, onCancel, onApply, t }: YamlApplyConfirmModalProps) {
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="yaml-apply-confirm-title">
         <header>
-          <h2 id="yaml-apply-confirm-title">Apply YAML</h2>
-          <button className="icon-button" onClick={onCancel} title="Close">
+          <h2 id="yaml-apply-confirm-title">{t("drawer.modal.applyYaml")}</h2>
+          <button className="icon-button" onClick={onCancel} title={t("common.close")}>
             <X size={16} />
           </button>
         </header>
         <div className="confirm-body">
-          <p>Server dry-run is recommended before applying YAML. Review the target resource and confirm the apply operation.</p>
+          <p>{t("drawer.modal.applyHint")}</p>
           <code>
             {resource}/{row.name}
           </code>
-          <p className="muted">KubeDeck applies one YAML document at a time. Typing the resource name is not required.</p>
+          <p className="muted">{t("drawer.modal.applyOneDocument")}</p>
           <CommandPreviewBlock command="kubectl apply -f -" />
         </div>
         <footer>
           <button onClick={onCancel} disabled={loading}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="danger" onClick={onApply} disabled={loading}>
-            Apply YAML
+            {t("drawer.modal.applyYaml")}
           </button>
         </footer>
       </section>
@@ -101,30 +102,31 @@ interface UnsavedYamlConfirmModalProps {
   row: ResourceRow;
   onDiscard: () => void;
   onContinueEditing: () => void;
+  t: (key: string) => string;
 }
 
-export function UnsavedYamlConfirmModal({ resource, row, onDiscard, onContinueEditing }: UnsavedYamlConfirmModalProps) {
+export function UnsavedYamlConfirmModal({ resource, row, onDiscard, onContinueEditing, t }: UnsavedYamlConfirmModalProps) {
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="yaml-close-confirm-title">
         <header>
-          <h2 id="yaml-close-confirm-title">Unsaved YAML changes</h2>
-          <button className="icon-button" onClick={onContinueEditing} title="Close">
+          <h2 id="yaml-close-confirm-title">{t("drawer.modal.unsavedTitle")}</h2>
+          <button className="icon-button" onClick={onContinueEditing} title={t("common.close")}>
             <X size={16} />
           </button>
         </header>
         <div className="confirm-body">
-          <p>You have unsaved YAML changes for this resource. Close the drawer and discard them, or continue editing?</p>
+          <p>{t("drawer.modal.unsavedText")}</p>
           <code>
             {resource}/{row.name}
           </code>
         </div>
         <footer>
           <button className="danger" onClick={onDiscard}>
-            Discard changes
+            {t("drawer.modal.discard")}
           </button>
           <button className="primary" onClick={onContinueEditing}>
-            Continue editing
+            {t("drawer.modal.continueEditing")}
           </button>
         </footer>
       </section>
@@ -137,31 +139,32 @@ interface TerminalContainerPickerModalProps {
   containers: string[];
   onCancel: () => void;
   onOpenContainer: (name: string) => void;
+  t: (key: string) => string;
 }
 
-export function TerminalContainerPickerModal({ row, containers, onCancel, onOpenContainer }: TerminalContainerPickerModalProps) {
+export function TerminalContainerPickerModal({ row, containers, onCancel, onOpenContainer, t }: TerminalContainerPickerModalProps) {
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="terminal-container-title">
         <header>
-          <h2 id="terminal-container-title">Select container</h2>
-          <button className="icon-button" onClick={onCancel} title="Close">
+          <h2 id="terminal-container-title">{t("drawer.modal.selectContainer")}</h2>
+          <button className="icon-button" onClick={onCancel} title={t("common.close")}>
             <X size={16} />
           </button>
         </header>
         <div className="confirm-body">
-          <p>{row.name} has multiple containers. Choose where to open the terminal.</p>
+          <p>{t("drawer.modal.selectContainerText").replace("{name}", row.name)}</p>
           <div className="event-list">
             {containers.map((name) => (
               <button className="related-card" key={name} onClick={() => onOpenContainer(name)}>
                 <strong>{name}</strong>
-                <span>container</span>
+                <span>{t("logs.container")}</span>
               </button>
             ))}
           </div>
         </div>
         <footer>
-          <button onClick={onCancel}>Cancel</button>
+          <button onClick={onCancel}>{t("common.cancel")}</button>
         </footer>
       </section>
     </div>
@@ -174,7 +177,7 @@ export function supportedActions(resource: string): ResourceAction[] {
   if (["deployments", "statefulsets"].includes(resource)) return ["redeploy", "scale", "delete"];
   if (resource === "daemonsets") return ["redeploy", "delete"];
   if (resource === "replicasets") return ["scale", "delete"];
-  if (["jobs", "cronjobs", "replicasets", "services", "configmaps", "secrets", "serviceaccounts"].includes(resource)) return ["delete"];
+  if (["jobs", "services", "configmaps", "secrets", "serviceaccounts"].includes(resource)) return ["delete"];
   return [];
 }
 
@@ -192,13 +195,20 @@ export function actionLabel(action: ResourceAction, resource: string, t?: (key: 
   return t ? t(key) : english;
 }
 
-function actionDescription(action: ResourceAction, resource: string, name: string) {
-  if (action === "trigger") return `Run ${name} once, now, by creating a Job from its template. The schedule is not touched and the CronJob keeps running as before.`;
-  if (action === "restart" && resource === "pods") return `Restart ${name} by deleting the pod and letting its controller recreate it.`;
-  if (action === "redeploy") return `Trigger a rollout restart for ${name}.`;
-  if (action === "scale") return `Set desired replicas for ${name}.`;
-  if (action === "delete" && resource === "pods") return `Force delete ${name} immediately without graceful shutdown. A controller may recreate it; a standalone pod will not be restored.`;
-  return `Delete ${name}. This action cannot be undone from KubeDeck.`;
+function actionDescription(action: ResourceAction, resource: string, name: string, t: (key: string) => string) {
+  const key =
+    action === "trigger"
+      ? "trigger"
+      : action === "restart" && resource === "pods"
+        ? "restartPod"
+        : action === "redeploy"
+          ? "redeploy"
+          : action === "scale"
+            ? "scale"
+            : action === "delete" && resource === "pods"
+              ? "deletePod"
+              : "delete";
+  return t(`drawer.modal.describe.${key}`).replace("{name}", name);
 }
 
 function commandPreview(action: ResourceAction, resource: string, namespace: string, name: string, replicas: number, jobName: string) {

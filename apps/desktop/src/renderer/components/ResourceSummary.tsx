@@ -27,7 +27,10 @@ export function ResourceSummary({ row, resource, now, events = [], serviceEndpoi
   const failures = isPod(resource) ? restartFailures(row) : [];
   const warnings = warningEvents(events).slice(0, 5);
   const quota = isQuota(resource) ? quotaRows(row.quotaUsage) : [];
-  const workloadConditions = Array.isArray(row.workloadConditions) ? (row.workloadConditions as Array<{ label: string; reason?: string; message?: string; tone?: string }>) : [];
+  // A node's conditions are shown here as on the table: MemoryPressure next to
+  // Ready, not only as a line of text under Pressure.
+  const conditionSource = Array.isArray(row.workloadConditions) ? row.workloadConditions : Array.isArray(row.nodeConditions) ? row.nodeConditions : [];
+  const workloadConditions = conditionSource as Array<{ label: string; reason?: string; message?: string; tone?: string }>;
 
   return (
     <div className="resource-summary-layout">

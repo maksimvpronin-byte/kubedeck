@@ -12,7 +12,7 @@ const assert = require("node:assert/strict");
 const { loadComponent, mount, React, window } = require("./helpers/dom.cjs");
 
 const { SecretTab } = loadComponent("components/SecretTab.tsx", {
-  "../api": { ApiClient: class {} },
+  "../api": { ApiClient: class {}, ApiError: class extends Error {} },
 });
 
 const VALUE = "postgres://kubedeck:hunter2@db.internal:5432/app";
@@ -240,4 +240,25 @@ test("auto-hide takes the confirmation dialog down with the value", async (t) =>
 
   assert.ok(!s.dialog(), "the confirmation must close with the value it was about to write");
   assert.ok(!s.calls.some((call) => call.name === "updateSecret"));
+});
+
+test("a value revealed on one Secret does not stay on screen when another is selected", async (t_) => {
+  let refuse = false;
+  const s = await secretTab(t_, {
+    secretKeys: async (_cluster, _ns, name) => {
+      if (refuse) throw new Error(`secrets "${name}" is forbidden`);
+      return { type: "Opaque", immutable: false, revealTimeoutSeconds: 30, keys: [{ key: "DATABASE_URL", validBase64: true, decodedBytes: VALUE.length, binary: false }] };
+    },
+  });
+  await s.reveal("DATABASE_URL");
+  assert.ok(s.textarea("DATABASE_URL"), "revealed and open for editing");
+
+  // The next Secret cannot be read: nothing of the first may remain.
+  refuse = true;
+  await React.act(async () => {
+    s.view.update(React.createElement(SecretTab, { api: s.api, clusterId: "cluster-a", row: { name: "other-secrets", namespace: "default" }, copyLabel: "Copy", t: (key) => key }));
+  });
+  assert.ok(!s.view.container.textContent.includes("hunter2"), "the first Secret's value is gone");
+  assert.ok(!s.view.container.querySelector("textarea"), "and so is the edit in progress");
+  assert.equal(s.view.all(".secret-key-card").length, 0, "the first Secret's keys are not shown under the second's name");
 });
