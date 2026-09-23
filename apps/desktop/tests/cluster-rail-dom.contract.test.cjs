@@ -243,3 +243,19 @@ test("the open cluster is named in full above the tree, and its name opens the s
   assert.deepEqual(calls, ["rename"]);
   assert.ok(!view.first('[role="menu"]'), "the choice closes the menu");
 });
+
+test("a menu opened low on the rail is moved back inside the window", (t) => {
+  const r = rail(t);
+  const item = r.itemFor("c-office");
+  item.getBoundingClientRect = () => ({ left: 0, top: window.innerHeight - 20, right: 40, bottom: window.innerHeight, width: 40, height: 20 });
+  const measure = window.HTMLElement.prototype.getBoundingClientRect;
+  window.HTMLElement.prototype.getBoundingClientRect = function () {
+    return this.getAttribute("role") === "menu" ? { left: 0, top: 0, right: 170, bottom: 200, width: 170, height: 200 } : measure.call(this);
+  };
+  t.after(() => {
+    window.HTMLElement.prototype.getBoundingClientRect = measure;
+  });
+  r.rightClick(item);
+  const top = Number.parseFloat(r.menu().style.top);
+  assert.ok(top + 200 <= window.innerHeight, `the menu ends inside the window (top ${top}, window ${window.innerHeight})`);
+});

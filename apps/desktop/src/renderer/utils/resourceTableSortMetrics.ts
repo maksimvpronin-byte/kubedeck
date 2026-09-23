@@ -45,7 +45,3 @@ export function sortKeyBelongsToColumn(columnKey: string, sortKey: string): bool
   if (columnKey === ANNOTATION_COLUMN_KEY && isAnnotationSortKey(sortKey)) return true;
   return columnKey === sortKey || activeSortMetric(columnKey, sortKey) !== null;
 }
-
-export function defaultSortKeyForColumn(columnKey: string): string {
-  return columnSortMetrics(columnKey)[0]?.key ?? columnKey;
-}

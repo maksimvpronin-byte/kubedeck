@@ -26,7 +26,7 @@ interface Options {
   setSection: Dispatch<SetStateAction<Section>>;
   setResourceTab: Dispatch<SetStateAction<string>>;
   setError: Dispatch<SetStateAction<ErrorInfo | null>>;
-  confirmDrawerNavigation: () => boolean;
+  confirmDrawerNavigation: (nextSection?: Section) => boolean;
   keepCurrentSelection: () => void;
   openCluster: (cluster: Cluster) => Promise<void> | void;
   drawerDirtyRef: MutableRefObject<boolean>;
@@ -100,7 +100,7 @@ export function useResourceWorkspaceTabs({
 
   const activateResourceTab = useCallback(
     async (tab: ResourceWorkspaceTab) => {
-      if (!confirmDrawerNavigation()) return;
+      if (!confirmDrawerNavigation(tab.section)) return;
       const cluster = clusters.find((item) => item.id === tab.clusterId);
       if (!cluster || !api) {
         setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "unavailable" } : item)));

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ApiClient } from "../api";
 import type { ApiKeyUpdate, Cluster, ErrorInfo, KnownSshHost, Settings, SshAuthMethod } from "../types";
 import { normalizeRefreshIntervalSeconds, REFRESH_INTERVAL_OPTIONS_SECONDS } from "../utils/refresh";
@@ -51,7 +51,13 @@ export function SettingsPanel({
   onError: (error: ErrorInfo | null) => void;
 }) {
   const [draft, setDraft] = useState<Settings>(() => normalizeSettings(settings));
-  useEffect(() => setDraft(normalizeSettings(settings)), [settings]);
+  // The config is fetched again after importing, renaming or opening a cluster
+  // - all of which can be done from this panel - and every fetch is a new
+  // settings object. Resetting the form on the object threw away whatever was
+  // being edited; it is reset when what is saved actually changes.
+  const savedSettingsKey = useMemo(() => comparableSettings(settings), [settings]);
+  const savedSettingsRef = useRef(settings);
+  savedSettingsRef.current = settings;
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
   const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
@@ -62,10 +68,12 @@ export function SettingsPanel({
   const [clearApiKey, setClearApiKey] = useState(false);
   const [secretStorageAvailable, setSecretStorageAvailable] = useState<boolean | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the key stands for the settings' content
   useEffect(() => {
+    setDraft(normalizeSettings(savedSettingsRef.current));
     setApiKeyDraft("");
     setClearApiKey(false);
-  }, [settings]);
+  }, [savedSettingsKey]);
 
   useEffect(() => {
     if (!api) return undefined;
@@ -480,11 +488,12 @@ function KnownSshHostsCard({ api, t, onError }: { api: ApiClient | null; t: (key
 // normalisation, so opening the panel is not a change, and neither is putting a
 // value back the way it was.
 function settingsChanged(draft: Settings, saved: Settings): boolean {
-  const comparable = (settings: Settings) => {
-    const normalized = normalizeSettings(settings);
-    return stableJson({ ...normalized, refreshIntervalSeconds: normalizeRefreshIntervalSeconds(normalized.refreshIntervalSeconds), ssh: normalizeSshSettings(normalized.ssh) });
-  };
-  return comparable(draft) !== comparable(saved);
+  return comparableSettings(draft) !== comparableSettings(saved);
+}
+
+function comparableSettings(settings: Settings): string {
+  const normalized = normalizeSettings(settings);
+  return stableJson({ ...normalized, refreshIntervalSeconds: normalizeRefreshIntervalSeconds(normalized.refreshIntervalSeconds), ssh: normalizeSshSettings(normalized.ssh) });
 }
 
 function stableJson(value: unknown): string {

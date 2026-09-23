@@ -17,7 +17,7 @@ interface Options {
   setNamespaceSelection: (value: string | string[]) => void;
   restoreNamespacedSelection: () => void;
   cancelResourceNavigation: () => void;
-  confirmDrawerNavigation: () => boolean;
+  confirmDrawerNavigation: (nextSection?: Section) => boolean;
 }
 
 export interface SectionNavigation {
@@ -50,7 +50,7 @@ export function useSectionNavigation({
 
   const selectSection = useCallback(
     (next: Section) => {
-      if (!confirmDrawerNavigation()) return;
+      if (!confirmDrawerNavigation(next)) return;
       cancelResourceNavigation();
       setSection(next);
 
@@ -121,7 +121,7 @@ export function useSectionNavigation({
 
   const selectTreeResource = useCallback(
     (sectionId: Section, resource: string) => {
-      if (!confirmDrawerNavigation()) return;
+      if (!confirmDrawerNavigation(sectionId)) return;
       cancelResourceNavigation();
       if (resource === "port-forwards") {
         setSection("port-forwards");

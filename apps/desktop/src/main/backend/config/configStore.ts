@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { kubeconfigClusterName } from "./kubeconfigName";
+import { kubeconfigClusterName, MAX_KUBECONFIG_BYTES } from "./kubeconfigName";
 import { ensureAppPaths, type AppPaths } from "./paths";
 import type { AppConfig, Cluster, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "./types";
 
@@ -254,7 +254,7 @@ export class KubeconfigEditError extends Error {
   }
 }
 
-export const MAX_KUBECONFIG_BYTES = 1024 * 1024;
+export { MAX_KUBECONFIG_BYTES };
 
 function managedPath(pathname: string, baseDirectory: string): boolean {
   if (!fs.existsSync(pathname)) return false;

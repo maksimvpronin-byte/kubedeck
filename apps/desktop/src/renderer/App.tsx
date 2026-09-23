@@ -158,11 +158,14 @@ export function App() {
   const namespace = selectedNamespaces.length === 1 ? selectedNamespaces[0] : selectedNamespaces.join(",");
 
   // Every way out of what is on screen asks here first: an edited YAML in the
-  // drawer, and settings changed but not saved. The settings panel only reports
-  // itself dirty while it is mounted, so the second question is asked only when
-  // leaving it.
+  // drawer, and settings changed but not saved. Settings are asked about only
+  // when the move goes to another section - opening a cluster from the rail
+  // leaves the settings on screen, and the form with them. The panel reports
+  // itself dirty only while it is mounted.
   const confirmDrawerNavigation = useCallback(
-    () => (!drawerDirtyRef.current || window.confirm("Discard unsaved YAML changes?")) && (!settingsDirtyRef.current || window.confirm(t("settings.discard"))),
+    (nextSection?: Section) =>
+      (!drawerDirtyRef.current || window.confirm("Discard unsaved YAML changes?")) &&
+      (!settingsDirtyRef.current || !nextSection || nextSection === "settings" || window.confirm(t("settings.discard"))),
     [t],
   );
   const setSettingsDirty = useCallback((dirty: boolean) => {

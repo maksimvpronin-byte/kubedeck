@@ -19,9 +19,3 @@ export function formatAge(value: unknown, now: number): string {
   if (!timestamp) return String(value ?? "unknown");
   return formatElapsed(now - timestamp);
 }
-
-export function formatAgeAgo(value: unknown, now: number): string {
-  const timestamp = parseTimestamp(value);
-  if (!timestamp) return String(value ?? "unknown");
-  return `${formatElapsed(now - timestamp)} ago`;
-}

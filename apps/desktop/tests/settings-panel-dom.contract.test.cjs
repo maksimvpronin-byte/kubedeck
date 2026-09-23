@@ -82,3 +82,19 @@ test("a panel that goes away leaves nothing unsaved behind", () => {
   view.unmount();
   assert.equal(reports.at(-1), false, "leaving was confirmed, or the panel would still be here");
 });
+
+test("a fresh copy of the same settings does not wipe what is being edited", (t) => {
+  const reports = [];
+  const view = mount(panel(reports));
+  t.after(() => view.unmount());
+  view.type(view.container.querySelector("input:not([type])"), "/opt/kubectl");
+  // Importing, renaming or opening a cluster fetches the config again.
+  view.update(panel(reports, { settings: JSON.parse(JSON.stringify(SETTINGS)) }));
+  assert.equal(view.container.querySelector("input:not([type])").value, "/opt/kubectl", "the edit survives");
+  assert.equal(reports.at(-1), true);
+
+  // Settings that really changed - saved elsewhere - do replace the form.
+  view.update(panel(reports, { settings: { ...SETTINGS, kubectlPath: "/usr/bin/kubectl" } }));
+  assert.equal(view.container.querySelector("input:not([type])").value, "/usr/bin/kubectl");
+  assert.equal(reports.at(-1), false);
+});

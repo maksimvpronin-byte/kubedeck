@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import { parseDocument } from "yaml";
 
+// Larger than any kubeconfig in use; a file this big is not parsed to name a
+// cluster, and is not offered for editing.
+export const MAX_KUBECONFIG_BYTES = 1024 * 1024;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -70,7 +74,6 @@ export function kubeconfigClusterName(content: string): string {
 // and modification time; a kubeconfig edited in KubeDeck or outside it is
 // read again.
 const serverCache = new Map<string, { stamp: string; server: string }>();
-const MAX_KUBECONFIG_BYTES = 1024 * 1024;
 
 export function kubeconfigFileServer(kubeconfigPath: string): string {
   try {

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Cluster } from "../types";
 
 // What can be done to a cluster from where it is shown - its button on the rail
@@ -31,7 +31,23 @@ interface Props extends ClusterMenuActions {
   onClose: () => void;
 }
 
+// Space kept between the menu and the window edge it is pushed back from.
+const EDGE = 8;
+
 export function ClusterMenu({ cluster, connected, x, y, labels, onClose, onConnect, onDisconnect, onRename, onEditKubeconfig, onOpenSettings, onRemove }: Props) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState({ left: x, top: y });
+  // Opened beside a cluster low on the rail, seven items ran off the bottom of
+  // the window. Measured before it is painted and moved back inside.
+  useLayoutEffect(() => {
+    const box = menuRef.current?.getBoundingClientRect();
+    if (!box) return;
+    setPosition({
+      left: Math.max(EDGE, Math.min(x, window.innerWidth - box.width - EDGE)),
+      top: Math.max(EDGE, Math.min(y, window.innerHeight - box.height - EDGE)),
+    });
+  }, [x, y]);
+
   // A menu that outlives the click that opened it is a trap: any other
   // interaction, a change of window size, or Escape has to dismiss it.
   useEffect(() => {
@@ -51,6 +67,7 @@ export function ClusterMenu({ cluster, connected, x, y, labels, onClose, onConne
   const item = (label: string | undefined, run: (() => void) | undefined, options: { disabled?: boolean; danger?: boolean } = {}) =>
     label && run ? (
       <button
+        key={label}
         type="button"
         role="menuitem"
         className={options.danger ? "is-danger" : undefined}
@@ -75,7 +92,8 @@ export function ClusterMenu({ cluster, connected, x, y, labels, onClose, onConne
       className="cluster-rail-menu"
       role="menu"
       aria-label={cluster.displayName}
-      style={{ left: x, top: y }}
+      ref={menuRef}
+      style={position}
       // The window-level dismiss handler would close the menu before a click on
       // it could land.
       onPointerDown={(event) => event.stopPropagation()}
