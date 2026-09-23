@@ -43,7 +43,21 @@ first line of a card, with the order arrows, and the actions sit under them;
 the Settings column is wider. "Stored locally on this Mac" now says "this
 computer".
 
-Renderer tests: 277, up from 269. Gateway tests: 184, up from 182.
+**A polishing pass fixed what the new features and older code let slip.**
+Settings edits no longer vanish when the config is fetched again (importing,
+renaming or opening a cluster from Settings did it), and leaving is asked about
+only when Settings is actually left. A workspace tab whose cluster cannot be
+opened stops "loading"; failed opens and removals are shown instead of escaping
+as unhandled rejections. A table filter no longer follows you to the next
+resource tab, nodes sort on the conditions they show, the tab strip scopes
+ClusterRoles to _cluster like the tree, a double Enter cannot rename twice, and
+Save is disabled with nothing to save. Cluster menus stay inside the window, the
+API server survives a reorder, a kubeconfig imported twice is told apart by
+" (2)", and Settings cards name the server instead of a UUID path. Confirmations
+are translated. Removed: 746 lines of dead CSS, 34 unused translation keys, 15
+copies of one helper and three dead exports.
+
+Renderer tests: 282, up from 269. Gateway tests: 184, up from 182.
 
 ## 2.24.5 - Node disk bars no longer flicker
 

@@ -13,7 +13,7 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [x] `npm run lint`
 - [x] `npm run lint:css`
 - [x] `npm run format:check`
-- [x] `npm run test:renderer` (277 tests, up from 269)
+- [x] `npm run test:renderer` (282 tests, up from 269)
 - [x] `npm --workspace apps/desktop run test:gateway` (184 tests, up from 182)
 - [x] `npm run typecheck`
 - [x] `npm run build`
@@ -85,6 +85,29 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [ ] The cluster cards show name and path in full on the first line, arrows on
   the right, actions under them; nothing overlaps at any window width.
 - [ ] Local activity says "stored locally on this computer".
+
+## Polishing
+
+- [ ] In Settings, change a value, then import a kubeconfig from the cluster
+  list: the change is still there.
+- [ ] With a change not saved, click a cluster on the rail: no question, the
+  cluster opens and the form keeps the change.
+- [ ] Save settings is disabled until something changes.
+- [ ] Rename a cluster and press Enter twice quickly: one rename.
+- [ ] Remove a cluster the backend refuses (file locked): an error is shown.
+- [ ] Pin a resource tab, make its cluster unreachable, activate the tab: it
+  says unavailable instead of loading.
+- [ ] Type a filter on Pods, switch to Nodes: Nodes is not filtered.
+- [ ] Sort Nodes by Status: nodes under pressure are not among the Ready ones.
+- [ ] RBAC: click the ClusterRoles tab above the table; the namespace selector
+  moves to cluster scope as it does from the tree.
+- [ ] Right-click the lowest cluster on the rail: the menu is fully visible.
+- [ ] Drag a cluster to reorder: tooltips still show the API server.
+- [ ] Import the same kubeconfig twice: the second is listed with " (2)".
+- [ ] Settings cluster cards show the API server; the path is in the tooltip.
+- [ ] Remove-cluster and discard-YAML questions are in Russian with the RU UI.
+- [ ] Look over drawers, logs, terminals, events, overview and about in both
+  themes: nothing lost its styling (dead CSS was removed).
 
 ## Standard smoke test
 

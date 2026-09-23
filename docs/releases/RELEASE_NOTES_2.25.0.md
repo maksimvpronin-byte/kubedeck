@@ -76,20 +76,66 @@ clusters built with kubeadm, "kubernetes" every time.
 - "Stored locally on this Mac" said the wrong thing on Windows and Linux; it now
   says "this computer".
 
+## Polishing
+
+Five passes over the new work and the code around it, each finding up to five
+problems and fixing them.
+
+Bugs:
+
+- The settings form was reset whenever the config was fetched again - which
+  importing, renaming or opening a cluster from Settings all do - and unsaved
+  edits vanished. It is now reset only when the saved settings change.
+- Unsaved settings were asked about when nothing left Settings (opening a
+  cluster from the rail). The question now comes only when the section changes.
+- A workspace tab whose cluster failed to open stayed on "loading" for good. It
+  is marked unavailable.
+- Every failed cluster open, and a refused cluster removal, escaped as an
+  unhandled rejection; the removal also showed nothing. Both are on screen now.
+- Reorder, import and rename answered without the API server, so the rail's
+  tooltips lost it after a drag.
+- The tab strip above a table did not move ClusterRoles and ClusterRoleBindings
+  to the _cluster scope the tree uses; it now takes the tree's path.
+- Enter in the rename field could send a second rename while the first was out.
+
+Rough edges:
+
+- A filter typed on one resource tab emptied the next; each tab starts clean.
+- Nodes sorted by Status put a node under pressure among the healthy ones.
+- The cluster menu could run off the bottom of the window.
+- Save settings reported "Settings saved" for a no-op; it is disabled instead.
+- Settings cluster cards showed KubeDeck's UUID-named kubeconfig copy; they show
+  the API server, with the path in the tooltip.
+- The same kubeconfig imported twice got the same name; the second is " (2)".
+- The YAML-discard and remove-cluster confirmations were English only.
+
+Removed:
+
+- 746 lines of CSS for classes no component renders (92 rules, 227 selectors).
+- 34 translation keys nothing reads, from both locales.
+- 15 byte-identical copies of `isRecord` in the backend; one is left.
+- `aggregateSourceCacheSize`, `defaultSortKeyForColumn`, `formatAgeAgo`, and
+  an unreachable English confirm in `removeCluster`.
+- Raw NUL bytes in three backend sources are written as `\u0000` escapes, so
+  the files are no longer binary to grep.
+
 ## Verification
 
 - `npm run lint`, `npm run lint:css`, `npm run format:check`
-- `npm run test:renderer` - **277 tests**, up from 269: each tab keeps its own
+- `npm run test:renderer` - **282 tests**, up from 269: each tab keeps its own
   columns across a switch and a change made just before switching is saved; a
   node under pressure shows it beside Ready; the settings save bar comes first,
   and a change is reported as unsaved until it is put back or the panel goes;
   the rail menu renames, edits the kubeconfig, opens settings and removes; the
   tooltip names the API server; the sidebar names the open cluster and opens the
-  same menu
+  same menu; settings edits survive a config reload and Save is off with
+  nothing to save; a tab of an unreachable cluster stops loading; a filter does
+  not follow to the next tab; nodes sort on their conditions; the cluster menu
+  is moved back inside the window
 - `npm --workspace apps/desktop run test:gateway` - **184 tests**, up from 182:
   an imported kubeconfig is named after its cluster, or its server's host when
-  the name is generic; the config names each cluster's server without storing
-  it; the picker's last folder is
+  the name is generic, and " (2)" when it is taken; the config and a reorder
+  name each cluster's server without storing it; the picker's last folder is
   remembered and forgotten once gone. The node list test now checks the
   conditions a node row carries
 - `npm run typecheck`, `npm run build`, `npm run verify:release --tag v2.25.0`
