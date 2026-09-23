@@ -1,3 +1,15 @@
+## 2.27.1 - Compact tables reach the edge of the window
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**A compact table stopped halfway across the window.** 2.26.0 made tables as
+wide as their columns, and the header, the row lines, the hover and the
+selection ended with the last column, so the table looked cut off. The columns
+keep their widths; an empty last column now takes the rest of the row, and the
+table reaches the right edge again. Stretched tables are unchanged.
+
+Renderer tests: 296, up from 295.
+
 ## 2.27.0 - Settings in sections, updates without the installer wizard
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

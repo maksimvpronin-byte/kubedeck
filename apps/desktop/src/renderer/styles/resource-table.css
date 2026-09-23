@@ -851,16 +851,17 @@
   scrollbar-width: thin;
 }
 
+/* Both modes reach the right edge. Compact gives the spare width to an empty
+   last column, so the real columns keep their widths; stretched shares it out
+   between the columns. */
 .resource-table {
   width: max-content;
-  min-width: 0;
+  min-width: 100%;
   table-layout: fixed;
 }
 
-/* Stretched across the window: the spare width is shared out between the
-   columns, as every table did before the compact default. */
-.resource-table.is-fill {
-  min-width: 100%;
+.resource-table .filler-col {
+  padding: 0;
 }
 
 /* The measuring pass of "fit columns": cells may be as wide as their text. */

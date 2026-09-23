@@ -22,6 +22,8 @@ interface Props {
   selected: boolean;
   active: boolean;
   handlers: ResourceTableRowHandlers;
+  // The empty cell after the last column of a compact table.
+  filler?: boolean;
 }
 
 // A page of this table is 200 rows of a dozen cells by default, and every one of
@@ -29,7 +31,7 @@ interface Props {
 // dragging a column edge, ticking one checkbox, a usage refresh that touched
 // three pods. The row only depends on what is passed here, so React can skip
 // the ones that did not change.
-function Row({ rowKey: key, row, columns, selected, active, handlers }: Props) {
+function Row({ rowKey: key, row, columns, selected, active, handlers, filler = false }: Props) {
   return (
     <tr className={active ? "selected" : ""} onClick={() => handlers.open(row)} onDoubleClick={() => handlers.pin(row)} onContextMenu={(event) => event.preventDefault()}>
       <td className="select-col" onClick={(event) => event.stopPropagation()}>
@@ -53,6 +55,7 @@ function Row({ rowKey: key, row, columns, selected, active, handlers }: Props) {
           )}
         </td>
       ))}
+      {filler ? <td className="filler-col" aria-hidden="true" /> : null}
     </tr>
   );
 }

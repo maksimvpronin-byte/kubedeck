@@ -353,12 +353,17 @@ export function ResourceTable({
       ) : null}
 
       <div className="table-scroll" ref={scrollRef} onScroll={onScroll}>
-        <table ref={tableElementRef} className={`resource-table${fillWidth ? " is-fill" : ""}`} style={{ width: tableWidth }}>
+        {/* Compact: the columns keep their widths, and an empty last column takes
+            the rest of the row, so the header, the row lines, the hover and the
+            selection still reach the right edge. Without it the table stopped
+            halfway across the window and looked cut off. */}
+        <table ref={tableElementRef} className={`resource-table${fillWidth ? " is-fill" : " is-compact"}`} style={{ width: tableWidth }}>
           <colgroup>
             <col style={{ width: 38 }} />
             {visibleColumns.map((column) => (
               <col key={column.key} style={{ width: widthFor(column) }} />
             ))}
+            {fillWidth ? null : <col className="filler-col" />}
           </colgroup>
           <thead>
             <tr>
@@ -407,13 +412,16 @@ export function ResourceTable({
                   />
                 </th>
               ))}
+              {fillWidth ? null : <th className="filler-col" aria-hidden="true" />}
             </tr>
           </thead>
           <tbody>
             {rowWindow.paddingTop > 0 ? <tr className="virtual-spacer" aria-hidden="true" style={{ height: rowWindow.paddingTop }} /> : null}
             {windowRows.map((row) => {
               const key = rowKey(row);
-              return <ResourceTableRow key={key} rowKey={key} row={row} columns={visibleColumns} selected={selected.has(key)} active={selectedRowKey === key} handlers={rowHandlers} />;
+              return (
+                <ResourceTableRow key={key} rowKey={key} row={row} columns={visibleColumns} selected={selected.has(key)} active={selectedRowKey === key} handlers={rowHandlers} filler={!fillWidth} />
+              );
             })}
             {rowWindow.paddingBottom > 0 ? <tr className="virtual-spacer" aria-hidden="true" style={{ height: rowWindow.paddingBottom }} /> : null}
           </tbody>

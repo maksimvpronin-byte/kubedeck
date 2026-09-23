@@ -46,7 +46,7 @@ test("the table renders a row per resource, with the cells its columns name", ()
   const view = mount(table());
   try {
     assert.deepEqual(view.rowNames(), ["api-server", "cache", "worker"]);
-    const cells = [...view.rows()[0].querySelectorAll("td")].map((cell) => cell.textContent.trim());
+    const cells = [...view.rows()[0].querySelectorAll("td:not(.filler-col)")].map((cell) => cell.textContent.trim());
     assert.deepEqual(cells.slice(1), ["api-server", "default", "Running"]);
     assert.match(view.text(".resource-table-header .muted"), /^3 shown of 3/);
   } finally {
@@ -470,6 +470,7 @@ test("fit sets each column to what it holds, and a double-click on a border fits
       view
         .all("colgroup col")
         .slice(1)
+        .filter((col) => !col.classList.contains("filler-col"))
         .map((col) => col.style.width);
 
     const border = view.all("thead th")[2].querySelector(".column-resizer");
@@ -479,6 +480,26 @@ test("fit sets each column to what it holds, and a double-click on a border fits
     view.click(view.first(".table-columns-trigger"));
     view.click([...window.document.querySelectorAll(".table-columns-layout button")][0]);
     assert.deepEqual(colWidths(), ["220px", "106px", "74px"]);
+  } finally {
+    view.unmount();
+  }
+});
+
+test("a compact table ends in an empty column that takes the rest of the row", () => {
+  const view = mount(table({ stateKey: "filler-pods" }));
+  try {
+    const lastCol = view.all("colgroup col").at(-1);
+    assert.ok(lastCol.classList.contains("filler-col"), "the spare width goes to the filler, not to the columns");
+    assert.equal(lastCol.style.width, "");
+    assert.ok(
+      view.all("tbody tr").every((row) => row.lastElementChild.classList.contains("filler-col")),
+      "every row reaches the right edge",
+    );
+    assert.ok(view.first("thead tr").lastElementChild.classList.contains("filler-col"));
+
+    view.click(view.first(".table-columns-trigger"));
+    view.toggle([...window.document.querySelectorAll(".table-columns-layout input")][0]);
+    assert.ok(!view.first(".filler-col"), "stretched, the columns share the width and there is no filler");
   } finally {
     view.unmount();
   }
