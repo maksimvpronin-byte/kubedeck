@@ -158,6 +158,20 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
   const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => normalizeHiddenColumns(loadUiState().hiddenColumns?.[stateKey] ?? defaultHiddenColumns(columns), columns));
   const [draggedColumn, setDraggedColumn] = useState("");
   const [dragOverColumn, setDragOverColumn] = useState("");
+  // One table serves every resource tab, and switching tabs only changes this
+  // key. The widths, order and hidden set above were read for the tab the table
+  // opened on, so without this a switch kept showing - and then saved under the
+  // new tab's key - the columns of the previous one, and what a tab was left
+  // with did not survive a restart.
+  const [loadedStateKey, setLoadedStateKey] = useState(stateKey);
+  if (loadedStateKey !== stateKey) {
+    const saved = loadUiState();
+    setLoadedStateKey(stateKey);
+    setColumnWidths(saved.columnWidths?.[stateKey] ?? {});
+    setColumnOrder(normalizeColumnOrder(saved.columnOrders?.[stateKey] ?? [], columns));
+    setHiddenColumns(normalizeHiddenColumns(saved.hiddenColumns?.[stateKey] ?? defaultHiddenColumns(columns), columns));
+  }
+  const pendingSave = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const element = tableRef.current;
@@ -193,8 +207,13 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     if (visibleColumns.length && !visibleColumns.some((column) => sortKeyBelongsToColumn(column.key, sortKey)))
       setSortKey(visibleColumns.find((column) => column.key === "name")?.key ?? visibleColumns[0].key);
   }, [visibleColumns, sortKey]);
+  // A column ticked just before the tab is switched or the table goes away is
+  // still waiting on the timer below; it is written out instead of dropped.
+  // This cleanup runs before the one that clears that timer.
+  useEffect(() => () => pendingSave.current?.(), [stateKey]);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    const save = () => {
+      pendingSave.current = null;
       const state = loadUiState();
       const patch = resourceTablePreferencePatch(stateKey, columns, columnWidths, columnOrder, hiddenColumns);
       saveUiState({
@@ -203,7 +222,9 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
         columnOrders: { ...(state.columnOrders ?? {}), ...patch.columnOrders },
         hiddenColumns: { ...(state.hiddenColumns ?? {}), ...patch.hiddenColumns },
       });
-    }, 250);
+    };
+    pendingSave.current = save;
+    const timer = window.setTimeout(save, 250);
     return () => window.clearTimeout(timer);
   }, [columnWidths, columnOrder, hiddenColumns, columns, stateKey]);
   useEffect(() => {
@@ -223,7 +244,7 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
                   : column.key === "nodeAnnotations"
                     ? String(row.nodeAnnotationsSearch ?? "")
                     : column.key === "status"
-                      ? `${String(row.status ?? "")} ${String(row.workloadConditionsText ?? "")}`
+                      ? `${String(row.status ?? "")} ${String(row.workloadConditionsText ?? "")} ${String(row.nodeConditionsText ?? "")}`
                       : (row[column.key] ?? ""),
             )
               .toLowerCase()

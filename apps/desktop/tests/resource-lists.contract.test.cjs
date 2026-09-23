@@ -473,6 +473,34 @@ test("resource normalizers preserve KubeDeck row contracts", () => {
   });
 
   assert.equal(node.status, "Ready, SchedulingDisabled");
+  assert.deepEqual(
+    node.nodeConditions.map((condition) => [condition.label, condition.tone]),
+    [
+      ["Ready", "success"],
+      ["SchedulingDisabled", "warning"],
+    ],
+  );
+
+  const pressured = nodeSummary({
+    metadata: { uid: "node-2", name: "master-2" },
+    status: {
+      conditions: [
+        { type: "MemoryPressure", status: "True", reason: "KubeletHasInsufficientMemory", message: "kubelet has insufficient memory available" },
+        { type: "DiskPressure", status: "False" },
+        { type: "Ready", status: "True" },
+      ],
+    },
+  });
+  assert.deepEqual(
+    pressured.nodeConditions.map((condition) => [condition.label, condition.tone]),
+    [
+      ["MemoryPressure", "warning"],
+      ["Ready", "success"],
+    ],
+    "a node under pressure says so before it says it is Ready",
+  );
+  assert.match(pressured.nodeConditionsText, /insufficient memory/);
+  assert.equal(nodeSummary({ metadata: { name: "gone" }, status: { conditions: [{ type: "Ready", status: "Unknown" }] } }).nodeConditions[0].label, "NotReady");
   assert.equal(node.internalIp, "10.0.0.20");
   assert.equal(node.memoryCapacity, "8.00 GiB");
 

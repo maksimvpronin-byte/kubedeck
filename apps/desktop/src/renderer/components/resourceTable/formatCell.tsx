@@ -5,7 +5,7 @@ import { ANNOTATION_COLUMN_KEY } from "../../utils/annotationSort";
 import { kubernetesStatusTone } from "../../utils/kubernetesStatusTone";
 import { NodeAnnotationsCell, NodeLabelsCell, NodeRolesCell } from "../NodeLabelsCell";
 import { rowHealthReason } from "./rowStatus";
-import { AgeCell, renderContainerStatus, WorkloadConditions } from "./StatusCells";
+import { AgeCell, NodeConditions, renderContainerStatus, WorkloadConditions } from "./StatusCells";
 import { NamespaceResourceUsage, NodeResourceUsage, PodResourceUsage } from "./UsageCells";
 
 // Which cell a column key renders. Everything the table draws inside a row goes
@@ -25,6 +25,7 @@ export function formatCell(row: ResourceRow, key: string, onFilter?: (query: str
   if (key === "namespaceResources") return <NamespaceResourceUsage row={row} />;
   if (key === "podResources") return <PodResourceUsage row={row} />;
   if (key === "status" && Array.isArray(row.workloadConditions)) return <WorkloadConditions row={row} />;
+  if (key === "status" && Array.isArray(row.nodeConditions)) return <NodeConditions row={row} />;
   if (key === "labelsText" && Array.isArray(row.nodeLabelItems)) return <NodeLabelsCell row={row} onFilter={onFilter} />;
   if (key === "roles" && row.roles !== undefined) return <NodeRolesCell row={row} />;
   if (key === ANNOTATION_COLUMN_KEY) return <NodeAnnotationsCell row={row} onFilter={onFilter} />;

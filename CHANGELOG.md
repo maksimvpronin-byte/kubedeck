@@ -1,3 +1,22 @@
+## 2.25.0 - Node pressure in the Status column; column choices stick
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**A node under pressure looked healthy in the Nodes table.** The Status column
+printed only "Ready", so a node with MemoryPressure, DiskPressure, PIDPressure
+or NetworkUnavailable read the same as a healthy one. The column now shows every
+condition that is True in amber before a green Ready (or a red NotReady), with
+SchedulingDisabled after it; hovering a word shows the kubelet's reason and
+message, and the table filter finds nodes by them.
+
+**The columns chosen for a table did not survive a restart.** One table serves
+every resource tab; switching tabs kept the previous tab's widths, order and
+hidden columns on screen and then saved them under the new tab. Each tab now
+reads its own choice when it opens, and a change made just before switching
+away is still written.
+
+Renderer tests: 271, up from 269.
+
 ## 2.24.5 - Node disk bars no longer flicker
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

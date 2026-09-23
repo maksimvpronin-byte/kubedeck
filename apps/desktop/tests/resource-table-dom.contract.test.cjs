@@ -8,7 +8,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { loadComponent, mount, React, window } = require("./helpers/dom.cjs");
 
-const { ResourceTable } = loadComponent("components/ResourceTable.tsx");
+// react-dom is passed through for the columns menu, which is portalled into the body.
+const { ResourceTable } = loadComponent("components/ResourceTable.tsx", { "react-dom": require("react-dom") });
 
 const COLUMNS = [
   { key: "name", label: "Name" },
@@ -359,6 +360,65 @@ test("rows kept through a failed refresh say how old they are, and offer a retry
     assert.match(notice.textContent, /connection reset by peer/);
     view.click(notice.querySelector("button"));
     assert.equal(retries.length, 1);
+  } finally {
+    view.unmount();
+  }
+});
+
+test("each resource tab keeps its own columns, across a tab switch and a restart", () => {
+  const storageKey = "kubedeck.uiState.v1";
+  const nodeColumns = [
+    { key: "name", label: "Name" },
+    { key: "status", label: "Status" },
+    { key: "roles", label: "Roles" },
+  ];
+  const headers = (view) => view.all("thead th button.table-sort-button").map((button) => button.textContent.trim());
+  const saved = () => JSON.parse(window.localStorage.getItem(storageKey) || "{}").hiddenColumns ?? {};
+  window.localStorage.setItem(storageKey, JSON.stringify({ hiddenColumns: { "tab-pods": ["namespace"], "tab-nodes": ["roles"] } }));
+
+  const view = mount(table({ stateKey: "tab-pods" }));
+  try {
+    assert.deepEqual(headers(view), ["Name", "Status"]);
+
+    view.update(table({ stateKey: "tab-nodes", columns: nodeColumns, rows: [{ uid: "n1", name: "worker-1", status: "Ready" }] }));
+    assert.deepEqual(headers(view), ["Name", "Status"], "the nodes tab opens with what was hidden on it, not with the pods tab's choice");
+
+    // Showing Roles again and switching away at once: the change is not lost to
+    // the save that was still waiting.
+    view.click(view.first(".table-columns-trigger"));
+    const roles = [...window.document.querySelectorAll(".table-columns-options label")].find((label) => label.textContent.includes("Roles"));
+    view.toggle(roles.querySelector("input"));
+    assert.deepEqual(headers(view), ["Name", "Status", "Roles"]);
+    view.update(table({ stateKey: "tab-pods" }));
+    assert.deepEqual(headers(view), ["Name", "Status"], "back on pods, the pods tab's own columns");
+    assert.deepEqual(saved()["tab-nodes"], [], "what was shown on nodes is written under nodes");
+    assert.deepEqual(saved()["tab-pods"], ["namespace"], "and pods kept its own choice");
+  } finally {
+    view.unmount();
+  }
+});
+
+test("a node under pressure shows the pressure beside Ready in its Status cell", () => {
+  const conditions = [
+    { label: "MemoryPressure", reason: "KubeletHasInsufficientMemory", message: "", tone: "warning" },
+    { label: "Ready", reason: "KubeletReady", message: "", tone: "success" },
+  ];
+  const view = mount(
+    table({
+      columns: [
+        { key: "name", label: "Name" },
+        { key: "status", label: "Status" },
+      ],
+      rows: [{ uid: "n1", name: "master-2", status: "Ready", nodeConditions: conditions }],
+    }),
+  );
+  try {
+    const words = view.all("tbody .workload-condition").map((item) => [item.textContent, item.className]);
+    assert.deepEqual(words, [
+      ["MemoryPressure", "workload-condition is-warning"],
+      ["Ready", "workload-condition is-success"],
+    ]);
+    assert.match(view.first("tbody .workload-condition").getAttribute("title"), /KubeletHasInsufficientMemory/);
   } finally {
     view.unmount();
   }

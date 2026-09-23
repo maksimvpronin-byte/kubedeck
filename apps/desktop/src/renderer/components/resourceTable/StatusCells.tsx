@@ -37,6 +37,25 @@ export function WorkloadConditions({ row }: { row: ResourceRow }) {
   );
 }
 
+type NodeCondition = { label?: unknown; reason?: unknown; message?: unknown; tone?: unknown };
+
+// A node under MemoryPressure or DiskPressure is still Ready, and the plain
+// "Ready" this column used to print hid that. The problem goes first, in the
+// same coloured words the workload conditions use.
+export function NodeConditions({ row }: { row: ResourceRow }) {
+  const conditions = (row.nodeConditions as NodeCondition[]).filter((condition) => condition && condition.label);
+  const describe = (condition: NodeCondition) => `${String(condition.label)}${condition.reason ? `: ${String(condition.reason)}` : ""}${condition.message ? ` — ${String(condition.message)}` : ""}`;
+  return (
+    <span className="workload-condition-list" aria-label={conditions.map(describe).join("; ")}>
+      {conditions.map((condition) => (
+        <span className={`workload-condition is-${String(condition.tone || "neutral")}`} title={describe(condition)} key={String(condition.label)}>
+          {String(condition.label)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function renderContainerStatus(row: ResourceRow): ReactNode {
   const containers = normalizeContainerStatusItems(row);
   if (containers.length === 0) return "";

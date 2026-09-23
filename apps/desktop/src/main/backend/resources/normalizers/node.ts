@@ -95,6 +95,27 @@ export function nodeLabelItems(labelsValue: unknown, nodeName: string): NodeLabe
     .sort((left, right) => left.priority - right.priority || left.key.localeCompare(right.key));
 }
 
+export interface NodeConditionItem {
+  label: string;
+  reason: string;
+  message: string;
+  tone: "success" | "warning" | "danger";
+}
+
+// What the Status column draws for a node, worst first: every condition other
+// than Ready is a problem when it is True - MemoryPressure, DiskPressure,
+// PIDPressure, NetworkUnavailable - then Ready itself, then a cordon.
+export function nodeConditionItems(conditions: JsonObject[], unschedulable: boolean): NodeConditionItem[] {
+  const items: NodeConditionItem[] = conditions
+    .filter((condition) => condition.type !== "Ready" && condition.status === "True" && text(condition.type))
+    .map((condition) => ({ label: text(condition.type), reason: text(condition.reason), message: text(condition.message), tone: "warning" }));
+  const ready = conditions.find((condition) => condition.type === "Ready") ?? {};
+  const isReady = ready.status === "True";
+  items.push({ label: isReady ? "Ready" : "NotReady", reason: text(ready.reason), message: text(ready.message), tone: isReady ? "success" : "danger" });
+  if (unschedulable) items.push({ label: "SchedulingDisabled", reason: "", message: "", tone: "warning" });
+  return items;
+}
+
 // Always GiB, never the largest fitting unit: these are node capacity columns,
 // and a column that mixes MiB and GiB down its length cannot be compared at a
 // glance. The result is also parsed back by ResourceSummary, so it keeps the
@@ -129,6 +150,7 @@ export function nodeSummary(item: JsonObject): ResourceRow {
   const displayLabels = nodeLabelItems(labels, text(record(item.metadata).name));
   const roles = nodeRoles(labels);
   const annotations = nodeAnnotationItems(record(item.metadata).annotations);
+  const nodeConditions = nodeConditionItems(conditions, spec.unschedulable === true);
 
   return {
     ...meta(item),
@@ -157,6 +179,8 @@ export function nodeSummary(item: JsonObject): ResourceRow {
     diskAllocatableRaw: String(allocatable["ephemeral-storage"] ?? ""),
     taints: records(spec.taints),
     pressure: pressure.join("; "),
+    nodeConditions,
+    nodeConditionsText: nodeConditions.map((condition) => `${condition.label} ${condition.reason} ${condition.message}`.trim()).join("; "),
     roles: roles.join(", "),
     nodeAnnotationItems: annotations,
     nodeAnnotationsSearch: annotations.map((annotation) => `${annotation.key}=${annotation.value}`).join(" "),
