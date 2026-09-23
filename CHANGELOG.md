@@ -67,7 +67,16 @@ port-forward panel are translated. Cached node disk readings go on the table
 in one update, and a release contract now rejects raw control characters in
 the sources.
 
-Renderer tests: 288, up from 269. Gateway tests: 184, up from 182.
+**A third pass.** Opening Settings - also through the error banner's "Open
+settings" - no longer takes down the error that sent you there, and the audit
+log no longer reloads on every keystroke in Settings. The command palette keeps
+the item you arrowed to when the table refreshes under it, and scrolls it into
+view. The window reopens where it was closed, the terminal panel keeps its
+height and names the container a terminal was switched to, and the Secret tab
+is translated. Links to the system browser are checked by parsing them, and a
+full localStorage no longer throws.
+
+Renderer tests: 291, up from 269. Gateway tests: 185, up from 182.
 
 ## 2.24.5 - Node disk bars no longer flicker
 

@@ -159,10 +159,40 @@ Removed and guarded:
   unreachable entries in supportedActions.
 - A release contract rejects any raw control character in the sources.
 
+## Polishing, third pass
+
+Bugs:
+
+- The error banner offers "Open settings" for errors such as kubectl not being
+  found; Settings then loaded its cache diagnostics, which cleared the banner
+  on success - taking down the very error the user came to fix. Starting or
+  stopping a watch there did the same. Panels now clear only an error they
+  raised, through one shared hook (useOwnedError).
+- The audit log in Settings was handed an inline callback, so it reloaded and
+  restarted its timer on every keystroke in the Settings form.
+- The command palette reset its highlight whenever its items were rebuilt from
+  the table's rows - on every watch event - so Enter could open the first item
+  instead of the chosen one. The highlight is kept by id; arrowing past the
+  bottom keeps it in view.
+- A pod terminal switched to another container kept naming the first one on
+  its tab.
+- The system browser was handed any link starting with "http://127.0.0.1:",
+  including one whose real host is elsewhere; links are parsed now.
+
+Rough edges:
+
+- The window reopens where it was closed, maximized if it was, unless that
+  screen is no longer attached.
+- The terminal panel keeps the height chosen for it after the window has been
+  made smaller for a while.
+- The Secret tab, the terminal panel, the namespace selector's count and the
+  palette's label are translated.
+- A full or refused localStorage no longer throws out of an effect.
+
 ## Verification
 
 - `npm run lint`, `npm run lint:css`, `npm run format:check`
-- `npm run test:renderer` - **288 tests**, up from 269: each tab keeps its own
+- `npm run test:renderer` - **291 tests**, up from 269: each tab keeps its own
   columns across a switch and a change made just before switching is saved; a
   node under pressure shows it beside Ready; the settings save bar comes first,
   and a change is reported as unsaved until it is put back or the panel goes;
@@ -174,8 +204,12 @@ Removed and guarded:
   is moved back inside the window; a revealed Secret is dropped when another
   is selected; a late LLM answer is not shown for the next object; overview and
   problems drop the previous cluster's data; polls clear only their own error;
-  sources carry no raw control characters
-- `npm --workspace apps/desktop run test:gateway` - **184 tests**, up from 182:
+  sources carry no raw control characters; Settings does not clear an error it
+  did not raise; the palette keeps its highlight across rebuilt items; a
+  terminal tab names the container it was switched to
+- `npm --workspace apps/desktop run test:gateway` - **185 tests**, up from 182:
+  the window reopens where it closed unless that screen is gone, and only
+  forwarded-service links reach the system browser;
   an imported kubeconfig is named after its cluster, or its server's host when
   the name is generic, and " (2)" when it is taken; the config and a reorder
   name each cluster's server without storing it; the picker's last folder is

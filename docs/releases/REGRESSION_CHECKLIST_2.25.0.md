@@ -13,8 +13,8 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [x] `npm run lint`
 - [x] `npm run lint:css`
 - [x] `npm run format:check`
-- [x] `npm run test:renderer` (288 tests, up from 269)
-- [x] `npm --workspace apps/desktop run test:gateway` (184 tests, up from 182)
+- [x] `npm run test:renderer` (291 tests, up from 269)
+- [x] `npm --workspace apps/desktop run test:gateway` (185 tests, up from 182)
 - [x] `npm run typecheck`
 - [x] `npm run build`
 - [x] `npm run verify:release`, including `--tag v2.25.0`
@@ -126,6 +126,22 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [ ] Drawer, its confirmation dialogs, logs and port forwards read in Russian
   with the RU interface.
 - [ ] A node under pressure shows its conditions in the drawer summary.
+
+## Polishing, third pass
+
+- [ ] Set kubectl to a wrong path, reopen: the error banner's "Open settings"
+  opens Settings and the error stays on the banner.
+- [ ] Open Local activity in Settings and type in a field: the audit list does
+  not reload on each key.
+- [ ] Open the palette, arrow down a few items while a watched table updates,
+  press Enter: the highlighted item opens. Arrowing past the bottom scrolls.
+- [ ] Move and resize the window, maximize it, restart: it comes back the same.
+  Unplug that monitor and restart: it opens on the primary screen.
+- [ ] Open a pod terminal, switch its container: the tab names the new one.
+- [ ] Resize the terminal panel, make the window small then large again: the
+  panel returns to its height.
+- [ ] The Secret tab reads in Russian with the RU interface.
+- [ ] Open a port-forward link from its panel: it opens in the system browser.
 
 ## Standard smoke test
 
