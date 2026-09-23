@@ -65,6 +65,7 @@ function workspace(t, options = {}) {
       keepCurrentSelection: () => events.push({ name: "keepCurrentSelection", args: [] }),
       openCluster: async (cluster) => {
         events.push({ name: "openCluster", args: [cluster.id] });
+        if (options.openClusterFails) throw new Error("cluster is unreachable");
         state.activeCluster = cluster;
       },
       drawerDirtyRef,
@@ -262,4 +263,20 @@ test("removing a cluster takes its tabs and leaves everyone else's", async (t) =
   await w.act(() => w.hook().removeClusterResourceTabs(CLUSTER.id));
   assert.deepEqual(w.tabIds(), []);
   assert.equal(w.hook().activeResourceTabId, null);
+});
+
+test("a tab whose cluster cannot be opened stops loading and says so", async (t) => {
+  const w = workspace(t, { openClusterFails: true });
+  w.pinNextSelectionRef.current = true;
+  await w.select(target(podRow("worker")));
+
+  const tab = w.hook().resourceWorkspaceTabs[0];
+  // Another cluster is open by now, so the tab has to open its own.
+  w.state.activeCluster = OTHER_CLUSTER;
+  await w.rerender();
+  w.events.length = 0;
+  await w.act(() => w.hook().activateResourceTab(tab));
+
+  assert.equal(w.hook().resourceWorkspaceTabs[0].status, "unavailable", "not left spinning on loading");
+  assert.deepEqual(w.named("resources"), [], "nothing is asked of a cluster that did not open");
 });

@@ -110,7 +110,16 @@ export function useResourceWorkspaceTabs({
       const requestId = ++resourceActivationRef.current;
       setActiveResourceTabId(tab.id);
       setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "loading" } : item)));
-      if (activeCluster?.id !== cluster.id) await openCluster(cluster);
+      if (activeCluster?.id !== cluster.id) {
+        try {
+          await openCluster(cluster);
+        } catch {
+          // openCluster has put the failure on screen. The tab has to leave
+          // "loading", or it spins for as long as it stays open.
+          if (resourceActivationRef.current === requestId) setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "unavailable" } : item)));
+          return;
+        }
+      }
       if (resourceActivationRef.current !== requestId) return;
       keepCurrentSelection();
       setSelectedTarget({ clusterId: tab.clusterId, resource: tab.resource, row: tab.row });

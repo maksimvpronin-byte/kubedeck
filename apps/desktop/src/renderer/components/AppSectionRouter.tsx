@@ -56,7 +56,7 @@ interface Props {
   onLanguagePreview: (language: Settings["language"] | null) => void;
   onSettingsDirtyChange: (dirty: boolean) => void;
   onImportKubeconfig: () => void;
-  onOpenCluster: (cluster: Cluster) => Promise<unknown>;
+  onOpenCluster: (cluster: Cluster) => void;
   onRenameCluster: (cluster: Cluster) => void;
   onRemoveCluster: (cluster: Cluster) => Promise<void>;
   onReorderClusters: (clusters: Cluster[]) => Promise<void> | void;
@@ -184,7 +184,7 @@ export function AppSectionRouter(props: Props) {
         opening={Boolean(props.unavailableCluster && props.openingClusterId === props.unavailableCluster.id)}
         t={t}
         onRetry={() => {
-          if (props.unavailableCluster) void props.onOpenCluster(props.unavailableCluster);
+          if (props.unavailableCluster) props.onOpenCluster(props.unavailableCluster);
         }}
         onRemove={() => {
           if (props.unavailableCluster) void props.onRemoveCluster(props.unavailableCluster);
@@ -196,7 +196,7 @@ export function AppSectionRouter(props: Props) {
         connecting={Boolean(activeCluster && props.openingClusterId === activeCluster.id)}
         t={t}
         onConnect={() => {
-          if (activeCluster) void props.onOpenCluster(activeCluster);
+          if (activeCluster) props.onOpenCluster(activeCluster);
         }}
       />
       {activeCluster && props.activeClusterConnected ? (

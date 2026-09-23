@@ -495,3 +495,15 @@ test("the row height is measured, and a change too small to matter is ignored", 
   assert.equal(virtual.nextRowHeight(28, 0), 28, "an unmeasurable row leaves the estimate alone");
   assert.equal(virtual.nextRowHeight(28, Number.NaN), 28);
 });
+
+test("nodes sort on the conditions they show, so pressure is not filed under Ready", () => {
+  const model = loadTypeScript("hooks/useResourceTableState.ts", {
+    "../utils/resourceTableSortMetrics": { sortKeyBelongsToColumn: () => true },
+    "../utils/time": { parseTimestamp: () => 0 },
+    "../uiState": { loadUiState: () => ({}), saveUiState: () => undefined },
+  });
+  const node = (name, labels) => ({ name, status: labels.includes("NotReady") ? "NotReady" : "Ready", nodeConditions: labels.map((label) => ({ label })) });
+  const rows = [node("a", ["Ready"]), node("b", ["MemoryPressure", "Ready"]), node("c", ["Ready"]), node("d", ["NotReady"])];
+  const sorted = [...rows].sort((left, right) => model.compareRows(left, right, "status")).map((row) => row.name);
+  assert.deepEqual(sorted, ["b", "d", "a", "c"], "the node under pressure is not among the healthy ones");
+});

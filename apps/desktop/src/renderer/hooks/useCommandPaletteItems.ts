@@ -16,7 +16,7 @@ interface Options {
   namespace: string;
   resourceDefinitions: ResourceDefinition[];
   confirmDrawerNavigation: () => boolean;
-  openCluster: (cluster: Cluster) => Promise<void> | void;
+  openCluster: (cluster: Cluster) => void;
   selectSection: (section: Section) => void;
   selectTreeResource: (section: Section, resource: string) => void;
   keepCurrentSelection: () => void;
@@ -97,7 +97,7 @@ export function useCommandPaletteItems({
         keywords: `${cluster.displayName} ${cluster.kubeconfigPath}`,
         run: () => {
           if (!confirmDrawerNavigation()) return;
-          void openCluster(cluster);
+          openCluster(cluster);
         },
       });
     }

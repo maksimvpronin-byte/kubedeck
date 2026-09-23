@@ -92,8 +92,8 @@ export function compareRows(left: ResourceRow, right: ResourceRow, key: string) 
     if (!leftAnnotation || !rightAnnotation) return leftAnnotation ? 1 : rightAnnotation ? -1 : 0;
     return ROW_COLLATOR.compare(leftAnnotation, rightAnnotation);
   }
-  const leftValue = key === "phase" ? canonicalPhase(left) : left[key];
-  const rightValue = key === "phase" ? canonicalPhase(right) : right[key];
+  const leftValue = key === "phase" ? canonicalPhase(left) : key === "status" && Array.isArray(left.nodeConditions) ? nodeConditionLabels(left) : left[key];
+  const rightValue = key === "phase" ? canonicalPhase(right) : key === "status" && Array.isArray(right.nodeConditions) ? nodeConditionLabels(right) : right[key];
   // A usage metric is missing whenever metrics-server or the kubelet did not
   // answer for that row. Comparing it as text would scatter those rows through
   // the order; they belong at the low end, so descending puts them last.
@@ -167,6 +167,11 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
   if (loadedStateKey !== stateKey) {
     const saved = loadUiState();
     setLoadedStateKey(stateKey);
+    // The filter and the sort belong to the table they were set on: "nginx"
+    // typed on Pods left Nodes empty behind "no rows match".
+    setQuery("");
+    setSortKey(columns[0]?.key ?? "name");
+    setSortDirection(1);
     setColumnWidths(saved.columnWidths?.[stateKey] ?? {});
     setColumnOrder(normalizeColumnOrder(saved.columnOrders?.[stateKey] ?? [], columns));
     setHiddenColumns(normalizeHiddenColumns(saved.hiddenColumns?.[stateKey] ?? defaultHiddenColumns(columns), columns));
@@ -366,6 +371,12 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     toggleColumn,
     resetColumns,
   };
+}
+
+// What a node's Status cell shows, worst first. Sorting on the plain status put
+// a node under MemoryPressure among the healthy ones, both being "Ready".
+function nodeConditionLabels(row: ResourceRow) {
+  return (row.nodeConditions as Array<{ label?: unknown }>).map((condition) => String(condition?.label ?? "")).join(", ");
 }
 
 export function canonicalPhase(row: ResourceRow) {

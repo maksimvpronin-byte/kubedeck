@@ -423,3 +423,16 @@ test("a node under pressure shows the pressure beside Ready in its Status cell",
     view.unmount();
   }
 });
+
+test("a filter typed on one resource tab does not empty the next one", () => {
+  const view = mount(table({ stateKey: "filter-pods" }));
+  try {
+    view.type(view.first(".table-filter input"), "api");
+    assert.deepEqual(view.rowNames(), ["api-server"]);
+    view.update(table({ stateKey: "filter-nodes", columns: [{ key: "name", label: "Name" }], rows: [{ uid: "n1", name: "worker-1" }] }));
+    assert.deepEqual(view.rowNames(), ["worker-1"], "the nodes tab is not filtered by what was typed on pods");
+    assert.equal(view.first(".table-filter input").value, "");
+  } finally {
+    view.unmount();
+  }
+});

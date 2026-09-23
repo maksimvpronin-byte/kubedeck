@@ -115,7 +115,7 @@ test("the cluster dropdown has not come back, and the rail is where it replaced 
   assert.match(app, /<ClusterRail/);
   // The rail sits left of the resource navigation and keeps the drawer guard.
   assert.ok(app.indexOf("<ClusterRail") < app.indexOf("<AppSidebar"));
-  assert.match(app, /onSelect=\{\(cluster\) => \{[\s\S]*?confirmDrawerNavigation\(\)[\s\S]*?openCluster\(cluster\)/);
+  assert.match(app, /onSelect=\{\(cluster\) => \{[\s\S]*?confirmDrawerNavigation\(\)[\s\S]*?openCluster(?:FromUi)?\(cluster\)/);
   assert.match(layout, /\.app-shell\s*\{[^}]*grid-template-columns:\s*var\(--cluster-rail-width[^}]*\}/s);
   assert.match(layout, /\.cluster-rail-item\.is-active/);
 });

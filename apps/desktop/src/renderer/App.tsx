@@ -129,6 +129,15 @@ export function App() {
     setLoading,
     setError,
   });
+  // openCluster puts a failure on screen and rethrows it for callers that wait
+  // on the result. A click waits on nothing, and every failed open used to end
+  // as an unhandled rejection besides.
+  const openClusterFromUi = useCallback(
+    (cluster: Cluster) => {
+      void openCluster(cluster).catch(() => undefined);
+    },
+    [openCluster],
+  );
   const { loadVisibleNodeDisk } = useNodeDiskUsage({ api, activeCluster, resourceTab, setRows });
   const { bottomTerminals, activeBottomTerminalId, setActiveBottomTerminalId, bottomTerminalOpenToken, openBottomTerminal, openBottomNodeSsh, closeBottomTerminal, removeClusterTerminals } =
     useBottomTerminals({
@@ -384,7 +393,7 @@ export function App() {
     namespace,
     resourceDefinitions,
     confirmDrawerNavigation,
-    openCluster,
+    openCluster: openClusterFromUi,
     selectSection,
     selectTreeResource,
     keepCurrentSelection,
@@ -490,7 +499,7 @@ export function App() {
           // A cluster can be active and disconnected at once, when it was
           // disconnected while being viewed. Clicking it then reconnects.
           if (cluster.id === activeCluster?.id && connectedClusterIds.includes(cluster.id)) return;
-          if (confirmDrawerNavigation()) void openCluster(cluster);
+          if (confirmDrawerNavigation()) openClusterFromUi(cluster);
         }}
         onDisconnect={(cluster) => {
           void disconnectCluster(cluster);
@@ -508,7 +517,7 @@ export function App() {
         onClose={() => setKubeconfigCluster(null)}
         onSaved={(cluster) => {
           // The endpoint may have moved, so the open cluster has to be reopened.
-          if (cluster.id === activeCluster?.id) void openCluster(cluster);
+          if (cluster.id === activeCluster?.id) openClusterFromUi(cluster);
         }}
       />
       <DisconnectClusterModal
@@ -545,7 +554,7 @@ export function App() {
                 ...clusterMenuActions,
                 // Offered only while the cluster is disconnected.
                 onConnect: (cluster) => {
-                  if (confirmDrawerNavigation()) void openCluster(cluster);
+                  if (confirmDrawerNavigation()) openClusterFromUi(cluster);
                 },
                 onDisconnect: (cluster) => void disconnectCluster(cluster),
               }}
@@ -649,7 +658,7 @@ export function App() {
                   // The error is already on screen; the rejection is for callers that wait.
                   void importKubeconfig().catch(() => undefined);
                 }}
-                onOpenCluster={openCluster}
+                onOpenCluster={openClusterFromUi}
                 onRenameCluster={startRenameCluster}
                 onRemoveCluster={removeClusterWorkspace}
                 onReorderClusters={reorderClusters}
