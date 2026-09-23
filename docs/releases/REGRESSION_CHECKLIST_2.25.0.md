@@ -13,7 +13,7 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [x] `npm run lint`
 - [x] `npm run lint:css`
 - [x] `npm run format:check`
-- [x] `npm run test:renderer` (282 tests, up from 269)
+- [x] `npm run test:renderer` (288 tests, up from 269)
 - [x] `npm --workspace apps/desktop run test:gateway` (184 tests, up from 182)
 - [x] `npm run typecheck`
 - [x] `npm run build`
@@ -108,6 +108,24 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [ ] Remove-cluster and discard-YAML questions are in Russian with the RU UI.
 - [ ] Look over drawers, logs, terminals, events, overview and about in both
   themes: nothing lost its styling (dead CSS was removed).
+
+## Polishing, second pass
+
+- [ ] Secrets: reveal a value, click another Secret in the table - the value is
+  gone at once, also when the other Secret is forbidden.
+- [ ] LLM: start an analysis, switch to another pod before it answers - the
+  answer does not appear under the second pod.
+- [ ] Overview: switch clusters - the previous cluster's numbers are not shown
+  while the new ones load.
+- [ ] Problems: filter by a namespace, switch clusters - the list and filters
+  start fresh.
+- [ ] With a failed settings save on the banner, stay in Settings for a minute:
+  the watch poll does not clear it.
+- [ ] Break Port forwards (stop the gateway briefly): the error shows once, in
+  the panel.
+- [ ] Drawer, its confirmation dialogs, logs and port forwards read in Russian
+  with the RU interface.
+- [ ] A node under pressure shows its conditions in the drawer summary.
 
 ## Standard smoke test
 

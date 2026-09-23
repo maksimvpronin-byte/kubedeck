@@ -57,7 +57,17 @@ API server survives a reorder, a kubeconfig imported twice is told apart by
 are translated. Removed: 746 lines of dead CSS, 34 unused translation keys, 15
 copies of one helper and three dead exports.
 
-Renderer tests: 282, up from 269. Gateway tests: 184, up from 182.
+**A second polishing pass.** A Secret value revealed on one Secret no longer
+stays on screen - without its auto-hide - when another Secret is selected, and
+an LLM answer no longer lands under the object the drawer moved to. Overview
+and Problems no longer show the previous cluster's data under the next one;
+polls stop wiping the error banner, and Problems and Port forwards show a
+failure once instead of twice. The drawer, its dialogs, the log viewer and the
+port-forward panel are translated. Cached node disk readings go on the table
+in one update, and a release contract now rejects raw control characters in
+the sources.
+
+Renderer tests: 288, up from 269. Gateway tests: 184, up from 182.
 
 ## 2.24.5 - Node disk bars no longer flicker
 

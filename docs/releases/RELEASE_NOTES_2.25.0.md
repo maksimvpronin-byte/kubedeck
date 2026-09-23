@@ -119,10 +119,50 @@ Removed:
 - Raw NUL bytes in three backend sources are written as `\u0000` escapes, so
   the files are no longer binary to grep.
 
+## Polishing, second pass
+
+Five more passes, over data hooks, the backend, the drawer, its tabs and the
+overview panels. The backend held up - kubectl processes, caches and cluster
+removal were already sound - so most of what was found is in the renderer.
+
+Bugs:
+
+- **Security:** the drawer is not remounted when another Secret is selected. A
+  value revealed on one Secret stayed on screen under the next until that one
+  loaded - for good if it could not be read - with its auto-hide timer already
+  cleared, and Copy would have copied it and audited the wrong Secret.
+  Everything revealed or being edited is now dropped on the switch.
+- An LLM analysis that answered after the drawer moved on put its answer under
+  the new object and switched off the new analysis's spinner; an open prompt
+  preview stayed with the next object.
+- The overview kept the previous cluster's or scope's numbers until the next
+  arrived, and called them stale if that load failed. Problems did the same
+  with the previous cluster's list and kept its namespace and kind filters.
+- Problems and Port forwards showed a failure twice - in their panel and on the
+  banner - and their polls cleared the banner on every success. The overview
+  and the watch status poll cleared it too; each now clears only its own error.
+- Problems' error blinked off and on with every silent poll; copying a problem
+  or a port-forward URL with the clipboard refused was an unhandled rejection,
+  and the port-forward panel said "Copied" regardless.
+
+Rough edges:
+
+- The drawer header, tabs, action buttons and confirmation dialogs, the log
+  viewer, the port-forward panel and the terminal limit are translated.
+- A node's conditions are shown in the drawer's summary as on the table.
+- Cached node disk readings go on the table in one update, not one per node;
+  the overview's refresh is no longer rebuilt after every answer.
+
+Removed and guarded:
+
+- Unused props (ProblemsPanel's and PortForwardsPanel's onError) and
+  unreachable entries in supportedActions.
+- A release contract rejects any raw control character in the sources.
+
 ## Verification
 
 - `npm run lint`, `npm run lint:css`, `npm run format:check`
-- `npm run test:renderer` - **282 tests**, up from 269: each tab keeps its own
+- `npm run test:renderer` - **288 tests**, up from 269: each tab keeps its own
   columns across a switch and a change made just before switching is saved; a
   node under pressure shows it beside Ready; the settings save bar comes first,
   and a change is reported as unsaved until it is put back or the panel goes;
@@ -131,7 +171,10 @@ Removed:
   same menu; settings edits survive a config reload and Save is off with
   nothing to save; a tab of an unreachable cluster stops loading; a filter does
   not follow to the next tab; nodes sort on their conditions; the cluster menu
-  is moved back inside the window
+  is moved back inside the window; a revealed Secret is dropped when another
+  is selected; a late LLM answer is not shown for the next object; overview and
+  problems drop the previous cluster's data; polls clear only their own error;
+  sources carry no raw control characters
 - `npm --workspace apps/desktop run test:gateway` - **184 tests**, up from 182:
   an imported kubeconfig is named after its cluster, or its server's host when
   the name is generic, and " (2)" when it is taken; the config and a reorder
