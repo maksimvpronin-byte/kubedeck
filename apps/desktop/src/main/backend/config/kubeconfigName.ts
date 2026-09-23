@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import type { Cluster } from "@kubedeck/shared-types";
 import { parseDocument } from "yaml";
 
 // Larger than any kubeconfig in use; a file this big is not parsed to name a
@@ -74,6 +75,19 @@ export function kubeconfigClusterName(content: string): string {
 // and modification time; a kubeconfig edited in KubeDeck or outside it is
 // read again.
 const serverCache = new Map<string, { stamp: string; server: string }>();
+
+// Clusters as the interface is sent them, with their API servers. Every route
+// that answers with clusters goes through here: a reorder that answered without
+// them left the rail's tooltips without a server until the next full reload.
+export function withKubeconfigServers(clusters: Cluster[]): Cluster[] {
+  const paths = new Set(clusters.map((cluster) => cluster.kubeconfigPath));
+  for (const cached of serverCache.keys()) if (!paths.has(cached)) serverCache.delete(cached);
+  return clusters.map(withKubeconfigServer);
+}
+
+export function withKubeconfigServer(cluster: Cluster): Cluster {
+  return { ...cluster, server: kubeconfigFileServer(cluster.kubeconfigPath) };
+}
 
 export function kubeconfigFileServer(kubeconfigPath: string): string {
   try {

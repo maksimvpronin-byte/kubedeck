@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ApiKeyUpdate, AppConfig } from "@kubedeck/shared-types";
 import type { AuditStore } from "../audit/auditStore";
 import type { ConfigStore } from "../config/configStore";
-import { kubeconfigFileServer } from "../config/kubeconfigName";
+import { withKubeconfigServers } from "../config/kubeconfigName";
 import type { SecretStore } from "../security/secretStore";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
@@ -76,7 +76,7 @@ function applyApiKeyUpdate(secretStore: SecretStore, update: ApiKeyUpdate): void
 // replaced its config with that - so pressing Save made every cluster look
 // disconnected while the backend carried on talking to them.
 export function configResponse(config: AppConfig, connectedClusterIds: string[]): AppConfig {
-  return { ...config, clusters: config.clusters.map((cluster) => ({ ...cluster, server: kubeconfigFileServer(cluster.kubeconfigPath) })), connectedClusterIds };
+  return { ...config, clusters: withKubeconfigServers(config.clusters), connectedClusterIds };
 }
 
 export function writeConfig(response: ServerResponse, configStore: ConfigStore, connectedClusterIds: string[] = []): void {

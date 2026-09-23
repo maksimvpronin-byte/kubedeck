@@ -55,7 +55,7 @@ interface Props {
   onSaveSettings: (next: Settings, apiKeyUpdate?: ApiKeyUpdate) => Promise<void>;
   onLanguagePreview: (language: Settings["language"] | null) => void;
   onSettingsDirtyChange: (dirty: boolean) => void;
-  onImportKubeconfig: () => Promise<unknown>;
+  onImportKubeconfig: () => void;
   onOpenCluster: (cluster: Cluster) => Promise<unknown>;
   onRenameCluster: (cluster: Cluster) => void;
   onRemoveCluster: (cluster: Cluster) => Promise<void>;

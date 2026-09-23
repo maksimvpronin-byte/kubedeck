@@ -640,5 +640,7 @@
   "kubeconfig.saving": "Saving...",
   "kubeconfig.discard": "Discard unsaved kubeconfig changes?",
   "settings.discard": "Settings have unsaved changes. Leave without saving?",
+  "drawer.discardYaml": "Discard unsaved YAML changes?",
+  "clusters.removeConfirm": "Remove {name}? This also closes {tabs} resource tab(s) and {terminals} terminal/SSH session(s).",
   "settings.unsaved": "Unsaved changes"
 }

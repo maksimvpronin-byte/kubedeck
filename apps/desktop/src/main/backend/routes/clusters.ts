@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AuditStore } from "../audit/auditStore";
 import { ClusterNotFoundError, ConfigStore, InvalidClusterOrderError } from "../config/configStore";
+import { withKubeconfigServer, withKubeconfigServers } from "../config/kubeconfigName";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
 import { clusterCommand, kubeconfigAvailable } from "../kubectl/clusterCommand";
@@ -27,7 +28,7 @@ function decodeItems(value: Record<string, unknown>): unknown[] {
 }
 
 export function writeClusters(response: ServerResponse, configStore: ConfigStore): void {
-  writeJson(response, { clusters: configStore.listClusters() });
+  writeJson(response, { clusters: withKubeconfigServers(configStore.listClusters()) });
 }
 
 export async function writeReorderClusters(request: IncomingMessage, response: ServerResponse, configStore: ConfigStore, auditStore: AuditStore): Promise<void> {
@@ -44,7 +45,7 @@ export async function writeReorderClusters(request: IncomingMessage, response: S
       status: "success",
       extra: { clusterIds: clusters.map((cluster) => cluster.id) },
     });
-    writeJson(response, { clusters });
+    writeJson(response, { clusters: withKubeconfigServers(clusters) });
   } catch (error) {
     if (writeBodyError(response, error)) return;
 
@@ -79,7 +80,7 @@ export async function writeImportCluster(request: IncomingMessage, response: Ser
       clusterId: cluster.id,
       name: cluster.displayName,
     });
-    writeJson(response, cluster);
+    writeJson(response, withKubeconfigServer(cluster));
   } catch (error) {
     if (writeBodyError(response, error)) return;
 
@@ -104,7 +105,7 @@ export async function writeRenameCluster(request: IncomingMessage, response: Ser
       clusterId,
       name: cluster.displayName,
     });
-    writeJson(response, cluster);
+    writeJson(response, withKubeconfigServer(cluster));
   } catch (error) {
     if (writeBodyError(response, error)) return;
 

@@ -420,6 +420,8 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
     reordered.clusters.map((cluster) => cluster.id),
     desiredOrder,
   );
+  // The rail's tooltips read the server from whatever answered last.
+  assert.equal(reordered.clusters.find((cluster) => cluster.id === goodCluster.id).server, "https://10.10.10.10:6443", "a reorder answers with the API servers too");
   assert.deepEqual(
     JSON.parse(fs.readFileSync(configPath, "utf8")).clusters.map((cluster) => cluster.id),
     desiredOrder,

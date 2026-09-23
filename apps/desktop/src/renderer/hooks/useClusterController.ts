@@ -293,8 +293,9 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
   }, [api, renameTarget, renameDraft, reloadConfig, setError]);
 
   const removeCluster = useCallback(
-    async (cluster: Cluster, confirmed = false) => {
-      if (!api || (!confirmed && !window.confirm(`Remove ${cluster.displayName}?`))) return false;
+    // The caller asks first: it also knows which tabs and terminals go with it.
+    async (cluster: Cluster) => {
+      if (!api) return false;
       await api.removeCluster(cluster.id);
       setActiveCluster((current) => (current?.id === cluster.id ? null : current));
       setUnavailableCluster((current) => (current?.id === cluster.id ? null : current));

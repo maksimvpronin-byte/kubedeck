@@ -640,5 +640,7 @@
   "kubeconfig.saving": "Сохранение...",
   "kubeconfig.discard": "Отменить несохранённые изменения kubeconfig?",
   "settings.discard": "В настройках есть несохранённые изменения. Уйти без сохранения?",
+  "drawer.discardYaml": "Отменить несохранённые изменения YAML?",
+  "clusters.removeConfirm": "Удалить {name}? Также закроются вкладки ресурсов ({tabs}) и сессии терминала/SSH ({terminals}).",
   "settings.unsaved": "Есть несохранённые изменения"
 }

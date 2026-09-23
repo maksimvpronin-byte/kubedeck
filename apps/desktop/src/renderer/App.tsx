@@ -164,8 +164,7 @@ export function App() {
   // itself dirty only while it is mounted.
   const confirmDrawerNavigation = useCallback(
     (nextSection?: Section) =>
-      (!drawerDirtyRef.current || window.confirm("Discard unsaved YAML changes?")) &&
-      (!settingsDirtyRef.current || !nextSection || nextSection === "settings" || window.confirm(t("settings.discard"))),
+      (!drawerDirtyRef.current || window.confirm(t("drawer.discardYaml"))) && (!settingsDirtyRef.current || !nextSection || nextSection === "settings" || window.confirm(t("settings.discard"))),
     [t],
   );
   const setSettingsDirty = useCallback((dirty: boolean) => {
@@ -439,8 +438,17 @@ export function App() {
   async function removeClusterWorkspace(cluster: (typeof clusters)[number]) {
     const resourceCount = resourceWorkspaceTabs.filter((tab) => tab.clusterId === cluster.id).length;
     const terminalCount = bottomTerminals.filter((target) => target.clusterId === cluster.id).length;
-    if (!window.confirm(`Remove ${cluster.displayName}? This also closes ${resourceCount} resource tab(s) and ${terminalCount} terminal/SSH session(s).`)) return;
-    const removed = await removeCluster(cluster, true);
+    const question = t("clusters.removeConfirm").replace("{name}", cluster.displayName).replace("{tabs}", String(resourceCount)).replace("{terminals}", String(terminalCount));
+    if (!window.confirm(question)) return;
+    // A removal the backend refused used to vanish as an unhandled rejection,
+    // leaving the cluster in place with nothing said about why.
+    let removed = false;
+    try {
+      removed = await removeCluster(cluster);
+    } catch (error) {
+      setError(asErrorInfo(error));
+      return;
+    }
     if (!removed) return;
     removeClusterResourceTabs(cluster.id);
     removeClusterTerminals(cluster.id);
@@ -637,7 +645,10 @@ export function App() {
                 onSaveSettings={saveSettings}
                 onLanguagePreview={setLanguagePreview}
                 onSettingsDirtyChange={setSettingsDirty}
-                onImportKubeconfig={importKubeconfig}
+                onImportKubeconfig={() => {
+                  // The error is already on screen; the rejection is for callers that wait.
+                  void importKubeconfig().catch(() => undefined);
+                }}
                 onOpenCluster={openCluster}
                 onRenameCluster={startRenameCluster}
                 onRemoveCluster={removeClusterWorkspace}
