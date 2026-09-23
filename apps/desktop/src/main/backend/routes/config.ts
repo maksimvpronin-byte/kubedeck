@@ -6,12 +6,9 @@ import { withKubeconfigServers } from "../config/kubeconfigName";
 import type { SecretStore } from "../security/secretStore";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
+import { isRecord } from "../validation";
 
 const SECRET_NAME = "llm-api-key" as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function settingsFromBody(body: unknown): Record<string, unknown> {
   if (!isRecord(body)) {

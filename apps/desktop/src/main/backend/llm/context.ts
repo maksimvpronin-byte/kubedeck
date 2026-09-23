@@ -1,5 +1,6 @@
 import { formatBytes, formatCpuMillicores } from "../../../shared/formatQuantity";
 import type { LlmAnalyzeResourceRequest } from "./types";
+import { isRecord } from "../validation";
 
 export const REDACTED = "[REDACTED]";
 export const TRUNCATED_MARKER = "[TRUNCATED]";
@@ -11,10 +12,6 @@ const PRIVATE_KEY_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A
 const CERTIFICATE_RE = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/gi;
 const DIAGNOSTIC_LINE_RE =
   /(last state|state:|reason:|exit code|signal|oom|killed|evict|restart|back-off|crash|failed|error|warning|unhealthy|liveness|readiness|startup|probe|qos class|limits:|requests:|node:)/i;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function sensitiveKey(key: string): boolean {
   return Boolean(key && SENSITIVE_KEY_RE.test(key));

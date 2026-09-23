@@ -68,7 +68,7 @@ export function SettingsPanel({
   const [clearApiKey, setClearApiKey] = useState(false);
   const [secretStorageAvailable, setSecretStorageAvailable] = useState<boolean | null>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the key stands for the settings' content
+  // The key stands for the settings' content; the ref carries the object itself.
   useEffect(() => {
     setDraft(normalizeSettings(savedSettingsRef.current));
     setApiKeyDraft("");

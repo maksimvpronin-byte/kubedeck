@@ -778,6 +778,9 @@ test("an imported kubeconfig is named after its cluster, not its file", (t) => {
   assert.equal(store.importCluster(write("broken.yaml", "clusters: [\n")).displayName, "broken", "a file that does not parse goes by its file name");
   assert.equal(store.importCluster(write("empty.yaml", "apiVersion: v1\n")).displayName, "empty", "and so does one that names no cluster");
   assert.equal(store.importCluster(single, "  my name ").displayName, "my name", "a name given on import still wins");
+  assert.equal(store.importCluster(single).displayName, "k8s1-prod (2)", "the same kubeconfig imported again is told apart");
+  assert.equal(store.importCluster(single).displayName, "k8s1-prod (3)");
+  assert.equal(store.importCluster(single, "k8s1-prod").displayName, "k8s1-prod", "a name somebody typed is kept as typed");
 
   const kubeadm = write("kubeadm.conf", "apiVersion: v1\nclusters:\n- cluster:\n    server: https://k8s1-mstr-001.test.local:6443\n  name: kubernetes\n");
   assert.equal(store.importCluster(kubeadm).displayName, "k8s1-mstr-001.test.local", "kubeadm names every cluster kubernetes; the API server's host tells them apart");

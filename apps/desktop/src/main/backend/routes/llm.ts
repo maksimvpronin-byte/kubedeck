@@ -8,17 +8,13 @@ import { chatCompletion, LlmClientError, validateLlmSettings, type ResolvedLlmSe
 import { buildResourceContext } from "../llm/context";
 import { buildUserPrompt, SYSTEM_PROMPT } from "../llm/prompts";
 import type { LlmAnalyzeResourceRequest, LlmMessage, LlmPromptBuildResult, LlmTestRequest } from "../llm/types";
-import { RequestValidationError } from "../validation";
+import { isRecord, RequestValidationError } from "../validation";
 
 const SECRET_NAME = "llm-api-key" as const;
 
 const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 const MAX_IDENTITY_CHARS = 512;
 const MAX_USER_REQUEST_CHARS = 20_000;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;

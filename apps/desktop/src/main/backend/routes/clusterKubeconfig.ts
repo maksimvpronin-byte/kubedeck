@@ -5,7 +5,7 @@ import type { AuditStore } from "../audit/auditStore";
 import { ClusterNotFoundError, type ConfigStore, KubeconfigEditError, MAX_KUBECONFIG_BYTES } from "../config/configStore";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
-import { confirmationString, decodePathPart, RequestValidationError, validateIdentifier } from "../validation";
+import { confirmationString, decodePathPart, isRecord, RequestValidationError, validateIdentifier } from "../validation";
 
 const MAX_KUBECONFIG_REQUEST_BYTES = 2 * 1024 * 1024;
 
@@ -23,10 +23,6 @@ export function matchClusterKubeconfigRoute(method: string | undefined, pathname
     clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
     operation: method === "GET" ? "read" : "write",
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function parseErrorMessage(error: unknown): string {

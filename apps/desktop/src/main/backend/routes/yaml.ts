@@ -6,7 +6,7 @@ import { readJsonBody } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, confirmationString, decodePathPart, validateIdentifier } from "../validation";
+import { confirmationString, decodePathPart, isRecord, RequestValidationError, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
 export const MAX_APPLY_YAML_BYTES = 5 * 1024 * 1024;
@@ -42,10 +42,6 @@ type YamlOperation = "dry-run" | "apply";
 interface YamlRouteTarget {
   clusterId: string;
   operation: YamlOperation;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 export function matchYamlRoute(method: string | undefined, pathname: string): YamlRouteTarget | null {

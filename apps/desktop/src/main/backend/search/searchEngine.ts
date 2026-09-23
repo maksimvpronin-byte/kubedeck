@@ -1,4 +1,5 @@
 import { normalizeResourceItems } from "../resources/normalizers";
+import { isRecord } from "../validation";
 
 export interface ApiResourceDefinition {
   name: string;
@@ -68,10 +69,6 @@ const BASE_RESOURCE_SPECS: readonly SearchResourceSpec[] = [
   { resource: "namespaces", kind: "Namespace", scope: "cluster", normalizer: "generic" },
   { resource: "nodes", kind: "Node", scope: "cluster", normalizer: "resource" },
 ];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function record(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};

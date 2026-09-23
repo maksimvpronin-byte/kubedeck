@@ -5,7 +5,7 @@ import { readJsonBody } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, confirmationString, decodePathPart, validateIdentifier } from "../validation";
+import { confirmationString, decodePathPart, isRecord, RequestValidationError, validateIdentifier } from "../validation";
 import { RouteInfoError, writeRouteError } from "./routeErrors";
 
 const ACTION_REQUEST_MAX_BYTES = 64 * 1024;
@@ -72,12 +72,6 @@ function actionExtra(plan: ResourceActionPlan): { extra?: Record<string, unknown
   if (plan.action === "scale") return { extra: { replicas: plan.replicas } };
   if (plan.action === "trigger") return { extra: { jobName: plan.jobName } };
   return {};
-}
-
-type JsonObject = Record<string, unknown>;
-
-function isRecord(value: unknown): value is JsonObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 export function matchResourceActionRoute(method: string | undefined, pathname: string): ResourceActionRouteTarget | null {

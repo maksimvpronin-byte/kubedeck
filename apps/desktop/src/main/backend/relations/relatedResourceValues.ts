@@ -1,10 +1,8 @@
+import { isRecord } from "../validation";
+
 export type UnknownRecord = Record<string, unknown>;
 
 export type SafeLoad = (resource: string, namespace: string) => Promise<Array<UnknownRecord>>;
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 export function record(value: unknown): UnknownRecord {
   return isRecord(value) ? value : {};

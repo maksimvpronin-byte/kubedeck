@@ -6,7 +6,7 @@ import { readJsonBody, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, confirmationString, decodePathPart, validateIdentifier } from "../validation";
+import { confirmationString, decodePathPart, isRecord, RequestValidationError, validateIdentifier } from "../validation";
 import { RouteInfoError, writeRouteError } from "./routeErrors";
 
 const EXEC_REQUEST_MAX_BYTES = 64 * 1024;
@@ -17,7 +17,6 @@ const EXEC_TIMEOUT_SECONDS = 60;
 const AUTH_TIMEOUT_SECONDS = 15;
 
 type ExecShell = "sh" | "bash" | "ash";
-type JsonObject = Record<string, unknown>;
 
 interface OperationConfirmation {
   clusterId?: unknown;
@@ -48,10 +47,6 @@ export interface PodExecPlan {
   shell: ExecShell;
   timeoutSeconds: number;
   maxOutputBytes: number;
-}
-
-function isRecord(value: unknown): value is JsonObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 export function matchPodExecRoute(method: string | undefined, pathname: string): PodExecRouteTarget | null {

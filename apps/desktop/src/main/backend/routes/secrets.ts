@@ -5,7 +5,7 @@ import { readJsonBody, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
-import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
+import { decodePathPart, isRecord, RequestValidationError, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
 const SECRET_JSON_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -22,10 +22,6 @@ export interface SecretRouteTarget {
 }
 
 type JsonObject = Record<string, unknown>;
-
-function isRecord(value: unknown): value is JsonObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 export function matchSecretRoute(method: string | undefined, pathname: string): SecretRouteTarget | null {
   const match = pathname.match(/^\/clusters\/([^/]+)\/secrets\/([^/]+)\/([^/]+)\/(keys|reveal|copy|update)$/);

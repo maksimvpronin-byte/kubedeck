@@ -5,7 +5,7 @@ import type { ConfigStore } from "../config/configStore";
 import { readJsonBody, writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { PortForwardError, type PortForwardManager, type PortForwardStartInput } from "../portForward/portForwardManager";
-import { decodePathPart, RequestValidationError, validateIdentifier } from "../validation";
+import { decodePathPart, isRecord, RequestValidationError, validateIdentifier } from "../validation";
 import { writeRouteError as sharedWriteRouteError } from "./routeErrors";
 
 const REQUEST_MAX_BYTES = 64 * 1024;
@@ -17,12 +17,6 @@ const SUPPORTED_RESOURCES = new Map<string, PortForwardStartInput["resource"]>([
   ["deployment", "deployment"],
   ["deployments", "deployment"],
 ]);
-
-type JsonObject = Record<string, unknown>;
-
-function isRecord(value: unknown): value is JsonObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function integerPort(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isInteger(value)) {

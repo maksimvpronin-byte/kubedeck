@@ -33,7 +33,7 @@ import { useResourceWorkspaceTabs } from "./hooks/useResourceWorkspaceTabs";
 import { useSectionNavigation } from "./hooks/useSectionNavigation";
 import { buildResourceTableColumns } from "./utils/resourceTableColumns";
 import { createTranslator } from "./i18n";
-import { isPlaceholderSection, normalizeStoredSection, resourceLabel, visibleTabs } from "./navigation";
+import { isPlaceholderSection, normalizeStoredSection, resourceLabel, sectionForResource, visibleTabs } from "./navigation";
 import { findResourceDefinition, groupCrds } from "./utils/kubeResources";
 import type { ApiKeyUpdate, Cluster, ErrorInfo, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
@@ -581,16 +581,10 @@ export function App() {
             {resourceTabs.map((tab) => (
               <button
                 className={resourceTab === tab ? "active" : ""}
-                onClick={() => {
-                  if (!confirmDrawerNavigation()) return;
-                  setResourceTab(tab);
-                  if (tab === "nodes") setSection("nodes");
-                  if (tab === "events") setSection("events");
-                  if (tab === "services") setSection("network");
-                  if (tab === "namespaces") setSection("namespaces");
-                  if (["serviceaccounts", "roles", "rolebindings", "clusterroles", "clusterrolebindings"].includes(tab)) setSection("rbac");
-                  if (tab === "pods" || tab === "deployments") setSection("workloads");
-                }}
+                // The same path as the tree: it also moves the namespace scope to
+                // _cluster for ClusterRoles and back, which a hand-kept list of
+                // tab-to-section pairs here did not.
+                onClick={() => selectTreeResource(sectionForResource(tab) ?? section, tab)}
                 key={tab}
               >
                 {resourceLabel(tab)}

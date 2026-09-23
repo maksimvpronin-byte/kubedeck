@@ -4,6 +4,7 @@ import path from "node:path";
 import { kubeconfigClusterName, MAX_KUBECONFIG_BYTES } from "./kubeconfigName";
 import { ensureAppPaths, type AppPaths } from "./paths";
 import type { AppConfig, Cluster, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "./types";
+import { isRecord } from "../validation";
 
 const LANGUAGES = new Set<Language>(["system", "ru", "en"]);
 const THEMES = new Set<Theme>(["system", "light", "midnight", "nord", "forest", "plum", "mocha", "graphite"]);
@@ -11,10 +12,6 @@ const SSH_AUTH_METHODS = new Set<SshAuthMethod>(["agent", "password", "privateKe
 
 function utcNow(): string {
   return new Date().toISOString();
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function asString(value: unknown, fallback = ""): string {
@@ -278,6 +275,14 @@ function managedPath(pathname: string, baseDirectory: string): boolean {
   return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
 }
 
+export function uniqueClusterName(name: string, clusters: Cluster[]): string {
+  const taken = new Set(clusters.map((cluster) => cluster.displayName.toLowerCase()));
+  if (!taken.has(name.toLowerCase())) return name;
+  let index = 2;
+  while (taken.has(`${name} (${index})`.toLowerCase())) index += 1;
+  return `${name} (${index})`;
+}
+
 function readConfigFile(filePath: string): AppConfig {
   return normalizeConfig(JSON.parse(fs.readFileSync(filePath, "utf8")));
 }
@@ -486,6 +491,10 @@ export class ConfigStore {
       fs.renameSync(temporaryTarget, target);
 
       const config = this.load();
+      // A name taken from the kubeconfig repeats when the same file is imported
+      // twice, and two rail buttons and two cards that read the same cannot be
+      // told apart. A name somebody typed is kept as typed.
+      if (!requestedName) cluster.displayName = uniqueClusterName(cluster.displayName, config.clusters);
       config.clusters.push(cluster);
       this.save(config);
       return cluster;

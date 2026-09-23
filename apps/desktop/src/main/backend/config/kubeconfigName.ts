@@ -1,14 +1,11 @@
 import fs from "node:fs";
 import type { Cluster } from "@kubedeck/shared-types";
 import { parseDocument } from "yaml";
+import { isRecord } from "../validation";
 
 // Larger than any kubeconfig in use; a file this big is not parsed to name a
 // cluster, and is not offered for editing.
 export const MAX_KUBECONFIG_BYTES = 1024 * 1024;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function named(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value.filter(isRecord) : [];

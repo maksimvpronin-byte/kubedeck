@@ -4,13 +4,9 @@ import type { AuditStore } from "../audit/auditStore";
 import { writeError } from "../errors";
 import { readJsonBody, RequestBodyError, writeJson } from "../http";
 import type { SshHostKeyStore } from "../ssh/sshHostKeyStore";
-import { RequestValidationError } from "../validation";
+import { isRecord, RequestValidationError } from "../validation";
 
 const REQUEST_MAX_BYTES = 16 * 1024;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function readForgetInput(body: unknown): { host: string; port: number } {
   if (!isRecord(body)) throw new RequestValidationError(422, "INVALID_REQUEST", "Request body must be an object");

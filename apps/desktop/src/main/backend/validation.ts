@@ -1,3 +1,9 @@
+// A plain JSON object: not null, not an array. Request bodies, kubeconfigs and
+// kubectl output are all checked with this before a field is read.
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export const MAX_LOG_TAIL_LINES = 5000;
 
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]+$/;
