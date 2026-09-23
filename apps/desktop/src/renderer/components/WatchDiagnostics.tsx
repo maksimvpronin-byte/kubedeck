@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, WatchSession, WatchStatus } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { formatElapsed } from "../utils/time";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { useOwnedError } from "../hooks/useOwnedError";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 const WATCH_STATUS_REFRESH_MS = 5000;
@@ -42,23 +43,19 @@ export function WatchDiagnostics({
   const runningVisible = visibleWatches.filter((watch) => watch.status === "running").length;
   const currentNamespaceHint = selectedNamespaces.length === 1 ? selectedNamespaces[0] : "all";
 
-  // Polled while Settings is open. A poll that succeeds takes down only an
-  // error it raised; a failed settings save shown in the same banner stays.
-  const reportedErrorRef = useRef(false);
+  // Polled while Settings is open: a success takes down only an error this
+  // panel raised; a failed settings save shown in the same banner stays.
+  const ownedError = useOwnedError(onError);
   async function loadStatus(options: { quiet?: boolean } = {}) {
     if (!api) return false;
     if (!options.quiet) setLoading(true);
     try {
       const next = await api.watchStatus();
       setStatus(next);
-      if (reportedErrorRef.current) {
-        reportedErrorRef.current = false;
-        onError(null);
-      }
+      ownedError.clear();
       return true;
     } catch (err) {
-      reportedErrorRef.current = true;
-      onError(asErrorInfo(err));
+      ownedError.report(asErrorInfo(err));
       return false;
     } finally {
       if (!options.quiet) setLoading(false);
@@ -76,9 +73,9 @@ export function WatchDiagnostics({
       const result = await api.startWatch(activeCluster.id, resource, namespace);
       setMessage(result.alreadyRunning ? t("watch.alreadyRunning") : t("watch.started"));
       await loadStatus({ quiet: true });
-      onError(null);
+      ownedError.clear();
     } catch (err) {
-      onError(asErrorInfo(err));
+      ownedError.report(asErrorInfo(err));
     } finally {
       setStarting(false);
     }
@@ -92,9 +89,9 @@ export function WatchDiagnostics({
       await api.stopWatch(watch.id);
       setMessage(t("watch.stopped"));
       await loadStatus({ quiet: true });
-      onError(null);
+      ownedError.clear();
     } catch (err) {
-      onError(asErrorInfo(err));
+      ownedError.report(asErrorInfo(err));
     } finally {
       setStoppingId(null);
     }
@@ -108,9 +105,9 @@ export function WatchDiagnostics({
       const result = await api.stopAllWatches();
       setMessage(`${t("watch.stopped")}: ${result.stopped}`);
       await loadStatus({ quiet: true });
-      onError(null);
+      ownedError.clear();
     } catch (err) {
-      onError(asErrorInfo(err));
+      ownedError.report(asErrorInfo(err));
     } finally {
       setStoppingAll(false);
     }

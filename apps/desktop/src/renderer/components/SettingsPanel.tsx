@@ -380,7 +380,7 @@ export function SettingsPanel({
           {showLocalActivity ? t("common.close") : t("settings.openLocalActivity")}
         </button>
       </div>
-      {showLocalActivity ? <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={(error) => onError(error)} /> : null}
+      {showLocalActivity ? <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={onError} /> : null}
       <ClusterPanel
         clusters={clusters}
         activeCluster={activeCluster}

@@ -3,6 +3,7 @@ import type { ApiClient } from "../api";
 import type { Cluster, ResourceCacheStatus } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { useOwnedError } from "../hooks/useOwnedError";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 export function ResourceCacheDiagnostics({
@@ -21,6 +22,7 @@ export function ResourceCacheDiagnostics({
   const [clearing, setClearing] = useState(false);
   const [localMessage, setLocalMessage] = useState("");
   const refreshFeedback = useAsyncActionFeedback();
+  const ownedError = useOwnedError(onError);
 
   const clusterEntries = useMemo(() => {
     if (!status || !activeCluster) return [];
@@ -36,10 +38,10 @@ export function ResourceCacheDiagnostics({
     try {
       const next = await api.resourceCacheStatus();
       setStatus(next);
-      onError(null);
+      ownedError.clear();
       return true;
     } catch (err) {
-      onError(asErrorInfo(err));
+      ownedError.report(asErrorInfo(err));
       return false;
     } finally {
       setLoading(false);
@@ -55,9 +57,9 @@ export function ResourceCacheDiagnostics({
       const next = await api.resourceCacheStatus();
       setStatus(next);
       setLocalMessage(`${t("cache.cleared")}: ${result.cleared}`);
-      onError(null);
+      ownedError.clear();
     } catch (err) {
-      onError(asErrorInfo(err));
+      ownedError.report(asErrorInfo(err));
     } finally {
       setClearing(false);
     }

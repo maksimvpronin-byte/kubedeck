@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ApiClient } from "../api";
+import type { ApiClient } from "../api";
 import { toErrorInfo } from "../utils/errors";
 import type { ErrorInfo, LlmAnalyzeResourceRequest, RelatedLink, ResourceRow, Settings, UsageHistoryResponse } from "../types";
 import { ErrorPanel } from "./ErrorPanel";

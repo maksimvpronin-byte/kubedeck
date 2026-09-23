@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiClient } from "../api";
+import type { ApiClient } from "../api";
 import type { PortForwardSession, PortForwardStartRequest, ResourceRow, Settings } from "../types";
 import type { YamlEditorHandle } from "./YamlSourceEditor";
 import { PortForwardModal, defaultPortForwardDraft, supportsPortForward } from "./PortForwardModal";

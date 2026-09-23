@@ -6,6 +6,7 @@ import type { Cluster, ClusterOverviewResponse, ErrorInfo, Settings } from "../t
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldSkipSilentRefresh } from "../utils/refresh";
+import { useOwnedError } from "../hooks/useOwnedError";
 import { formatElapsed } from "../utils/time";
 import { ThemedSelect } from "./ThemedSelect";
 
@@ -44,10 +45,7 @@ export function OverviewPanel({
   const [stale, setStale] = useState(false);
   const [capacityViewKey, setCapacityViewKey] = useState("role");
   const requestRef = useRef<AbortController | null>(null);
-  // The overview shares the application's error banner. A silent refresh that
-  // succeeds may take down an error it raised itself, never one that some other
-  // request put up in the meantime.
-  const reportedErrorRef = useRef(false);
+  const ownedError = useOwnedError(onError);
   // The overview belongs to one cluster and one namespace scope. Switching kept
   // the previous scope's numbers on screen until the new ones arrived - and, if
   // they did not, marked them stale as though they were the new scope's.
@@ -79,16 +77,12 @@ export function OverviewPanel({
         const response = await api.overview(cluster.id, namespaces, controller.signal);
         setData(response);
         setStale(false);
-        if (reportedErrorRef.current) {
-          reportedErrorRef.current = false;
-          onError(null);
-        }
+        ownedError.clear();
         return true;
       } catch (error) {
         if (isAbortError(error)) return false;
         setStale(hasDataRef.current);
-        reportedErrorRef.current = true;
-        onError(asErrorInfo(error));
+        ownedError.report(asErrorInfo(error));
         return false;
       } finally {
         if (requestRef.current === controller) {
@@ -97,7 +91,7 @@ export function OverviewPanel({
         }
       }
     },
-    [api, cluster?.id, namespaces.join(","), onError],
+    [api, cluster?.id, namespaces.join(","), ownedError],
   );
 
   useEffect(() => {

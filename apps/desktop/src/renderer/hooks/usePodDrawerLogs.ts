@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { ApiClient } from "../api";
+import type { ApiClient } from "../api";
 import type { DrawerTab } from "../components/PodDrawerChrome";
 import { containerNames, downloadTextFile, isAbortError } from "../components/podDrawerHelpers";
 import type { ErrorInfo, ResourceRow } from "../types";

@@ -1,7 +1,7 @@
 import { formatBytes as sharedBytes } from "../../shared/formatQuantity";
 import { Copy, Eye, EyeOff, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ApiClient } from "../api";
+import type { ApiClient } from "../api";
 import { toErrorInfo } from "../utils/errors";
 import type { ErrorInfo, ResourceRow, SecretKeysResponse, SecretRevealResponse } from "../types";
 import { ErrorPanel } from "./ErrorPanel";

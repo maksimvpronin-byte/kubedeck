@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiClient } from "../api";
+import type { ApiClient } from "../api";
 import type { ErrorInfo, RelatedLink, ResourceRow, ServiceEndpointsResponse, UsageHistoryResponse } from "../types";
 import type { DrawerTab } from "../components/PodDrawerChrome";
 import { isAbortError } from "../components/podDrawerHelpers";

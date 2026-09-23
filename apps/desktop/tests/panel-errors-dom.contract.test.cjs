@@ -85,3 +85,13 @@ test("a port-forward failure is shown in the panel, once, and copy says whether 
   await settle();
   assert.match(view.text(".port-forward-message"), /portForwards\.copyFailed/);
 });
+
+test("opening Settings does not take down the error that brought the user there", async (t_) => {
+  const { ResourceCacheDiagnostics } = loadComponent("components/ResourceCacheDiagnostics.tsx");
+  const reports = [];
+  const api = { resourceCacheStatus: async () => ({ items: [], ttlSeconds: 15 }) };
+  const view = mount(React.createElement(ResourceCacheDiagnostics, { api, activeCluster: CLUSTER, t, onError: (error) => reports.push(error) }));
+  t_.after(() => view.unmount());
+  await settle();
+  assert.deepEqual(reports, [], "a kubectl error with an Open settings button stays on the banner");
+});
