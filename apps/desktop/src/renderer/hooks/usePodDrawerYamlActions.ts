@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { ApiClient } from "../api";
+import type { ApiClient } from "../api";
 import type { ErrorInfo, ResourceRow } from "../types";
 import { toErrorInfo } from "../utils/errors";
 

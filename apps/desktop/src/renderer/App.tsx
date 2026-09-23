@@ -138,18 +138,19 @@ export function App() {
     },
     [openCluster],
   );
+  const activeLanguage = languagePreview ?? settings?.language ?? "system";
+  const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
+  const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
   const { loadVisibleNodeDisk } = useNodeDiskUsage({ api, activeCluster, resourceTab, setRows });
   const { bottomTerminals, activeBottomTerminalId, setActiveBottomTerminalId, bottomTerminalOpenToken, openBottomTerminal, openBottomNodeSsh, closeBottomTerminal, removeClusterTerminals } =
     useBottomTerminals({
       activeCluster,
+      t,
       setError,
     });
   const currentSelectedTarget = currentSelectedResourceTarget(selectedTarget, activeCluster?.id, resourceTab);
   const selectedPod = currentSelectedTarget?.row ?? null;
   const selectedResource = currentSelectedTarget?.resource ?? resourceTab;
-  const activeLanguage = languagePreview ?? settings?.language ?? "system";
-  const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
-  const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
   const reloadActionResources = useCallback((clusterId: string, resource: string, targetNamespaces: string[]) => actionReloadRef.current(clusterId, resource, targetNamespaces), []);
   const bulkActions = useBulkResourceActions({
     api,

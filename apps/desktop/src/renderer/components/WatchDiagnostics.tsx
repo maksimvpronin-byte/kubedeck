@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, WatchSession, WatchStatus } from "../types";
 import { asErrorInfo } from "../utils/errors";
@@ -42,15 +42,22 @@ export function WatchDiagnostics({
   const runningVisible = visibleWatches.filter((watch) => watch.status === "running").length;
   const currentNamespaceHint = selectedNamespaces.length === 1 ? selectedNamespaces[0] : "all";
 
+  // Polled while Settings is open. A poll that succeeds takes down only an
+  // error it raised; a failed settings save shown in the same banner stays.
+  const reportedErrorRef = useRef(false);
   async function loadStatus(options: { quiet?: boolean } = {}) {
     if (!api) return false;
     if (!options.quiet) setLoading(true);
     try {
       const next = await api.watchStatus();
       setStatus(next);
-      onError(null);
+      if (reportedErrorRef.current) {
+        reportedErrorRef.current = false;
+        onError(null);
+      }
       return true;
     } catch (err) {
+      reportedErrorRef.current = true;
       onError(asErrorInfo(err));
       return false;
     } finally {

@@ -51,13 +51,11 @@ export function ProblemsPanel({
       setProblems(response.items);
       setSummary(response.summary);
       setPartialErrors(response.errors ?? []);
-      onError(null);
       return true;
     } catch (err) {
       if (isAbortError(err)) return false;
       const info = asErrorInfo(err);
       setLocalError(info);
-      onError(info);
       return false;
     } finally {
       if (requestRef.current === controller) {

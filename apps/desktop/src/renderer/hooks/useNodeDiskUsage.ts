@@ -26,22 +26,29 @@ export function useNodeDiskUsage({ api, activeCluster, resourceTab, setRows }: O
       if (!api || !activeCluster || resourceTab !== "nodes") return;
       const clusterId = activeCluster.id;
       const now = Date.now();
+      // Readings still fresh in the cache. Applied together below: a setRows per
+      // node re-rendered the whole table once for every cached node in view.
+      const fromCache = new Map<string, ResourceRow>();
       const queue = visibleRows.filter((row) => {
         const key = `${clusterId}:${String(row.uid || row.name)}`;
         const cached = nodeDiskCacheRef.current.get(key);
         if (cached && now - cached.at < NODE_DISK_CACHE_TTL_MS) {
-          if (row.diskUsage !== cached.data.diskUsage) {
-            setRows((current) => ({
-              ...current,
-              nodes: (current.nodes ?? []).map((item) => (item.uid === row.uid ? { ...item, ...cached.data, uid: item.uid, name: item.name } : item)),
-            }));
-          }
+          if (row.diskUsage !== cached.data.diskUsage) fromCache.set(String(row.uid || row.name), cached.data);
           return false;
         }
         if (nodeDiskPendingRef.current.has(key)) return false;
         nodeDiskPendingRef.current.add(key);
         return true;
       });
+      if (fromCache.size) {
+        setRows((current) => ({
+          ...current,
+          nodes: (current.nodes ?? []).map((item) => {
+            const cached = fromCache.get(String(item.uid || item.name));
+            return cached ? { ...item, ...cached, uid: item.uid, name: item.name } : item;
+          }),
+        }));
+      }
       if (!queue.length) return;
 
       const queuedKeys = new Set(queue.map((row) => String(row.uid || row.name)));

@@ -5,10 +5,15 @@ import type { Cluster, ErrorInfo, ResourceRow } from "../types";
 
 interface Options {
   activeCluster: Cluster | null;
+  t: (key: string) => string;
   setError: Dispatch<SetStateAction<ErrorInfo | null>>;
 }
 
-export function useBottomTerminals({ activeCluster, setError }: Options) {
+// The bottom panel holds at most this many terminal and SSH sessions.
+const MAX_BOTTOM_TERMINALS = 5;
+
+export function useBottomTerminals({ activeCluster, t, setError }: Options) {
+  const limitReached = () => setError({ code: "LIMIT_REACHED", message: t("terminals.limitReached").replace("{max}", String(MAX_BOTTOM_TERMINALS)), rawStderr: "", commandPreview: "" });
   const [bottomTerminals, setBottomTerminals] = useState<BottomTerminalTarget[]>([]);
   const [activeBottomTerminalId, setActiveBottomTerminalId] = useState<string | null>(null);
   const [bottomTerminalOpenToken, setBottomTerminalOpenToken] = useState(0);
@@ -22,8 +27,8 @@ export function useBottomTerminals({ activeCluster, setError }: Options) {
       setBottomTerminalOpenToken((current) => current + 1);
       return;
     }
-    if (bottomTerminals.length >= 5) {
-      setError({ code: "LIMIT_REACHED", message: "Close a terminal or SSH session before opening another (5 maximum).", rawStderr: "", commandPreview: "" });
+    if (bottomTerminals.length >= MAX_BOTTOM_TERMINALS) {
+      limitReached();
       return;
     }
     setBottomTerminals((current) => [...current, { kind: "pod", id, clusterId: activeCluster.id, clusterName: activeCluster.displayName, pod, containers, container }]);
@@ -40,8 +45,8 @@ export function useBottomTerminals({ activeCluster, setError }: Options) {
       setBottomTerminalOpenToken((current) => current + 1);
       return;
     }
-    if (bottomTerminals.length >= 5) {
-      setError({ code: "LIMIT_REACHED", message: "Close a terminal or SSH session before opening another (5 maximum).", rawStderr: "", commandPreview: "" });
+    if (bottomTerminals.length >= MAX_BOTTOM_TERMINALS) {
+      limitReached();
       return;
     }
     setBottomTerminals((current) => [...current, { kind: "node-ssh", id, clusterId: activeCluster.id, clusterName: activeCluster.displayName, node }]);

@@ -44,6 +44,10 @@ export function OverviewPanel({
   const [stale, setStale] = useState(false);
   const [capacityViewKey, setCapacityViewKey] = useState("role");
   const requestRef = useRef<AbortController | null>(null);
+  // The overview shares the application's error banner. A silent refresh that
+  // succeeds may take down an error it raised itself, never one that some other
+  // request put up in the meantime.
+  const reportedErrorRef = useRef(false);
 
   useEffect(() => {
     setCapacityViewKey(loadCapacityViewKey(cluster?.id));
@@ -61,11 +65,15 @@ export function OverviewPanel({
         const response = await api.overview(cluster.id, namespaces, controller.signal);
         setData(response);
         setStale(false);
-        onError(null);
+        if (reportedErrorRef.current) {
+          reportedErrorRef.current = false;
+          onError(null);
+        }
         return true;
       } catch (error) {
         if (isAbortError(error)) return false;
         setStale(Boolean(data));
+        reportedErrorRef.current = true;
         onError(asErrorInfo(error));
         return false;
       } finally {

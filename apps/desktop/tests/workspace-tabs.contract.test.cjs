@@ -32,7 +32,8 @@ test("bottom Terminal Workspace owns Pod and Node SSH sessions outside the resou
   assert.match(terminalsHook, /function openBottomNodeSsh/);
   assert.match(terminalsHook, /kind: "pod"/);
   assert.match(terminalsHook, /kind: "node-ssh"/);
-  assert.match(terminalsHook, /bottomTerminals\.length >= 5/);
+  assert.match(terminalsHook, /const MAX_BOTTOM_TERMINALS = 5;/);
+  assert.match(terminalsHook, /bottomTerminals\.length >= MAX_BOTTOM_TERMINALS/);
   assert.match(drawer, /onOpenTerminal\(pod, containers/);
   assert.match(drawer, /onOpenNodeSsh\(pod\)/);
   assert.doesNotMatch(drawer, /import \{ NodeSshTab \}/);

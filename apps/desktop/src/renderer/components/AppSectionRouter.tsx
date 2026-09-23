@@ -167,7 +167,7 @@ export function AppSectionRouter(props: Props) {
   if (section === "port-forwards") {
     return (
       <LazySurface resetKey="port-forwards">
-        <PortForwardsPanel api={props.api} cluster={activeCluster} copyLabel={t("error.copy")} t={t} onError={props.onError} />
+        <PortForwardsPanel api={props.api} cluster={activeCluster} copyLabel={t("error.copy")} t={t} />
       </LazySurface>
     );
   }

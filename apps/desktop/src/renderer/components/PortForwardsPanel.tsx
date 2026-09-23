@@ -6,19 +6,7 @@ import { ErrorPanel } from "./ErrorPanel";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
-export function PortForwardsPanel({
-  api,
-  cluster,
-  copyLabel,
-  t,
-  onError,
-}: {
-  api: ApiClient | null;
-  cluster: Cluster | null;
-  copyLabel: string;
-  t: (key: string) => string;
-  onError: (error: ErrorInfo | null) => void;
-}) {
+export function PortForwardsPanel({ api, cluster, copyLabel, t }: { api: ApiClient | null; cluster: Cluster | null; copyLabel: string; t: (key: string) => string }) {
   const [sessions, setSessions] = useState<PortForwardSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<ErrorInfo | null>(null);
@@ -31,12 +19,10 @@ export function PortForwardsPanel({
     try {
       setSessions((await api.portForwards()).items);
       setLocalError(null);
-      onError(null);
       return true;
     } catch (err) {
       const info = asErrorInfo(err);
       setLocalError(info);
-      onError(info);
       return false;
     } finally {
       if (!options.quiet) setLoading(false);
@@ -49,12 +35,10 @@ export function PortForwardsPanel({
     try {
       await api.stopPortForward(id);
       await refresh({ quiet: true });
-      setMessage("Port-forward stopped");
-      onError(null);
+      setMessage(t("portForwards.stopped"));
     } catch (err) {
       const info = asErrorInfo(err);
       setLocalError(info);
-      onError(info);
     } finally {
       setLoading(false);
     }
@@ -72,23 +56,29 @@ export function PortForwardsPanel({
         localPort: session.localPort,
         remotePort: session.remotePort,
       });
-      setMessage(`Port-forward restarted: ${next.url}`);
+      setMessage(`${t("portForwards.restarted")}: ${next.url}`);
       await refresh({ quiet: true });
-      onError(null);
     } catch (err) {
       const info = asErrorInfo(err);
       setLocalError(info);
-      onError(info);
     } finally {
       setLoading(false);
     }
   }
 
-  function copyUrl(session: PortForwardSession) {
-    void navigator.clipboard?.writeText(session.url);
-    setMessage(`Copied ${session.url}`);
+  // "Copied" only once the clipboard has taken it.
+  async function copyUrl(session: PortForwardSession) {
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(session.url);
+      copied = true;
+    } catch {
+      copied = false;
+    }
+    const text = `${t(copied ? "portForwards.copied" : "portForwards.copyFailed")}: ${session.url}`;
+    setMessage(text);
     window.setTimeout(() => {
-      setMessage((current) => (current === `Copied ${session.url}` ? "" : current));
+      setMessage((current) => (current === text ? "" : current));
     }, 2500);
   }
 
@@ -119,7 +109,7 @@ export function PortForwardsPanel({
         <div>
           <h2>{t("portForwards.title")}</h2>
           <p className="muted">
-            {sessions.length} active session{sessions.length === 1 ? "" : "s"}
+            {t("portForwards.activeSessions")}: {sessions.length}
           </p>
         </div>
         <AsyncActionButton className="icon-text" phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => refresh())} disabled={loading} />
@@ -132,7 +122,7 @@ export function PortForwardsPanel({
           <article className="port-forward-card" key={session.id}>
             <div>
               <strong>
-                {session.resource}/{session.name} <small>{session.source === "external" ? "External" : "KubeDeck"}</small>
+                {session.resource}/{session.name} <small>{session.source === "external" ? t("portForwards.external") : "KubeDeck"}</small>
               </strong>
               <span>
                 {session.namespace} · localhost:{session.localPort} → {session.resource}/{session.name}:{session.remotePort} · {session.status} · pid {session.pid}
@@ -143,21 +133,21 @@ export function PortForwardsPanel({
               {session.commandPreview ? <code>{session.commandPreview}</code> : null}
             </div>
             <div className="port-forward-actions">
-              <button onClick={() => copyUrl(session)} disabled={loading}>
-                Copy URL
+              <button onClick={() => void copyUrl(session)} disabled={loading}>
+                {t("portForwards.copyUrl")}
               </button>
               {session.stoppable ? (
                 <>
-                  <button onClick={() => restart(session)} disabled={loading}>
-                    Restart
+                  <button onClick={() => void restart(session)} disabled={loading}>
+                    {t("portForwards.restart")}
                   </button>
-                  <button onClick={() => stop(session.id)} disabled={loading}>
+                  <button onClick={() => void stop(session.id)} disabled={loading}>
                     {t("portForwards.stop")}
                   </button>
                 </>
               ) : (
                 <button disabled title={t("portForwards.externalReadOnly")}>
-                  External
+                  {t("portForwards.external")}
                 </button>
               )}
             </div>
