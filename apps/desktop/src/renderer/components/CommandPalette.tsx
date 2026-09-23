@@ -34,20 +34,36 @@ export function CommandPalette({
   onRun: (item: CommandPaletteItem) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+  // The highlighted item is remembered by id, not by position. The items are
+  // rebuilt from the table's rows, which a watch event refreshes: a position
+  // reset on every rebuild moved the highlight back to the top under the arrow
+  // keys, and Enter then opened the wrong thing.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const activeRef = useRef<HTMLButtonElement | null>(null);
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = useMemo(() => {
     return normalizedQuery ? items.filter((item) => item.searchMatched || `${item.title} ${item.subtitle} ${item.category} ${item.keywords}`.toLowerCase().includes(normalizedQuery)) : items;
   }, [items, normalizedQuery]);
   const visibleItems = filtered.slice(0, 60);
+  const foundIndex = activeId === null ? -1 : visibleItems.findIndex((item) => item.id === activeId);
+  const activeIndex = foundIndex >= 0 ? foundIndex : 0;
+  const moveActive = (delta: number) => {
+    const next = Math.min(Math.max(activeIndex + delta, 0), Math.max(visibleItems.length - 1, 0));
+    setActiveId(visibleItems[next]?.id ?? null);
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    setActiveIndex(0);
-  }, [query, items]);
+    setActiveId(null);
+  }, [query]);
+
+  // The arrows walk past the bottom of the list; the highlight is kept in view.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [activeIndex]);
 
   function runActive() {
     const item = visibleItems[activeIndex];
@@ -56,7 +72,7 @@ export function CommandPalette({
 
   return (
     <div className="command-palette-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette" onMouseDown={(event) => event.stopPropagation()}>
+      <section className="command-palette" role="dialog" aria-modal="true" aria-label={placeholder} onMouseDown={(event) => event.stopPropagation()}>
         <div className="command-palette-input">
           <Search size={17} />
           <input
@@ -71,11 +87,11 @@ export function CommandPalette({
               }
               if (event.key === "ArrowDown") {
                 event.preventDefault();
-                setActiveIndex((current) => Math.min(current + 1, Math.max(visibleItems.length - 1, 0)));
+                moveActive(1);
               }
               if (event.key === "ArrowUp") {
                 event.preventDefault();
-                setActiveIndex((current) => Math.max(current - 1, 0));
+                moveActive(-1);
               }
               if (event.key === "Enter") {
                 event.preventDefault();
@@ -103,7 +119,13 @@ export function CommandPalette({
           ) : null}
           {visibleItems.length ? (
             visibleItems.map((item, index) => (
-              <button key={item.id} className={index === activeIndex ? "active" : ""} onMouseEnter={() => setActiveIndex(index)} onClick={() => onRun(item)}>
+              <button
+                key={item.id}
+                ref={index === activeIndex ? activeRef : undefined}
+                className={index === activeIndex ? "active" : ""}
+                onMouseEnter={() => setActiveId(item.id)}
+                onClick={() => onRun(item)}
+              >
                 <span>
                   <strong>{item.title}</strong>
                   <small>{item.subtitle}</small>

@@ -192,3 +192,22 @@ test("a closed palette does not prepare rows on background updates", () => {
   });
   assert.deepEqual(buildItems({ open: false, activeRows }), []);
 });
+
+test("the highlighted item survives the items being rebuilt, so Enter opens what was chosen", () => {
+  const item = (id) => ({ id, title: id, subtitle: "", category: "Open", keywords: "", run() {} });
+  const ran = [];
+  const view = mount(palette({ query: "", items: [item("a"), item("b"), item("c")], onRun: (chosen) => ran.push(chosen.id) }));
+  try {
+    const input = view.first("input");
+    const key = (name) => React.act(() => input.dispatchEvent(new domWindow.KeyboardEvent("keydown", { key: name, bubbles: true })));
+    key("ArrowDown");
+    key("ArrowDown");
+    // A watch event refreshes the table, and the palette is handed new items.
+    view.update(palette({ query: "", items: [item("a"), item("b"), item("c")], onRun: (chosen) => ran.push(chosen.id) }));
+    assert.equal(view.text(".command-palette-results button.active strong"), "c", "the highlight stays on c");
+    key("Enter");
+    assert.deepEqual(ran, ["c"]);
+  } finally {
+    view.unmount();
+  }
+});

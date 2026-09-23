@@ -88,6 +88,7 @@
   "resources.refresh": "Обновить",
   "resources.filter": "Фильтр",
   "resources.allNamespaces": "Все namespaces",
+  "resources.namespacesSelected": "Выбрано namespaces: {count}",
   "resources.clusterScoped": "Cluster-scoped",
   "resources.namespaceSearch": "Поиск namespace",
   "resources.namespaceSearchEmpty": "Namespace не найдены",

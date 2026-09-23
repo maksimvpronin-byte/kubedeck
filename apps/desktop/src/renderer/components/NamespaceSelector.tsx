@@ -8,6 +8,7 @@ export function NamespaceSelector({
   disabled,
   allLabel,
   clusterScopedLabel,
+  selectedCountLabel = "{count} namespaces",
   searchLabel,
   emptySearchLabel,
   recentUsage,
@@ -18,6 +19,8 @@ export function NamespaceSelector({
   disabled: boolean;
   allLabel: string;
   clusterScopedLabel?: string;
+  /** Shown for more than one namespace; {count} is replaced. */
+  selectedCountLabel?: string;
   searchLabel: string;
   emptySearchLabel: string;
   /** When each namespace was last part of the selection, for the active cluster. */
@@ -41,7 +44,13 @@ export function NamespaceSelector({
   const filteredNamespaces = useMemo(() => filterNamespaces(namespaces, selected, query, pinned), [namespaces, selected, query, pinned]);
   const isAll = normalized.includes("all");
   const isClusterScoped = normalized.includes("_cluster");
-  const label = isClusterScoped ? (clusterScopedLabel ?? "Cluster-scoped") : isAll ? allLabel : normalized.length === 1 ? normalized[0] : `${normalized.length} namespaces`;
+  const label = isClusterScoped
+    ? (clusterScopedLabel ?? "Cluster-scoped")
+    : isAll
+      ? allLabel
+      : normalized.length === 1
+        ? normalized[0]
+        : selectedCountLabel.replace("{count}", String(normalized.length));
 
   useEffect(() => {
     if (!open) return;

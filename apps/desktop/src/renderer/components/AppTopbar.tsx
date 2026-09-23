@@ -39,6 +39,7 @@ export function AppTopbar({
         disabled={clusterScoped}
         allLabel={t("resources.allNamespaces")}
         clusterScopedLabel={t("resources.clusterScoped")}
+        selectedCountLabel={t("resources.namespacesSelected")}
         searchLabel={t("resources.namespaceSearch")}
         emptySearchLabel={t("resources.namespaceSearchEmpty")}
         recentUsage={namespaceUsage}
