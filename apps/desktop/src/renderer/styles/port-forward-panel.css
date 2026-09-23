@@ -3,19 +3,6 @@
     grid-template-columns: 1fr;
   }
 }
-.port-forward-form {
-  display: grid;
-  grid-template-columns: 1.1fr 150px minmax(220px, 1.6fr) 130px 130px auto;
-  gap: 10px;
-  align-items: end;
-  padding: 14px;
-}
-.port-forward-form label {
-  display: grid;
-  gap: 6px;
-  color: var(--muted-strong);
-  font-size: 13px;
-}
 .port-forward-list {
   display: grid;
   gap: 8px;

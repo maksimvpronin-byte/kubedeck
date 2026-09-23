@@ -190,7 +190,7 @@ export function SettingsPanel({
               {saveStatus === "error" ? `${t("settings.saveFailed")}: ${saveError}` : t("settings.saved")}
             </span>
           ) : null}
-          <button className="primary" onClick={() => void saveDraft()} disabled={saveStatus === "saving"}>
+          <button className="primary" onClick={() => void saveDraft()} disabled={saveStatus === "saving" || !dirty}>
             {saveStatus === "saving" ? t("settings.saving") : t("settings.save")}
           </button>
         </div>

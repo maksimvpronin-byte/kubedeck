@@ -74,9 +74,6 @@
 
 .drawer-actions,
 .llm-actions,
-.llm-toolbar,
-.yaml-actions,
-.logs-actions,
 .settings-actions,
 .modal-actions {
   display: flex;
@@ -87,12 +84,8 @@
 
 .drawer-actions button:not(.icon-button),
 .llm-actions button:not(.icon-button),
-.llm-toolbar button:not(.icon-button),
-.yaml-actions button:not(.icon-button),
-.logs-actions button:not(.icon-button),
 .settings-actions button:not(.icon-button),
-.modal-actions button:not(.icon-button),
-.drawer .tab-body button:not(.icon-button) {
+.modal-actions button:not(.icon-button) {
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
@@ -103,12 +96,8 @@
 
 .drawer-actions button:not(.icon-button):hover:not(:disabled),
 .llm-actions button:not(.icon-button):hover:not(:disabled),
-.llm-toolbar button:not(.icon-button):hover:not(:disabled),
-.yaml-actions button:not(.icon-button):hover:not(:disabled),
-.logs-actions button:not(.icon-button):hover:not(:disabled),
 .settings-actions button:not(.icon-button):hover:not(:disabled),
-.modal-actions button:not(.icon-button):hover:not(:disabled),
-.drawer .tab-body button:not(.icon-button):hover:not(:disabled) {
+.modal-actions button:not(.icon-button):hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--primary-border) 45%, transparent);
   background: var(--primary-soft);
 }
@@ -153,9 +142,7 @@
     .related-actions
   )
   button:not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy),
-.drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy),
-.drawer button.kd-action-button,
-.drawer button.kd-secondary-button {
+.drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy) {
   min-height: 32px;
   border: 1px solid var(--kd-action-border);
   border-radius: 8px;
@@ -192,9 +179,7 @@
     .related-actions
   )
   button:not(:disabled):not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy):hover,
-.drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:not(:disabled):not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy):hover,
-.drawer button.kd-action-button:not(:disabled):hover,
-.drawer button.kd-secondary-button:not(:disabled):hover {
+.drawer :where(.yaml-panel, .logs-panel, .llm-panel, .secret-panel, .related-panel) button:not(:disabled):not(.drawer-tab):not(.tab-button):not(.copy-name-icon):not(.resource-title-copy):hover {
   border-color: var(--kd-action-border-hover) !important;
   background: var(--kd-action-bg-hover) !important;
   color: var(--text-inverse) !important;
@@ -228,9 +213,7 @@
 .drawer button.primary,
 .drawer button.is-primary,
 .drawer button[data-variant="primary"],
-.drawer .llm-actions button:first-child:not(:disabled),
-.drawer .llm-header-actions button:first-child:not(:disabled),
-.drawer .yaml-actions button:last-child:not(:disabled) {
+.drawer .llm-actions button:first-child:not(:disabled) {
   border-color: var(--kd-action-primary-border);
   background: var(--kd-action-primary-bg);
   color: var(--text-strong);
@@ -239,9 +222,7 @@
 .drawer button.primary:not(:disabled):hover,
 .drawer button.is-primary:not(:disabled):hover,
 .drawer button[data-variant="primary"]:not(:disabled):hover,
-.drawer .llm-actions button:first-child:not(:disabled):hover,
-.drawer .llm-header-actions button:first-child:not(:disabled):hover,
-.drawer .yaml-actions button:last-child:not(:disabled):hover {
+.drawer .llm-actions button:first-child:not(:disabled):hover {
   border-color: var(--focus-ring) !important;
   background: var(--kd-action-primary-hover) !important;
 }
@@ -264,157 +245,16 @@
 }
 
 /* Header copy icon near resource name. */
-.resource-title-row,
-.drawer-resource-title,
 .drawer-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-
-.resource-title-copy,
-.copy-name-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  border: 1px solid color-mix(in srgb, var(--primary-border) 70%, transparent);
-  border-radius: 7px;
-  padding: 0;
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
-  color: var(--kd-action-muted);
-  font-size: 14px;
-  line-height: 1;
-}
-
-.resource-title-copy:not(:disabled):hover,
-.copy-name-icon:not(:disabled):hover {
-  border-color: color-mix(in srgb, var(--primary-border) 65%, transparent);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  color: var(--text-strong);
-}
 /* End KubeDeck 1.1.0 drawer button style unify v2 */
 
 /* KubeDeck drawer button style unify v3 start */
 /* Keep drawer action buttons visually consistent across Summary/LLM/YAML/Logs. */
-.pod-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button),
-.pod-drawer .resource-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button),
-.pod-drawer .llm-actions button:not(.danger):not(.danger-button),
-.pod-drawer .llm-toolbar button:not(.danger):not(.danger-button),
-.pod-drawer .llm-panel button:not(.danger):not(.danger-button),
-.pod-drawer .yaml-toolbar button:not(.danger):not(.danger-button),
-.pod-drawer .yaml-actions button:not(.danger):not(.danger-button),
-.pod-drawer .logs-toolbar button:not(.danger):not(.danger-button),
-.pod-drawer .logs-actions button:not(.danger):not(.danger-button),
-.pod-drawer .drawer-tab-panel button:not(.danger):not(.danger-button):not(.tab),
-.pod-drawer .drawer-content button.primary:not(.danger):not(.danger-button),
-.pod-drawer .drawer-content button.secondary:not(.danger):not(.danger-button),
-.pod-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button),
-.resource-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button),
-.resource-drawer .resource-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button),
-.resource-drawer .llm-actions button:not(.danger):not(.danger-button),
-.resource-drawer .llm-toolbar button:not(.danger):not(.danger-button),
-.resource-drawer .llm-panel button:not(.danger):not(.danger-button),
-.resource-drawer .yaml-toolbar button:not(.danger):not(.danger-button),
-.resource-drawer .yaml-actions button:not(.danger):not(.danger-button),
-.resource-drawer .logs-toolbar button:not(.danger):not(.danger-button),
-.resource-drawer .logs-actions button:not(.danger):not(.danger-button),
-.resource-drawer .drawer-content button.primary:not(.danger):not(.danger-button),
-.resource-drawer .drawer-content button.secondary:not(.danger):not(.danger-button),
-.resource-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button) {
-  appearance: none;
-  background: var(--button-bg);
-  border: 1px solid var(--button-border);
-  border-radius: 6px;
-  color: var(--text-strong);
-  box-shadow: none;
-  font-weight: 600;
-  min-height: 30px;
-  padding: 6px 12px;
-  line-height: 1.1;
-}
-
-.pod-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
-.pod-drawer .resource-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
-.pod-drawer .llm-actions button:not(.danger):not(.danger-button):hover,
-.pod-drawer .llm-toolbar button:not(.danger):not(.danger-button):hover,
-.pod-drawer .llm-panel button:not(.danger):not(.danger-button):hover,
-.pod-drawer .yaml-toolbar button:not(.danger):not(.danger-button):hover,
-.pod-drawer .yaml-actions button:not(.danger):not(.danger-button):hover,
-.pod-drawer .logs-toolbar button:not(.danger):not(.danger-button):hover,
-.pod-drawer .logs-actions button:not(.danger):not(.danger-button):hover,
-.pod-drawer .drawer-tab-panel button:not(.danger):not(.danger-button):not(.tab):hover,
-.pod-drawer .drawer-content button.primary:not(.danger):not(.danger-button):hover,
-.pod-drawer .drawer-content button.secondary:not(.danger):not(.danger-button):hover,
-.pod-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button):hover,
-.resource-drawer .drawer-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
-.resource-drawer .resource-actions button:not(.danger):not(.danger-button):not(.copy-resource-name-button):hover,
-.resource-drawer .llm-actions button:not(.danger):not(.danger-button):hover,
-.resource-drawer .llm-toolbar button:not(.danger):not(.danger-button):hover,
-.resource-drawer .llm-panel button:not(.danger):not(.danger-button):hover,
-.resource-drawer .yaml-toolbar button:not(.danger):not(.danger-button):hover,
-.resource-drawer .yaml-actions button:not(.danger):not(.danger-button):hover,
-.resource-drawer .logs-toolbar button:not(.danger):not(.danger-button):hover,
-.resource-drawer .logs-actions button:not(.danger):not(.danger-button):hover,
-.resource-drawer .drawer-content button.primary:not(.danger):not(.danger-button):hover,
-.resource-drawer .drawer-content button.secondary:not(.danger):not(.danger-button):hover,
-.resource-drawer .drawer-content button:not(.danger):not(.danger-button):not(.tab):not(.copy-resource-name-button):hover {
-  background: var(--button-hover) !important;
-  border-color: var(--primary-border) !important;
-  color: var(--text-inverse) !important;
-}
-
-.pod-drawer .drawer-content button:disabled,
-.resource-drawer .drawer-content button:disabled {
-  background: var(--button-disabled-bg);
-  border-color: var(--border);
-  color: var(--button-disabled-text);
-  cursor: not-allowed;
-  opacity: 0.75;
-}
-
-.pod-drawer .drawer-content button.danger,
-.pod-drawer .drawer-content button.danger-button,
-.resource-drawer .drawer-content button.danger,
-.resource-drawer .drawer-content button.danger-button {
-  background: var(--danger-bg);
-  border: 1px solid var(--danger-border);
-  color: var(--danger-text);
-}
-
-.pod-drawer .drawer-content button.danger:hover,
-.pod-drawer .drawer-content button.danger-button:hover,
-.resource-drawer .drawer-content button.danger:hover,
-.resource-drawer .drawer-content button.danger-button:hover {
-  background: var(--danger-bg) !important;
-  border-color: var(--danger-border) !important;
-  color: var(--text-inverse) !important;
-}
-
-.pod-drawer .copy-resource-name-button,
-.resource-drawer .copy-resource-name-button {
-  align-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--muted);
-  display: inline-flex;
-  height: 26px;
-  justify-content: center;
-  margin-left: 6px;
-  padding: 2px 6px;
-  width: 28px;
-}
-
-.pod-drawer .copy-resource-name-button:hover,
-.resource-drawer .copy-resource-name-button:hover {
-  background: var(--button-hover) !important;
-  border-color: var(--button-border) !important;
-  color: var(--text-inverse) !important;
-}
 /* KubeDeck drawer button style unify v3 end */
 
 /* KubeDeck 1.1.0 LLM button style force START */
@@ -470,7 +310,6 @@
 }
 
 /* Keep the dangerous drawer buttons visually dangerous, not converted to LLM style. */
-.drawer .action-bar button.danger,
 .drawer .drawer-actions button.danger,
 .drawer button.danger {
   border-color: color-mix(in srgb, var(--danger-border) 70%, transparent);
@@ -480,8 +319,6 @@
 /* KubeDeck 1.1.0 LLM button style force END */
 
 /* KubeDeck 1.1.1 button consistency pass: drawer action rows and terminals. */
-.pod-drawer .drawer-actions,
-.resource-drawer .drawer-actions,
 .drawer .drawer-actions,
 .terminal-toolbar {
   --kd-action-bg: var(--button-bg);
@@ -494,8 +331,6 @@
   --kd-action-primary-hover: var(--primary-hover);
 }
 
-.pod-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button),
-.resource-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button),
 .drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):not(.copy-name-icon):not(.resource-title-copy) {
   appearance: none;
   display: inline-flex;
@@ -521,38 +356,24 @@
     opacity 120ms ease;
 }
 
-.pod-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):hover:not(:disabled),
-.resource-drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):hover:not(:disabled),
 .drawer .drawer-actions button:not(.icon-button):not(.copy-resource-name-button):not(.copy-name-icon):not(.resource-title-copy):hover:not(:disabled) {
   border-color: var(--kd-action-border-hover) !important;
   background: var(--kd-action-bg-hover) !important;
   color: var(--text-strong) !important;
 }
 
-.pod-drawer .drawer-actions button.danger,
-.pod-drawer .drawer-actions button.danger-button,
-.resource-drawer .drawer-actions button.danger,
-.resource-drawer .drawer-actions button.danger-button,
-.drawer .drawer-actions button.danger,
-.drawer .drawer-actions button.danger-button {
+.drawer .drawer-actions button.danger {
   border-color: var(--danger-border);
   background: var(--danger-bg);
   color: var(--danger-text);
 }
 
-.pod-drawer .drawer-actions button.danger:hover:not(:disabled),
-.pod-drawer .drawer-actions button.danger-button:hover:not(:disabled),
-.resource-drawer .drawer-actions button.danger:hover:not(:disabled),
-.resource-drawer .drawer-actions button.danger-button:hover:not(:disabled),
-.drawer .drawer-actions button.danger:hover:not(:disabled),
-.drawer .drawer-actions button.danger-button:hover:not(:disabled) {
+.drawer .drawer-actions button.danger:hover:not(:disabled) {
   border-color: var(--danger-border) !important;
   background: color-mix(in srgb, var(--danger-bg) 82%, var(--text) 18%) !important;
   color: var(--danger-text) !important;
 }
 
-.pod-drawer .drawer-actions button:disabled,
-.resource-drawer .drawer-actions button:disabled,
 .drawer .drawer-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.48;

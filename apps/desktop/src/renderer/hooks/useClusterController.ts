@@ -273,7 +273,9 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
   }, [renaming]);
 
   const confirmRenameCluster = useCallback(async () => {
-    if (!api || !renameTarget) return;
+    // Enter in the name field reaches here as well as the button, which is
+    // disabled while a rename is out; the key is not.
+    if (!api || !renameTarget || renaming) return;
     const name = renameDraft.trim();
     if (!name) return;
     setRenaming(true);
@@ -290,7 +292,7 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
     } finally {
       setRenaming(false);
     }
-  }, [api, renameTarget, renameDraft, reloadConfig, setError]);
+  }, [api, renameTarget, renameDraft, renaming, reloadConfig, setError]);
 
   const removeCluster = useCallback(
     // The caller asks first: it also knows which tabs and terminals go with it.

@@ -89,7 +89,9 @@ export function ClusterPanel(props: {
             </button>
             <div className="cluster-card-info">
               <strong title={cluster.displayName}>{cluster.displayName}</strong>
-              <span title={cluster.kubeconfigPath}>{cluster.kubeconfigPath}</span>
+              {/* The path is KubeDeck's own copy, named by a UUID; the server says
+                  which cluster this is. */}
+              <span title={cluster.kubeconfigPath}>{cluster.server || cluster.kubeconfigPath}</span>
             </div>
             {/* Order, then actions, each in its own area: in one row with the
                 name, four text buttons took the width and left the name a

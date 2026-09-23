@@ -38,29 +38,16 @@
   .topbar {
     grid-template-columns: 1fr 1fr;
   }
-  .port-forward-form {
-    grid-template-columns: 1fr 1fr;
-  }
   .help-grid {
     grid-template-columns: 1fr;
   }
   .help-hero {
     display: grid;
   }
-  .product-meta {
-    grid-template-columns: 1fr;
-  }
   .global-search,
   .status-line {
     display: none;
   }
-}
-
-.resource-row-limit td {
-  color: var(--muted);
-  text-align: center;
-  background: var(--surface-2);
-  font-size: 12px;
 }
 
 .empty-state {
@@ -114,22 +101,6 @@
   color: var(--text);
   padding: 12px;
   white-space: pre-wrap;
-}
-
-.table-empty-state {
-  margin: 24px;
-  display: grid;
-  gap: 8px;
-  justify-items: center;
-}
-
-.table-empty-state strong {
-  color: var(--text);
-}
-
-.table-empty-state p {
-  margin: 0;
-  max-width: 560px;
 }
 
 .resource-table-stale {
@@ -208,32 +179,6 @@
   border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 12px;
-}
-
-.pagination-controls,
-.table-page-size {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pagination-controls button,
-.table-page-size select {
-  border: 1px solid var(--border-strong);
-  background: var(--button-bg);
-  color: var(--text);
-  border-radius: 6px;
-  min-height: 28px;
-  padding: 0 8px;
-}
-
-.pagination-controls button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.table-page-size select {
-  min-width: 72px;
 }
 
 .related-diagnostics {
@@ -622,14 +567,6 @@
   white-space: normal;
 }
 
-.about-checklist {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 12px;
-  padding-left: 18px;
-  color: var(--muted-strong);
-}
-
 .about-card code {
   display: block;
   border: 1px solid var(--border);
@@ -714,47 +651,6 @@
 
 .compact-select select {
   height: 30px;
-}
-
-.event-list-polished {
-  gap: 10px;
-}
-
-.event-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.event-card-header strong,
-.event-card-header span {
-  display: block;
-}
-
-.event-card-header time {
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.event-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
-.inline-action {
-  height: 28px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
-  color: var(--text-strong);
-  font-size: 12px;
 }
 
 .related-group-list {

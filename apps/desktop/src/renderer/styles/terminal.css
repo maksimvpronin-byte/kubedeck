@@ -493,19 +493,6 @@
   overflow-y: auto;
 }
 
-.embedded-terminal {
-  margin: 0;
-  white-space: pre-wrap;
-  color: var(--terminal-text);
-  outline: none;
-  tab-size: 2;
-}
-
-.embedded-terminal:focus {
-  border-color: var(--focus-ring);
-  box-shadow: 0 0 0 1px var(--primary-soft);
-}
-
 .terminal-status {
   color: var(--muted);
   font-size: 12px;
@@ -546,68 +533,8 @@
   color: var(--warning-text);
 }
 
-.terminal-hint {
-  margin: -2px 0 0;
-  font-size: 12px;
-}
-
 .terminal-muted {
   color: var(--muted-soft);
-}
-
-.terminal-entry {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-.terminal-prompt {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  min-width: 0;
-}
-
-.terminal-prompt strong {
-  color: var(--focus-ring);
-}
-
-.terminal-prompt code {
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.terminal-entry pre {
-  margin: 0;
-  white-space: pre-wrap;
-  color: var(--text);
-}
-
-.terminal-entry pre.terminal-error {
-  color: var(--error-text);
-}
-
-.terminal-input {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--code-bg);
-  padding: 8px;
-}
-
-.terminal-input span {
-  color: var(--focus-ring);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-}
-
-.terminal-input input {
-  border: 0;
-  background: transparent;
-  height: 30px;
 }
 
 .unavailable-panel {
@@ -628,11 +555,6 @@
 .placeholder-page p {
   color: var(--muted);
   max-width: 720px;
-}
-
-.help-page {
-  max-width: 1080px;
-  overflow: hidden;
 }
 
 .help-hero {
@@ -713,38 +635,6 @@
   color: var(--text);
   padding: 9px;
   overflow-wrap: anywhere;
-}
-
-.help-wide {
-  grid-column: 1 / -1;
-}
-
-.product-card {
-  grid-column: 1 / -1;
-}
-
-.product-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 0;
-}
-
-.product-meta div {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-2);
-  padding: 9px;
-}
-
-.product-meta dt {
-  color: var(--focus-ring);
-  font-size: 12px;
-}
-
-.product-meta dd {
-  margin: 4px 0 0;
-  color: var(--text);
 }
 
 .unavailable-panel p {

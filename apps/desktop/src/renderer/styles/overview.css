@@ -16,8 +16,7 @@
 .overview-context,
 .overview-kpis,
 .overview-card > header,
-.overview-list-row,
-.overview-good {
+.overview-list-row {
   display: flex;
   align-items: center;
 }
@@ -177,24 +176,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.overview-severity {
-  flex: 0 0 auto;
-  font-size: 10px;
-  font-weight: 700;
-}
-.overview-severity.is-critical {
-  color: var(--danger-text);
-}
-.overview-severity.is-warning {
-  color: var(--pending-text);
-}
 .overview-list.compact .overview-list-row {
   padding-block: 6px;
-}
-.overview-good {
-  gap: 7px;
-  color: var(--success-text);
-  font-size: 12px;
 }
 .overview-capacity-toolbar {
   display: flex;

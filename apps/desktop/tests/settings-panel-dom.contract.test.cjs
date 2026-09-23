@@ -23,6 +23,8 @@ const SETTINGS = {
   llm: { enabled: false, provider: "openai_compatible", baseUrl: "", model: "", apiKeyConfigured: false },
 };
 
+const saveButton = (view) => view.all("button").find((button) => button.textContent === "settings.save");
+
 function panel(dirtyReports, props = {}) {
   return React.createElement(SettingsPanel, {
     api: null,
@@ -68,9 +70,11 @@ test("a change is reported as unsaved, and putting it back is not a change", (t)
   view.type(kubectl, "/usr/local/bin/kubectl");
   assert.equal(reports.at(-1), true);
   assert.equal(view.text(".settings-unsaved"), "settings.unsaved");
+  assert.equal(saveButton(view).disabled, false, "there is something to save");
 
   view.type(kubectl, "kubectl");
   assert.equal(reports.at(-1), false, "the value is back as it was saved");
+  assert.equal(saveButton(view).disabled, true, "and nothing to save");
   assert.ok(!view.first(".settings-unsaved"));
 });
 

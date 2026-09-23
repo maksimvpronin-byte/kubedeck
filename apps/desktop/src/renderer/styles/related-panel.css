@@ -350,7 +350,6 @@
   padding: 0;
 }
 
-.related-group .event-list .event-item.related-card-polished,
 .related-card-polished {
   display: grid;
   gap: 4px;
@@ -363,7 +362,6 @@
   box-shadow: none;
 }
 
-.related-group .event-list .event-item.related-card-polished:first-child,
 .related-card-polished:first-child {
   border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
@@ -374,7 +372,6 @@
    rule this one overrides had it right, using `--surface-hover`; 30% of the
    accent keeps that legible while staying the more noticeable hover this card
    was polished to have. */
-.related-group .event-list .event-item.related-card-polished:hover,
 .related-card-polished:hover {
   background: color-mix(in srgb, var(--primary-border) 30%, transparent) !important;
 }
@@ -617,10 +614,7 @@
 :root[data-theme="light"] .cache-diagnostics,
 :root[data-theme="light"] .watch-diagnostics,
 :root[data-theme="light"] .problems-panel,
-:root[data-theme="light"] .audit-panel,
-:root[data-theme="light"] .llm-panel,
-:root[data-theme="light"] .help-page,
-:root[data-theme="light"] .about-page {
+:root[data-theme="light"] .audit-panel {
   border-color: var(--border);
   background: var(--panel);
   color: var(--text);
@@ -630,7 +624,6 @@
 :root[data-theme="light"] .terminal-toolbar,
 :root[data-theme="light"] .settings-actions,
 :root[data-theme="light"] .llm-actions,
-:root[data-theme="light"] .resource-actions,
 :root[data-theme="light"] .resource-table-actions {
   --kd-action-bg: var(--button-bg);
   --kd-action-bg-hover: var(--button-hover);
@@ -644,11 +637,7 @@
 }
 
 :root[data-theme="light"] .resource-summary-card,
-:root[data-theme="light"] .problem-card,
-:root[data-theme="light"] .watch-card,
-:root[data-theme="light"] .cache-card,
 :root[data-theme="light"] .port-forward-card,
-:root[data-theme="light"] .product-meta div,
 :root[data-theme="light"] .related-group,
 :root[data-theme="light"] .related-card,
 :root[data-theme="light"] .related-card-polished {
@@ -664,7 +653,6 @@
 }
 
 :root[data-theme="light"] .related-group > header,
-:root[data-theme="light"] .resource-table-panel .table-toolbar,
 :root[data-theme="light"] .watch-diagnostics header,
 :root[data-theme="light"] .cache-diagnostics header {
   border-color: var(--border);
@@ -681,7 +669,6 @@
 :root[data-theme="light"] .related-relation-row code,
 :root[data-theme="light"] .terminal-command-preview,
 :root[data-theme="light"] .command-preview-block,
-:root[data-theme="light"] .code-block,
 :root[data-theme="light"] .describe-viewer {
   border-color: var(--border);
   background: var(--code-bg);

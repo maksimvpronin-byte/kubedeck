@@ -301,13 +301,6 @@
   margin-bottom: 0;
 }
 
-.resource-overview {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
 .quota-usage {
   display: grid;
   gap: 10px;
@@ -368,29 +361,6 @@
   }
 }
 
-.resource-overview div {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  padding: 9px 10px;
-  min-width: 0;
-}
-
-.resource-overview span {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.resource-overview strong {
-  display: block;
-  margin-top: 4px;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -413,7 +383,6 @@ dd {
   overflow-wrap: anywhere;
 }
 
-.code-block,
 .describe-viewer {
   margin: 10px 0 0;
   background: var(--code-bg);
@@ -458,26 +427,6 @@ dd {
   overflow: auto;
   white-space: pre-wrap;
   font-size: 12px;
-}
-
-.action-status-panel {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  border-color: var(--success-border);
-  background: var(--success-bg);
-  color: var(--success-text);
-  padding: 10px 12px;
-}
-
-.action-status-panel span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.action-status-panel button {
-  flex: 0 0 auto;
 }
 
 .error-panel {
@@ -526,18 +475,6 @@ dd {
 .settings-unsaved {
   color: var(--warning-text);
   font-size: 12px;
-}
-
-.resource-picker {
-  padding: 12px 14px;
-}
-
-.resource-picker label {
-  display: grid;
-  grid-template-columns: 120px minmax(240px, 420px);
-  align-items: center;
-  gap: 10px;
-  color: var(--muted-strong);
 }
 
 .drawer-actions,
