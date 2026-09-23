@@ -192,8 +192,7 @@ export function PodDrawerTabBody(props: Props) {
               targetPods={props.isDeploymentResource ? logs.deploymentLogPods : []}
               selectedTargetPod={logs.logsPodFilter}
               onTargetPodChange={logs.setLogsPodFilter}
-              contextLabel={props.isDeploymentResource ? "deployment" : "pod"}
-              fullDownloadLabel={props.isDeploymentResource ? "Full deployment log" : "Full pod log"}
+              deploymentLogs={props.isDeploymentResource}
               onRefresh={logs.refreshLogs}
               refreshFailed={Boolean(error)}
               t={t}

@@ -234,8 +234,8 @@ test("a searched-for match is highlighted rather than selected, in the manifest 
   assert.match(logsTab, /matchRanges\(line, normalizedQuery\)/);
   assert.match(logsTab, /nextMatchIndex\(currentMatch, direction, matches\.length\)/);
   assert.match(logsTab, /jumpMatch\(event\.shiftKey \? -1 : 1\)/);
-  assert.match(logsTab, /aria-label="Previous match"/);
-  assert.match(logsTab, /aria-label="Next match"/);
+  assert.match(logsTab, /aria-label=\{t\("logs\.previousMatch"\)\}/);
+  assert.match(logsTab, /aria-label=\{t\("logs\.nextMatch"\)\}/);
   // Every occurrence in a line is marked, not only the first one.
   assert.doesNotMatch(logsTab, /const start = lower\.indexOf\(needle\);/);
   assert.match(logsTab, /className=\{isCurrent \? "is-current" : undefined\}/);

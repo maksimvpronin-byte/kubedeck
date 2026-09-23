@@ -30,7 +30,7 @@ test("2.7.4 resource surfaces stay compact and operational", () => {
 
   assert.doesNotMatch(chrome, /\["events" as const\]/);
   assert.match(drawer, /const resolvedInitialTab: DrawerTab = drawerTabs\.includes\(initialTab\) \? initialTab : "summary";/);
-  assert.match(drawer, /copyText\(pod\.name, "Name copied"\)/);
+  assert.match(drawer, /copyText\(pod\.name, t\("drawer\.nameCopied"\)\)/);
   assert.doesNotMatch(drawer, /copyText\(`\$\{resource\}\/\$\{pod\.name\}/);
   assert.match(chrome, /drawer-header-actions/);
   assert.match(chrome, /drawer-action-button/);
@@ -41,8 +41,9 @@ test("2.7.4 resource surfaces stay compact and operational", () => {
   const formatCell = fs.readFileSync(path.join(rendererRoot, "components/resourceTable/formatCell.tsx"), "utf8");
   assert.match(formatCell, /className=\{`phase-value is-\$\{kubernetesStatusTone\(row\)\}`\}/);
   assert.doesNotMatch(table, /className="cell-hint"/);
-  assert.match(columns, /aria-label="Choose visible columns"/);
-  assert.match(columns, /data-tooltip="Choose columns"/);
+  // The trigger is named by the table's own "Columns" label, in the interface language.
+  assert.match(columns, /aria-label=\{label\}/);
+  assert.match(columns, /data-tooltip=\{label\}/);
   assert.doesNotMatch(columns, /<Columns3 size=\{14\} \/> \{label\}/);
   for (const label of ["Connect terminal", "Disconnect terminal", "Reconnect terminal", "Clear terminal"]) {
     assert.match(terminal, new RegExp(`aria-label="${label}"`));

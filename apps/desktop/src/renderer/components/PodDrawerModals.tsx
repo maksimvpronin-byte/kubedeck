@@ -16,16 +16,17 @@ interface ResourceActionConfirmModalProps {
   loading: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  t?: (key: string) => string;
 }
 
-export function ResourceActionConfirmModal({ action, resource, row, replicas, onReplicasChange, jobName, loading, onCancel, onConfirm }: ResourceActionConfirmModalProps) {
+export function ResourceActionConfirmModal({ action, resource, row, replicas, onReplicasChange, jobName, loading, onCancel, onConfirm, t }: ResourceActionConfirmModalProps) {
   const namespace = String(row.namespace || "_cluster");
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
         <header>
-          <h2 id="confirm-title">{actionLabel(action, resource)}</h2>
-          <button className="icon-button" onClick={onCancel} title="Close">
+          <h2 id="confirm-title">{actionLabel(action, resource, t)}</h2>
+          <button className="icon-button" onClick={onCancel} title={t ? t("common.close") : "Close"}>
             <X size={16} />
           </button>
         </header>
@@ -177,12 +178,18 @@ export function supportedActions(resource: string): ResourceAction[] {
   return [];
 }
 
-export function actionLabel(action: ResourceAction, resource: string) {
-  if (action === "trigger") return "Run now";
-  if (action === "restart") return resource === "pods" ? "Restart pod" : "Restart";
-  if (action === "redeploy") return "Redeploy";
-  if (action === "scale") return "Scale";
-  return "Delete";
+const ACTION_LABELS: Record<string, [key: string, english: string]> = {
+  trigger: ["drawer.action.trigger", "Run now"],
+  restartPod: ["drawer.action.restartPod", "Restart pod"],
+  restart: ["drawer.action.restart", "Restart"],
+  redeploy: ["drawer.action.redeploy", "Redeploy"],
+  scale: ["drawer.action.scale", "Scale"],
+  delete: ["drawer.action.delete", "Delete"],
+};
+
+export function actionLabel(action: ResourceAction, resource: string, t?: (key: string) => string) {
+  const [key, english] = ACTION_LABELS[action === "restart" && resource === "pods" ? "restartPod" : action] ?? ACTION_LABELS.delete;
+  return t ? t(key) : english;
 }
 
 function actionDescription(action: ResourceAction, resource: string, name: string) {

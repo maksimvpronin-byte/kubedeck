@@ -41,9 +41,10 @@ interface HeaderProps {
   onCopyName: () => void;
   onClose: () => void;
   actions?: ReactNode;
+  t: (key: string) => string;
 }
 
-export function PodDrawerHeader({ resource, namespace, name, onCopyName, onClose, actions }: HeaderProps) {
+export function PodDrawerHeader({ resource, namespace, name, onCopyName, onClose, actions, t }: HeaderProps) {
   return (
     <header>
       <div className="drawer-resource-identity">
@@ -52,14 +53,14 @@ export function PodDrawerHeader({ resource, namespace, name, onCopyName, onClose
         </span>
         <div className="drawer-title-row">
           <h2>{name}</h2>
-          <button type="button" className="icon-button drawer-copy-name-button" onClick={onCopyName} title="Copy resource name" aria-label="Copy resource name">
+          <button type="button" className="icon-button drawer-copy-name-button" onClick={onCopyName} title={t("drawer.copyName")} aria-label={t("drawer.copyName")}>
             <Copy size={15} />
           </button>
         </div>
       </div>
       <div className="drawer-header-actions">
         {actions}
-        <button className="icon-button" onClick={onClose} title="Close" aria-label="Close resource">
+        <button className="icon-button" onClick={onClose} title={t("common.close")} aria-label={t("drawer.close")}>
           <X size={18} />
         </button>
       </div>
@@ -73,13 +74,14 @@ interface TabsProps {
   labels: Record<string, string | undefined>;
   llmLabel: string;
   onChange: (tab: DrawerTab) => void;
+  t: (key: string) => string;
 }
 
-export function PodDrawerTabs({ tabs, active, labels, llmLabel, onChange }: TabsProps) {
+export function PodDrawerTabs({ tabs, active, labels, llmLabel, onChange, t }: TabsProps) {
   return (
     <nav className="drawer-tabs">
       {tabs.map((item) => {
-        const label = drawerTabLabel(item, labels, llmLabel);
+        const label = drawerTabLabel(item, labels, llmLabel, t);
         return (
           <button
             className={`icon-button drawer-tab-button ${active === item ? "active" : ""}`}
@@ -98,10 +100,10 @@ export function PodDrawerTabs({ tabs, active, labels, llmLabel, onChange }: Tabs
   );
 }
 
-function drawerTabLabel(item: DrawerTab, labels: Record<string, string | undefined>, llmLabel: string) {
-  if (item === "events") return "Events";
-  if (item === "related") return "Related";
-  if (item === "secret") return "Secret";
+function drawerTabLabel(item: DrawerTab, labels: Record<string, string | undefined>, llmLabel: string, t: (key: string) => string) {
+  if (item === "events") return t("drawer.tab.events");
+  if (item === "related") return t("drawer.tab.related");
+  if (item === "secret") return t("drawer.tab.secret");
   if (item === "llm") return llmLabel;
   return labels[item] || item;
 }
@@ -130,6 +132,7 @@ interface ActionsProps {
   onPortForward: () => void;
   onOpenRelated: (resource: string, namespace: string, name: string) => void;
   canPortForward: boolean;
+  t: (key: string) => string;
 }
 
 export function PodDrawerActions(props: ActionsProps) {
@@ -142,7 +145,7 @@ export function PodDrawerActions(props: ActionsProps) {
   return (
     <div className="drawer-actions">
       {props.actions.map((action) => {
-        const label = actionLabel(action, props.resource);
+        const label = actionLabel(action, props.resource, props.t);
         return (
           <button
             key={action}
@@ -162,9 +165,9 @@ export function PodDrawerActions(props: ActionsProps) {
           className="icon-button drawer-action-button"
           disabled={props.loading}
           onClick={props.onTerminal}
-          title={props.resource === "pods" ? "Terminal" : "SSH"}
-          data-tooltip={props.resource === "pods" ? "Terminal" : "SSH"}
-          aria-label={props.resource === "pods" ? "Terminal" : "SSH"}
+          title={props.resource === "pods" ? props.t("drawer.terminal") : "SSH"}
+          data-tooltip={props.resource === "pods" ? props.t("drawer.terminal") : "SSH"}
+          aria-label={props.resource === "pods" ? props.t("drawer.terminal") : "SSH"}
         >
           <SquareTerminal size={18} strokeWidth={2.25} />
         </button>
@@ -175,9 +178,9 @@ export function PodDrawerActions(props: ActionsProps) {
             className="icon-button drawer-action-button"
             disabled={props.loading}
             onClick={() => props.onNodeAction?.(props.row.unschedulable ? "uncordon" : "cordon", [props.row])}
-            title={props.row.unschedulable ? "Uncordon node" : "Cordon node"}
-            data-tooltip={props.row.unschedulable ? "Uncordon node" : "Cordon node"}
-            aria-label={props.row.unschedulable ? "Uncordon node" : "Cordon node"}
+            title={props.t(props.row.unschedulable ? "drawer.uncordon" : "drawer.cordon")}
+            data-tooltip={props.t(props.row.unschedulable ? "drawer.uncordon" : "drawer.cordon")}
+            aria-label={props.t(props.row.unschedulable ? "drawer.uncordon" : "drawer.cordon")}
           >
             {props.row.unschedulable ? <ShieldCheck size={18} strokeWidth={2.25} /> : <ShieldOff size={18} strokeWidth={2.25} />}
           </button>
@@ -185,16 +188,23 @@ export function PodDrawerActions(props: ActionsProps) {
             className="icon-button drawer-action-button danger"
             disabled={props.loading}
             onClick={() => props.onNodeAction?.("drain", [props.row])}
-            title="Drain node"
-            data-tooltip="Drain node"
-            aria-label="Drain node"
+            title={props.t("drawer.drain")}
+            data-tooltip={props.t("drawer.drain")}
+            aria-label={props.t("drawer.drain")}
           >
             <LogOut size={18} strokeWidth={2.25} />
           </button>
         </>
       ) : null}
       {props.canPortForward ? (
-        <button className="icon-button drawer-action-button" disabled={props.loading} onClick={props.onPortForward} title="Port forward" data-tooltip="Port forward" aria-label="Port forward">
+        <button
+          className="icon-button drawer-action-button"
+          disabled={props.loading}
+          onClick={props.onPortForward}
+          title={props.t("drawer.portForward")}
+          data-tooltip={props.t("drawer.portForward")}
+          aria-label={props.t("drawer.portForward")}
+        >
           <Network size={18} strokeWidth={2.25} />
         </button>
       ) : null}
@@ -202,9 +212,9 @@ export function PodDrawerActions(props: ActionsProps) {
         <button
           className="icon-button drawer-action-button"
           onClick={() => props.onOpenRelated(props.involvedTarget!.resource, props.involvedTarget!.namespace, props.involvedTarget!.name)}
-          title="Open involved object"
-          data-tooltip="Open involved object"
-          aria-label="Open involved object"
+          title={props.t("drawer.openInvolved")}
+          data-tooltip={props.t("drawer.openInvolved")}
+          aria-label={props.t("drawer.openInvolved")}
         >
           <ExternalLink size={18} strokeWidth={2.25} />
         </button>

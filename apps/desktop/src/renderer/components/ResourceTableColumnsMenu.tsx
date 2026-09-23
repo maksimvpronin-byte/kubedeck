@@ -31,9 +31,9 @@ export function ResourceTableColumnsMenu({ columns, orderedColumns, hiddenColumn
         ref={triggerRef}
         className={`secondary-btn table-columns-trigger ${open ? "is-open" : ""}`}
         type="button"
-        title="Choose columns"
-        data-tooltip="Choose columns"
-        aria-label="Choose visible columns"
+        title={label}
+        data-tooltip={label}
+        aria-label={label}
         aria-expanded={open}
         onClick={toggle}
       >

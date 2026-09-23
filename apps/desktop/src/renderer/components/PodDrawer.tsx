@@ -164,7 +164,7 @@ export function PodDrawer({
 
   async function runAction(action: ResourceAction) {
     if (!pod) return;
-    const label = actionLabel(action, resource);
+    const label = actionLabel(action, resource, t);
 
     // Close the confirmation dialog immediately. Kubernetes delete/restart operations can
     // wait for graceful termination or controller reconciliation, so keeping the modal
@@ -172,18 +172,18 @@ export function PodDrawer({
     setPendingAction(null);
     setLoading(true);
     setError(null);
-    setApplyResult(`${label} requested...`);
+    setApplyResult(`${label}: ${t("drawer.action.requested")}…`);
     try {
       const result = await api.resourceAction(clusterId, resource, String(pod.namespace || "_cluster"), pod.name, action, {
         ...(action === "scale" ? { replicas } : {}),
         ...(action === "trigger" ? { jobName: triggerJobName } : {}),
         typedName: action === "delete" ? "" : pod.name,
       });
-      setApplyResult(result || `${label} requested`);
+      setApplyResult(result || `${label}: ${t("drawer.action.requested")}`);
       onActionComplete();
       if (action === "delete" || (resource === "pods" && action === "restart")) onClose();
     } catch (err) {
-      setApplyResult(`${label} failed`);
+      setApplyResult(`${label}: ${t("drawer.action.failed")}`);
       setError(toErrorInfo(err));
     } finally {
       setLoading(false);
@@ -292,7 +292,8 @@ export function PodDrawer({
         resource={resource}
         namespace={namespaceText}
         name={pod.name}
-        onCopyName={() => void copyText(pod.name, "Name copied")}
+        onCopyName={() => void copyText(pod.name, t("drawer.nameCopied"))}
+        t={t}
         onClose={requestClose}
         actions={
           <PodDrawerActions
@@ -317,10 +318,11 @@ export function PodDrawer({
               setPortForwardDraft(defaultPortForwardDraft(resource, pod));
             }}
             onOpenRelated={onOpenRelated}
+            t={t}
           />
         }
       />
-      <PodDrawerTabs tabs={drawerTabs} active={tab} labels={labels} llmLabel={t("llm.title")} onChange={setTab} />
+      <PodDrawerTabs tabs={drawerTabs} active={tab} labels={labels} llmLabel={t("llm.title")} onChange={setTab} t={t} />
       <PodDrawerTabBody
         tab={tab}
         api={api}
@@ -357,6 +359,7 @@ export function PodDrawer({
       />
       {pendingAction && pod ? (
         <ResourceActionConfirmModal
+          t={t}
           action={pendingAction}
           resource={resource}
           row={pod}

@@ -38,7 +38,7 @@ test("bottom Terminal Workspace owns Pod and Node SSH sessions outside the resou
   assert.match(drawer, /onOpenNodeSsh\(pod\)/);
   assert.doesNotMatch(drawer, /import \{ NodeSshTab \}/);
   assert.doesNotMatch(drawer, /<NodeSshTab/);
-  assert.match(chrome, /aria-label=\{props\.resource === "pods" \? "Terminal" : "SSH"\}/);
+  assert.match(chrome, /aria-label=\{props\.resource === "pods" \? props\.t\("drawer\.terminal"\) : "SSH"\}/);
   assert.doesNotMatch(chrome, /\| "terminal"/);
   assert.match(panel, /targets\.map/);
   assert.match(panel, /target\.kind === "pod"/);

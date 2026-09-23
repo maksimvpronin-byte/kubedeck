@@ -34,8 +34,8 @@ interface LogsTabProps {
   targetPods?: string[];
   selectedTargetPod?: string;
   onTargetPodChange?: (value: string) => void;
-  contextLabel?: string;
-  fullDownloadLabel?: string;
+  // Deployment logs are read across its pods; the full download says so.
+  deploymentLogs?: boolean;
   onRefresh: () => void;
   refreshFailed: boolean;
   t: (key: string) => string;
@@ -65,8 +65,7 @@ export function LogsTab({
   targetPods = [],
   selectedTargetPod = "",
   onTargetPodChange,
-  contextLabel = "pod",
-  fullDownloadLabel = "Full pod log",
+  deploymentLogs = false,
   onRefresh,
   refreshFailed,
   t,
@@ -165,9 +164,9 @@ export function LogsTab({
       <div className="logs-toolbar">
         {targetPods.length > 1 ? (
           <label>
-            Pod
+            {t("logs.pod")}
             <select value={selectedTargetPod} onChange={(event) => onTargetPodChange?.(event.target.value)}>
-              <option value="">All pods</option>
+              <option value="">{t("logs.allPods")}</option>
               {targetPods.map((name) => (
                 <option value={name} key={name}>
                   {name}
@@ -178,9 +177,9 @@ export function LogsTab({
         ) : null}
         {containers.length > 1 || allowAllContainers ? (
           <label>
-            Container
+            {t("logs.container")}
             <select value={selectedContainer} onChange={(event) => onContainerChange(event.target.value)}>
-              {allowAllContainers ? <option value="">All containers</option> : null}
+              {allowAllContainers ? <option value="">{t("logs.allContainers")}</option> : null}
               {containers.map((name) => (
                 <option value={name} key={name}>
                   {name}
@@ -190,7 +189,7 @@ export function LogsTab({
           </label>
         ) : null}
         <label>
-          Tail
+          {t("logs.tail")}
           <select value={tail} onChange={(event) => onTailChange(Number(event.target.value))}>
             {[100, 300, 500, 1000, 2000, 5000].map((value) => (
               <option value={value} key={value}>
@@ -201,17 +200,17 @@ export function LogsTab({
         </label>
         <label className="logs-checkbox">
           <input type="checkbox" checked={timestamps} onChange={(event) => onTimestampsChange(event.target.checked)} />
-          Timestamps
+          {t("logs.timestamps")}
         </label>
         <label className="logs-checkbox">
           <input type="checkbox" checked={previous} onChange={(event) => onPreviousChange(event.target.checked)} />
-          Previous
+          {t("logs.previous")}
         </label>
         <label className="logs-checkbox">
           <input type="checkbox" checked={follow} onChange={(event) => onFollowChange(event.target.checked)} />
-          Follow
+          {t("logs.follow")}
         </label>
-        <span className="logs-action-tooltip" data-tooltip="Refresh logs">
+        <span className="logs-action-tooltip" data-tooltip={t("logs.refresh")}>
           <AsyncActionButton
             className="icon-button logs-icon-action"
             phase={refreshFeedback.phase}
@@ -220,32 +219,32 @@ export function LogsTab({
             disabled={loading}
           />
         </span>
-        <span className="logs-action-tooltip" data-tooltip="Copy logs">
-          <button className="icon-button logs-icon-action" onClick={onCopy} disabled={!content} aria-label="Copy logs">
+        <span className="logs-action-tooltip" data-tooltip={t("logs.copy")}>
+          <button className="icon-button logs-icon-action" onClick={onCopy} disabled={!content} aria-label={t("logs.copy")}>
             <Copy size={18} />
           </button>
         </span>
-        <span className="logs-action-tooltip" data-tooltip="Download logs">
-          <button className="icon-button logs-icon-action" onClick={() => setDownloadMenuOpen((current) => !current)} disabled={!content || downloadLoading} aria-label="Download logs">
+        <span className="logs-action-tooltip" data-tooltip={t("logs.download")}>
+          <button className="icon-button logs-icon-action" onClick={() => setDownloadMenuOpen((current) => !current)} disabled={!content || downloadLoading} aria-label={t("logs.download")}>
             <Download size={18} />
           </button>
         </span>
       </div>
       {downloadMenuOpen ? (
-        <section className="logs-download-choice" aria-label="Download logs">
+        <section className="logs-download-choice" aria-label={t("logs.download")}>
           <div>
-            <strong>Download logs</strong>
-            <p>Choose whether to save the current loaded view or request the full {contextLabel} log from Kubernetes.</p>
+            <strong>{t("logs.download")}</strong>
+            <p>{t(deploymentLogs ? "logs.downloadHintDeployment" : "logs.downloadHintPod")}</p>
           </div>
           <div className="logs-download-choice-actions">
             <button onClick={downloadVisibleAndClose} disabled={!visibleText || downloadLoading}>
-              Current view
+              {t("logs.currentView")}
             </button>
             <button onClick={downloadFullAndClose} disabled={downloadLoading}>
-              {downloadLoading ? "Downloading..." : fullDownloadLabel}
+              {downloadLoading ? t("logs.downloading") : t(deploymentLogs ? "logs.fullDeployment" : "logs.fullPod")}
             </button>
             <button onClick={() => setDownloadMenuOpen(false)} disabled={downloadLoading}>
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </section>
@@ -265,26 +264,26 @@ export function LogsTab({
                 jumpMatch(event.shiftKey ? -1 : 1);
               }
             }}
-            placeholder="Search logs"
+            placeholder={t("logs.search")}
           />
-          <span>{loading ? "Refreshing..." : normalizedQuery ? `${visibleLines.length}/${lines.length}` : `${lines.length} lines`}</span>
+          <span>{loading ? t("common.refreshing") : normalizedQuery ? `${visibleLines.length}/${lines.length}` : `${lines.length} ${t("logs.lines")}`}</span>
         </label>
         <span className="match-counter">{normalizedQuery ? `${currentMatch >= 0 ? currentMatch + 1 : 0}/${matches.length}` : ""}</span>
-        <span className="logs-action-tooltip" data-tooltip="Previous match (Shift+Enter)">
-          <button className="icon-button logs-icon-action" disabled={matches.length === 0} onClick={() => jumpMatch(-1)} aria-label="Previous match">
+        <span className="logs-action-tooltip" data-tooltip={`${t("logs.previousMatch")} (Shift+Enter)`}>
+          <button className="icon-button logs-icon-action" disabled={matches.length === 0} onClick={() => jumpMatch(-1)} aria-label={t("logs.previousMatch")}>
             <ChevronUp size={18} />
           </button>
         </span>
-        <span className="logs-action-tooltip" data-tooltip="Next match (Enter)">
-          <button className="icon-button logs-icon-action" disabled={matches.length === 0} onClick={() => jumpMatch(1)} aria-label="Next match">
+        <span className="logs-action-tooltip" data-tooltip={`${t("logs.nextMatch")} (Enter)`}>
+          <button className="icon-button logs-icon-action" disabled={matches.length === 0} onClick={() => jumpMatch(1)} aria-label={t("logs.nextMatch")}>
             <ChevronDown size={18} />
           </button>
         </span>
       </div>
-      {follow ? <p className="terminal-muted">Follow streams new lines as the pod writes them.</p> : null}
+      {follow ? <p className="terminal-muted">{t("logs.followHint")}</p> : null}
       <pre className="logs-output" ref={outputRef} onScroll={updateScrollStickiness}>
         {visibleLines.length === 0 ? (
-          <span className="terminal-muted">No log lines.</span>
+          <span className="terminal-muted">{t("logs.empty")}</span>
         ) : (
           visibleLines.map((line, index) => (
             <span className="log-line" key={`${index}-${line.slice(0, 24)}`}>
