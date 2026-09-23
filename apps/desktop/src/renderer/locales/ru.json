@@ -638,5 +638,7 @@
   "kubeconfig.confirm": "Введите имя кластера для подтверждения",
   "kubeconfig.save": "Сохранить kubeconfig",
   "kubeconfig.saving": "Сохранение...",
-  "kubeconfig.discard": "Отменить несохранённые изменения kubeconfig?"
+  "kubeconfig.discard": "Отменить несохранённые изменения kubeconfig?",
+  "settings.discard": "В настройках есть несохранённые изменения. Уйти без сохранения?",
+  "settings.unsaved": "Есть несохранённые изменения"
 }

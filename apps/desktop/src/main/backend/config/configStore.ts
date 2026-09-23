@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { kubeconfigClusterName } from "./kubeconfigName";
 import { ensureAppPaths, type AppPaths } from "./paths";
 import type { AppConfig, Cluster, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "./types";
 
@@ -473,7 +474,7 @@ export class ConfigStore {
     const requestedName = typeof displayName === "string" ? displayName.trim() : "";
     const cluster: Cluster = {
       id: clusterId,
-      displayName: requestedName || path.parse(source).name,
+      displayName: requestedName || this.importedClusterName(source, stat) || path.parse(source).name,
       kubeconfigPath: target,
       lastOpened: false,
       createdAt: now,
@@ -492,6 +493,17 @@ export class ConfigStore {
       fs.rmSync(temporaryTarget, { force: true });
       fs.rmSync(target, { force: true });
       throw error;
+    }
+  }
+
+  // A file too large to be a kubeconfig, or one that cannot be read, is still
+  // imported as before; it only goes by its file name.
+  private importedClusterName(source: string, stat: fs.Stats): string {
+    if (stat.size > MAX_KUBECONFIG_BYTES) return "";
+    try {
+      return kubeconfigClusterName(fs.readFileSync(source, "utf8"));
+    } catch {
+      return "";
     }
   }
 

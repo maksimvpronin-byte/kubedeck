@@ -54,6 +54,7 @@ interface Props {
   onActivateTab: (tab: ResourceWorkspaceTab) => void;
   onSaveSettings: (next: Settings, apiKeyUpdate?: ApiKeyUpdate) => Promise<void>;
   onLanguagePreview: (language: Settings["language"] | null) => void;
+  onSettingsDirtyChange: (dirty: boolean) => void;
   onImportKubeconfig: () => Promise<unknown>;
   onOpenCluster: (cluster: Cluster) => Promise<unknown>;
   onRenameCluster: (cluster: Cluster) => void;
@@ -126,6 +127,7 @@ export function AppSectionRouter(props: Props) {
           settings={props.config.settings}
           save={props.onSaveSettings}
           onLanguagePreview={props.onLanguagePreview}
+          onDirtyChange={props.onSettingsDirtyChange}
           t={t}
           clusters={props.clusters}
           activeCluster={activeCluster}

@@ -638,5 +638,7 @@
   "kubeconfig.confirm": "Type the cluster name to confirm",
   "kubeconfig.save": "Save kubeconfig",
   "kubeconfig.saving": "Saving...",
-  "kubeconfig.discard": "Discard unsaved kubeconfig changes?"
+  "kubeconfig.discard": "Discard unsaved kubeconfig changes?",
+  "settings.discard": "Settings have unsaved changes. Leave without saving?",
+  "settings.unsaved": "Unsaved changes"
 }

@@ -1,4 +1,4 @@
-## 2.25.0 - Node pressure in the Status column; column choices stick
+## 2.25.0 - Node pressure in Status, column choices stick, settings and import polish
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
 
@@ -15,7 +15,20 @@ hidden columns on screen and then saved them under the new tab. Each tab now
 reads its own choice when it opens, and a change made just before switching
 away is still written.
 
-Renderer tests: 271, up from 269.
+**The Save button in Settings is always in view.** It sat halfway down the
+form; it now sits in a bar pinned to the top, which also says when there are
+unsaved changes. Leaving Settings from the sidebar, a workspace tab or the
+command palette with changes not saved asks first.
+
+**Adding a cluster starts where the last one came from.** The kubeconfig picker
+opens in the folder the previous kubeconfig was picked from.
+
+**An imported cluster is named after the cluster in its kubeconfig** - the one
+the current context points at, or the first one listed - instead of after the
+file. A file that names no cluster, or does not parse, still goes by its file
+name.
+
+Renderer tests: 274, up from 269. Gateway tests: 184, up from 182.
 
 ## 2.24.5 - Node disk bars no longer flicker
 

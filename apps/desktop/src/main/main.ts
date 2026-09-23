@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readLastKubeconfigDirectory, rememberKubeconfigDirectory } from "./backend/config/lastDirectory";
 import { startGateway } from "./backend/gateway";
 import type { GatewayHandle } from "./backend/types";
 import { ElectronSafeStorageSecretStore } from "./security/electronSafeStorageSecretStore";
@@ -249,10 +250,13 @@ ipcMain.handle("kubedeck:getBackendAuth", async () => {
 ipcMain.handle("kubedeck:selectKubeconfig", async () => {
   const result = await dialog.showOpenDialog({
     title: "Select kubeconfig",
+    defaultPath: readLastKubeconfigDirectory(appDataRoot()),
     properties: ["openFile"],
     filters: [{ name: "Kubeconfig", extensions: ["yaml", "yml", "config", "*"] }],
   });
-  return result.canceled ? null : result.filePaths[0];
+  if (result.canceled || !result.filePaths[0]) return null;
+  rememberKubeconfigDirectory(appDataRoot(), result.filePaths[0]);
+  return result.filePaths[0];
 });
 ipcMain.handle("kubedeck:openLogsFolder", async () => {
   await shell.openPath(logsDir());

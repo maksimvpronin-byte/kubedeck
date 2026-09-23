@@ -61,6 +61,7 @@ export function App() {
   const [sidebarWidth, setSidebarWidth] = useState(initialUiState.sidebarWidth ?? 236);
   const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
   const drawerDirtyRef = useRef(false);
+  const settingsDirtyRef = useRef(false);
   const pinNextSelectionRef = useRef(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
@@ -153,7 +154,17 @@ export function App() {
   });
   const namespace = selectedNamespaces.length === 1 ? selectedNamespaces[0] : selectedNamespaces.join(",");
 
-  const confirmDrawerNavigation = useCallback(() => !drawerDirtyRef.current || window.confirm("Discard unsaved YAML changes?"), []);
+  // Every way out of what is on screen asks here first: an edited YAML in the
+  // drawer, and settings changed but not saved. The settings panel only reports
+  // itself dirty while it is mounted, so the second question is asked only when
+  // leaving it.
+  const confirmDrawerNavigation = useCallback(
+    () => (!drawerDirtyRef.current || window.confirm("Discard unsaved YAML changes?")) && (!settingsDirtyRef.current || window.confirm(t("settings.discard"))),
+    [t],
+  );
+  const setSettingsDirty = useCallback((dirty: boolean) => {
+    settingsDirtyRef.current = dirty;
+  }, []);
 
   const {
     query: globalSearch,
@@ -567,6 +578,7 @@ export function App() {
                 onActivateTab={(tab) => void activateResourceTab(tab)}
                 onSaveSettings={saveSettings}
                 onLanguagePreview={setLanguagePreview}
+                onSettingsDirtyChange={setSettingsDirty}
                 onImportKubeconfig={importKubeconfig}
                 onOpenCluster={openCluster}
                 onRenameCluster={startRenameCluster}

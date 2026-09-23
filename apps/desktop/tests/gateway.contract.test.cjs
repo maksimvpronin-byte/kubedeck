@@ -742,3 +742,54 @@ test("the kubectl environment is rebuilt when the kubeconfig behind it changes",
     else process.env.NO_PROXY = previous;
   }
 });
+
+test("an imported kubeconfig is named after its cluster, not its file", (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-import-name-"));
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+  const store = new ConfigStore(appDataRoot);
+  const write = (name, content) => {
+    const file = path.join(appDataRoot, name);
+    fs.writeFileSync(file, content, "utf8");
+    return file;
+  };
+
+  const single = write("config", "apiVersion: v1\nclusters:\n- cluster:\n    server: https://10.0.0.1:6443\n  name: k8s1-prod\ncontexts: []\n");
+  assert.equal(store.importCluster(single).displayName, "k8s1-prod");
+
+  const several = write(
+    "admin.conf",
+    [
+      "apiVersion: v1",
+      "clusters:",
+      "- cluster: {server: https://a:6443}",
+      "  name: first",
+      "- cluster: {server: https://b:6443}",
+      "  name: second",
+      "contexts:",
+      "- context: {cluster: second, user: admin}",
+      "  name: admin@second",
+      "current-context: admin@second",
+    ].join("\n"),
+  );
+  assert.equal(store.importCluster(several).displayName, "second", "the cluster of the current context wins over the first one listed");
+
+  assert.equal(store.importCluster(write("broken.yaml", "clusters: [\n")).displayName, "broken", "a file that does not parse goes by its file name");
+  assert.equal(store.importCluster(write("empty.yaml", "apiVersion: v1\n")).displayName, "empty", "and so does one that names no cluster");
+  assert.equal(store.importCluster(single, "  my name ").displayName, "my name", "a name given on import still wins");
+});
+
+test("the kubeconfig picker opens where the last kubeconfig was picked", (t) => {
+  const { readLastKubeconfigDirectory, rememberKubeconfigDirectory } = require("../dist/main/backend/config/lastDirectory.js");
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-last-dir-"));
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-kubeconfigs-"));
+  t.after(() => {
+    fs.rmSync(appDataRoot, { recursive: true, force: true });
+    fs.rmSync(folder, { recursive: true, force: true });
+  });
+
+  assert.equal(readLastKubeconfigDirectory(appDataRoot), undefined, "nothing picked yet, the system default");
+  rememberKubeconfigDirectory(appDataRoot, path.join(folder, "prod.yaml"));
+  assert.equal(readLastKubeconfigDirectory(appDataRoot), folder);
+  fs.rmSync(folder, { recursive: true, force: true });
+  assert.equal(readLastKubeconfigDirectory(appDataRoot), undefined, "a folder that is gone is not offered");
+});

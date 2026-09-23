@@ -1,7 +1,8 @@
 # KubeDeck 2.25.0 regression checklist
 
-2.25.0 shows node pressure in the Nodes table's Status column and makes each
-table keep its own columns across tab switches and restarts. Node-only ownership
+2.25.0 shows node pressure in the Nodes table's Status column, makes each table
+keep its own columns across tab switches and restarts, pins the Settings save
+button, and names and locates imported kubeconfigs better. Node-only ownership
 is unchanged at Node 59 / Python 0, and no route changed.
 
 Earlier 2.13.x through 2.24.5 checklists still apply.
@@ -11,8 +12,8 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [x] `npm run lint`
 - [x] `npm run lint:css`
 - [x] `npm run format:check`
-- [x] `npm run test:renderer` (271 tests, up from 269)
-- [x] `npm --workspace apps/desktop run test:gateway` (182 tests)
+- [x] `npm run test:renderer` (274 tests, up from 269)
+- [x] `npm --workspace apps/desktop run test:gateway` (184 tests, up from 182)
 - [x] `npm run typecheck`
 - [x] `npm run build`
 - [x] `npm run verify:release`, including `--tag v2.25.0`
@@ -40,6 +41,29 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
   columns, widths and order.
 - [ ] Hide a column and switch tabs immediately: the change is kept.
 - [ ] Reset columns on one tab does not touch another.
+
+## Settings
+
+- [ ] The title and **Save settings** sit at the top of Settings and stay in view
+  while scrolling to the SSH and LLM sections.
+- [ ] Change the refresh interval: **Unsaved changes** appears; put it back and
+  it goes.
+- [ ] With a change not saved, click another section in the sidebar: a question
+  appears. Cancel keeps Settings with the change; OK leaves and the change is
+  gone on return.
+- [ ] Same from a workspace tab and from the command palette.
+- [ ] Save, then leave: no question.
+
+## Adding a cluster
+
+- [ ] Add a cluster from a kubeconfig in some folder; add another: the picker
+  opens in that folder.
+- [ ] Restart the app and add a cluster: the picker still opens there.
+- [ ] A kubeconfig with `clusters: - name: k8s1-prod` is listed as
+  **k8s1-prod**, not by its file name.
+- [ ] A kubeconfig with several clusters is listed under the current context's
+  cluster.
+- [ ] Renaming a cluster still works.
 
 ## Standard smoke test
 

@@ -16,6 +16,7 @@ export function SettingsPanel({
   settings,
   save,
   onLanguagePreview,
+  onDirtyChange,
   t,
   clusters,
   activeCluster,
@@ -34,6 +35,7 @@ export function SettingsPanel({
   settings: Settings;
   save: (settings: Settings, apiKeyUpdate?: ApiKeyUpdate) => void | Promise<void>;
   onLanguagePreview: (language: Settings["language"] | null) => void;
+  onDirtyChange?: (dirty: boolean) => void;
   t: (key: string) => string;
   clusters: Cluster[];
   activeCluster: Cluster | null;
@@ -102,6 +104,18 @@ export function SettingsPanel({
     const timer = window.setTimeout(() => setSaveStatus("idle"), 2500);
     return () => window.clearTimeout(timer);
   }, [saveStatus]);
+  const dirty = settingsChanged(draft, settings) || Boolean(apiKeyDraft.trim()) || clearApiKey;
+  // The application asks before leaving a section; it has to know there is
+  // something to lose, and that there is nothing once this panel is gone.
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(
+    () => () => {
+      onDirtyChange?.(false);
+    },
+    [onDirtyChange],
+  );
   const selectedRefreshInterval = normalizeRefreshIntervalSeconds(draft.refreshIntervalSeconds);
   const sshSettings = normalizeSshSettings(draft.ssh);
   const llmSettings = normalizeLlmSettings(draft.llm);
@@ -156,7 +170,23 @@ export function SettingsPanel({
   };
   return (
     <section className="settings-panel">
-      <h2>{t("nav.settings")}</h2>
+      {/* The save button used to sit halfway down, under the LLM section, where
+          a change to the theme at the top left it out of sight. It stays in
+          view now, and says when there is something to save. */}
+      <div className="settings-save-bar">
+        <h2>{t("nav.settings")}</h2>
+        <div className="settings-actions">
+          {dirty && saveStatus !== "saving" ? <span className="settings-unsaved">{t("settings.unsaved")}</span> : null}
+          {saveStatus !== "idle" && saveStatus !== "saving" ? (
+            <span className={`settings-save-feedback ${saveStatus === "error" ? "error" : "success"}`}>
+              {saveStatus === "error" ? `${t("settings.saveFailed")}: ${saveError}` : t("settings.saved")}
+            </span>
+          ) : null}
+          <button className="primary" onClick={() => void saveDraft()} disabled={saveStatus === "saving"}>
+            {saveStatus === "saving" ? t("settings.saving") : t("settings.save")}
+          </button>
+        </div>
+      </div>
       <label>
         {t("settings.kubectlPath")}
         <input value={draft.kubectlPath} onChange={(event) => setDraft({ ...draft, kubectlPath: event.target.value })} />
@@ -329,12 +359,6 @@ export function SettingsPanel({
         </div>
       </div>
       <div className="settings-actions">
-        <button className="primary" onClick={() => void saveDraft()} disabled={saveStatus === "saving"}>
-          {saveStatus === "saving" ? t("settings.saving") : t("settings.save")}
-        </button>
-        {saveStatus !== "idle" ? (
-          <span className={`settings-save-feedback ${saveStatus === "error" ? "error" : "success"}`}>{saveStatus === "error" ? `${t("settings.saveFailed")}: ${saveError}` : t("settings.saved")}</span>
-        ) : null}
         <button onClick={() => window.kubedeck.openLogsFolder()}>{t("settings.logs")}</button>
       </div>
       <ResourceCacheDiagnostics api={api} activeCluster={activeCluster} t={t} onError={onError} />
@@ -450,6 +474,27 @@ function KnownSshHostsCard({ api, t, onError }: { api: ApiClient | null; t: (key
       </div>
     </div>
   );
+}
+
+// Whether the form differs from what is saved. Both sides go through the same
+// normalisation, so opening the panel is not a change, and neither is putting a
+// value back the way it was.
+function settingsChanged(draft: Settings, saved: Settings): boolean {
+  const comparable = (settings: Settings) => {
+    const normalized = normalizeSettings(settings);
+    return stableJson({ ...normalized, refreshIntervalSeconds: normalizeRefreshIntervalSeconds(normalized.refreshIntervalSeconds), ssh: normalizeSshSettings(normalized.ssh) });
+  };
+  return comparable(draft) !== comparable(saved);
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object")
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`)
+      .join(",")}}`;
+  return JSON.stringify(value) ?? "null";
 }
 
 function normalizeSettings(settings: Settings): Settings {
