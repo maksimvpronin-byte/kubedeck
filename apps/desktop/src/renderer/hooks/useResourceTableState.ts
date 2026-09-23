@@ -17,7 +17,10 @@ export const PAGE_SIZE_OPTIONS = [50, 100, 200, 500, 1000, 2000];
 const DEFAULT_PAGE_SIZE = 200;
 const COMPACT_TABLE_WIDTH = 920;
 const NARROW_TABLE_WIDTH = 760;
-const MIN_COLUMN_WIDTH = 72;
+// Narrow enough for Ready or Age once fitted to what they hold; a column fitted
+// to its content is never allowed wider than the maximum.
+export const MIN_COLUMN_WIDTH = 48;
+export const MAX_FITTED_COLUMN_WIDTH = 480;
 // Built once. `String.prototype.localeCompare` with options rebuilds the
 // collator behind every single comparison, and sorting a table of a few
 // thousand rows is tens of thousands of comparisons on every refresh.
@@ -158,6 +161,9 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
   const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => normalizeHiddenColumns(loadUiState().hiddenColumns?.[stateKey] ?? defaultHiddenColumns(columns), columns));
   const [draggedColumn, setDraggedColumn] = useState("");
   const [dragOverColumn, setDragOverColumn] = useState("");
+  // Compact: the table is as wide as its columns, whatever the monitor. Filling
+  // the width is a choice made per table, as the columns are.
+  const [fillWidth, setFillWidth] = useState(() => loadUiState().tableFillWidth?.[stateKey] === true);
   // One table serves every resource tab, and switching tabs only changes this
   // key. The widths, order and hidden set above were read for the tab the table
   // opened on, so without this a switch kept showing - and then saved under the
@@ -173,6 +179,7 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     setSortKey(columns[0]?.key ?? "name");
     setSortDirection(1);
     setColumnWidths(saved.columnWidths?.[stateKey] ?? {});
+    setFillWidth(saved.tableFillWidth?.[stateKey] === true);
     setColumnOrder(normalizeColumnOrder(saved.columnOrders?.[stateKey] ?? [], columns));
     setHiddenColumns(normalizeHiddenColumns(saved.hiddenColumns?.[stateKey] ?? defaultHiddenColumns(columns), columns));
   }
@@ -226,12 +233,13 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
         columnWidths: { ...(state.columnWidths ?? {}), ...patch.columnWidths },
         columnOrders: { ...(state.columnOrders ?? {}), ...patch.columnOrders },
         hiddenColumns: { ...(state.hiddenColumns ?? {}), ...patch.hiddenColumns },
+        tableFillWidth: { ...(state.tableFillWidth ?? {}), [stateKey]: fillWidth },
       });
     };
     pendingSave.current = save;
     const timer = window.setTimeout(save, 250);
     return () => window.clearTimeout(timer);
-  }, [columnWidths, columnOrder, hiddenColumns, columns, stateKey]);
+  }, [columnWidths, columnOrder, hiddenColumns, fillWidth, columns, stateKey]);
   useEffect(() => {
     setSelected((current) => pruneSelection(current, rows));
   }, [rows]);
@@ -333,10 +341,19 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
     setColumnWidths({});
     setColumnOrder([]);
     setHiddenColumns(defaultHiddenColumns(columns));
+    setFillWidth(false);
+  };
+  // Widths measured from what the columns hold, kept within bounds.
+  const applyFittedWidths = (widths: Record<string, number>) => {
+    const fitted = Object.fromEntries(Object.entries(widths).map(([key, width]) => [key, Math.round(Math.min(MAX_FITTED_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, width)))]));
+    if (Object.keys(fitted).length) setColumnWidths((current) => ({ ...current, ...fitted }));
   };
 
   return {
     tableRef,
+    fillWidth,
+    setFillWidth,
+    applyFittedWidths,
     query,
     setQuery,
     sortKey,

@@ -853,8 +853,40 @@
 
 .resource-table {
   width: max-content;
-  min-width: 100%;
+  min-width: 0;
   table-layout: fixed;
+}
+
+/* Stretched across the window: the spare width is shared out between the
+   columns, as every table did before the compact default. */
+.resource-table.is-fill {
+  min-width: 100%;
+}
+
+/* The measuring pass of "fit columns": cells may be as wide as their text. */
+.resource-table.is-measuring th,
+.resource-table.is-measuring td {
+  max-width: none;
+}
+
+.table-columns-layout {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border, #27313b);
+}
+
+.table-columns-layout label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text, #d8dee9);
+  font-size: 13px;
+}
+
+.table-columns-layout button {
+  justify-self: start;
+  font-size: 12px;
 }
 
 .resource-table th {

@@ -436,3 +436,50 @@ test("a filter typed on one resource tab does not empty the next one", () => {
     view.unmount();
   }
 });
+
+test("a table is as wide as its columns until it is told to fill the window, per tab", () => {
+  const storageKey = "kubedeck.uiState.v1";
+  const view = mount(table({ stateKey: "fill-pods" }));
+  try {
+    assert.ok(!view.first("table.resource-table").classList.contains("is-fill"), "compact by default, whatever the monitor");
+    view.click(view.first(".table-columns-trigger"));
+    const fill = [...window.document.querySelectorAll(".table-columns-layout input")][0];
+    view.toggle(fill);
+    assert.ok(view.first("table.resource-table").classList.contains("is-fill"));
+
+    view.update(table({ stateKey: "fill-nodes" }));
+    assert.ok(!view.first("table.resource-table").classList.contains("is-fill"), "another tab keeps its own choice");
+    view.update(table({ stateKey: "fill-pods" }));
+    assert.ok(view.first("table.resource-table").classList.contains("is-fill"), "and pods remembers its own");
+  } finally {
+    view.unmount();
+  }
+  assert.equal(JSON.parse(window.localStorage.getItem(storageKey)).tableFillWidth["fill-pods"], true, "the choice survives a restart");
+});
+
+test("fit sets each column to what it holds, and a double-click on a border fits just that column", () => {
+  const view = mount(table({ stateKey: "fit-pods" }));
+  try {
+    // The browser would measure the automatic layout; here each header says how wide it came out.
+    const measured = { Name: 210, Namespace: 96, Status: 64 };
+    for (const header of view.all("thead th")) {
+      const label = header.querySelector(".table-sort-label")?.textContent;
+      header.getBoundingClientRect = () => ({ width: measured[label] ?? 0 });
+    }
+    const colWidths = () =>
+      view
+        .all("colgroup col")
+        .slice(1)
+        .map((col) => col.style.width);
+
+    const border = view.all("thead th")[2].querySelector(".column-resizer");
+    React.act(() => border.dispatchEvent(new window.MouseEvent("dblclick", { bubbles: true })));
+    assert.deepEqual(colWidths().slice(0, 2), ["180px", "106px"], "only Namespace changed, to its content and the allowance");
+
+    view.click(view.first(".table-columns-trigger"));
+    view.click([...window.document.querySelectorAll(".table-columns-layout button")][0]);
+    assert.deepEqual(colWidths(), ["220px", "106px", "74px"]);
+  } finally {
+    view.unmount();
+  }
+});

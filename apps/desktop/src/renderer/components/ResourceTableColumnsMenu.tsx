@@ -12,6 +12,12 @@ interface Props {
   resetLabel: string;
   onToggle: (column: Column) => void;
   onReset: () => void;
+  fillWidth: boolean;
+  fillWidthLabel: string;
+  fitLabel: string;
+  fitHint: string;
+  onFillWidthChange: (fill: boolean) => void;
+  onFit: () => void;
 }
 
 // The popover is regularly taller than the panel it opens from - a cluster has a
@@ -20,7 +26,21 @@ interface Props {
 const POPOVER_WIDTH = 240;
 const POPOVER_HEIGHT = 360;
 
-export function ResourceTableColumnsMenu({ columns, orderedColumns, hiddenColumns, label, resetLabel, onToggle, onReset }: Props) {
+export function ResourceTableColumnsMenu({
+  columns,
+  orderedColumns,
+  hiddenColumns,
+  label,
+  resetLabel,
+  onToggle,
+  onReset,
+  fillWidth,
+  fillWidthLabel,
+  fitLabel,
+  fitHint,
+  onFillWidthChange,
+  onFit,
+}: Props) {
   const { placement, open, triggerRef, popoverRef, toggle } = useAnchoredPopover(POPOVER_WIDTH, POPOVER_HEIGHT);
   const hidden = useMemo(() => new Set(hiddenColumns), [hiddenColumns]);
   const visibleCount = columns.length - hiddenColumns.filter((key) => columns.some((item) => item.key === key)).length;
@@ -46,6 +66,17 @@ export function ResourceTableColumnsMenu({ columns, orderedColumns, hiddenColumn
                 <strong>{label}</strong>
                 <button type="button" onClick={onReset}>
                   {resetLabel}
+                </button>
+              </div>
+              {/* How the table uses the width of the window: as wide as its
+                  columns, or stretched across it. */}
+              <div className="table-columns-layout">
+                <label>
+                  <input type="checkbox" checked={fillWidth} onChange={(event) => onFillWidthChange(event.target.checked)} />
+                  <span>{fillWidthLabel}</span>
+                </label>
+                <button type="button" onClick={onFit} title={fitHint}>
+                  {fitLabel}
                 </button>
               </div>
               <div className="table-columns-options">

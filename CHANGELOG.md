@@ -1,3 +1,13 @@
+## 2.26.0 - Compact tables
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**Tables no longer stretch their columns across a wide monitor.** A table is as
+wide as its columns; the columns menu can stretch it to the window instead,
+remembered per resource tab. "Fit columns to content" sets every column to its
+longest value on screen, and a double-click on a column border fits just that
+column. Columns can be narrower than before (48px, down from 72px).
+
 ## 2.25.0 - Node pressure in Status, the open cluster above the tree, column choices stick
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

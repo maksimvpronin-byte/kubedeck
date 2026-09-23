@@ -13,6 +13,8 @@ export interface UiState {
   columnWidths?: Record<string, Record<string, number>>;
   columnOrders?: Record<string, string[]>;
   hiddenColumns?: Record<string, string[]>;
+  // Tables stretched to the width of the window; absent means compact.
+  tableFillWidth?: Record<string, boolean>;
 }
 
 const key = "kubedeck.uiState.v1";

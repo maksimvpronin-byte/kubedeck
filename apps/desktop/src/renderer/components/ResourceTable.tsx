@@ -6,6 +6,7 @@ import { columnSortMetrics, sortKeyBelongsToColumn } from "../utils/resourceTabl
 import { ANNOTATION_COLUMN_KEY, annotationSortMetrics } from "../utils/annotationSort";
 import { ResourceTableRow, type ResourceTableRowHandlers } from "./resourceTable/ResourceTableRow";
 import { DEFAULT_VIRTUAL_ROW_HEIGHT, nextRowHeight, virtualRowWindow } from "../utils/virtualRows";
+import { measureColumnWidths } from "../utils/fitColumns";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTableSortMenu } from "./ResourceTableSortMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
@@ -54,6 +55,9 @@ interface Props {
     clearFilter: string;
     columns: string;
     resetColumns: string;
+    fillWidth: string;
+    fitColumns: string;
+    fitColumnsHint: string;
     sortBy: string;
     loadingTitle: string;
     updating: string;
@@ -102,6 +106,9 @@ export function ResourceTable({
     clearFilter: labels?.clearFilter ?? "Clear filter",
     columns: labels?.columns ?? "Columns",
     resetColumns: labels?.resetColumns ?? "Reset columns",
+    fillWidth: labels?.fillWidth ?? "Stretch to the window width",
+    fitColumns: labels?.fitColumns ?? "Fit columns to content",
+    fitColumnsHint: labels?.fitColumnsHint ?? "Each column takes the width of its longest value on screen. Double-click a column border to fit just that one.",
     sortBy: labels?.sortBy ?? "Sort by",
     loadingTitle: labels?.loadingTitle ?? "Loading...",
     updating: labels?.updating ?? "updating...",
@@ -146,7 +153,22 @@ export function ResourceTable({
     dropColumn,
     toggleColumn,
     resetColumns,
+    fillWidth,
+    setFillWidth,
+    applyFittedWidths,
   } = table;
+  const tableElementRef = useRef<HTMLTableElement | null>(null);
+  const fitColumns = (only?: string) => {
+    const element = tableElementRef.current;
+    if (!element) return;
+    applyFittedWidths(
+      measureColumnWidths(
+        element,
+        visibleColumns.map((column) => column.key),
+        only,
+      ),
+    );
+  };
   // The table is handed fresh arrow functions on every render of the
   // application; a row that read them directly could never be skipped. They go
   // through a ref instead, so the handlers a row sees never change identity
@@ -308,6 +330,12 @@ export function ResourceTable({
               resetLabel={ui.resetColumns}
               onToggle={toggleColumn}
               onReset={resetColumns}
+              fillWidth={fillWidth}
+              fillWidthLabel={ui.fillWidth}
+              fitLabel={ui.fitColumns}
+              fitHint={ui.fitColumnsHint}
+              onFillWidthChange={setFillWidth}
+              onFit={() => fitColumns()}
             />
           </div>
         </div>
@@ -325,7 +353,7 @@ export function ResourceTable({
       ) : null}
 
       <div className="table-scroll" ref={scrollRef} onScroll={onScroll}>
-        <table className="resource-table" style={{ width: tableWidth }}>
+        <table ref={tableElementRef} className={`resource-table${fillWidth ? " is-fill" : ""}`} style={{ width: tableWidth }}>
           <colgroup>
             <col style={{ width: 38 }} />
             {visibleColumns.map((column) => (
@@ -366,7 +394,17 @@ export function ResourceTable({
                       {sortKey === column.key ? <SortDirectionArrow direction={sortDirection} /> : null}
                     </button>
                   )}
-                  <span className="column-resizer" draggable={false} onDragStart={(event) => event.preventDefault()} onMouseDown={(event) => startColumnResize(event, column)} />
+                  <span
+                    className="column-resizer"
+                    draggable={false}
+                    title={ui.fitColumnsHint}
+                    onDragStart={(event) => event.preventDefault()}
+                    onMouseDown={(event) => startColumnResize(event, column)}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
+                      fitColumns(column.key);
+                    }}
+                  />
                 </th>
               ))}
             </tr>
