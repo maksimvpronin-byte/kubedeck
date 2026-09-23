@@ -48,6 +48,20 @@ export function OverviewPanel({
   // succeeds may take down an error it raised itself, never one that some other
   // request put up in the meantime.
   const reportedErrorRef = useRef(false);
+  // The overview belongs to one cluster and one namespace scope. Switching kept
+  // the previous scope's numbers on screen until the new ones arrived - and, if
+  // they did not, marked them stale as though they were the new scope's.
+  const scopeKey = `${cluster?.id ?? ""}|${namespaces.join(",")}`;
+  const [shownScope, setShownScope] = useState(scopeKey);
+  if (shownScope !== scopeKey) {
+    setShownScope(scopeKey);
+    setData(null);
+    setStale(false);
+  }
+  // Read by refresh without making it depend on the data: it was rebuilt after
+  // every answer, and the poll timer was set up again each time with it.
+  const hasDataRef = useRef(false);
+  hasDataRef.current = data !== null;
 
   useEffect(() => {
     setCapacityViewKey(loadCapacityViewKey(cluster?.id));
@@ -72,7 +86,7 @@ export function OverviewPanel({
         return true;
       } catch (error) {
         if (isAbortError(error)) return false;
-        setStale(Boolean(data));
+        setStale(hasDataRef.current);
         reportedErrorRef.current = true;
         onError(asErrorInfo(error));
         return false;
@@ -83,7 +97,7 @@ export function OverviewPanel({
         }
       }
     },
-    [api, cluster?.id, namespaces.join(","), onError, data],
+    [api, cluster?.id, namespaces.join(","), onError],
   );
 
   useEffect(() => {

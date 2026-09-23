@@ -77,7 +77,6 @@ function panel(api, props = {}) {
     settings: { refreshIntervalSeconds: 10 },
     copyLabel: "Copy",
     t: (key) => key,
-    onError: () => {},
     onOpenResource: () => {},
     ...props,
   });
@@ -139,4 +138,18 @@ test("leaving the panel aborts the walk it left behind", () => {
   assert.equal(api.calls[0].signal.aborted, false);
   view.unmount();
   assert.equal(api.calls[0].signal.aborted, true, "nobody is left to read that answer");
+});
+
+test("another cluster does not inherit the previous cluster's problems", async () => {
+  const api = fakeApi();
+  const view = mount(panel(api));
+  try {
+    await React.act(async () => api.settle([problem("checkout")]));
+    assert.equal(view.rows().length, 1);
+    // The next cluster is still answering: nothing of the first may be shown.
+    view.update(panel(api, { cluster: { id: "cluster-2", displayName: "other", kubeconfigPath: "", lastOpened: false, createdAt: "", updatedAt: "" } }));
+    assert.ok(!view.container.textContent.includes("checkout"), "cluster-1's problem is not listed under cluster-2");
+  } finally {
+    view.unmount();
+  }
 });

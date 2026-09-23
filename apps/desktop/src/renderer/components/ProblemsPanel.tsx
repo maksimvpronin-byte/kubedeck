@@ -15,7 +15,6 @@ export function ProblemsPanel({
   settings,
   copyLabel,
   t,
-  onError,
   onOpenResource,
 }: {
   api: ApiClient | null;
@@ -23,7 +22,6 @@ export function ProblemsPanel({
   settings: Settings | undefined;
   copyLabel: string;
   t: (key: string) => string;
-  onError: (error: ErrorInfo | null) => void;
   onOpenResource: (row: ResourceRow) => void;
 }) {
   const [problems, setProblems] = useState<ResourceRow[]>([]);
@@ -37,6 +35,19 @@ export function ProblemsPanel({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [copiedProblemId, setCopiedProblemId] = useState<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
+  // A switch of cluster used to leave the previous cluster's problems on screen
+  // until the new list arrived - for good if it did not - and kept its namespace
+  // and kind filters, which on another cluster usually match nothing.
+  const [shownClusterId, setShownClusterId] = useState(cluster?.id ?? "");
+  if (shownClusterId !== (cluster?.id ?? "")) {
+    setShownClusterId(cluster?.id ?? "");
+    setProblems([]);
+    setSummary(null);
+    setPartialErrors([]);
+    setLocalError(null);
+    setNamespaceFilter("all");
+    setKindFilter("all");
+  }
 
   async function refreshProblems(silent = false) {
     if (!api || !cluster) return false;
@@ -45,12 +56,12 @@ export function ProblemsPanel({
     const controller = new AbortController();
     requestRef.current = controller;
     if (!silent) setLoading(true);
-    setLocalError(null);
     try {
       const response = await api.problems(cluster.id, controller.signal);
       setProblems(response.items);
       setSummary(response.summary);
       setPartialErrors(response.errors ?? []);
+      setLocalError(null);
       return true;
     } catch (err) {
       if (isAbortError(err)) return false;
@@ -73,12 +84,17 @@ export function ProblemsPanel({
     const text = problemDiagnosticText(row, cluster, t);
     if (!navigator.clipboard) return;
     const key = rowKey(row);
-    void navigator.clipboard.writeText(text).then(() => {
-      setCopiedProblemId(key);
-      window.setTimeout(() => {
-        setCopiedProblemId((current) => (current === key ? null : current));
-      }, 1800);
-    });
+    void navigator.clipboard.writeText(text).then(
+      () => {
+        setCopiedProblemId(key);
+        window.setTimeout(() => {
+          setCopiedProblemId((current) => (current === key ? null : current));
+        }, 1800);
+      },
+      // A refused clipboard leaves the button as it was; it is not an error
+      // worth a banner.
+      () => undefined,
+    );
   }
 
   useEffect(() => {

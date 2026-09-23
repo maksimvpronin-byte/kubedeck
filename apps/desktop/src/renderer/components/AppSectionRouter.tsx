@@ -155,7 +155,6 @@ export function AppSectionRouter(props: Props) {
           settings={props.settings}
           copyLabel={t("error.copy")}
           t={t}
-          onError={props.onError}
           onOpenResource={(row) => {
             void props.onOpenResourceLocator(row);
           }}
