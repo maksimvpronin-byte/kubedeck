@@ -26,5 +26,11 @@ export function loadUiState(): UiState {
 }
 
 export function saveUiState(next: UiState) {
-  window.localStorage.setItem(key, JSON.stringify(next));
+  // A convenience, written from effects: a full or refused localStorage must
+  // not throw out of one and take the window down with it.
+  try {
+    window.localStorage.setItem(key, JSON.stringify(next));
+  } catch {
+    // Widths, columns and the last section are simply not remembered.
+  }
 }

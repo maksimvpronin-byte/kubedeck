@@ -15,6 +15,11 @@ const { SecretTab } = loadComponent("components/SecretTab.tsx", {
   "../api": { ApiClient: class {}, ApiError: class extends Error {} },
 });
 
+// The English dictionary, so buttons are found by the words on them and a key
+// missing from it shows up as the key.
+const EN = require("../src/renderer/locales/en.json");
+const translate = (key) => EN[key] ?? key;
+
 const VALUE = "postgres://kubedeck:hunter2@db.internal:5432/app";
 
 function secretApi(overrides = {}) {
@@ -56,7 +61,7 @@ async function secretTab(t, overrides = {}) {
   const { api, calls } = secretApi(overrides);
   let view;
   await React.act(async () => {
-    view = mount(React.createElement(SecretTab, { api, clusterId: "cluster-a", row: { name: "app-secrets", namespace: "default" }, copyLabel: "Copy", t: (key) => key }));
+    view = mount(React.createElement(SecretTab, { api, clusterId: "cluster-a", row: { name: "app-secrets", namespace: "default" }, copyLabel: "Copy", t: translate }));
   });
   t.after(() => view.unmount());
 
@@ -256,7 +261,7 @@ test("a value revealed on one Secret does not stay on screen when another is sel
   // The next Secret cannot be read: nothing of the first may remain.
   refuse = true;
   await React.act(async () => {
-    s.view.update(React.createElement(SecretTab, { api: s.api, clusterId: "cluster-a", row: { name: "other-secrets", namespace: "default" }, copyLabel: "Copy", t: (key) => key }));
+    s.view.update(React.createElement(SecretTab, { api: s.api, clusterId: "cluster-a", row: { name: "other-secrets", namespace: "default" }, copyLabel: "Copy", t: translate }));
   });
   assert.ok(!s.view.container.textContent.includes("hunter2"), "the first Secret's value is gone");
   assert.ok(!s.view.container.querySelector("textarea"), "and so is the edit in progress");

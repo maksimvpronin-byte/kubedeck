@@ -170,19 +170,19 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
   return (
     <div className="drawer-panel-stack secret-tab">
       <section className="secret-warning">
-        <strong>Secret values are sensitive.</strong>
-        <span>Values are hidden by default, auto-hidden after {timeoutSeconds}s, and reveal/copy actions are written to the local audit log without storing values.</span>
+        <strong>{t("secret.sensitive")}</strong>
+        <span>{t("secret.sensitiveHint").replace("{seconds}", String(timeoutSeconds))}</span>
       </section>
 
       <div className="drawer-filterbar">
         <div className="secret-meta">
           <span>
-            Type: <strong>{response?.type || "—"}</strong>
+            {t("secret.type")}: <strong>{response?.type || "—"}</strong>
           </span>
           <span>
-            Keys: <strong>{keys.length}</strong>
+            {t("secret.keys")}: <strong>{keys.length}</strong>
           </span>
-          {response?.immutable ? <span>Immutable</span> : null}
+          {response?.immutable ? <span>{t("secret.immutable")}</span> : null}
         </div>
         <AsyncActionButton
           className="icon-text"
@@ -198,13 +198,13 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
         />
       </div>
 
-      {loading ? <div className="muted">Loading secret keys...</div> : null}
+      {loading ? <div className="muted">{t("secret.loadingKeys")}</div> : null}
       <ErrorPanel error={error} copyLabel={copyLabel} t={t} />
 
       {!loading && !error && keys.length === 0 ? (
         <div className="empty-state">
-          <strong>No secret keys</strong>
-          <p>This Secret does not contain keys in the data section.</p>
+          <strong>{t("secret.noKeys")}</strong>
+          <p>{t("secret.noKeysHint")}</p>
         </div>
       ) : null}
 
@@ -217,43 +217,45 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
                 <div>
                   <strong>{item.key}</strong>
                   <span>
-                    {item.validBase64 ? `${formatBytes(item.decodedBytes)} decoded` : "invalid base64"}
-                    {item.binary ? " · binary-like" : ""}
+                    {item.validBase64 ? `${formatBytes(item.decodedBytes)} ${t("secret.decoded")}` : t("secret.invalidBase64")}
+                    {item.binary ? ` · ${t("secret.binaryLike")}` : ""}
                   </span>
                 </div>
                 <div className="secret-key-actions">
                   {visible ? (
                     <button className="icon-text" onClick={() => hideKey(item.key)}>
                       <EyeOff size={14} />
-                      Hide
+                      {t("secret.hide")}
                     </button>
                   ) : (
                     <button className="icon-text" disabled={!item.validBase64 || revealingKey === item.key} onClick={() => void revealKey(item.key)}>
                       <Eye size={14} />
-                      {revealingKey === item.key ? "Revealing..." : "Reveal"}
+                      {revealingKey === item.key ? t("secret.revealing") : t("secret.reveal")}
                     </button>
                   )}
                   <button className="icon-text" disabled={!visible} onClick={() => void copyValue(item.key)}>
                     <Copy size={14} />
-                    {copiedKey === item.key ? "Copied" : "Copy"}
+                    {copiedKey === item.key ? t("secret.copied") : t("secret.copy")}
                   </button>
                 </div>
               </header>
               {visible ? (
                 <div className="secret-value-panel">
                   <div className="secret-value-meta">
-                    <span>Auto-hide at {new Date(visible.visibleUntil).toLocaleTimeString()}</span>
-                    {visible.binary ? <span>Binary-like data is shown as UTF-8 with replacement characters.</span> : null}
+                    <span>
+                      {t("secret.autoHideAt")} {new Date(visible.visibleUntil).toLocaleTimeString()}
+                    </span>
+                    {visible.binary ? <span>{t("secret.binaryHint")}</span> : null}
                   </div>
                   {editingKey === item.key ? (
                     <div className="secret-edit">
-                      <textarea aria-label={`Secret value ${item.key}`} value={draft} onChange={(event) => setDraft(event.target.value)} />
+                      <textarea aria-label={`${t("secret.value")} ${item.key}`} value={draft} onChange={(event) => setDraft(event.target.value)} />
                       <div className="modal-actions">
                         <button type="button" onClick={() => setDraft(visible.value)}>
-                          Cancel
+                          {t("common.cancel")}
                         </button>
                         <button className="primary" type="button" disabled={loading || draft === visible.value} onClick={() => setConfirmationKey(item.key)}>
-                          Save
+                          {t("secret.save")}
                         </button>
                       </div>
                     </div>
@@ -262,7 +264,7 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
                   )}
                 </div>
               ) : (
-                <div className="secret-value-placeholder">Hidden</div>
+                <div className="secret-value-placeholder">{t("secret.hidden")}</div>
               )}
             </article>
           );
@@ -272,23 +274,23 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
         <div className="modal-backdrop" role="presentation">
           <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="secret-update-confirm-title">
             <header>
-              <h2 id="secret-update-confirm-title">Update Secret?</h2>
-              <button className="icon-button" type="button" disabled={loading} onClick={() => setConfirmationKey("")} aria-label="Close">
+              <h2 id="secret-update-confirm-title">{t("secret.updateTitle")}</h2>
+              <button className="icon-button" type="button" disabled={loading} onClick={() => setConfirmationKey("")} aria-label={t("common.close")}>
                 <X size={16} />
               </button>
             </header>
             <div className="confirm-body">
-              <p>The decoded value is not shown in this confirmation.</p>
+              <p>{t("secret.updateHint")}</p>
               <code>
                 {clusterId} · {namespace}/{name} · {confirmationKey}
               </code>
             </div>
             <footer className="modal-actions">
               <button className="secondary" type="button" disabled={loading} onClick={() => setConfirmationKey("")}>
-                Cancel
+                {t("common.cancel")}
               </button>
               <button className="primary" type="button" disabled={loading} onClick={() => void saveValue()}>
-                {loading ? "Saving..." : "Confirm"}
+                {loading ? t("settings.saving") : t("drawer.modal.confirm")}
               </button>
             </footer>
           </section>
