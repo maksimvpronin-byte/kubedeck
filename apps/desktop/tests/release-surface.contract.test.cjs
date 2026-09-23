@@ -241,3 +241,14 @@ test("About and Help describe the application as it actually behaves", () => {
   assert.match(help, /help\.sections\.7/);
   assert.match(help, /help\.quickStart\.5/);
 });
+
+test("no source file carries a raw control character", () => {
+  // A NUL typed straight into a string works, but is invisible in review and
+  // makes grep treat the whole file as binary, so searches skip it. Written as
+  // \u0000 the string is the same and the file stays text.
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]));
+  const offenders = walk(path.join(rendererRoot, ".."))
+    .filter((file) => /\.(tsx?|css|json)$/.test(file))
+    .filter((file) => /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(fs.readFileSync(file, "utf8")));
+  assert.deepEqual(offenders, []);
+});

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ApiClient } from "../api";
 import { toErrorInfo } from "../utils/errors";
 import type { ErrorInfo, LlmAnalyzeResourceRequest, RelatedLink, ResourceRow, Settings, UsageHistoryResponse } from "../types";
@@ -58,6 +58,21 @@ export function LlmTab({
   const [promptPreviewOpen, setPromptPreviewOpen] = useState(false);
   const [promptPreviewLoading, setPromptPreviewLoading] = useState(false);
   const [promptPreview, setPromptPreview] = useState("");
+  // The drawer is not remounted for the next object. An analysis takes tens of
+  // seconds, and one that answered after the drawer had moved on put its answer
+  // - and its "done" - under the next object's name; an open prompt preview
+  // stayed with it too. Whatever comes back for an object no longer shown is
+  // dropped.
+  const objectKey = `${clusterId}\u0000${resource}\u0000${String(row.namespace ?? "")}\u0000${row.name}`;
+  const objectKeyRef = useRef(objectKey);
+  objectKeyRef.current = objectKey;
+  const [previewKey, setPreviewKey] = useState(objectKey);
+  if (previewKey !== objectKey) {
+    setPreviewKey(objectKey);
+    setPromptPreviewOpen(false);
+    setPromptPreview("");
+    setPromptPreviewLoading(false);
+  }
 
   const llm = settings?.llm;
   const configured = Boolean(llm?.enabled && llm.baseUrl && llm.model);
@@ -115,16 +130,18 @@ export function LlmTab({
   }
 
   async function analyze() {
+    const startedFor = objectKey;
+    const current = () => objectKeyRef.current === startedFor;
     onLoadingChange(true);
     onError(null);
     try {
       const request = await buildFreshRequest();
       const result = await api.analyzeResourceWithLlm(request);
-      onAnswer(result);
+      if (current()) onAnswer(result);
     } catch (err) {
-      onError(toErrorInfo(err));
+      if (current()) onError(toErrorInfo(err));
     } finally {
-      onLoadingChange(false);
+      if (current()) onLoadingChange(false);
     }
   }
 
@@ -133,18 +150,20 @@ export function LlmTab({
       setPromptPreviewOpen(false);
       return;
     }
+    const startedFor = objectKey;
     setPromptPreviewLoading(true);
     onError(null);
     try {
       const request = await buildFreshRequest();
       const result = await api.previewLlmResourcePrompt(request);
+      if (objectKeyRef.current !== startedFor) return;
       const text = result.messages.map((message) => `ROLE: ${message.role}\n${message.content}`).join("\n\n---\n\n");
       setPromptPreview(text);
       setPromptPreviewOpen(true);
     } catch (err) {
-      onError(toErrorInfo(err));
+      if (objectKeyRef.current === startedFor) onError(toErrorInfo(err));
     } finally {
-      setPromptPreviewLoading(false);
+      if (objectKeyRef.current === startedFor) setPromptPreviewLoading(false);
     }
   }
 

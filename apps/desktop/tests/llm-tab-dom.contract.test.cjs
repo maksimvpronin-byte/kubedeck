@@ -206,3 +206,31 @@ test("a second analysis cannot be started while one is in flight", async (t) => 
 
   assert.equal(analyzeButton(view).disabled, true);
 });
+
+test("an analysis that answers after the drawer moved on is not shown for the next object", async () => {
+  let finish;
+  const { api } = recordingApi({
+    analyzeResourceWithLlm: () =>
+      new Promise((resolve) => {
+        finish = () => resolve({ answer: "about api-server", model: "local-model", elapsedMs: 5, contextChars: 10, truncated: false });
+      }),
+  });
+  const answers = [];
+  const loading = [];
+  const handlers = { onAnswer: (value) => answers.push(value.answer), onLoadingChange: (value) => loading.push(value) };
+  const view = mount(React.createElement(LlmTab, props(api, handlers)));
+  try {
+    const analyze = view.all("button").find((button) => button.textContent.includes("llm.analyze"));
+    await React.act(async () => analyze.dispatchEvent(new (require("./helpers/dom.cjs").window.MouseEvent)("click", { bubbles: true })));
+    // The drawer moves to another pod while the model is still thinking.
+    view.update(React.createElement(LlmTab, props(api, { ...handlers, row: { ...ROW, uid: "uid-2", name: "worker" } })));
+    await React.act(async () => {
+      finish();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    assert.deepEqual(answers, [], "the answer about api-server is not put under worker");
+    assert.deepEqual(loading, [true], "and it does not switch off a spinner that is no longer its own");
+  } finally {
+    view.unmount();
+  }
+});
