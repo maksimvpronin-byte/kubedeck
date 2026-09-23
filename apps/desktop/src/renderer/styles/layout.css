@@ -819,15 +819,60 @@ h2 {
   padding: 12px;
 }
 
+/* Name and path on the first line with the order arrows, the actions under
+   them. On one line the four text buttons took the width and left the name a
+   column a few letters wide. */
 .cluster-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "handle info order"
+    "handle actions actions";
   align-items: center;
-  gap: 14px;
+  gap: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px;
+  padding: 10px 12px;
   background: var(--panel-muted);
+}
+
+.cluster-drag-handle {
+  grid-area: handle;
+}
+
+.cluster-card-info {
+  grid-area: info;
+  min-width: 0;
+}
+
+.cluster-card-info strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-card-order {
+  grid-area: order;
+  gap: 6px;
+}
+
+.cluster-card-actions {
+  grid-area: actions;
+  flex-wrap: wrap;
+}
+
+.cluster-card-actions button {
+  white-space: nowrap;
+}
+
+/* The one action that cannot be undone, kept apart from the others. */
+.cluster-card-actions button:last-child {
+  margin-left: auto;
+}
+
+.cluster-card-order button:disabled {
+  opacity: 0.45;
 }
 
 .cluster-card.dragging {
@@ -1087,6 +1132,65 @@ tr.selected td:first-child {
 .cluster-rail-menu button:disabled {
   color: var(--muted);
   cursor: default;
+}
+
+.cluster-rail-menu button.is-danger:not(:disabled) {
+  color: var(--danger-text);
+}
+
+.cluster-menu-separator {
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--border);
+}
+
+/* The active cluster above the resource tree, in place of the product name:
+   its avatar in the rail's colour, its full name, and its menu. */
+.sidebar-cluster {
+  margin-bottom: 12px;
+}
+
+.sidebar-cluster-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-strong);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-cluster-button:hover,
+.sidebar-cluster-button[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--surface-hover);
+}
+
+.sidebar-cluster-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--cluster-accent, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cluster-accent, var(--primary-soft)) 26%, var(--input-bg));
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sidebar-cluster-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The disconnected workspace replaces the table rather than sitting above it,

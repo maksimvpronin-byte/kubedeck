@@ -1,7 +1,8 @@
 import { Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { Cluster } from "../types";
+import { ClusterMenu, type ClusterMenuActions, type ClusterMenuLabels, clusterTitle } from "./ClusterMenu";
 
 // Connected means KubeDeck is allowed to talk to this cluster on its own: a
 // usage sampler on a timer and watch processes per resource kind being viewed.
@@ -70,6 +71,9 @@ interface ClusterRailProps {
   onSelect: (cluster: Cluster) => void;
   onImport: () => void;
   onDisconnect?: (cluster: Cluster) => void;
+  // The rest of the context menu: rename, kubeconfig, settings, remove.
+  menuLabels?: Omit<ClusterMenuLabels, "connect" | "disconnect">;
+  menuActions?: Omit<ClusterMenuActions, "onConnect" | "onDisconnect">;
 }
 
 export function ClusterRail({
@@ -89,29 +93,14 @@ export function ClusterRail({
   onSelect,
   onImport,
   onDisconnect,
+  menuLabels,
+  menuActions,
 }: ClusterRailProps) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const labels = useMemo(() => clusterRailLabels(clusters), [clusters]);
   const connected = useMemo(() => new Set(connectedClusterIds ?? []), [connectedClusterIds]);
   const [menu, setMenu] = useState<{ cluster: Cluster; x: number; y: number } | null>(null);
-
-  // A context menu that outlives the click that opened it is a trap: any other
-  // interaction, a scroll, or Escape has to dismiss it.
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("resize", close);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [menu]);
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   function moveFocus(event: ReactKeyboardEvent<HTMLButtonElement>, from: number, direction: 1 | -1) {
     const buttons = listRef.current?.querySelectorAll("button");
@@ -130,7 +119,7 @@ export function ClusterRail({
           const unavailable = cluster.id === unavailableClusterId;
           const state: ClusterConnectionState = unavailable ? "failed" : connected.has(cluster.id) ? "connected" : "disconnected";
           const stateLabel = state === "connected" ? connectedLabel : disconnectedLabel;
-          const title = opening ? `${cluster.displayName} — ${openingLabel}` : `${cluster.displayName} — ${stateLabel}`;
+          const title = clusterTitle(cluster, opening ? openingLabel : stateLabel);
           return (
             <button
               type="button"
@@ -165,38 +154,17 @@ export function ClusterRail({
         <Plus size={17} aria-hidden="true" />
       </button>
       {menu ? (
-        <div
-          className="cluster-rail-menu"
-          role="menu"
-          aria-label={menu.cluster.displayName}
-          style={{ left: menu.x, top: menu.y }}
-          // The window-level dismiss handler would close the menu before a
-          // click on it could land.
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            disabled={connected.has(menu.cluster.id)}
-            onClick={() => {
-              setMenu(null);
-              onSelect(menu.cluster);
-            }}
-          >
-            {connectLabel}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={!connected.has(menu.cluster.id)}
-            onClick={() => {
-              setMenu(null);
-              onDisconnect?.(menu.cluster);
-            }}
-          >
-            {disconnectLabel}
-          </button>
-        </div>
+        <ClusterMenu
+          cluster={menu.cluster}
+          connected={connected.has(menu.cluster.id)}
+          x={menu.x}
+          y={menu.y}
+          labels={{ connect: connectLabel, disconnect: disconnectLabel, ...menuLabels }}
+          onClose={closeMenu}
+          onConnect={onSelect}
+          onDisconnect={(cluster) => onDisconnect?.(cluster)}
+          {...menuActions}
+        />
       ) : null}
     </aside>
   );

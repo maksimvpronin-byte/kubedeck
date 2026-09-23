@@ -1,7 +1,10 @@
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, Dispatch, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
 import { AppCommandPalette } from "./components/AppCommandPalette";
-import { ClusterRail } from "./components/ClusterRail";
+import { clusterAccentHue, ClusterRail, clusterRailLabels } from "./components/ClusterRail";
+import type { ClusterMenuActions, ClusterMenuLabels } from "./components/ClusterMenu";
+import { SidebarClusterHeader } from "./components/SidebarClusterHeader";
+import { LazyKubeconfigEditor } from "./components/LazyKubeconfigEditor";
 import { BulkActionModals } from "./components/BulkActionModals";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { LazySurface } from "./components/LazySurface";
@@ -32,7 +35,7 @@ import { buildResourceTableColumns } from "./utils/resourceTableColumns";
 import { createTranslator } from "./i18n";
 import { isPlaceholderSection, normalizeStoredSection, resourceLabel, visibleTabs } from "./navigation";
 import { findResourceDefinition, groupCrds } from "./utils/kubeResources";
-import type { ApiKeyUpdate, ErrorInfo, ResourceRow, Section, Settings } from "./types";
+import type { ApiKeyUpdate, Cluster, ErrorInfo, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
@@ -320,6 +323,10 @@ export function App() {
   });
 
   const clusters = config?.clusters ?? [];
+  const clusterAvatars = useMemo(() => clusterRailLabels(clusters), [clusters]);
+  // The open cluster as the config lists it, which also carries its API server.
+  const headerCluster = activeCluster ? (clusters.find((cluster) => cluster.id === activeCluster.id) ?? activeCluster) : null;
+  const [kubeconfigCluster, setKubeconfigCluster] = useState<Cluster | null>(null);
   const activeRows = rows[resourceTab] ?? NO_ROWS;
   useEffect(() => {
     if (!activeCluster || !selectedDefinition) return;
@@ -436,6 +443,22 @@ export function App() {
     removeClusterTerminals(cluster.id);
   }
 
+  // The same menu on the rail and above the resource tree.
+  const clusterMenuLabels: ClusterMenuLabels = {
+    connect: t("clusters.connect"),
+    disconnect: t("clusters.disconnect.action"),
+    rename: t("clusters.rename"),
+    editKubeconfig: t("clusters.editKubeconfig"),
+    settings: t("nav.settings"),
+    remove: t("clusters.remove"),
+  };
+  const clusterMenuActions: Omit<ClusterMenuActions, "onConnect" | "onDisconnect"> = {
+    onRename: startRenameCluster,
+    onEditKubeconfig: setKubeconfigCluster,
+    onOpenSettings: () => selectSection("settings"),
+    onRemove: (cluster) => void removeClusterWorkspace(cluster),
+  };
+
   return (
     <div className="app-shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
       <ClusterRail
@@ -464,6 +487,18 @@ export function App() {
         onImport={() => {
           void importKubeconfig().catch(() => undefined);
         }}
+        menuLabels={clusterMenuLabels}
+        menuActions={clusterMenuActions}
+      />
+      <LazyKubeconfigEditor
+        api={api}
+        cluster={kubeconfigCluster}
+        t={t}
+        onClose={() => setKubeconfigCluster(null)}
+        onSaved={(cluster) => {
+          // The endpoint may have moved, so the open cluster has to be reopened.
+          if (cluster.id === activeCluster?.id) void openCluster(cluster);
+        }}
       />
       <DisconnectClusterModal
         target={disconnectTarget}
@@ -486,6 +521,26 @@ export function App() {
         onToggleSection={toggleSection}
         onToggleCrdGroup={toggleCrdGroup}
         onSelectResource={selectTreeResource}
+        clusterHeader={
+          headerCluster ? (
+            <SidebarClusterHeader
+              cluster={headerCluster}
+              avatar={clusterAvatars.get(headerCluster.id) ?? "?"}
+              accentHue={clusterAccentHue(headerCluster.id)}
+              connected={connectedClusterIds.includes(headerCluster.id)}
+              stateLabel={connectedClusterIds.includes(headerCluster.id) ? t("clusters.connected") : t("clusters.disconnected")}
+              labels={clusterMenuLabels}
+              actions={{
+                ...clusterMenuActions,
+                // Offered only while the cluster is disconnected.
+                onConnect: (cluster) => {
+                  if (confirmDrawerNavigation()) void openCluster(cluster);
+                },
+                onDisconnect: (cluster) => void disconnectCluster(cluster),
+              }}
+            />
+          ) : undefined
+        }
       />
       <main className={resourceTabs.length > 1 ? "workspace" : "workspace workspace-no-tabs"}>
         <AppTopbar

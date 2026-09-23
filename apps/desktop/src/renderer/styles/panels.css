@@ -27,6 +27,14 @@
   .brand strong {
     display: none;
   }
+  /* Icons only: the cluster above the tree is its avatar. */
+  .sidebar-cluster-name,
+  .sidebar-cluster-button > svg {
+    display: none;
+  }
+  .sidebar-cluster-button {
+    padding: 4px;
+  }
   .topbar {
     grid-template-columns: 1fr 1fr;
   }

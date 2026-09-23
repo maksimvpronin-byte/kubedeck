@@ -87,11 +87,14 @@ export function ClusterPanel(props: {
             >
               <GripVertical size={16} />
             </button>
-            <div>
-              <strong>{cluster.displayName}</strong>
-              <span>{cluster.kubeconfigPath}</span>
+            <div className="cluster-card-info">
+              <strong title={cluster.displayName}>{cluster.displayName}</strong>
+              <span title={cluster.kubeconfigPath}>{cluster.kubeconfigPath}</span>
             </div>
-            <div className="row-actions">
+            {/* Order, then actions, each in its own area: in one row with the
+                name, four text buttons took the width and left the name a
+                column a few letters wide, with the arrows drawn over it. */}
+            <div className="row-actions cluster-card-order">
               <button
                 className="cluster-order-button"
                 disabled={actionsDisabled || index === 0}
@@ -110,6 +113,8 @@ export function ClusterPanel(props: {
               >
                 <ChevronDown size={15} />
               </button>
+            </div>
+            <div className="row-actions cluster-card-actions">
               <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.openCluster(cluster)}>
                 {props.openingClusterId === cluster.id ? props.t("clusters.opening") : props.t("clusters.open")}
               </button>

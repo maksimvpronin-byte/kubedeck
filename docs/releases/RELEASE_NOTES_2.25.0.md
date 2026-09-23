@@ -1,7 +1,7 @@
 # KubeDeck 2.25.0 release notes
 
-An addition to the Nodes table, a fix to every table, and three changes to
-Settings and to adding a cluster. Node-only ownership
+An addition to the Nodes table, a fix to every table, the open cluster named
+above the resource tree, and changes to Settings and to adding a cluster. Node-only ownership
 stays at Node 59 / Python 0, and no route changed.
 
 ## Node pressure in the Status column
@@ -50,15 +50,46 @@ of sight after a change to the theme or the language at the top.
   one listed. A file that names no cluster, or does not parse, still goes by its
   file name, and the name can be changed as before.
 
+## The open cluster, named where you work
+
+The rail has room for two letters, and its tooltip said only the name - for
+clusters built with kubeadm, "kubernetes" every time.
+
+- The top of the sidebar shows the open cluster: its avatar in the rail's colour
+  and its full name, in place of the product name. A click opens the cluster's
+  menu. With the sidebar collapsed to icons, only the avatar remains.
+- The rail's right-click menu and that menu offer the same actions: connect,
+  disconnect, rename, edit kubeconfig, settings, and remove - the last set apart
+  and in red. Editing the kubeconfig no longer needs a trip to Settings.
+- A cluster's tooltip names its API server under its name. The server is read
+  from the stored kubeconfig when the config is served, and never saved.
+- On import, a generic cluster name - `kubernetes`, `default`, `local`,
+  `cluster`, `k3s-default` - is replaced by the API server's host.
+
+## Settings layout
+
+- The cluster cards were one row: four text buttons took the width and left the
+  name a column a few letters wide, with the order arrows drawn over it. The
+  name and kubeconfig path now take the first line, with the arrows; the actions
+  sit under them, Remove apart on the right.
+- The Settings column is wider: 960px, up from 720px.
+- "Stored locally on this Mac" said the wrong thing on Windows and Linux; it now
+  says "this computer".
+
 ## Verification
 
 - `npm run lint`, `npm run lint:css`, `npm run format:check`
-- `npm run test:renderer` - **274 tests**, up from 269: each tab keeps its own
+- `npm run test:renderer` - **277 tests**, up from 269: each tab keeps its own
   columns across a switch and a change made just before switching is saved; a
   node under pressure shows it beside Ready; the settings save bar comes first,
-  and a change is reported as unsaved until it is put back or the panel goes
+  and a change is reported as unsaved until it is put back or the panel goes;
+  the rail menu renames, edits the kubeconfig, opens settings and removes; the
+  tooltip names the API server; the sidebar names the open cluster and opens the
+  same menu
 - `npm --workspace apps/desktop run test:gateway` - **184 tests**, up from 182:
-  an imported kubeconfig is named after its cluster; the picker's last folder is
+  an imported kubeconfig is named after its cluster, or its server's host when
+  the name is generic; the config names each cluster's server without storing
+  it; the picker's last folder is
   remembered and forgotten once gone. The node list test now checks the
   conditions a node row carries
 - `npm run typecheck`, `npm run build`, `npm run verify:release --tag v2.25.0`

@@ -2,7 +2,8 @@
 
 2.25.0 shows node pressure in the Nodes table's Status column, makes each table
 keep its own columns across tab switches and restarts, pins the Settings save
-button, and names and locates imported kubeconfigs better. Node-only ownership
+button, names the open cluster above the resource tree with a menu, and names
+and locates imported kubeconfigs better. Node-only ownership
 is unchanged at Node 59 / Python 0, and no route changed.
 
 Earlier 2.13.x through 2.24.5 checklists still apply.
@@ -12,7 +13,7 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [x] `npm run lint`
 - [x] `npm run lint:css`
 - [x] `npm run format:check`
-- [x] `npm run test:renderer` (274 tests, up from 269)
+- [x] `npm run test:renderer` (277 tests, up from 269)
 - [x] `npm --workspace apps/desktop run test:gateway` (184 tests, up from 182)
 - [x] `npm run typecheck`
 - [x] `npm run build`
@@ -64,6 +65,26 @@ Earlier 2.13.x through 2.24.5 checklists still apply.
 - [ ] A kubeconfig with several clusters is listed under the current context's
   cluster.
 - [ ] Renaming a cluster still works.
+
+## Open cluster and cluster menu
+
+- [ ] With a cluster open, the top of the sidebar shows its avatar and full
+  name; a long name ends with an ellipsis and the tooltip has it whole.
+- [ ] A click on it opens the menu; Connect is off while connected. Rename,
+  Edit kubeconfig, Settings and Remove each do what they say.
+- [ ] Right-click a cluster on the rail: the same items, Remove in red.
+- [ ] Hover a cluster on the rail: the tooltip shows its name, API server and
+  state.
+- [ ] With the window narrower than 1100px the sidebar collapses to icons and
+  the header shows only the avatar.
+- [ ] Import a kubeadm kubeconfig (`name: kubernetes`): it is listed under the
+  API server's host.
+
+## Settings layout
+
+- [ ] The cluster cards show name and path in full on the first line, arrows on
+  the right, actions under them; nothing overlaps at any window width.
+- [ ] Local activity says "stored locally on this computer".
 
 ## Standard smoke test
 

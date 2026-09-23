@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { brandIcon as Database, resourceLabel, resourceTree, sections } from "../navigation";
 import type { Section } from "../types";
 import type { CrdGroup } from "../utils/kubeResources";
@@ -16,18 +16,35 @@ interface Props {
   onToggleSection: (section: Section) => void;
   onToggleCrdGroup: (group: string) => void;
   onSelectResource: (section: Section, resource: string) => void;
+  // The active cluster's name and menu; the product name when there is none.
+  clusterHeader?: ReactNode;
 }
 
 // The resource tree: one group per section, with the CRDs of a cluster grouped
 // by API group underneath their own.
-export function AppSidebar({ section, resourceTab, expandedSections, expandedCrdGroups, crdGroups, t, onResizeStart, onSelectSection, onToggleSection, onToggleCrdGroup, onSelectResource }: Props) {
+export function AppSidebar({
+  section,
+  resourceTab,
+  expandedSections,
+  expandedCrdGroups,
+  crdGroups,
+  t,
+  onResizeStart,
+  onSelectSection,
+  onToggleSection,
+  onToggleCrdGroup,
+  onSelectResource,
+  clusterHeader,
+}: Props) {
   return (
     <aside className="sidebar">
       <div className="sidebar-resize-handle" onMouseDown={onResizeStart} role="separator" aria-orientation="vertical" aria-label="Resize resource navigation" />
-      <div className="brand">
-        <Database size={22} />
-        <strong>KubeDeck</strong>
-      </div>
+      {clusterHeader ?? (
+        <div className="brand">
+          <Database size={22} />
+          <strong>KubeDeck</strong>
+        </div>
+      )}
       <nav>
         {sections.map((item) => {
           const Icon = item.icon;

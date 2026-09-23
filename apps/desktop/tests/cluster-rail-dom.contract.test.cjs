@@ -182,3 +182,64 @@ test("a press on the menu itself does not dismiss it before the click lands", (t
   assert.ok(r.menu(), "the window-level dismiss must not swallow the menu's own press");
   assert.deepEqual(r.disconnected, [], "and the press alone is not the choice");
 });
+
+test("the menu also renames, edits the kubeconfig, opens settings and removes", (t) => {
+  const calls = [];
+  const r = rail(t, {
+    menuLabels: { rename: "Rename", editKubeconfig: "Edit kubeconfig", settings: "Settings", remove: "Remove" },
+    menuActions: {
+      onRename: (cluster) => calls.push(["rename", cluster.id]),
+      onEditKubeconfig: (cluster) => calls.push(["kubeconfig", cluster.id]),
+      onOpenSettings: () => calls.push(["settings"]),
+      onRemove: (cluster) => calls.push(["remove", cluster.id]),
+    },
+  });
+  for (const label of ["Rename", "Edit kubeconfig", "Settings", "Remove"]) {
+    r.rightClick(r.itemFor("c-stage"));
+    r.view.click(r.menuItem(label));
+    assert.ok(!r.menu(), `${label} closes the menu`);
+  }
+  assert.deepEqual(calls, [["rename", "c-stage"], ["kubeconfig", "c-stage"], ["settings"], ["remove", "c-stage"]]);
+});
+
+test("a cluster's tooltip names its API server", (t) => {
+  const r = rail(t, { clusters: [{ id: "c-a", displayName: "kubernetes", server: "https://10.0.0.5:6443" }] });
+  assert.equal(r.items()[0].getAttribute("title"), "kubernetes\nhttps://10.0.0.5:6443\nnot connected");
+});
+
+test("the open cluster is named in full above the tree, and its name opens the same menu", (t) => {
+  const { SidebarClusterHeader } = loadComponent("components/SidebarClusterHeader.tsx");
+  const calls = [];
+  const cluster = { id: "c-a", displayName: "k8s1-mstr-001.test.local", server: "https://k8s1-mstr-001.test.local:6443" };
+  const view = mount(
+    React.createElement(SidebarClusterHeader, {
+      cluster,
+      avatar: "MS",
+      accentHue: 120,
+      connected: true,
+      stateLabel: "connected",
+      labels: { connect: "Connect", disconnect: "Disconnect", rename: "Rename", remove: "Remove" },
+      actions: { onConnect: () => calls.push("connect"), onDisconnect: () => calls.push("disconnect"), onRename: () => calls.push("rename"), onRemove: () => calls.push("remove") },
+    }),
+  );
+  t.after(() => view.unmount());
+  assert.equal(view.text(".sidebar-cluster-name"), "k8s1-mstr-001.test.local");
+  assert.equal(view.text(".sidebar-cluster-avatar"), "MS");
+  assert.match(view.first(".sidebar-cluster-button").getAttribute("title"), /6443/);
+
+  view.click(view.first(".sidebar-cluster-button"));
+  const items = view.all('[role="menuitem"]').map((item) => [item.textContent, item.disabled]);
+  assert.deepEqual(
+    items,
+    [
+      ["Connect", true],
+      ["Disconnect", false],
+      ["Rename", false],
+      ["Remove", false],
+    ],
+    "only what was wired, and connect is off for a connected cluster",
+  );
+  view.click(view.all('[role="menuitem"]').find((item) => item.textContent === "Rename"));
+  assert.deepEqual(calls, ["rename"]);
+  assert.ok(!view.first('[role="menu"]'), "the choice closes the menu");
+});

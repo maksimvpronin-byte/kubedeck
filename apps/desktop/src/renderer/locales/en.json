@@ -630,7 +630,7 @@
   "overview.continue": "Continue working",
   "overview.terminals": "active terminals",
   "settings.localActivity": "Local activity",
-  "settings.localActivityDescription": "Actions performed through KubeDeck. Stored locally on this Mac.",
+  "settings.localActivityDescription": "Actions performed through KubeDeck. Stored locally on this computer.",
   "settings.openLocalActivity": "Open local activity",
   "kubeconfig.title": "Cluster kubeconfig",
   "kubeconfig.credentialsWarning": "This file holds cluster credentials. It is never logged, audited or sent to the LLM.",

@@ -630,7 +630,7 @@
   "overview.continue": "Продолжить работу",
   "overview.terminals": "активных терминалов",
   "settings.localActivity": "Локальная активность",
-  "settings.localActivityDescription": "Действия, выполненные через KubeDeck. Хранятся локально на этом Mac.",
+  "settings.localActivityDescription": "Действия, выполненные через KubeDeck. Хранятся локально на этом компьютере.",
   "settings.openLocalActivity": "Открыть локальную активность",
   "kubeconfig.title": "Kubeconfig кластера",
   "kubeconfig.credentialsWarning": "Файл содержит учётные данные кластера. Он не пишется в логи и audit и не передаётся в LLM.",

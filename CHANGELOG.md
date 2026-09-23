@@ -1,4 +1,4 @@
-## 2.25.0 - Node pressure in Status, column choices stick, settings and import polish
+## 2.25.0 - Node pressure in Status, the open cluster above the tree, column choices stick
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
 
@@ -28,7 +28,22 @@ the current context points at, or the first one listed - instead of after the
 file. A file that names no cluster, or does not parse, still goes by its file
 name.
 
-Renderer tests: 274, up from 269. Gateway tests: 184, up from 182.
+**The open cluster is named above the resource tree.** Its avatar in the rail's
+colour and its full name replace the product name at the top of the sidebar;
+a click opens the cluster's menu. The rail's right-click menu grew the same
+items: connect, disconnect, rename, edit kubeconfig, settings and remove. A
+cluster's tooltip now names its API server, so clusters that share a name can be
+told apart.
+
+A kubeadm kubeconfig names every cluster "kubernetes"; such a generic name is
+replaced on import by the API server's host.
+
+**The cluster list in Settings was cramped.** The name and path now take the
+first line of a card, with the order arrows, and the actions sit under them;
+the Settings column is wider. "Stored locally on this Mac" now says "this
+computer".
+
+Renderer tests: 277, up from 269. Gateway tests: 184, up from 182.
 
 ## 2.24.5 - Node disk bars no longer flicker
 

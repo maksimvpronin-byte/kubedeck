@@ -49,6 +49,9 @@ export interface Cluster {
   id: string;
   displayName: string;
   kubeconfigPath: string;
+  // The API server of the kubeconfig's cluster, read when the config is served
+  // and never stored; it tells apart clusters that share a name.
+  server?: string;
   lastOpened: boolean;
   createdAt: string;
   updatedAt: string;

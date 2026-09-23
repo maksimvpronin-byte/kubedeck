@@ -457,8 +457,12 @@ test("a disconnected cluster is left alone, including by the polling fallback", 
   assert.doesNotMatch(layout, /\.cluster-rail-item\.is-connected \{\s*box-shadow/, "a ring here would be overridden by is-active");
   assert.match(layout, /\.cluster-rail-item\.is-connected \.cluster-rail-state/);
   assert.match(layout, /\.cluster-rail-item\.is-disconnected \{[^}]*grayscale/, "colour alone is too weak on a column of small buttons");
-  assert.match(rail, /disabled=\{connected\.has\(menu\.cluster\.id\)\}/, "Connect is unavailable for an already connected cluster");
-  assert.match(rail, /disabled=\{!connected\.has\(menu\.cluster\.id\)\}/, "Disconnect is unavailable for a disconnected one");
+  // The menu is shared with the cluster name above the resource tree, so which
+  // item applies is decided there, from what the rail says about the cluster.
+  const menu = fs.readFileSync(path.join(rendererRoot, "components/ClusterMenu.tsx"), "utf8");
+  assert.match(rail, /connected=\{connected\.has\(menu\.cluster\.id\)\}/);
+  assert.match(menu, /\{ disabled: connected \}/, "Connect is unavailable for an already connected cluster");
+  assert.match(menu, /\{ disabled: !connected \}/, "Disconnect is unavailable for a disconnected one");
 
   // A cluster can be active and disconnected at the same time; clicking it then
   // has to reconnect rather than being treated as already open.
