@@ -34,18 +34,27 @@ interface Props {
   t?: (key: string) => string;
   onActivate: (id: string) => void;
   onClose: (id: string) => void;
+  onContainerChange?: (id: string, container: string) => void;
 }
 
 export const MIN_BOTTOM_TERMINAL_HEIGHT = 180;
 export const MIN_UPPER_CONTENT_HEIGHT = 160;
 const DEFAULT_BOTTOM_TERMINAL_RATIO = 0.42;
 
-export function BottomTerminalPanel({ api, targets, activeId, openToken, settings, t, onActivate, onClose }: Props) {
+export function BottomTerminalPanel({ api, targets, activeId, openToken, settings, t, onActivate, onClose, onContainerChange }: Props) {
+  const tr = (key: string, fallback: string) => (t ? t(key) : fallback);
   const [collapsed, setCollapsed] = useState(false);
   const [availableHeight, setAvailableHeight] = useState(() => (typeof window === "undefined" ? 720 : window.innerHeight));
-  const [height, setHeight] = useState(() => loadUiState().bottomTerminalHeight ?? Math.round((typeof window === "undefined" ? 720 : window.innerHeight) * DEFAULT_BOTTOM_TERMINAL_RATIO));
+  // The height the user chose, and the height drawn: that one fitted to the
+  // room there is now. Clamping the choice itself lost it for good whenever the
+  // window was made smaller for a moment.
+  const [preferredHeight, setPreferredHeight] = useState(
+    () => loadUiState().bottomTerminalHeight ?? Math.round((typeof window === "undefined" ? 720 : window.innerHeight) * DEFAULT_BOTTOM_TERMINAL_RATIO),
+  );
+  const height = clampBottomTerminalHeight(preferredHeight, availableHeight);
   const panelRef = useRef<HTMLElement | null>(null);
   const heightRef = useRef(height);
+  heightRef.current = height;
   const availableHeightRef = useRef(availableHeight);
   const dragRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null);
 
@@ -59,11 +68,6 @@ export function BottomTerminalPanel({ api, targets, activeId, openToken, setting
       if (nextAvailableHeight <= 0) return;
       availableHeightRef.current = nextAvailableHeight;
       setAvailableHeight(nextAvailableHeight);
-      setHeight((current) => {
-        const next = clampBottomTerminalHeight(current, nextAvailableHeight);
-        heightRef.current = next;
-        return next;
-      });
     };
     updateBounds();
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateBounds) : null;
@@ -78,7 +82,7 @@ export function BottomTerminalPanel({ api, targets, activeId, openToken, setting
   function updateHeight(candidate: number, persist = false) {
     const next = clampBottomTerminalHeight(candidate, availableHeightRef.current);
     heightRef.current = next;
-    setHeight(next);
+    setPreferredHeight(next);
     if (persist) saveUiState({ ...loadUiState(), bottomTerminalHeight: next });
   }
 
@@ -105,13 +109,13 @@ export function BottomTerminalPanel({ api, targets, activeId, openToken, setting
   const maxHeight = maxBottomTerminalHeight(availableHeight);
 
   return (
-    <section ref={panelRef} className={`bottom-terminal-panel ${collapsed ? "collapsed" : ""}`} style={collapsed ? undefined : { height }} aria-label="Terminals">
+    <section ref={panelRef} className={`bottom-terminal-panel ${collapsed ? "collapsed" : ""}`} style={collapsed ? undefined : { height }} aria-label={tr("terminals.title", "Terminals")}>
       {!collapsed ? (
         <div
           className="bottom-terminal-resize-handle"
           role="separator"
           tabIndex={0}
-          aria-label="Resize terminals"
+          aria-label={tr("terminals.resize", "Resize terminals")}
           aria-orientation="horizontal"
           aria-valuemin={Math.min(MIN_BOTTOM_TERMINAL_HEIGHT, maxHeight)}
           aria-valuemax={maxHeight}
@@ -148,7 +152,13 @@ export function BottomTerminalPanel({ api, targets, activeId, openToken, setting
                   <strong>{label.name}</strong>
                   <small>· {label.detail}</small>
                 </button>
-                <button type="button" onClick={() => onClose(target.id)} title={`Close ${label.closeName}`} data-tooltip={`Close ${label.kind}`} aria-label={`Close ${label.closeName}`}>
+                <button
+                  type="button"
+                  onClick={() => onClose(target.id)}
+                  title={`${tr("common.close", "Close")} ${label.closeName}`}
+                  data-tooltip={`${tr("common.close", "Close")} ${label.kind}`}
+                  aria-label={`${tr("common.close", "Close")} ${label.closeName}`}
+                >
                   <X size={13} />
                 </button>
               </div>
@@ -159,27 +169,41 @@ export function BottomTerminalPanel({ api, targets, activeId, openToken, setting
           type="button"
           className="icon-button bottom-terminal-collapse"
           onClick={() => setCollapsed((value) => !value)}
-          aria-label={collapsed ? "Expand terminals" : "Collapse terminals"}
-          title={collapsed ? "Expand terminals" : "Collapse terminals"}
-          data-tooltip={collapsed ? "Expand terminals" : "Collapse terminals"}
+          aria-label={collapsed ? tr("terminals.expand", "Expand terminals") : tr("terminals.collapse", "Collapse terminals")}
+          title={collapsed ? tr("terminals.expand", "Expand terminals") : tr("terminals.collapse", "Collapse terminals")}
+          data-tooltip={collapsed ? tr("terminals.expand", "Expand terminals") : tr("terminals.collapse", "Collapse terminals")}
         >
           {collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
       </div>
       <div className="bottom-terminal-body">
         {targets.map((target) => (
-          <BottomTerminalSession key={target.id} api={api} target={target} settings={settings} t={t} active={!collapsed && target.id === activeId} />
+          <BottomTerminalSession key={target.id} api={api} target={target} settings={settings} t={t} active={!collapsed && target.id === activeId} onContainerChange={onContainerChange} />
         ))}
       </div>
     </section>
   );
 }
 
-function BottomTerminalSession({ api, target, settings, t, active }: { api: ApiClient; target: BottomTerminalTarget; settings?: Settings; t?: (key: string) => string; active: boolean }) {
+function BottomTerminalSession({
+  api,
+  target,
+  settings,
+  t,
+  active,
+  onContainerChange,
+}: {
+  api: ApiClient;
+  target: BottomTerminalTarget;
+  settings?: Settings;
+  t?: (key: string) => string;
+  active: boolean;
+  onContainerChange?: (id: string, container: string) => void;
+}) {
   return (
     <div className={`bottom-terminal-session ${active ? "active" : ""}`}>
       {target.kind === "pod" ? (
-        <BottomPodTerminalSession api={api} target={target} active={active} />
+        <BottomPodTerminalSession api={api} target={target} active={active} onContainerChange={onContainerChange} />
       ) : (
         <NodeSshTab api={api} clusterId={target.clusterId} node={target.node} settings={settings} active={active} t={t} />
       )}
@@ -187,8 +211,22 @@ function BottomTerminalSession({ api, target, settings, t, active }: { api: ApiC
   );
 }
 
-function BottomPodTerminalSession({ api, target, active }: { api: ApiClient; target: Extract<BottomTerminalTarget, { kind: "pod" }>; active: boolean }) {
-  const [container, setContainer] = useState(target.container);
+// The container lives on the target rather than in here: switching it inside
+// the terminal left the tab, and its tooltip, naming the one it was opened on.
+function BottomPodTerminalSession({
+  api,
+  target,
+  active,
+  onContainerChange,
+}: {
+  api: ApiClient;
+  target: Extract<BottomTerminalTarget, { kind: "pod" }>;
+  active: boolean;
+  onContainerChange?: (id: string, container: string) => void;
+}) {
+  const [localContainer, setLocalContainer] = useState(target.container);
+  const container = onContainerChange ? target.container : localContainer;
+  const setContainer = (next: string) => (onContainerChange ? onContainerChange(target.id, next) : setLocalContainer(next));
   return <TerminalTab api={api} clusterId={target.clusterId} pod={target.pod} containers={target.containers} container={container} setContainer={setContainer} autoConnectToken={1} active={active} />;
 }
 

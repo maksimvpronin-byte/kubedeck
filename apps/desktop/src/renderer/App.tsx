@@ -142,12 +142,21 @@ export function App() {
   const systemLanguageVersion = useAppPreferences(settings, activeLanguage);
   const t = useMemo(() => createTranslator(activeLanguage), [activeLanguage, systemLanguageVersion]);
   const { loadVisibleNodeDisk } = useNodeDiskUsage({ api, activeCluster, resourceTab, setRows });
-  const { bottomTerminals, activeBottomTerminalId, setActiveBottomTerminalId, bottomTerminalOpenToken, openBottomTerminal, openBottomNodeSsh, closeBottomTerminal, removeClusterTerminals } =
-    useBottomTerminals({
-      activeCluster,
-      t,
-      setError,
-    });
+  const {
+    bottomTerminals,
+    activeBottomTerminalId,
+    setActiveBottomTerminalId,
+    bottomTerminalOpenToken,
+    openBottomTerminal,
+    openBottomNodeSsh,
+    closeBottomTerminal,
+    setBottomTerminalContainer,
+    removeClusterTerminals,
+  } = useBottomTerminals({
+    activeCluster,
+    t,
+    setError,
+  });
   const currentSelectedTarget = currentSelectedResourceTarget(selectedTarget, activeCluster?.id, resourceTab);
   const selectedPod = currentSelectedTarget?.row ?? null;
   const selectedResource = currentSelectedTarget?.resource ?? resourceTab;
@@ -732,6 +741,7 @@ export function App() {
                 t={t}
                 onActivate={setActiveBottomTerminalId}
                 onClose={closeBottomTerminal}
+                onContainerChange={setBottomTerminalContainer}
               />
             </LazySurface>
           ) : null}

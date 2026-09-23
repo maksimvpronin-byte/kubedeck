@@ -61,6 +61,10 @@ export function useBottomTerminals({ activeCluster, t, setError }: Options) {
     if (id === activeBottomTerminalId) setActiveBottomTerminalId(next[Math.min(index, next.length - 1)]?.id ?? null);
   }
 
+  function setBottomTerminalContainer(id: string, container: string) {
+    setBottomTerminals((current) => current.map((target) => (target.id === id && target.kind === "pod" ? { ...target, container } : target)));
+  }
+
   function removeClusterTerminals(clusterId: string) {
     const remaining = bottomTerminals.filter((target) => target.clusterId !== clusterId);
     setBottomTerminals(remaining);
@@ -75,6 +79,7 @@ export function useBottomTerminals({ activeCluster, t, setError }: Options) {
     openBottomTerminal,
     openBottomNodeSsh,
     closeBottomTerminal,
+    setBottomTerminalContainer,
     removeClusterTerminals,
   };
 }
