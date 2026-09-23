@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, screen, shell } from "electron";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,6 +9,7 @@ import type { GatewayHandle } from "./backend/types";
 import { ElectronSafeStorageSecretStore } from "./security/electronSafeStorageSecretStore";
 import { migratePlaintextLlmSecret } from "./backend/security/migrateSecrets";
 import { createUpdateController, type UpdateController } from "./updates";
+import { isForwardedServiceUrl, readWindowState, restorableWindowState, writeWindowState } from "./windowState";
 
 let mainWindow: BrowserWindow | null = null;
 let gatewayUrl = "";
@@ -174,11 +175,16 @@ function windowBackgroundColor() {
 
 async function createWindow() {
   const icon = resolveWindowIcon();
+  const minimum = { width: 1120, height: 720 };
+  const saved = restorableWindowState(
+    readWindowState(appDataRoot()),
+    screen.getAllDisplays().map((display) => display.workArea),
+    minimum,
+  );
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    minWidth: 1120,
-    minHeight: 720,
+    ...(saved ? saved.bounds : { width: 1440, height: 920 }),
+    minWidth: minimum.width,
+    minHeight: minimum.height,
     backgroundColor: windowBackgroundColor(),
     ...(icon ? { icon } : {}),
     webPreferences: {
@@ -187,6 +193,14 @@ async function createWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
+  });
+
+  if (saved?.maximized) mainWindow.maximize();
+  // Normal bounds, so a window closed maximized comes back maximized over the
+  // size it had before, and un-maximizing it lands there.
+  mainWindow.on("close", () => {
+    if (!mainWindow) return;
+    writeWindowState(appDataRoot(), { bounds: mainWindow.getNormalBounds(), maximized: mainWindow.isMaximized() });
   });
 
   const devUrl = resolveDevServerUrl();
@@ -202,10 +216,7 @@ async function createWindow() {
     if (!isAllowedRendererNavigation(url, devUrl)) event.preventDefault();
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:")) {
-      shell.openExternal(url);
-      return { action: "deny" };
-    }
+    if (isForwardedServiceUrl(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
   mainWindow.on("closed", () => {

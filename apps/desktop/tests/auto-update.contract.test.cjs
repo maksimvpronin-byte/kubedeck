@@ -127,3 +127,21 @@ test("the application asks for updates and downloads none unasked", () => {
     }
   }
 });
+
+test("the window reopens where it closed, unless that screen is gone", () => {
+  const { restorableWindowState, isForwardedServiceUrl } = require("../dist/main/windowState.js");
+  const screenArea = { x: 0, y: 0, width: 1920, height: 1040 };
+  const minimum = { width: 1120, height: 720 };
+  const saved = { bounds: { x: 100, y: 50, width: 1500, height: 900 }, maximized: true };
+  assert.deepEqual(restorableWindowState(saved, [screenArea], minimum), saved);
+  assert.equal(restorableWindowState({ bounds: { x: 3000, y: 50, width: 1500, height: 900 } }, [screenArea], minimum), null, "a monitor unplugged since is not reopened on");
+  assert.deepEqual(restorableWindowState({ bounds: { x: 0, y: 0, width: 300, height: 200 } }, [screenArea], minimum).bounds, { x: 0, y: 0, width: 1120, height: 720 }, "grown back to the minimum");
+  assert.equal(restorableWindowState(null, [screenArea], minimum), null);
+  assert.equal(restorableWindowState({ bounds: { x: "a" } }, [screenArea], minimum), null);
+
+  assert.equal(isForwardedServiceUrl("http://127.0.0.1:8080/"), true);
+  assert.equal(isForwardedServiceUrl("https://localhost:8443/app"), true);
+  assert.equal(isForwardedServiceUrl("http://127.0.0.1:1@example.com/"), false, "the host of this one is example.com");
+  assert.equal(isForwardedServiceUrl("https://example.com/"), false);
+  assert.equal(isForwardedServiceUrl("file:///etc/passwd"), false);
+});
