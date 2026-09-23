@@ -156,8 +156,8 @@ test("2.9.0 overview and navigation polish stay contracted", () => {
   assert.match(overview, /if \(requestRef\.current === controller\) \{\s*requestRef\.current = null;\s*if \(!silent\) setLoading\(false\);/);
   assert.doesNotMatch(overview, /cpuPercent|memoryPercent/);
   assert.doesNotMatch(overview, /priorityProblems|namespaceHotspots|recentEvents/);
-  assert.match(settings, /settings\.localActivity/);
-  assert.match(settings, /showLocalActivity \? <AuditPanel/);
+  assert.match(settings, /\{ id: "activity", icon: History \}/);
+  assert.match(settings, /section === "activity" \? <AuditPanel/);
   assert.doesNotMatch(about, /about\.python|package:win|1\.1\.0/);
   assert.match(about, /className="about-badge"/);
   assert.match(about, /about-action-button about-refresh-button/);

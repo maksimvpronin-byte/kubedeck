@@ -94,7 +94,6 @@ export function ResourceCacheDiagnostics({
         <CacheMetric label={t("cache.visibleEntries")} value={String(visibleEntries.length)} />
       </div>
 
-      {status?.note ? <p className="cache-note">{status.note}</p> : null}
       {localMessage ? <p className="cache-message">{localMessage}</p> : null}
 
       {visibleEntries.length ? (

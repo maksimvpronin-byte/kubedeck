@@ -1,6 +1,20 @@
-## 2.26.1 - Remembered SSH host keys fit their card
+## 2.27.0 - Settings in sections, updates without the installer wizard
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**Settings is laid out in sections.** It was one column three screens long,
+with bare fields, cards in three different styles, a lone Open logs button and
+Local activity behind a button of its own. Sections are listed on the left -
+General, Clusters, SSH, LLM, Diagnostics, Local activity - and one is shown at a
+time; the last one opened is where Settings opens next, and a section holding
+unsaved changes is marked. Every card has one look and one button style;
+checkboxes sit on the line of their label instead of on a line of their own as
+a 34px box. The diagnostics cards and the activity log read in Russian.
+
+**Installing an update no longer runs the installer wizard.** "Restart and
+install" installed the update visibly, and the installer - which is not
+one-click - walked through its folder, options and Finish again. It installs
+silently into the folder it was installed to, and KubeDeck starts again.
 
 **The remembered SSH host keys table in Settings was broken.** Its last cell
 carried a flex layout class, which took it out of the table's columns: every
@@ -9,7 +23,7 @@ edge. The fingerprint - what the table is for - was cut to an ellipsis by the
 fixed layout all tables share. The cell is a plain table cell, the table is
 laid out by content, and fingerprints wrap and are shown whole.
 
-Renderer tests: 294, up from 293.
+Renderer tests: 295, up from 293.
 
 ## 2.26.0 - Compact tables
 

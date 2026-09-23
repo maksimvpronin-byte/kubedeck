@@ -20,6 +20,7 @@ import "./styles/overview.css";
 import "./styles/resource-summary.css";
 import "./styles/drawer-controls.css";
 import "./styles/related-panel.css";
+import "./styles/settings.css";
 
 restoreStoredThemePreference();
 // Everything above is the bundle: modules, styles and the theme. The stages

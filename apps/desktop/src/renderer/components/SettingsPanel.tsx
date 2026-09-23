@@ -10,6 +10,24 @@ import { KubeconfigEditorModal } from "./KubeconfigEditorModal";
 import { ResourceCacheDiagnostics } from "./ResourceCacheDiagnostics";
 import { WatchDiagnostics } from "./WatchDiagnostics";
 import { AuditPanel } from "./AuditPanel";
+import { Activity, History, KeyRound, Server, SlidersHorizontal, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { loadUiState, saveUiState } from "../uiState";
+
+type SettingsSection = "general" | "clusters" | "ssh" | "llm" | "diagnostics" | "activity";
+
+const SETTINGS_SECTIONS: Array<{ id: SettingsSection; icon: LucideIcon }> = [
+  { id: "general", icon: SlidersHorizontal },
+  { id: "clusters", icon: Server },
+  { id: "ssh", icon: KeyRound },
+  { id: "llm", icon: Sparkles },
+  { id: "diagnostics", icon: Activity },
+  { id: "activity", icon: History },
+];
+
+function normalizeSettingsSection(value: unknown): SettingsSection {
+  return SETTINGS_SECTIONS.some((item) => item.id === value) ? (value as SettingsSection) : "general";
+}
 
 export function SettingsPanel({
   api,
@@ -62,7 +80,13 @@ export function SettingsPanel({
   const [saveError, setSaveError] = useState("");
   const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [llmTestMessage, setLlmTestMessage] = useState("");
-  const [showLocalActivity, setShowLocalActivity] = useState(false);
+  // One section at a time instead of one page three screens long; the last one
+  // opened is where Settings opens next time.
+  const [section, setSection] = useState<SettingsSection>(() => normalizeSettingsSection(loadUiState().settingsSection));
+  const chooseSection = (next: SettingsSection) => {
+    setSection(next);
+    saveUiState({ ...loadUiState(), settingsSection: next });
+  };
   const [kubeconfigCluster, setKubeconfigCluster] = useState<Cluster | null>(null);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
@@ -113,6 +137,24 @@ export function SettingsPanel({
     return () => window.clearTimeout(timer);
   }, [saveStatus]);
   const dirty = settingsChanged(draft, settings) || Boolean(apiKeyDraft.trim()) || clearApiKey;
+  // The sections the unsaved changes are in, marked in the list, so a change
+  // made in one section is not forgotten after moving to another.
+  const changedSections = useMemo(() => {
+    const changed = new Set<SettingsSection>();
+    const saved = normalizeSettings(settings);
+    const current = normalizeSettings(draft);
+    const same = (left: unknown, right: unknown) => stableJson(left) === stableJson(right);
+    if (
+      current.kubectlPath !== saved.kubectlPath ||
+      current.theme !== saved.theme ||
+      current.language !== saved.language ||
+      normalizeRefreshIntervalSeconds(current.refreshIntervalSeconds) !== normalizeRefreshIntervalSeconds(saved.refreshIntervalSeconds)
+    )
+      changed.add("general");
+    if (!same(normalizeSshSettings(current.ssh), normalizeSshSettings(saved.ssh))) changed.add("ssh");
+    if (!same(current.llm, saved.llm) || apiKeyDraft.trim() || clearApiKey) changed.add("llm");
+    return changed;
+  }, [draft, settings, apiKeyDraft, clearApiKey]);
   // The application asks before leaving a section; it has to know there is
   // something to lose, and that there is nothing once this panel is gone.
   useEffect(() => {
@@ -176,6 +218,82 @@ export function SettingsPanel({
       setLlmTestMessage(`${t("llm.connectionFailed")}: ${message}`);
     }
   };
+  const llmCard = (
+    <div className="settings-card settings-llm-card">
+      <h3>{t("llm.settingsTitle")}</h3>
+      <p className="settings-hint">{t("llm.settingsDescription")}</p>
+      <label className="settings-checkbox">
+        <input type="checkbox" checked={llmSettings.enabled} onChange={(event) => setLlmSettings({ enabled: event.target.checked })} />
+        {t("llm.enable")}
+      </label>
+      <div className="settings-grid-two">
+        <label>
+          {t("llm.provider")}
+          <select value={llmSettings.provider} onChange={(event) => setLlmSettings({ provider: event.target.value as Settings["llm"]["provider"] })}>
+            <option value="openai_compatible">{t("llm.provider.openaiCompatible")}</option>
+          </select>
+        </label>
+        <label>
+          {t("llm.baseUrl")}
+          <input value={llmSettings.baseUrl} onChange={(event) => setLlmSettings({ baseUrl: event.target.value })} placeholder="http://127.0.0.1:1234/v1" />
+        </label>
+        <label>
+          {t("llm.model")}
+          <input value={llmSettings.model} onChange={(event) => setLlmSettings({ model: event.target.value })} placeholder="local-model" />
+        </label>
+        <label>
+          {t("llm.apiKey")}
+          <input
+            type="password"
+            value={apiKeyDraft}
+            onChange={(event) => {
+              setApiKeyDraft(event.target.value);
+              if (event.target.value) setClearApiKey(false);
+            }}
+            placeholder={llmSettings.apiKeyConfigured ? t("llm.apiKeyConfigured") : ""}
+            autoComplete="off"
+          />
+        </label>
+        <label>
+          {t("llm.temperature")}
+          <input type="number" min="0" max="2" step="0.1" value={llmSettings.temperature} onChange={(event) => setLlmSettings({ temperature: Number(event.target.value) })} />
+        </label>
+        <label>
+          {t("llm.timeout")}
+          <input type="number" min="1" max="600" value={llmSettings.timeoutSeconds} onChange={(event) => setLlmSettings({ timeoutSeconds: Number(event.target.value) })} />
+        </label>
+        <label>
+          {t("llm.maxContextChars")}
+          <input type="number" min="1000" max="250000" step="1000" value={llmSettings.maxContextChars} onChange={(event) => setLlmSettings({ maxContextChars: Number(event.target.value) })} />
+        </label>
+        <label>
+          {t("llm.maxOutputTokens")}
+          <input type="number" value={llmSettings.maxOutputTokens} onChange={(event) => setLlmSettings({ maxOutputTokens: Number(event.target.value) })} />
+        </label>
+      </div>
+      {llmSettings.apiKeyConfigured ? (
+        <label className="settings-checkbox">
+          <input
+            type="checkbox"
+            checked={clearApiKey}
+            onChange={(event) => {
+              setClearApiKey(event.target.checked);
+              if (event.target.checked) setApiKeyDraft("");
+            }}
+          />
+          {t("llm.apiKeyClear")}
+        </label>
+      ) : null}
+      {secretStorageAvailable === false ? <p className="settings-warning">{t("llm.secretStorageUnavailable")}</p> : null}
+      <div className="settings-actions settings-llm-actions">
+        <button onClick={() => void testLlmConnection()} disabled={!api || llmTestStatus === "testing"}>
+          {llmTestStatus === "testing" ? t("llm.testing") : t("llm.testConnection")}
+        </button>
+        {llmTestStatus !== "idle" && llmTestStatus !== "testing" ? <span className={`settings-save-feedback ${llmTestStatus === "error" ? "error" : "success"}`}>{llmTestMessage}</span> : null}
+      </div>
+    </div>
+  );
+
   return (
     <section className="settings-panel">
       {/* The save button used to sit halfway down, under the LLM section, where
@@ -195,205 +313,164 @@ export function SettingsPanel({
           </button>
         </div>
       </div>
-      <label>
-        {t("settings.kubectlPath")}
-        <input value={draft.kubectlPath} onChange={(event) => setDraft({ ...draft, kubectlPath: event.target.value })} />
-      </label>
-      <fieldset className="theme-picker">
-        <legend>{t("settings.theme")}</legend>
-        <div className="theme-picker-grid">
-          {THEME_OPTIONS.map((theme) => (
-            <label className={`theme-option${draft.theme === theme.id ? " active" : ""}`} key={theme.id}>
-              <input type="radio" name="theme" value={theme.id} checked={draft.theme === theme.id} onChange={() => setDraft({ ...draft, theme: theme.id })} />
-              <span className="theme-preview" aria-hidden="true">
-                {theme.preview.map((color) => (
-                  <span key={color} style={{ backgroundColor: color }} />
-                ))}
-              </span>
-              <span className="theme-option-copy">
-                <strong>{t(theme.labelKey)}</strong>
-                <small>{t(theme.descriptionKey)}</small>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <label>
-        {t("settings.language")}
-        <select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as Settings["language"] })}>
-          <option value="system">{t("settings.language.system")}</option>
-          <option value="ru">{t("settings.language.ru")}</option>
-          <option value="en">{t("settings.language.en")}</option>
-        </select>
-      </label>
-      <label>
-        {t("settings.refresh")}
-        <select value={String(selectedRefreshInterval)} onChange={(event) => setDraft({ ...draft, refreshIntervalSeconds: Number(event.target.value) })}>
-          {REFRESH_INTERVAL_OPTIONS_SECONDS.map((seconds) => (
-            <option key={seconds} value={seconds}>
-              {seconds === 0 ? t("settings.refresh.off") : t(`settings.refresh.${seconds}s`)}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="settings-card settings-ssh-card">
-        <h3>{t("settings.ssh.title")}</h3>
-        <p className="settings-hint">{t("settings.ssh.description")}</p>
-        <div className="settings-grid-two">
-          <label>
-            {t("settings.ssh.defaultUsername")}
-            <input value={sshSettings.defaultUsername} onChange={(event) => setSshSettings({ defaultUsername: event.target.value })} placeholder="pronin.mv_adm" />
-          </label>
-          <label>
-            {t("settings.ssh.defaultPort")}
-            <input type="number" min="1" max="65535" value={sshSettings.defaultPort} onChange={(event) => setSshSettings({ defaultPort: normalizeSshPort(event.target.value) })} />
-          </label>
-          <label>
-            {t("settings.ssh.defaultAuthMethod")}
-            <select value={sshSettings.defaultAuthMethod} onChange={(event) => setSshSettings({ defaultAuthMethod: event.target.value as SshAuthMethod })}>
-              <option value="agent">{t("settings.ssh.auth.agent")}</option>
-              <option value="password">{t("settings.ssh.auth.password")}</option>
-              <option value="privateKey">{t("settings.ssh.auth.privateKey")}</option>
-            </select>
-          </label>
-        </div>
-        <label className="settings-checkbox">
-          <input type="checkbox" checked={sshSettings.useJumpHost} onChange={(event) => setSshSettings({ useJumpHost: event.target.checked })} />
-          {t("settings.ssh.useJumpHost")}
-        </label>
-        {sshSettings.useJumpHost ? (
-          <div className="settings-grid-two">
-            <label>
-              {t("settings.ssh.jumpHost")}
-              <input value={sshSettings.jumpHost} onChange={(event) => setSshSettings({ jumpHost: event.target.value })} placeholder="jump.example.local" />
-            </label>
-            <label>
-              {t("settings.ssh.jumpPort")}
-              <input type="number" min="1" max="65535" value={sshSettings.jumpPort} onChange={(event) => setSshSettings({ jumpPort: normalizeSshPort(event.target.value) })} />
-            </label>
-            <label>
-              {t("settings.ssh.jumpUsername")}
-              <input
-                value={sshSettings.jumpUsername}
-                onChange={(event) => setSshSettings({ jumpUsername: event.target.value })}
-                placeholder={sshSettings.defaultUsername || t("settings.ssh.sameAsTarget")}
-              />
-            </label>
-            <label>
-              {t("settings.ssh.jumpAuthMethod")}
-              <select value={sshSettings.jumpAuthMethod} onChange={(event) => setSshSettings({ jumpAuthMethod: event.target.value as SshAuthMethod })}>
-                <option value="agent">{t("settings.ssh.auth.agent")}</option>
-                <option value="password">{t("settings.ssh.auth.password")}</option>
-                <option value="privateKey">{t("settings.ssh.auth.privateKey")}</option>
-              </select>
-            </label>
-          </div>
-        ) : null}
-        <p className="settings-warning">{t("settings.ssh.noSecrets")}</p>
-      </div>
-      <KnownSshHostsCard api={api} t={t} onError={onError} />
-      <div className="settings-card settings-llm-card">
-        <h3>{t("llm.settingsTitle")}</h3>
-        <p className="settings-hint">{t("llm.settingsDescription")}</p>
-        <label className="settings-checkbox">
-          <input type="checkbox" checked={llmSettings.enabled} onChange={(event) => setLlmSettings({ enabled: event.target.checked })} />
-          {t("llm.enable")}
-        </label>
-        <div className="settings-grid-two">
-          <label>
-            {t("llm.provider")}
-            <select value={llmSettings.provider} onChange={(event) => setLlmSettings({ provider: event.target.value as Settings["llm"]["provider"] })}>
-              <option value="openai_compatible">{t("llm.provider.openaiCompatible")}</option>
-            </select>
-          </label>
-          <label>
-            {t("llm.baseUrl")}
-            <input value={llmSettings.baseUrl} onChange={(event) => setLlmSettings({ baseUrl: event.target.value })} placeholder="http://127.0.0.1:1234/v1" />
-          </label>
-          <label>
-            {t("llm.model")}
-            <input value={llmSettings.model} onChange={(event) => setLlmSettings({ model: event.target.value })} placeholder="local-model" />
-          </label>
-          <label>
-            {t("llm.apiKey")}
-            <input
-              type="password"
-              value={apiKeyDraft}
-              onChange={(event) => {
-                setApiKeyDraft(event.target.value);
-                if (event.target.value) setClearApiKey(false);
-              }}
-              placeholder={llmSettings.apiKeyConfigured ? t("llm.apiKeyConfigured") : ""}
-              autoComplete="off"
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label={t("nav.settings")}>
+          {SETTINGS_SECTIONS.map((item) => {
+            const Icon = item.icon;
+            const changed = changedSections.has(item.id);
+            return (
+              <button key={item.id} type="button" className={section === item.id ? "active" : ""} aria-current={section === item.id ? "page" : undefined} onClick={() => chooseSection(item.id)}>
+                <Icon size={16} aria-hidden="true" />
+                <span>{t(`settings.section.${item.id}`)}</span>
+                {changed ? <span className="settings-nav-dirty" title={t("settings.unsaved")} aria-label={t("settings.unsaved")} /> : null}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="settings-content">
+          {section === "general" ? (
+            <>
+              <div className="settings-card">
+                <h3>{t("settings.section.general")}</h3>
+                <p className="settings-hint">{t("settings.section.generalHint")}</p>
+                <div className="settings-grid-two settings-general-grid">
+                  <label>
+                    {t("settings.kubectlPath")}
+                    <input value={draft.kubectlPath} onChange={(event) => setDraft({ ...draft, kubectlPath: event.target.value })} />
+                  </label>
+                  <label>
+                    {t("settings.language")}
+                    <select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as Settings["language"] })}>
+                      <option value="system">{t("settings.language.system")}</option>
+                      <option value="ru">{t("settings.language.ru")}</option>
+                      <option value="en">{t("settings.language.en")}</option>
+                    </select>
+                  </label>
+                  <label>
+                    {t("settings.refresh")}
+                    <select value={String(selectedRefreshInterval)} onChange={(event) => setDraft({ ...draft, refreshIntervalSeconds: Number(event.target.value) })}>
+                      {REFRESH_INTERVAL_OPTIONS_SECONDS.map((seconds) => (
+                        <option key={seconds} value={seconds}>
+                          {seconds === 0 ? t("settings.refresh.off") : t(`settings.refresh.${seconds}s`)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="settings-card-footer">
+                  <button className="secondary-btn" type="button" onClick={() => window.kubedeck.openLogsFolder()}>
+                    {t("settings.logs")}
+                  </button>
+                </div>
+              </div>
+              <div className="settings-card">
+                <fieldset className="theme-picker">
+                  <legend>{t("settings.theme")}</legend>
+                  <div className="theme-picker-grid">
+                    {THEME_OPTIONS.map((theme) => (
+                      <label className={`theme-option${draft.theme === theme.id ? " active" : ""}`} key={theme.id}>
+                        <input type="radio" name="theme" value={theme.id} checked={draft.theme === theme.id} onChange={() => setDraft({ ...draft, theme: theme.id })} />
+                        <span className="theme-preview" aria-hidden="true">
+                          {theme.preview.map((color) => (
+                            <span key={color} style={{ backgroundColor: color }} />
+                          ))}
+                        </span>
+                        <span className="theme-option-copy">
+                          <strong>{t(theme.labelKey)}</strong>
+                          <small>{t(theme.descriptionKey)}</small>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </div>
+            </>
+          ) : null}
+          {section === "clusters" ? (
+            <ClusterPanel
+              clusters={clusters}
+              activeCluster={activeCluster}
+              openingClusterId={openingClusterId}
+              importKubeconfig={importKubeconfig}
+              openCluster={openCluster}
+              renameCluster={renameCluster}
+              removeCluster={removeCluster}
+              editKubeconfig={setKubeconfigCluster}
+              reorderClusters={reorderClusters}
+              reorderingClusters={reorderingClusters}
+              t={t}
             />
-          </label>
-          <label>
-            {t("llm.temperature")}
-            <input type="number" min="0" max="2" step="0.1" value={llmSettings.temperature} onChange={(event) => setLlmSettings({ temperature: Number(event.target.value) })} />
-          </label>
-          <label>
-            {t("llm.timeout")}
-            <input type="number" min="1" max="600" value={llmSettings.timeoutSeconds} onChange={(event) => setLlmSettings({ timeoutSeconds: Number(event.target.value) })} />
-          </label>
-          <label>
-            {t("llm.maxContextChars")}
-            <input type="number" min="1000" max="250000" step="1000" value={llmSettings.maxContextChars} onChange={(event) => setLlmSettings({ maxContextChars: Number(event.target.value) })} />
-          </label>
-          <label>
-            {t("llm.maxOutputTokens")}
-            <input type="number" value={llmSettings.maxOutputTokens} onChange={(event) => setLlmSettings({ maxOutputTokens: Number(event.target.value) })} />
-          </label>
-        </div>
-        {llmSettings.apiKeyConfigured ? (
-          <label className="settings-checkbox">
-            <input
-              type="checkbox"
-              checked={clearApiKey}
-              onChange={(event) => {
-                setClearApiKey(event.target.checked);
-                if (event.target.checked) setApiKeyDraft("");
-              }}
-            />
-            {t("llm.apiKeyClear")}
-          </label>
-        ) : null}
-        {secretStorageAvailable === false ? <p className="settings-warning">{t("llm.secretStorageUnavailable")}</p> : null}
-        <div className="settings-actions settings-llm-actions">
-          <button onClick={() => void testLlmConnection()} disabled={!api || llmTestStatus === "testing"}>
-            {llmTestStatus === "testing" ? t("llm.testing") : t("llm.testConnection")}
-          </button>
-          {llmTestStatus !== "idle" && llmTestStatus !== "testing" ? <span className={`settings-save-feedback ${llmTestStatus === "error" ? "error" : "success"}`}>{llmTestMessage}</span> : null}
+          ) : null}
+          {section === "ssh" ? (
+            <>
+              <div className="settings-card settings-ssh-card">
+                <h3>{t("settings.ssh.title")}</h3>
+                <p className="settings-hint">{t("settings.ssh.description")}</p>
+                <div className="settings-grid-two">
+                  <label>
+                    {t("settings.ssh.defaultUsername")}
+                    <input value={sshSettings.defaultUsername} onChange={(event) => setSshSettings({ defaultUsername: event.target.value })} placeholder="pronin.mv_adm" />
+                  </label>
+                  <label>
+                    {t("settings.ssh.defaultPort")}
+                    <input type="number" min="1" max="65535" value={sshSettings.defaultPort} onChange={(event) => setSshSettings({ defaultPort: normalizeSshPort(event.target.value) })} />
+                  </label>
+                  <label>
+                    {t("settings.ssh.defaultAuthMethod")}
+                    <select value={sshSettings.defaultAuthMethod} onChange={(event) => setSshSettings({ defaultAuthMethod: event.target.value as SshAuthMethod })}>
+                      <option value="agent">{t("settings.ssh.auth.agent")}</option>
+                      <option value="password">{t("settings.ssh.auth.password")}</option>
+                      <option value="privateKey">{t("settings.ssh.auth.privateKey")}</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="settings-checkbox">
+                  <input type="checkbox" checked={sshSettings.useJumpHost} onChange={(event) => setSshSettings({ useJumpHost: event.target.checked })} />
+                  {t("settings.ssh.useJumpHost")}
+                </label>
+                {sshSettings.useJumpHost ? (
+                  <div className="settings-grid-two">
+                    <label>
+                      {t("settings.ssh.jumpHost")}
+                      <input value={sshSettings.jumpHost} onChange={(event) => setSshSettings({ jumpHost: event.target.value })} placeholder="jump.example.local" />
+                    </label>
+                    <label>
+                      {t("settings.ssh.jumpPort")}
+                      <input type="number" min="1" max="65535" value={sshSettings.jumpPort} onChange={(event) => setSshSettings({ jumpPort: normalizeSshPort(event.target.value) })} />
+                    </label>
+                    <label>
+                      {t("settings.ssh.jumpUsername")}
+                      <input
+                        value={sshSettings.jumpUsername}
+                        onChange={(event) => setSshSettings({ jumpUsername: event.target.value })}
+                        placeholder={sshSettings.defaultUsername || t("settings.ssh.sameAsTarget")}
+                      />
+                    </label>
+                    <label>
+                      {t("settings.ssh.jumpAuthMethod")}
+                      <select value={sshSettings.jumpAuthMethod} onChange={(event) => setSshSettings({ jumpAuthMethod: event.target.value as SshAuthMethod })}>
+                        <option value="agent">{t("settings.ssh.auth.agent")}</option>
+                        <option value="password">{t("settings.ssh.auth.password")}</option>
+                        <option value="privateKey">{t("settings.ssh.auth.privateKey")}</option>
+                      </select>
+                    </label>
+                  </div>
+                ) : null}
+                <p className="settings-warning">{t("settings.ssh.noSecrets")}</p>
+              </div>
+              <KnownSshHostsCard api={api} t={t} onError={onError} />
+            </>
+          ) : null}
+          {section === "llm" ? llmCard : null}
+          {section === "diagnostics" ? (
+            <>
+              <ResourceCacheDiagnostics api={api} activeCluster={activeCluster} t={t} onError={onError} />
+              <WatchDiagnostics api={api} activeCluster={activeCluster} selectedNamespaces={selectedNamespaces} resourceTab={resourceTab} t={t} onError={onError} />
+            </>
+          ) : null}
+          {section === "activity" ? <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={onError} /> : null}
         </div>
       </div>
-      <div className="settings-actions">
-        <button onClick={() => window.kubedeck.openLogsFolder()}>{t("settings.logs")}</button>
-      </div>
-      <ResourceCacheDiagnostics api={api} activeCluster={activeCluster} t={t} onError={onError} />
-      <WatchDiagnostics api={api} activeCluster={activeCluster} selectedNamespaces={selectedNamespaces} resourceTab={resourceTab} t={t} onError={onError} />
-      <div className="settings-card settings-local-activity">
-        <div>
-          <h3>{t("settings.localActivity")}</h3>
-          <p className="settings-hint">{t("settings.localActivityDescription")}</p>
-        </div>
-        <button className="secondary-btn" type="button" onClick={() => setShowLocalActivity((current) => !current)}>
-          {showLocalActivity ? t("common.close") : t("settings.openLocalActivity")}
-        </button>
-      </div>
-      {showLocalActivity ? <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={onError} /> : null}
-      <ClusterPanel
-        clusters={clusters}
-        activeCluster={activeCluster}
-        openingClusterId={openingClusterId}
-        importKubeconfig={importKubeconfig}
-        openCluster={openCluster}
-        renameCluster={renameCluster}
-        removeCluster={removeCluster}
-        editKubeconfig={setKubeconfigCluster}
-        reorderClusters={reorderClusters}
-        reorderingClusters={reorderingClusters}
-        t={t}
-      />
       <KubeconfigEditorModal
         api={api}
         cluster={kubeconfigCluster}

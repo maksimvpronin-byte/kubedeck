@@ -139,7 +139,11 @@ export function createUpdateController({ log, publish, prepareForRestart }: Upda
     // Windows it also holds files the installer is about to replace, so it goes
     // down before the installer starts rather than racing it.
     await prepareForRestart();
-    autoUpdater.quitAndInstall();
+    // Silent, and started again once done. The installer is not one-click, so
+    // run visibly it walked through its whole wizard - folder, options, Finish -
+    // for what is an update, not an install. Silently it reuses the folder it
+    // was installed to, and the second flag starts KubeDeck again afterwards.
+    autoUpdater.quitAndInstall(true, true);
     return state;
   }
 

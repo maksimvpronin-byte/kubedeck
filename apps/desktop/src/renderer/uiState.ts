@@ -15,6 +15,8 @@ export interface UiState {
   hiddenColumns?: Record<string, string[]>;
   // Tables stretched to the width of the window; absent means compact.
   tableFillWidth?: Record<string, boolean>;
+  // The Settings section last opened.
+  settingsSection?: string;
 }
 
 const key = "kubedeck.uiState.v1";

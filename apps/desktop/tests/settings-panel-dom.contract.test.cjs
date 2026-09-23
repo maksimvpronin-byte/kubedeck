@@ -113,6 +113,8 @@ test("remembered SSH hosts are table rows as wide as their header, with the fing
   };
   const view = mount(panel([], { api }));
   t.after(() => view.unmount());
+  // Remembered hosts live in the SSH section.
+  view.click(view.all(".settings-nav button").find((button) => button.textContent.includes("settings.section.ssh")));
   await React.act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   const row = view.first(".settings-known-hosts tbody tr");
   assert.ok(row, "the remembered host is listed");
@@ -121,4 +123,25 @@ test("remembered SSH hosts are table rows as wide as their header, with the fing
   assert.ok(![...row.children].some((cell) => cell.classList.contains("row-actions")));
   assert.equal(row.children.length, view.all(".settings-known-hosts thead th").length);
   assert.equal(view.first(".settings-known-hosts-fingerprint").getAttribute("title"), fingerprint);
+});
+
+test("settings are sections, one at a time, and a section with unsaved changes is marked", (t) => {
+  const view = mount(panel([]));
+  t.after(() => view.unmount());
+  const nav = () => view.all(".settings-nav button");
+  view.click(nav()[0]);
+  assert.deepEqual(
+    nav().map((button) => button.textContent),
+    ["settings.section.general", "settings.section.clusters", "settings.section.ssh", "settings.section.llm", "settings.section.diagnostics", "settings.section.activity"],
+  );
+  assert.ok(view.first('.settings-nav button[aria-current="page"]').textContent.includes("general"));
+  assert.ok(!view.first(".settings-llm-card"), "only the open section is on the page");
+
+  view.type(view.container.querySelector("input:not([type])"), "/opt/kubectl");
+  assert.ok(nav()[0].querySelector(".settings-nav-dirty"), "General holds an unsaved change");
+  assert.ok(!nav()[3].querySelector(".settings-nav-dirty"));
+
+  view.click(nav()[3]);
+  assert.ok(view.first(".settings-llm-card"));
+  assert.ok(nav()[0].querySelector(".settings-nav-dirty"), "and says so from another section");
 });

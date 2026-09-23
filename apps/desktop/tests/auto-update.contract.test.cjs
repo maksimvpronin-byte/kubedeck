@@ -98,7 +98,10 @@ test("the application asks for updates and downloads none unasked", () => {
   assert.match(updates, /Authority=Developer ID Application/);
   // The gateway holds ports, watches and - on Windows - the files the installer
   // is about to replace.
-  assert.match(updates, /await prepareForRestart\(\);\n\s+autoUpdater\.quitAndInstall\(\)/);
+  assert.match(updates, /await prepareForRestart\(\);[\s\S]{0,400}?autoUpdater\.quitAndInstall\(true, true\)/);
+  // Silent and relaunched: the installer is not one-click, and run visibly it
+  // walked through its whole wizard again for an update.
+  assert.doesNotMatch(updates, /quitAndInstall\(\)/);
 
   for (const channel of ["getUpdateState", "checkForUpdates", "downloadUpdate", "installUpdate", "openReleases"]) {
     assert.match(main, new RegExp(`kubedeck:${channel}`), `main must handle kubedeck:${channel}`);

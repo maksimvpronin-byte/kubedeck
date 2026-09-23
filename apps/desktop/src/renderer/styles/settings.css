@@ -1,0 +1,207 @@
+/* Settings, laid out as sections: the list on the left, one section on the
+   right. Loaded last, so what is said here about the cards inside Settings is
+   what they look like there. */
+
+.settings-panel {
+  max-width: 1180px;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+/* Below the save bar, which is pinned to the top of the scrolling panel. */
+.settings-nav {
+  position: sticky;
+  top: 58px;
+  display: grid;
+  gap: 2px;
+}
+
+.settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-strong);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-nav button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.settings-nav button.active {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--text-strong);
+}
+
+/* A section holding changes that are not saved yet. */
+.settings-nav-dirty {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--warning-text);
+}
+
+.settings-content {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* One look for every card in Settings: the settings cards, the diagnostics
+   panels and the local activity log had three borders, paddings and title
+   sizes between them. */
+.settings-content > .settings-card,
+.settings-content > .cache-diagnostics-panel,
+.settings-content > .watch-diagnostics-panel,
+.settings-content > .audit-panel {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.settings-content > .cluster-panel {
+  margin: 0;
+  border-radius: 12px;
+}
+
+.settings-content .settings-card h3,
+.settings-content .cache-diagnostics-panel h3,
+.settings-content .watch-diagnostics-panel h3 {
+  margin: 0 0 4px;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.settings-content .theme-picker legend {
+  margin-bottom: 10px;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+/* kubectl path takes the whole first row; language and refresh share the next. */
+.settings-general-grid > label:first-child {
+  grid-column: 1 / -1;
+}
+
+.settings-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* A checkbox sits on the line of its label. `.settings-panel label` lays every
+   label out as a grid - a caption over its field - which put the box on a line
+   of its own, drawn as a 34px input. */
+.settings-panel .settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  color: var(--text);
+}
+
+.settings-panel .settings-checkbox input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--primary-text);
+}
+
+/* One button style in Settings. */
+.settings-content .settings-card button:not(.primary):not(.icon-button),
+.settings-content .cache-diagnostics-actions button,
+.settings-content .watch-diagnostics-actions button,
+.settings-content .watch-diagnostics-panel button:not(.primary):not(.icon-button) {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--button-border);
+  border-radius: 8px;
+  background: var(--button-bg);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.settings-content .settings-card button:not(.primary):not(.icon-button):hover:not(:disabled),
+.settings-content .cache-diagnostics-actions button:hover:not(:disabled),
+.settings-content .watch-diagnostics-panel button:not(.primary):not(.icon-button):hover:not(:disabled) {
+  border-color: var(--primary-border);
+  background: var(--surface-hover);
+}
+
+/* With the resource tree beside it, a window this narrow leaves too little
+   for a list of sections as well: they go above the section instead. */
+@media (max-width: 1300px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-nav {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .settings-nav button {
+    width: auto;
+  }
+}
+
+/* The local activity log, as a Settings card. */
+.settings-content .audit-panel h2 {
+  margin: 0 0 4px;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.settings-content .audit-panel button:not(.primary):not(.icon-button) {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--button-border);
+  border-radius: 8px;
+  background: var(--button-bg);
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.settings-content .audit-panel button:not(.primary):not(.icon-button):hover:not(:disabled) {
+  border-color: var(--primary-border);
+  background: var(--surface-hover);
+}
+
+/* Search, status and action on one line; copying and downloading under them. */
+.settings-content .audit-filters {
+  grid-template-columns: minmax(200px, 1fr) minmax(130px, 170px) minmax(160px, 240px);
+}
+
+.settings-content .audit-filter-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+}

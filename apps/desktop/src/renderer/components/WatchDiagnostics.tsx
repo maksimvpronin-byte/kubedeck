@@ -171,7 +171,6 @@ export function WatchDiagnostics({
       </div>
 
       <p className="watch-hint">{t("watch.namespaceHint")}</p>
-      {status?.note ? <p className="watch-note">{status.note}</p> : null}
       {message ? <p className="watch-message">{message}</p> : null}
 
       {visibleWatches.length ? (
