@@ -1,3 +1,17 @@
+## 2.28.1 - No sideways scrolling over empty columns
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**A table scrolled sideways over empty space.** A column keeps its width per
+resource in every cluster, so Node fitted to one cluster's long node names
+stayed wide in a cluster with short ones, and the table ran past the window with
+nothing to scroll to. While a table does not fit, a text column is drawn no
+wider than its longest value and header, and the rest goes to the end of the
+row. Kept widths are unchanged, a column cut short keeps its width, and a table
+that fits is untouched.
+
+Renderer tests: 301, up from 300.
+
 ## 2.28.0 - What's new before you update, one button style, ages in years
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

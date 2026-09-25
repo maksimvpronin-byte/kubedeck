@@ -518,3 +518,38 @@ test("an age past a year is written in years", () => {
   assert.equal(formatElapsed(3 * day), "3d");
   assert.equal(formatElapsed(3_661_000), "01:01:01");
 });
+
+// Widths are kept per resource, not per cluster: Node fitted to one cluster's
+// long node names was mostly empty in the next, and the table ran past the
+// window over that empty space - a scrollbar with nothing to scroll to.
+test("a compact table that does not fit gives back what its text columns do not use", () => {
+  const { textColumnWidths, withoutEmptySpace } = loadTypeScript("utils/fitColumns.ts");
+  // Every character 7px wide, bold 8px: enough to follow the arithmetic.
+  const measure = (text, bold) => text.length * (bold ? 8 : 7);
+  const rows = [
+    { name: "api-server-5d8f", node: "k8s4-work-010pl", phase: "Running", containers: [] },
+    { name: "cache", node: "k8s4-work-002pl", phase: "Pending", containers: [] },
+  ];
+  const columns = [
+    { key: "name", label: "Name" },
+    { key: "node", label: "Node" },
+    { key: "phase", label: "Phase" },
+    { key: "createdAt", label: "Age" },
+    { key: "containers", label: "Containers" },
+  ];
+  const content = textColumnWidths(rows, columns, measure);
+  // The longest value, the cell's padding and the fixed layout's allowance.
+  assert.equal(content.node, 15 * 7 + 20 + 10);
+  assert.equal(content.phase, 5 * 8 + 18 + 20 + 10, "the header and its sort arrow are wider than a bold Running");
+  assert.equal(content.createdAt, 8 * 7 + 20 + 10, "an age is measured at its longest form");
+  assert.equal(content.containers, undefined, "status cubes are not text and are left alone");
+
+  const kept = { name: 90, node: 480, phase: 120, createdAt: 110, containers: 132 };
+  assert.deepEqual(withoutEmptySpace(kept, content, 2000, 38), kept, "a table that fits keeps every width");
+  assert.deepEqual(
+    withoutEmptySpace(kept, content, 800, 38),
+    { name: 90, node: 135, phase: 88, createdAt: 86, containers: 132 },
+    "one that does not gives back only the empty space: Name, cut short, keeps its width",
+  );
+  assert.deepEqual(withoutEmptySpace(kept, content, 0, 38), kept, "before the window is measured nothing changes");
+});

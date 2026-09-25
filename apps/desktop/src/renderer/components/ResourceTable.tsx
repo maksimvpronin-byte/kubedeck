@@ -1,12 +1,12 @@
 import { Search, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ResourceRow } from "../types";
-import { PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
+import { canonicalPhase, PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
 import { columnSortMetrics, sortKeyBelongsToColumn } from "../utils/resourceTableSortMetrics";
 import { ANNOTATION_COLUMN_KEY, annotationSortMetrics } from "../utils/annotationSort";
 import { ResourceTableRow, type ResourceTableRowHandlers } from "./resourceTable/ResourceTableRow";
 import { DEFAULT_VIRTUAL_ROW_HEIGHT, nextRowHeight, virtualRowWindow } from "../utils/virtualRows";
-import { measureColumnWidths } from "../utils/fitColumns";
+import { measureColumnWidths, tableTextMeasure, textColumnWidths, withoutEmptySpace } from "../utils/fitColumns";
 import { ResourceTableColumnsMenu } from "./ResourceTableColumnsMenu";
 import { ResourceTableSortMenu } from "./ResourceTableSortMenu";
 import { ResourceTablePagination } from "./ResourceTablePagination";
@@ -190,14 +190,18 @@ export function ResourceTable({
   // near the viewport are in the DOM; the rest are two spacer rows holding the
   // scroll height, so the scrollbar and the keyboard behave as they always did.
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [viewport, setViewport] = useState({ top: 0, height: 0 });
+  const [viewport, setViewport] = useState({ top: 0, height: 0, width: 0 });
   const [rowHeight, setRowHeight] = useState(DEFAULT_VIRTUAL_ROW_HEIGHT);
   const frameRef = useRef<number | null>(null);
 
   const readViewport = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
-    setViewport((current) => (current.top === element.scrollTop && current.height === element.clientHeight ? current : { top: element.scrollTop, height: element.clientHeight }));
+    setViewport((current) =>
+      current.top === element.scrollTop && current.height === element.clientHeight && current.width === element.clientWidth
+        ? current
+        : { top: element.scrollTop, height: element.clientHeight, width: element.clientWidth },
+    );
   }, []);
 
   // One read per frame: a wheel gesture fires scroll events far faster than
@@ -234,7 +238,19 @@ export function ResourceTable({
     setRowHeight((current) => nextRowHeight(current, measured));
   }, [windowRows.length, visibleColumns]);
 
-  const tableWidth = 38 + visibleColumns.reduce((sum, column) => sum + widthFor(column), 0);
+  // What each text column needs for the rows of this page, read in the fonts
+  // the table is drawn in once there is a row to take them from.
+  const [contentWidths, setContentWidths] = useState<Record<string, number>>({});
+  useLayoutEffect(() => {
+    if (fillWidth || !(viewport.width > 0)) return;
+    const measure = tableTextMeasure(tableElementRef.current);
+    if (!measure) return;
+    const next = textColumnWidths(renderedRows, visibleColumns, measure, (row, key) => (key === "phase" ? canonicalPhase(row) : String(row[key] ?? "")));
+    setContentWidths((current) => (sameWidths(current, next) ? current : next));
+  }, [renderedRows, visibleColumns, fillWidth, viewport.width > 0]);
+  const drawnWidths = withoutEmptySpace(Object.fromEntries(visibleColumns.map((column) => [column.key, widthFor(column)])), fillWidth ? {} : contentWidths, viewport.width, 38);
+  const drawnWidth = (column: ResourceTableColumn) => drawnWidths[column.key] ?? widthFor(column);
+  const tableWidth = 38 + visibleColumns.reduce((sum, column) => sum + drawnWidth(column), 0);
   const annotationMetrics = useMemo(() => annotationSortMetrics(rows), [rows]);
   const metricsFor = (columnKey: string) => (columnKey === ANNOTATION_COLUMN_KEY ? annotationMetrics : columnSortMetrics(columnKey));
   const selectedRowKey = selectedRow ? rowKey(selectedRow) : "";
@@ -361,7 +377,7 @@ export function ResourceTable({
           <colgroup>
             <col style={{ width: 38 }} />
             {visibleColumns.map((column) => (
-              <col key={column.key} style={{ width: widthFor(column) }} />
+              <col key={column.key} style={{ width: drawnWidth(column) }} />
             ))}
             {fillWidth ? null : <col className="filler-col" />}
           </colgroup>
@@ -404,7 +420,7 @@ export function ResourceTable({
                     draggable={false}
                     title={ui.fitColumnsHint}
                     onDragStart={(event) => event.preventDefault()}
-                    onMouseDown={(event) => startColumnResize(event, column)}
+                    onMouseDown={(event) => startColumnResize(event, column, drawnWidth(column))}
                     onDoubleClick={(event) => {
                       event.stopPropagation();
                       fitColumns(column.key);
@@ -473,4 +489,9 @@ export function ResourceTable({
       />
     </section>
   );
+}
+
+function sameWidths(left: Record<string, number>, right: Record<string, number>) {
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every((key) => left[key] === right[key]);
 }

@@ -300,11 +300,14 @@ export function useResourceTableState(rows: ResourceRow[], columns: ResourceTabl
       renderedRows.map(rowKey).forEach((key) => (checked ? next.add(key) : next.delete(key)));
       return next;
     });
-  const startColumnResize = (event: ReactMouseEvent, column: ResourceTableColumn) => {
+  // From the width the column is drawn at, which is not always the one kept for
+  // it: a compact table that does not fit draws text columns no wider than
+  // their text.
+  const startColumnResize = (event: ReactMouseEvent, column: ResourceTableColumn, drawnWidth?: number) => {
     event.preventDefault();
     event.stopPropagation();
     const startX = event.clientX;
-    const startWidth = widthFor(column);
+    const startWidth = drawnWidth ?? widthFor(column);
     const move = (moveEvent: MouseEvent) => setColumnWidths((current) => ({ ...current, [column.key]: Math.max(MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX) }));
     const up = () => {
       window.removeEventListener("mousemove", move);
