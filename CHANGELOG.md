@@ -1,3 +1,25 @@
+## 2.28.0 - What's new before you update, one button style, ages in years
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**About shows what a new version changes.** A check that found a newer version
+said only its number. The Updates card now shows it in a panel with the version
+installed now, the notes of every release skipped - taken from GitHub, rebuilt
+from a short list of tags, without their Verification section - and the step
+that gets it: Download, then Restart and install, or the releases page for a
+portable build. Download progress is a bar.
+
+**Buttons in Settings and About are one size.** Nothing set a font size for the
+page, so unsized buttons drew at 16px beside 13px ones, at four heights. All of
+them are 32px and 13px now, with one primary, danger and disabled look. Remove
+on a cluster is red, and the activity log's entries say Copy JSON rather than
+Copy error.
+
+**Ages past a year are written in years**, as kubectl writes them: 1y35d, not
+400d.
+
+Renderer tests: 300, up from 296. Gateway tests: 186, up from 185.
+
 ## 2.27.1 - Compact tables reach the edge of the window
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

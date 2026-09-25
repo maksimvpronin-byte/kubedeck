@@ -468,7 +468,7 @@ export function SettingsPanel({
               <WatchDiagnostics api={api} activeCluster={activeCluster} selectedNamespaces={selectedNamespaces} resourceTab={resourceTab} t={t} onError={onError} />
             </>
           ) : null}
-          {section === "activity" ? <AuditPanel api={api} copyLabel={t("error.copy")} t={t} onError={onError} /> : null}
+          {section === "activity" ? <AuditPanel api={api} t={t} onError={onError} /> : null}
         </div>
       </div>
       <KubeconfigEditorModal

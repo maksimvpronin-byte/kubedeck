@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { app, shell } from "electron";
 import { autoUpdater } from "electron-updater";
-import type { UpdateState } from "../shared/updateState";
+import { releaseNotesOf, type UpdateState } from "../shared/updateState";
 
 // Where a copy that cannot replace itself is sent instead. It has to agree with
 // `publish` in electron-builder.yml - that block is what writes the metadata
@@ -69,6 +69,7 @@ export function createUpdateController({ log, publish, prepareForRestart }: Upda
     message: installability.message,
     canInstall: installability.canInstall,
     releasesUrl: RELEASES_URL,
+    releaseNotes: [],
   };
 
   function set(patch: Partial<UpdateState>) {
@@ -81,6 +82,9 @@ export function createUpdateController({ log, publish, prepareForRestart }: Upda
   // pure waste on a build that cannot install it anyway.
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+  // Notes for every release between this one and the newest, not only the
+  // newest: someone three versions behind is getting all three.
+  autoUpdater.fullChangelog = true;
   autoUpdater.logger = {
     info: (message?: unknown) => log(`update: ${String(message)}`),
     warn: (message?: unknown) => log(`update warn: ${String(message)}`),
@@ -92,10 +96,21 @@ export function createUpdateController({ log, publish, prepareForRestart }: Upda
   // portable build that has just failed a check still cannot install in place,
   // and About has to keep saying so once the failure is cleared.
   autoUpdater.on("checking-for-update", () => set({ status: "checking", message: installability.message }));
-  autoUpdater.on("update-available", (info) => set({ status: "available", availableVersion: info.version, percent: 0, message: installability.message }));
-  autoUpdater.on("update-not-available", () => set({ status: "current", availableVersion: "", percent: 0, message: installability.message }));
+  autoUpdater.on("update-available", (info) => set({ status: "available", availableVersion: info.version, percent: 0, message: installability.message, releaseNotes: releaseNotesOf(info) }));
+  autoUpdater.on("update-not-available", () => set({ status: "current", availableVersion: "", percent: 0, message: installability.message, releaseNotes: [] }));
   autoUpdater.on("download-progress", (progress) => set({ status: "downloading", percent: Math.max(0, Math.min(100, Math.round(progress.percent))) }));
-  autoUpdater.on("update-downloaded", (info) => set({ status: "downloaded", availableVersion: info.version, percent: 100, message: installability.message }));
+  autoUpdater.on("update-downloaded", (info) => {
+    // The download event carries the notes too, but not always all of them;
+    // the ones found by the check are kept when it brings fewer.
+    const releaseNotes = releaseNotesOf(info);
+    set({
+      status: "downloaded",
+      availableVersion: info.version,
+      percent: 100,
+      message: installability.message,
+      releaseNotes: releaseNotes.length >= state.releaseNotes.length ? releaseNotes : state.releaseNotes,
+    });
+  });
   autoUpdater.on("error", (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     log(`update failed: ${message}`);

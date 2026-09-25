@@ -133,27 +133,6 @@
   accent-color: var(--primary-text);
 }
 
-/* One button style in Settings. */
-.settings-content .settings-card button:not(.primary):not(.icon-button),
-.settings-content .cache-diagnostics-actions button,
-.settings-content .watch-diagnostics-actions button,
-.settings-content .watch-diagnostics-panel button:not(.primary):not(.icon-button) {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--button-border);
-  border-radius: 8px;
-  background: var(--button-bg);
-  color: var(--text);
-  font-weight: 600;
-}
-
-.settings-content .settings-card button:not(.primary):not(.icon-button):hover:not(:disabled),
-.settings-content .cache-diagnostics-actions button:hover:not(:disabled),
-.settings-content .watch-diagnostics-panel button:not(.primary):not(.icon-button):hover:not(:disabled) {
-  border-color: var(--primary-border);
-  background: var(--surface-hover);
-}
-
 /* With the resource tree beside it, a window this narrow leaves too little
    for a list of sections as well: they go above the section instead. */
 @media (max-width: 1300px) {
@@ -180,22 +159,6 @@
   font-weight: 650;
 }
 
-.settings-content .audit-panel button:not(.primary):not(.icon-button) {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--button-border);
-  border-radius: 8px;
-  background: var(--button-bg);
-  color: var(--text);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.settings-content .audit-panel button:not(.primary):not(.icon-button):hover:not(:disabled) {
-  border-color: var(--primary-border);
-  background: var(--surface-hover);
-}
-
 /* Search, status and action on one line; copying and downloading under them. */
 .settings-content .audit-filters {
   grid-template-columns: minmax(200px, 1fr) minmax(130px, 170px) minmax(160px, 240px);
@@ -204,4 +167,83 @@
 .settings-content .audit-filter-actions {
   grid-column: 1 / -1;
   justify-content: flex-start;
+}
+
+/* One button in Settings and in About. The body sets no font size, so a button
+   nobody sized drew at 16px beside the 13px ones, and every card brought its own
+   height - 30, 32, 34 and 36px - border colour and radius. The section list,
+   the icon buttons and the cluster order arrows keep their own shapes. */
+:is(.settings-save-bar, .settings-content, .about-panel) button:not(.icon-button, .cluster-drag-handle, .cluster-order-button) {
+  appearance: none;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--button-border);
+  border-radius: 8px;
+  background: var(--button-bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+:is(.settings-save-bar, .settings-content, .about-panel) button:not(.icon-button, .cluster-drag-handle, .cluster-order-button):hover:not(:disabled) {
+  border-color: var(--primary-border);
+  background: var(--button-hover);
+}
+
+:is(.settings-save-bar, .settings-content, .about-panel) button.primary {
+  border-color: var(--primary-border);
+  background: var(--primary);
+  color: var(--text-inverse);
+}
+
+:is(.settings-save-bar, .settings-content, .about-panel) button.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+:is(.settings-save-bar, .settings-content, .about-panel) button.danger {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+:is(.settings-save-bar, .settings-content, .about-panel) button.danger:hover:not(:disabled) {
+  border-color: var(--danger-text);
+  background: var(--danger-bg);
+}
+
+/* Refresh says how it went in its own colour for a moment. */
+:is(.settings-save-bar, .settings-content, .about-panel) button.async-action-button.is-success {
+  border-color: var(--success-border);
+  color: var(--success-text);
+}
+
+:is(.settings-save-bar, .settings-content, .about-panel) button.async-action-button.is-error {
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+}
+
+:is(.settings-save-bar, .settings-content, .about-panel) button:not(.icon-button, .cluster-drag-handle, .cluster-order-button):disabled {
+  border-color: var(--border);
+  background: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
+}
+
+/* The limit and Refresh stay on one line beside the log's title. */
+.settings-content .audit-header-actions {
+  flex-wrap: nowrap;
+}
+
+.settings-content .audit-header-actions select {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
 }

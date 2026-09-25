@@ -432,55 +432,6 @@
   width: auto;
 }
 
-.about-actions > button.about-action-button,
-.path-row > button {
-  flex: 0 0 auto;
-  width: auto;
-  min-height: 32px;
-  padding-inline: 12px;
-  border-radius: 8px;
-}
-
-.about-actions > button.about-action-button {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--button-border);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0;
-  text-transform: none;
-  white-space: nowrap;
-}
-
-.about-actions > button.about-refresh-button {
-  min-width: 132px;
-  background: var(--button-bg);
-  color: var(--text);
-}
-
-.about-actions > button.about-copy-button {
-  min-width: 164px;
-  border-color: var(--primary-border);
-  background: var(--primary);
-  color: var(--text-inverse);
-}
-
-.about-actions > button.about-refresh-button:hover:not(:disabled) {
-  border-color: var(--primary-border);
-  background: var(--button-hover);
-}
-
-.about-actions > button.about-copy-button:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
 .settings-local-activity {
   display: flex;
   align-items: center;
@@ -551,20 +502,183 @@
   grid-template-columns: 170px minmax(0, 1fr) auto;
 }
 
-/* The update buttons sit in the value column, so the card keeps one label
-   column throughout instead of the actions starting a layout of their own.
-   `.about-row dd` truncates to a single line, which is right for a path and
-   wrong for a row of buttons. */
-.about-update-row {
-  align-items: start;
+/* A card with its own buttons: the title on the left, the buttons on its line. */
+.about-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
 }
 
-.about-update-actions {
+.about-card-head h3 {
+  margin: 0;
+}
+
+.about-card-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  overflow: visible;
-  white-space: normal;
+}
+
+/* The version on offer: what it is, what it changes, and the button that
+   gets it, set apart from the rows of the card. */
+.update-offer {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid var(--primary-border);
+  border-radius: 10px;
+  background: var(--primary-soft);
+}
+
+.update-offer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.update-offer-version {
+  display: grid;
+  gap: 2px;
+}
+
+.update-offer-version span {
+  color: var(--focus-ring);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.update-offer-version strong {
+  color: var(--text-strong);
+  font-size: 18px;
+}
+
+.update-offer-version small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.update-offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.update-offer-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.update-offer-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 200ms ease;
+}
+
+.update-offer-empty {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 13px;
+}
+
+.release-notes {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.release-notes-title {
+  margin: 0 0 8px;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+/* A release of the usual length reads in full; three of them scroll. */
+.release-notes-body {
+  display: grid;
+  gap: 14px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.release-notes-version > :first-child {
+  margin-top: 0;
+}
+
+.release-notes-version + .release-notes-version {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.release-notes-version-title {
+  margin: 0 0 4px;
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.release-notes-version h5,
+.release-notes-version h6 {
+  margin: 12px 0 4px;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.release-notes-version h6 {
+  color: var(--muted-strong);
+}
+
+.release-notes-version p {
+  margin: 4px 0;
+  color: var(--muted-strong);
+}
+
+.release-notes-version ul,
+.release-notes-version ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.release-notes-version li + li {
+  margin-top: 2px;
+}
+
+/* Inline, unlike `.about-card code`, which is a block for a path. */
+.release-notes .release-notes-version code {
+  display: inline;
+  margin: 0;
+  border: none;
+  color: var(--text-strong);
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--code-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.release-notes-version pre {
+  overflow-x: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--code-bg);
+}
+
+.release-notes .release-notes-version pre code {
+  padding: 0;
+  background: none;
 }
 
 .about-card code {

@@ -4,6 +4,7 @@ import type { AppConfig, BackendInfo, Cluster, DesktopInfo, ErrorInfo, UpdateSta
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
+import { ReleaseNotes } from "./ReleaseNotes";
 
 export function AboutPanel({
   api,
@@ -108,14 +109,8 @@ export function AboutPanel({
           <p>{t("about.description")}</p>
         </div>
         <div className="about-actions">
-          <AsyncActionButton
-            className="secondary-btn about-action-button about-refresh-button"
-            phase={refreshFeedback.phase}
-            labels={refreshActionLabels(t)}
-            onClick={() => void refreshFeedback.run(() => load())}
-            disabled={loading}
-          />
-          <button className="primary about-action-button about-copy-button" onClick={copyDiagnostics}>
+          <AsyncActionButton className="secondary-btn" phase={refreshFeedback.phase} labels={refreshActionLabels(t)} onClick={() => void refreshFeedback.run(() => load())} disabled={loading} />
+          <button className="primary" onClick={copyDiagnostics}>
             {copied ? t("common.copied") : t("about.copyDiagnostics")}
           </button>
         </div>
@@ -207,34 +202,71 @@ function UpdatesCard({ t }: { t: (key: string) => string }) {
   }, []);
 
   const busy = update?.status === "checking" || update?.status === "downloading";
-  const reason = update && !update.canInstall ? translateUpdateReason(update.message, t) : "";
+  // An unsupported build says why in its status already; a second row saying
+  // the same thing again is only for the builds that can check but not install.
+  const reason = update && !update.canInstall && update.status !== "unsupported" ? translateUpdateReason(update.message, t) : "";
+  const offered = update?.status === "available" || update?.status === "downloading" || update?.status === "downloaded";
 
   return (
-    <AboutCard title={t("about.updates")} wide>
-      <InfoRow label={t("about.updateStatus")} value={updateStatusText(update, t)} />
-      {reason ? <InfoRow label={t("about.updateInstallable")} value={reason} /> : null}
-      <div className="about-row about-update-row">
-        <dt>{t("about.updateActions")}</dt>
-        <dd className="about-update-actions">
+    <AboutCard
+      title={t("about.updates")}
+      wide
+      actions={
+        <>
           <button className="secondary-btn" onClick={() => void window.kubedeck.checkForUpdates()} disabled={busy}>
             {t("about.updateCheck")}
           </button>
-          {update?.status === "available" && update.canInstall ? (
+          <button className="secondary-btn" onClick={() => void window.kubedeck.openReleases()}>
+            {t("about.updateReleases")}
+          </button>
+        </>
+      }
+    >
+      <InfoRow label={t("about.updateStatus")} value={updateStatusText(update, t)} />
+      {reason ? <InfoRow label={t("about.updateInstallable")} value={reason} /> : null}
+      {offered && update ? <UpdateOffer update={update} t={t} /> : null}
+    </AboutCard>
+  );
+}
+
+// The new version, what it changes and the one step that gets it, together:
+// what to decide and the button to act on it are read in the same place.
+function UpdateOffer({ update, t }: { update: UpdateState; t: (key: string) => string }) {
+  return (
+    <div className="update-offer">
+      <div className="update-offer-head">
+        <div className="update-offer-version">
+          <span>{t("about.updateOffered")}</span>
+          <strong>KubeDeck {update.availableVersion}</strong>
+          <small>
+            {t("about.updateInstalledVersion")} {update.currentVersion}
+          </small>
+        </div>
+        <div className="update-offer-actions">
+          {update.status === "available" && update.canInstall ? (
             <button className="primary" onClick={() => void window.kubedeck.downloadUpdate()}>
               {t("about.updateDownload")}
             </button>
           ) : null}
-          {update?.status === "downloaded" ? (
+          {update.status === "available" && !update.canInstall ? (
+            <button className="primary" onClick={() => void window.kubedeck.openReleases()}>
+              {t("about.updateReleases")}
+            </button>
+          ) : null}
+          {update.status === "downloaded" ? (
             <button className="primary" onClick={() => void window.kubedeck.installUpdate()}>
               {t("about.updateInstall")}
             </button>
           ) : null}
-          <button className="secondary-btn" onClick={() => void window.kubedeck.openReleases()}>
-            {t("about.updateReleases")}
-          </button>
-        </dd>
+        </div>
       </div>
-    </AboutCard>
+      {update.status === "downloading" ? (
+        <div className="update-offer-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={update.percent}>
+          <span style={{ width: `${update.percent}%` }} />
+        </div>
+      ) : null}
+      {update.releaseNotes.length ? <ReleaseNotes notes={update.releaseNotes} t={t} /> : <p className="update-offer-empty">{t("about.releaseNotesMissing")}</p>}
+    </div>
   );
 }
 
@@ -259,10 +291,17 @@ function translateUpdateReason(message: string, t: (key: string) => string): str
   return message.startsWith("about.update.reason.") ? t(message) : message;
 }
 
-function AboutCard({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {
+function AboutCard({ title, wide, actions, children }: { title: string; wide?: boolean; actions?: ReactNode; children: ReactNode }) {
   return (
     <article className={wide ? "about-card wide" : "about-card"}>
-      <h3>{title}</h3>
+      {actions ? (
+        <header className="about-card-head">
+          <h3>{title}</h3>
+          <div className="about-card-actions">{actions}</div>
+        </header>
+      ) : (
+        <h3>{title}</h3>
+      )}
       {children}
     </article>
   );

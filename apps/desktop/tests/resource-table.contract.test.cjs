@@ -507,3 +507,14 @@ test("nodes sort on the conditions they show, so pressure is not filed under Rea
   const sorted = [...rows].sort((left, right) => model.compareRows(left, right, "status")).map((row) => row.name);
   assert.deepEqual(sorted, ["b", "d", "a", "c"], "the node under pressure is not among the healthy ones");
 });
+
+test("an age past a year is written in years", () => {
+  const { formatElapsed } = loadTypeScript("utils/time.ts");
+  const day = 86_400_000;
+  assert.equal(formatElapsed(364 * day), "364d");
+  assert.equal(formatElapsed(365 * day), "1y");
+  assert.equal(formatElapsed(400 * day), "1y35d", "not 400d");
+  assert.equal(formatElapsed(730 * day + 3_600_000), "2y");
+  assert.equal(formatElapsed(3 * day), "3d");
+  assert.equal(formatElapsed(3_661_000), "01:01:01");
+});

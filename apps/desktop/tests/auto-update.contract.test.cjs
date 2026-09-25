@@ -131,6 +131,30 @@ test("the application asks for updates and downloads none unasked", () => {
   }
 });
 
+// What a new version changes reaches the window in one shape, whichever of its
+// two shapes electron-updater used - a string for one release, a list for the
+// changelog - and without the releases that had nothing to say.
+test("release notes reach the window as one list", () => {
+  const { releaseNotesOf } = require("../dist/shared/updateState.js");
+  assert.deepEqual(releaseNotesOf({ version: "2.28.0", releaseNotes: "<p>One.</p>" }), [{ version: "2.28.0", html: "<p>One.</p>" }]);
+  assert.deepEqual(
+    releaseNotesOf({
+      version: "2.29.0",
+      releaseNotes: [
+        { version: "2.29.0", note: "<p>Two.</p>" },
+        { version: "2.28.1", note: null },
+        { version: "2.28.0", note: "  " },
+      ],
+    }),
+    [{ version: "2.29.0", html: "<p>Two.</p>" }],
+  );
+  assert.deepEqual(releaseNotesOf({ version: "2.28.0", releaseNotes: null }), []);
+  assert.deepEqual(releaseNotesOf({ version: "2.28.0", releaseNotes: "" }), []);
+
+  // Every version skipped, not only the newest.
+  assert.match(read("apps/desktop/src/main/updates.ts"), /autoUpdater\.fullChangelog = true/);
+});
+
 test("the window reopens where it closed, unless that screen is gone", () => {
   const { restorableWindowState, isForwardedServiceUrl } = require("../dist/main/windowState.js");
   const screenArea = { x: 0, y: 0, width: 1920, height: 1040 };

@@ -126,7 +126,7 @@ export function ClusterPanel(props: {
               <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.editKubeconfig(cluster)}>
                 {props.t("clusters.editKubeconfig")}
               </button>
-              <button disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.removeCluster(cluster)}>
+              <button className="danger" disabled={actionsDisabled || props.openingClusterId === cluster.id} onClick={() => props.removeCluster(cluster)}>
                 {props.t("clusters.remove")}
               </button>
             </div>

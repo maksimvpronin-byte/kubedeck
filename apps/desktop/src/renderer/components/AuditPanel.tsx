@@ -46,7 +46,7 @@ function downloadText(filename: string, text: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function AuditPanel({ api, copyLabel, t, onError }: { api: ApiClient | null; copyLabel: string; t: (key: string) => string; onError: (error: ErrorInfo) => void }) {
+export function AuditPanel({ api, t, onError }: { api: ApiClient | null; t: (key: string) => string; onError: (error: ErrorInfo) => void }) {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [limit, setLimit] = useState(300);
@@ -225,7 +225,7 @@ export function AuditPanel({ api, copyLabel, t, onError }: { api: ApiClient | nu
               {event.message ? <p>{event.message}</p> : null}
               {event.extra && Object.keys(event.extra).length ? <small>{JSON.stringify(event.extra)}</small> : null}
               <div className="row-actions">
-                <button onClick={() => copyAudit(event)}>{copyLabel}</button>
+                <button onClick={() => copyAudit(event)}>{t("audit.copyEvent")}</button>
               </div>
             </article>
           ))}

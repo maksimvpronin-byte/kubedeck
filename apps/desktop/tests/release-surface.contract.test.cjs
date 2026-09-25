@@ -132,6 +132,7 @@ test("2.9.0 overview and navigation polish stay contracted", () => {
   const terminalStyles = fs.readFileSync(path.join(rendererRoot, "styles/terminal.css"), "utf8");
   const layoutStyles = fs.readFileSync(path.join(rendererRoot, "styles/layout.css"), "utf8");
   const panelStyles = fs.readFileSync(path.join(rendererRoot, "styles/panels.css"), "utf8");
+  const settingsStyles = fs.readFileSync(path.join(rendererRoot, "styles/settings.css"), "utf8");
   assert.match(navigation, /id: "overview", icon: LayoutDashboard/);
   assert.doesNotMatch(navigation, /events:\s*\["events"\]/);
   assert.doesNotMatch(navigation, /id: "audit"/);
@@ -160,11 +161,11 @@ test("2.9.0 overview and navigation polish stay contracted", () => {
   assert.match(settings, /section === "activity" \? <AuditPanel/);
   assert.doesNotMatch(about, /about\.python|package:win|1\.1\.0/);
   assert.match(about, /className="about-badge"/);
-  assert.match(about, /about-action-button about-refresh-button/);
-  assert.match(about, /about-action-button about-copy-button/);
   assert.doesNotMatch(panelStyles, /\.about-hero span\s*\{/);
   assert.match(layoutStyles, /\.icon-text,\s*\.secondary-btn,/);
-  assert.match(panelStyles, /\.about-actions > button\.about-action-button\s*\{[^}]*height:\s*36px;[^}]*font-size:\s*13px;/s);
+  // One button for Settings and About: the body sets no font size, so a button
+  // left unsized drew at 16px beside 13px ones.
+  assert.match(settingsStyles, /:is\(\.settings-save-bar, \.settings-content, \.about-panel\) button:not\([^)]*\)\s*\{[^}]*height:\s*32px;[^}]*font-size:\s*13px;/s);
   assert.match(panelStyles, /@media \(max-width:\s*1100px\)[\s\S]*\.about-actions\s*\{[^}]*width:\s*max-content;[^}]*justify-content:\s*flex-start;/);
   assert.match(table, /className="table-view-controls"[\s\S]*className="table-filter"[\s\S]*<ResourceTableColumnsMenu/);
   assert.match(tableStyles, /\.table-view-controls\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;/s);

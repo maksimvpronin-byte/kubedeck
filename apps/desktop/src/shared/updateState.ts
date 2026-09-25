@@ -39,4 +39,25 @@ export interface UpdateState {
   canInstall: boolean;
   /** Where to go when installing in place is not on offer. */
   releasesUrl: string;
+  /**
+   * What the versions between this one and the one on offer change, newest
+   * first. Empty until a check finds a newer release.
+   */
+  releaseNotes: ReleaseNote[];
+}
+
+/** One release's notes, as GitHub renders them: HTML, not Markdown. */
+export interface ReleaseNote {
+  version: string;
+  html: string;
+}
+
+// electron-updater hands over a string when it read one release and a list
+// when it read the changelog, and nothing at all when the release has no body.
+// One shape for the window, with the empty entries dropped.
+export function releaseNotesOf(info: { version: string; releaseNotes?: string | Array<{ version: string; note?: string | null }> | null }): ReleaseNote[] {
+  const notes = info.releaseNotes;
+  if (typeof notes === "string") return notes.trim() ? [{ version: info.version, html: notes }] : [];
+  if (!Array.isArray(notes)) return [];
+  return notes.filter((entry) => typeof entry.note === "string" && entry.note.trim()).map((entry) => ({ version: entry.version, html: entry.note as string }));
 }
