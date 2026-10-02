@@ -58,7 +58,7 @@ interface Props {
   onImportKubeconfig: () => void;
   onOpenCluster: (cluster: Cluster) => void;
   onRenameCluster: (cluster: Cluster) => void;
-  onRemoveCluster: (cluster: Cluster) => Promise<void>;
+  onRemoveCluster: (cluster: Cluster) => void;
   onReorderClusters: (clusters: Cluster[]) => Promise<void> | void;
   onOpenResourceLocator: (row: ResourceRow) => Promise<void>;
   onRefreshResources: () => void;

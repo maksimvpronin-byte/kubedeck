@@ -440,6 +440,11 @@ export type Section =
   | "help"
   | "settings";
 
+// Leaving what is on screen can lose an edit. The guard runs `proceed` at once
+// when nothing would be lost, and returns what it returned; otherwise it asks
+// in a dialog, returns undefined, and runs `proceed` only once the person agrees.
+export type NavigationGuard = <T>(proceed: () => T, nextSection?: Section) => T | undefined;
+
 export interface ResourceCacheEntry {
   clusterId: string;
   resource: string;

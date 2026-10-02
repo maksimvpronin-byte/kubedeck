@@ -12,6 +12,8 @@ import { AppResourceWorkspace } from "./components/AppResourceWorkspace";
 import { AppSectionRouter } from "./components/AppSectionRouter";
 import { AppSidebar } from "./components/AppSidebar";
 import { AppTopbar } from "./components/AppTopbar";
+import { ConfirmDialog } from "./components/ConfirmDialog";
+import type { ConfirmRequest } from "./components/ConfirmDialog";
 import { DisconnectClusterModal } from "./components/DisconnectClusterModal";
 import { RenameClusterModal } from "./components/RenameClusterModal";
 import { useGlobalSearch } from "./hooks/useGlobalSearch";
@@ -35,7 +37,7 @@ import { buildResourceTableColumns } from "./utils/resourceTableColumns";
 import { createTranslator } from "./i18n";
 import { isPlaceholderSection, normalizeStoredSection, resourceLabel, sectionForResource, visibleTabs } from "./navigation";
 import { findResourceDefinition, groupCrds } from "./utils/kubeResources";
-import type { ApiKeyUpdate, Cluster, ErrorInfo, ResourceRow, Section, Settings } from "./types";
+import type { ApiKeyUpdate, Cluster, ErrorInfo, NavigationGuard, ResourceRow, Section, Settings } from "./types";
 import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
@@ -65,6 +67,7 @@ export function App() {
   const [languagePreview, setLanguagePreview] = useState<Settings["language"] | null>(null);
   const drawerDirtyRef = useRef(false);
   const settingsDirtyRef = useRef(false);
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const pinNextSelectionRef = useRef(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(initialUiState.expandedSections ?? ["namespaces", "rbac", "workloads", "network", "storage", "config", "crd"]));
   const [expandedCrdGroups, setExpandedCrdGroups] = useState<Set<string>>(new Set(initialUiState.expandedCrdGroups ?? []));
@@ -181,9 +184,17 @@ export function App() {
   // when the move goes to another section - opening a cluster from the rail
   // leaves the settings on screen, and the form with them. The panel reports
   // itself dirty only while it is mounted.
-  const confirmDrawerNavigation = useCallback(
-    (nextSection?: Section) =>
-      (!drawerDirtyRef.current || window.confirm(t("drawer.discardYaml"))) && (!settingsDirtyRef.current || !nextSection || nextSection === "settings" || window.confirm(t("settings.discard"))),
+  const confirmDrawerNavigation = useCallback<NavigationGuard>(
+    (proceed, nextSection) => {
+      const leaveSettings = () => {
+        if (!settingsDirtyRef.current || !nextSection || nextSection === "settings") return proceed();
+        setConfirmRequest({ title: t("common.unsavedTitle"), message: t("settings.discard"), confirmLabel: t("common.leaveWithoutSaving"), onConfirm: () => void proceed() });
+        return undefined;
+      };
+      if (!drawerDirtyRef.current) return leaveSettings();
+      setConfirmRequest({ title: t("drawer.modal.unsavedTitle"), message: t("drawer.discardYaml"), confirmLabel: t("common.discardChanges"), onConfirm: () => void leaveSettings() });
+      return undefined;
+    },
     [t],
   );
   const setSettingsDirty = useCallback((dirty: boolean) => {
@@ -454,11 +465,14 @@ export function App() {
     window.addEventListener("mouseup", onUp, { once: true });
   }
 
-  async function removeClusterWorkspace(cluster: (typeof clusters)[number]) {
+  function removeClusterWorkspace(cluster: (typeof clusters)[number]) {
     const resourceCount = resourceWorkspaceTabs.filter((tab) => tab.clusterId === cluster.id).length;
     const terminalCount = bottomTerminals.filter((target) => target.clusterId === cluster.id).length;
     const question = t("clusters.removeConfirm").replace("{name}", cluster.displayName).replace("{tabs}", String(resourceCount)).replace("{terminals}", String(terminalCount));
-    if (!window.confirm(question)) return;
+    setConfirmRequest({ title: t("clusters.removeTitle"), message: question, confirmLabel: t("clusters.remove"), danger: true, onConfirm: () => void removeConfirmedClusterWorkspace(cluster) });
+  }
+
+  async function removeConfirmedClusterWorkspace(cluster: (typeof clusters)[number]) {
     // A removal the backend refused used to vanish as an unhandled rejection,
     // leaving the cluster in place with nothing said about why.
     let removed = false;
@@ -486,7 +500,7 @@ export function App() {
     onRename: startRenameCluster,
     onEditKubeconfig: setKubeconfigCluster,
     onOpenSettings: () => selectSection("settings"),
-    onRemove: (cluster) => void removeClusterWorkspace(cluster),
+    onRemove: (cluster) => removeClusterWorkspace(cluster),
   };
 
   return (
@@ -509,7 +523,7 @@ export function App() {
           // A cluster can be active and disconnected at once, when it was
           // disconnected while being viewed. Clicking it then reconnects.
           if (cluster.id === activeCluster?.id && connectedClusterIds.includes(cluster.id)) return;
-          if (confirmDrawerNavigation()) openClusterFromUi(cluster);
+          confirmDrawerNavigation(() => openClusterFromUi(cluster));
         }}
         onDisconnect={(cluster) => {
           void disconnectCluster(cluster);
@@ -564,7 +578,7 @@ export function App() {
                 ...clusterMenuActions,
                 // Offered only while the cluster is disconnected.
                 onConnect: (cluster) => {
-                  if (confirmDrawerNavigation()) openClusterFromUi(cluster);
+                  confirmDrawerNavigation(() => openClusterFromUi(cluster));
                 },
                 onDisconnect: (cluster) => void disconnectCluster(cluster),
               }}
@@ -671,17 +685,21 @@ export function App() {
                 onNodeAction={bulkActions.requestNodeAction}
                 onVisibleNodeRows={loadVisibleNodeDisk}
                 onSelectRow={(selectedRow, resource) => {
-                  if (!activeCluster || !confirmDrawerNavigation()) return;
-                  pinNextSelectionRef.current = false;
-                  setActiveResourceTabId(null);
-                  cancelResourceNavigation();
-                  setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
+                  if (!activeCluster) return;
+                  confirmDrawerNavigation(() => {
+                    pinNextSelectionRef.current = false;
+                    setActiveResourceTabId(null);
+                    cancelResourceNavigation();
+                    setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
+                  });
                 }}
                 onPinRow={(selectedRow, resource) => {
-                  if (!activeCluster || !confirmDrawerNavigation()) return;
-                  pinNextSelectionRef.current = true;
-                  cancelResourceNavigation();
-                  setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
+                  if (!activeCluster) return;
+                  confirmDrawerNavigation(() => {
+                    pinNextSelectionRef.current = true;
+                    cancelResourceNavigation();
+                    setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
+                  });
                 }}
                 onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
                 onBulkDelete={bulkActions.requestBulkDelete}
@@ -747,6 +765,7 @@ export function App() {
           ) : null}
         </section>
       </main>
+      <ConfirmDialog request={confirmRequest} t={t} onClose={() => setConfirmRequest(null)} />
       <RenameClusterModal open={Boolean(renameTarget)} draft={renameDraft} renaming={renaming} t={t} onDraftChange={setRenameDraft} onCancel={cancelRenameCluster} onConfirm={confirmRenameCluster} />
       <AppCommandPalette
         open={commandPaletteOpen}

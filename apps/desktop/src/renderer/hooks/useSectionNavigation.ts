@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { resourceTree } from "../navigation";
-import type { Section } from "../types";
+import type { NavigationGuard, Section } from "../types";
 import type { ResourceDefinition } from "../types";
 import { findResourceDefinition } from "../utils/kubeResources";
 import type { SelectedResourceTarget } from "./useResourceNavigation";
@@ -17,7 +17,7 @@ interface Options {
   setNamespaceSelection: (value: string | string[]) => void;
   restoreNamespacedSelection: () => void;
   cancelResourceNavigation: () => void;
-  confirmDrawerNavigation: (nextSection?: Section) => boolean;
+  confirmDrawerNavigation: NavigationGuard;
 }
 
 export interface SectionNavigation {
@@ -50,97 +50,99 @@ export function useSectionNavigation({
 
   const selectSection = useCallback(
     (next: Section) => {
-      if (!confirmDrawerNavigation(next)) return;
-      cancelResourceNavigation();
-      setSection(next);
+      confirmDrawerNavigation(() => {
+        cancelResourceNavigation();
+        setSection(next);
 
-      if (resourceTree[next]) {
-        setExpandedSections((current) => new Set(current).add(next));
-      }
+        if (resourceTree[next]) {
+          setExpandedSections((current) => new Set(current).add(next));
+        }
 
-      if (next === "nodes") {
-        setResourceTab("nodes");
-        setNamespaceSelection("_cluster");
-        return;
-      }
+        if (next === "nodes") {
+          setResourceTab("nodes");
+          setNamespaceSelection("_cluster");
+          return;
+        }
 
-      if (next === "overview") {
-        restoreNamespacesIfClusterScoped();
-        return;
-      }
+        if (next === "overview") {
+          restoreNamespacesIfClusterScoped();
+          return;
+        }
 
-      if (next === "namespaces") {
-        setResourceTab("namespaces");
-        setNamespaceSelection("_cluster");
-        return;
-      }
+        if (next === "namespaces") {
+          setResourceTab("namespaces");
+          setNamespaceSelection("_cluster");
+          return;
+        }
 
-      if (next === "crd") {
-        setResourceTab("customresourcedefinitions");
-        setNamespaceSelection("_cluster");
-        return;
-      }
+        if (next === "crd") {
+          setResourceTab("customresourcedefinitions");
+          setNamespaceSelection("_cluster");
+          return;
+        }
 
-      if (next === "rbac") {
-        setResourceTab("serviceaccounts");
-        restoreNamespacesIfClusterScoped();
-        return;
-      }
+        if (next === "rbac") {
+          setResourceTab("serviceaccounts");
+          restoreNamespacesIfClusterScoped();
+          return;
+        }
 
-      if (next === "workloads") {
-        setResourceTab("pods");
-        restoreNamespacesIfClusterScoped();
-        return;
-      }
+        if (next === "workloads") {
+          setResourceTab("pods");
+          restoreNamespacesIfClusterScoped();
+          return;
+        }
 
-      if (next === "network") {
-        setResourceTab("services");
-        restoreNamespacesIfClusterScoped();
-        return;
-      }
+        if (next === "network") {
+          setResourceTab("services");
+          restoreNamespacesIfClusterScoped();
+          return;
+        }
 
-      if (next === "storage") {
-        setResourceTab("persistentvolumeclaims");
-        restoreNamespacesIfClusterScoped();
-        return;
-      }
+        if (next === "storage") {
+          setResourceTab("persistentvolumeclaims");
+          restoreNamespacesIfClusterScoped();
+          return;
+        }
 
-      if (next === "config") {
-        setResourceTab("configmaps");
-        restoreNamespacesIfClusterScoped();
-        return;
-      }
+        if (next === "config") {
+          setResourceTab("configmaps");
+          restoreNamespacesIfClusterScoped();
+          return;
+        }
 
-      if (next === "events") {
-        setResourceTab("events");
-        restoreNamespacesIfClusterScoped();
-      }
+        if (next === "events") {
+          setResourceTab("events");
+          restoreNamespacesIfClusterScoped();
+        }
+      }, next);
     },
     [confirmDrawerNavigation, cancelResourceNavigation, setSection, setExpandedSections, setResourceTab, setNamespaceSelection, restoreNamespacesIfClusterScoped],
   );
 
   const selectTreeResource = useCallback(
     (sectionId: Section, resource: string) => {
-      if (!confirmDrawerNavigation(sectionId)) return;
-      cancelResourceNavigation();
-      if (resource === "port-forwards") {
-        setSection("port-forwards");
-        setResourceTab("port-forwards");
-        setSelectedTarget(null);
-        return;
-      }
-      setSection(sectionId);
-      setResourceTab(resource);
-      if (resource === "customresourcedefinitions") {
-        setNamespaceSelection("_cluster");
-        return;
-      }
-      const definition = findResourceDefinition(resourceDefinitions, resource);
-      if (definition && !definition.namespaced) {
-        setNamespaceSelection("_cluster");
-      } else {
-        restoreNamespacesIfClusterScoped();
-      }
+      confirmDrawerNavigation(() => {
+        cancelResourceNavigation();
+        if (resource === "port-forwards") {
+          setSection("port-forwards");
+          setResourceTab("port-forwards");
+          setSelectedTarget(null);
+          return;
+        }
+        setSection(sectionId);
+        setResourceTab(resource);
+        if (resource === "customresourcedefinitions") {
+          setNamespaceSelection("_cluster");
+          return;
+        }
+        const definition = findResourceDefinition(resourceDefinitions, resource);
+        if (definition && !definition.namespaced) {
+          setNamespaceSelection("_cluster");
+        } else {
+          restoreNamespacesIfClusterScoped();
+        }
+      }, sectionId);
     },
     [confirmDrawerNavigation, cancelResourceNavigation, setSection, setResourceTab, setSelectedTarget, setNamespaceSelection, resourceDefinitions, restoreNamespacesIfClusterScoped],
   );

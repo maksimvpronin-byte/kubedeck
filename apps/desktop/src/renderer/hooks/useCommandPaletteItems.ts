@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { CommandPaletteItem } from "../components/CommandPalette";
 import { resourceLabel, resourceTree, sections } from "../navigation";
-import type { Cluster, GlobalSearchItem, ResourceDefinition, ResourceRow, Section } from "../types";
+import type { Cluster, GlobalSearchItem, NavigationGuard, ResourceDefinition, ResourceRow, Section } from "../types";
 import { groupCrds } from "../utils/kubeResources";
 
 interface Options {
@@ -15,7 +15,7 @@ interface Options {
   resourceTab: string;
   namespace: string;
   resourceDefinitions: ResourceDefinition[];
-  confirmDrawerNavigation: () => boolean;
+  confirmDrawerNavigation: NavigationGuard;
   openCluster: (cluster: Cluster) => void;
   selectSection: (section: Section) => void;
   selectTreeResource: (section: Section, resource: string) => void;
@@ -96,8 +96,7 @@ export function useCommandPaletteItems({
         category: t("command.category.cluster"),
         keywords: `${cluster.displayName} ${cluster.kubeconfigPath}`,
         run: () => {
-          if (!confirmDrawerNavigation()) return;
-          openCluster(cluster);
+          confirmDrawerNavigation(() => openCluster(cluster));
         },
       });
     }
@@ -113,11 +112,12 @@ export function useCommandPaletteItems({
         category: t("command.category.open"),
         keywords: `${resourceTab} ${rowName} ${rowNamespace} ${String(row.kind ?? "")} ${String(row.status ?? "")} ${String(row.phase ?? "")}`,
         run: () => {
-          if (!confirmDrawerNavigation()) return;
-          cancelResourceNavigation();
-          keepCurrentSelection();
-          if (activeCluster) setSelectedTarget({ clusterId: activeCluster.id, resource: resourceTab, row });
-          if (rowNamespace && rowNamespace !== "_cluster" && namespace !== "_cluster") setNamespaceSelection(rowNamespace);
+          confirmDrawerNavigation(() => {
+            cancelResourceNavigation();
+            keepCurrentSelection();
+            if (activeCluster) setSelectedTarget({ clusterId: activeCluster.id, resource: resourceTab, row });
+            if (rowNamespace && rowNamespace !== "_cluster" && namespace !== "_cluster") setNamespaceSelection(rowNamespace);
+          });
         },
       });
     }

@@ -4,6 +4,7 @@ import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { ErrorPanel } from "./ErrorPanel";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { YamlSourceEditor } from "./YamlSourceEditor";
 
 interface Props {
@@ -25,6 +26,7 @@ export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Pro
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const changed = content !== loadedContent;
 
   useEffect(() => {
@@ -57,8 +59,8 @@ export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Pro
   if (!cluster) return null;
 
   function requestClose() {
-    if (changed && !window.confirm(t("kubeconfig.discard"))) return;
-    onClose();
+    if (changed) setConfirmingDiscard(true);
+    else onClose();
   }
 
   async function save() {
@@ -79,47 +81,54 @@ export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Pro
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="kubeconfig-modal" role="dialog" aria-modal="true" aria-labelledby="kubeconfig-title">
-        <header>
-          <h2 id="kubeconfig-title">{`${t("kubeconfig.title")} — ${cluster.displayName}`}</h2>
-          <button className="icon-button" onClick={requestClose} disabled={saving} title={t("common.close")} aria-label={t("common.close")}>
-            <X size={16} />
-          </button>
-        </header>
-        <div className="kubeconfig-body">
-          <p className="kubeconfig-warning">
-            <ShieldAlert size={15} aria-hidden="true" />
-            <span>{t("kubeconfig.credentialsWarning")}</span>
-          </p>
-          <p className="muted small kubeconfig-path" title={path}>
-            {path}
-          </p>
-          <ErrorPanel error={error} copyLabel={t("error.copy")} t={t} />
-          {!editable && !loading ? <p className="kubeconfig-readonly">{t("kubeconfig.readOnly")}</p> : null}
-          {loading ? (
-            <div className="panel-loading" role="status">
-              {t("common.loading")}
-            </div>
-          ) : (
-            <YamlSourceEditor value={content} readOnly={!editable || saving} ariaLabel={t("kubeconfig.title")} onChange={setContent} />
-          )}
-        </div>
-        <footer>
-          <label className="kubeconfig-confirm">
-            {t("kubeconfig.confirm")}
-            <input value={typedName} placeholder={cluster.displayName} disabled={!editable || saving} onChange={(event) => setTypedName(event.target.value)} />
-          </label>
-          <div className="kubeconfig-actions">
-            <button onClick={requestClose} disabled={saving}>
-              {t("common.cancel")}
+    <>
+      <div className="modal-backdrop" role="presentation">
+        <section className="kubeconfig-modal" role="dialog" aria-modal="true" aria-labelledby="kubeconfig-title">
+          <header>
+            <h2 id="kubeconfig-title">{`${t("kubeconfig.title")} — ${cluster.displayName}`}</h2>
+            <button className="icon-button" onClick={requestClose} disabled={saving} title={t("common.close")} aria-label={t("common.close")}>
+              <X size={16} />
             </button>
-            <button className="primary" onClick={() => void save()} disabled={!editable || saving || loading || !changed || typedName.trim() !== cluster.displayName}>
-              {saving ? t("kubeconfig.saving") : t("kubeconfig.save")}
-            </button>
+          </header>
+          <div className="kubeconfig-body">
+            <p className="kubeconfig-warning">
+              <ShieldAlert size={15} aria-hidden="true" />
+              <span>{t("kubeconfig.credentialsWarning")}</span>
+            </p>
+            <p className="muted small kubeconfig-path" title={path}>
+              {path}
+            </p>
+            <ErrorPanel error={error} copyLabel={t("error.copy")} t={t} />
+            {!editable && !loading ? <p className="kubeconfig-readonly">{t("kubeconfig.readOnly")}</p> : null}
+            {loading ? (
+              <div className="panel-loading" role="status">
+                {t("common.loading")}
+              </div>
+            ) : (
+              <YamlSourceEditor value={content} readOnly={!editable || saving} ariaLabel={t("kubeconfig.title")} onChange={setContent} />
+            )}
           </div>
-        </footer>
-      </section>
-    </div>
+          <footer>
+            <label className="kubeconfig-confirm">
+              {t("kubeconfig.confirm")}
+              <input value={typedName} placeholder={cluster.displayName} disabled={!editable || saving} onChange={(event) => setTypedName(event.target.value)} />
+            </label>
+            <div className="kubeconfig-actions">
+              <button onClick={requestClose} disabled={saving}>
+                {t("common.cancel")}
+              </button>
+              <button className="primary" onClick={() => void save()} disabled={!editable || saving || loading || !changed || typedName.trim() !== cluster.displayName}>
+                {saving ? t("kubeconfig.saving") : t("kubeconfig.save")}
+              </button>
+            </div>
+          </footer>
+        </section>
+      </div>
+      <ConfirmDialog
+        request={confirmingDiscard ? { title: t("common.unsavedTitle"), message: t("kubeconfig.discard"), confirmLabel: t("common.discardChanges"), onConfirm: onClose } : null}
+        t={t}
+        onClose={() => setConfirmingDiscard(false)}
+      />
+    </>
   );
 }

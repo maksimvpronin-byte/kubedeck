@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ApiClient } from "../api";
 import { resourceTree, sectionForResource } from "../navigation";
-import type { Cluster, ErrorInfo, ResourceDefinition, ResourceRow, Section } from "../types";
+import type { Cluster, ErrorInfo, NavigationGuard, ResourceDefinition, ResourceRow, Section } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { findResourceDefinition, sameResourceIdentity } from "../utils/kubeResources";
 
@@ -70,7 +70,7 @@ interface Options {
   setExpandedSections: Dispatch<SetStateAction<Set<string>>>;
   setNamespaceSelection: (next: string | string[]) => void;
   setError: Dispatch<SetStateAction<ErrorInfo | null>>;
-  canNavigate?: () => boolean;
+  canNavigate?: NavigationGuard;
 }
 
 export function useResourceNavigation(options: Options) {
@@ -117,9 +117,8 @@ export function useResourceNavigation(options: Options) {
     }
   }, [activeCluster?.id, rows, selectedTarget, setSelectedTarget]);
 
-  const openResourceLocator = useCallback(
+  const showResourceLocator = useCallback(
     async (locator: ResourceRow) => {
-      if (canNavigate && !canNavigate()) return;
       if (!api || !activeCluster) {
         setSelectedTarget(null);
         return;
@@ -198,8 +197,14 @@ export function useResourceNavigation(options: Options) {
       setNamespaceSelection,
       setRows,
       setError,
-      canNavigate,
     ],
+  );
+
+  const openResourceLocator = useCallback(
+    async (locator: ResourceRow) => {
+      await (canNavigate ? canNavigate(() => showResourceLocator(locator)) : showResourceLocator(locator));
+    },
+    [canNavigate, showResourceLocator],
   );
 
   const openRelatedResource = useCallback(

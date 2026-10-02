@@ -58,9 +58,11 @@ function workspace(t, options = {}) {
       setSection: (value) => events.push({ name: "setSection", args: [value] }),
       setResourceTab: (value) => events.push({ name: "setResourceTab", args: [value] }),
       setError: (value) => events.push({ name: "setError", args: [value] }),
-      confirmDrawerNavigation: () => {
+      // Agreeing runs the move at once, as the application does when nothing
+      // would be lost; refusing never runs it.
+      confirmDrawerNavigation: (proceed) => {
         events.push({ name: "confirmDrawerNavigation", args: [] });
-        return state.confirms;
+        return state.confirms ? proceed() : undefined;
       },
       keepCurrentSelection: () => events.push({ name: "keepCurrentSelection", args: [] }),
       openCluster: async (cluster) => {

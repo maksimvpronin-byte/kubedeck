@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
 import type { ApiClient } from "../api";
 import type { SelectedResourceTarget } from "./useResourceNavigation";
-import type { Cluster, ErrorInfo, ResourceRow, Section } from "../types";
+import type { Cluster, ErrorInfo, NavigationGuard, ResourceRow, Section } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import {
   closeResourceWorkspaceTab,
@@ -26,7 +26,7 @@ interface Options {
   setSection: Dispatch<SetStateAction<Section>>;
   setResourceTab: Dispatch<SetStateAction<string>>;
   setError: Dispatch<SetStateAction<ErrorInfo | null>>;
-  confirmDrawerNavigation: (nextSection?: Section) => boolean;
+  confirmDrawerNavigation: NavigationGuard;
   keepCurrentSelection: () => void;
   openCluster: (cluster: Cluster) => Promise<void> | void;
   drawerDirtyRef: MutableRefObject<boolean>;
@@ -98,9 +98,8 @@ export function useResourceWorkspaceTabs({
     });
   }, [activeCluster?.id, activeCluster?.displayName, selectedTarget, section]);
 
-  const activateResourceTab = useCallback(
+  const showResourceTab = useCallback(
     async (tab: ResourceWorkspaceTab) => {
-      if (!confirmDrawerNavigation(tab.section)) return;
       const cluster = clusters.find((item) => item.id === tab.clusterId);
       if (!cluster || !api) {
         setResourceWorkspaceTabs((current) => current.map((item) => (item.id === tab.id ? { ...item, status: "unavailable" } : item)));
@@ -137,12 +136,18 @@ export function useResourceWorkspaceTabs({
         setError(asErrorInfo(err));
       }
     },
-    [api, activeCluster?.id, clusters, confirmDrawerNavigation, keepCurrentSelection, openCluster],
+    [api, activeCluster?.id, clusters, keepCurrentSelection, openCluster],
   );
 
+  const activateResourceTab = useCallback((tab: ResourceWorkspaceTab) => confirmDrawerNavigation(() => showResourceTab(tab), tab.section), [confirmDrawerNavigation, showResourceTab]);
+
   function closeResourceTab(id: string) {
+    if (id === activeResourceTabId) confirmDrawerNavigation(() => removeResourceTab(id));
+    else removeResourceTab(id);
+  }
+
+  function removeResourceTab(id: string) {
     const closingActiveTab = id === activeResourceTabId;
-    if (closingActiveTab && !confirmDrawerNavigation()) return;
     const result = closeResourceWorkspaceTab(resourceWorkspaceTabs, activeResourceTabId, id);
     setResourceWorkspaceTabs(result.tabs);
     if (!closingActiveTab) return;
@@ -158,9 +163,10 @@ export function useResourceWorkspaceTabs({
       closeResourceTab(activeResourceTabId);
       return;
     }
-    if (!confirmDrawerNavigation()) return;
-    drawerDirtyRef.current = false;
-    setSelectedTarget(null);
+    confirmDrawerNavigation(() => {
+      drawerDirtyRef.current = false;
+      setSelectedTarget(null);
+    });
   }
 
   function closeTransientDrawerFromBackground(event: ReactMouseEvent<HTMLDivElement>) {
