@@ -1,3 +1,20 @@
+## 2.28.2 - Typing works after a question, the desktop log stops at 20 MB
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**A question could take the keyboard away.** Leaving an edited YAML or unsaved
+settings, removing a cluster and closing an edited kubeconfig asked through
+window.confirm. On Windows that dialog could leave the window with no keyboard
+focus: the caret blinked in the table filter and no key reached it until a
+reload. They are asked in an in-app dialog now, which returns focus to the field
+it came from; nothing is asked when nothing would be lost.
+
+**desktop.log grew without end.** A line per kubectl call came to over 100 MB in
+ten days. It now starts again at 20 MB and keeps `desktop.previous.log`, the way
+the audit log already did, through one shared helper.
+
+Renderer tests: 307, up from 301. Gateway tests: 187, up from 186.
+
 ## 2.28.1 - No sideways scrolling over empty columns
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
