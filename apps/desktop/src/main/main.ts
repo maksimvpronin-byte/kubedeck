@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLastKubeconfigDirectory, rememberKubeconfigDirectory } from "./backend/config/lastDirectory";
 import { startGateway } from "./backend/gateway";
+import { appendRotatingLog } from "./logRotation";
 import type { GatewayHandle } from "./backend/types";
 import { ElectronSafeStorageSecretStore } from "./security/electronSafeStorageSecretStore";
 import { migratePlaintextLlmSecret } from "./backend/security/migrateSecrets";
@@ -76,7 +77,7 @@ function sanitizeLogText(value: string) {
 }
 
 function logDesktop(message: string) {
-  fs.appendFileSync(path.join(logsDir(), "desktop.log"), `${new Date().toISOString()} ${sanitizeLogText(message)}\n`, "utf-8");
+  appendRotatingLog(path.join(logsDir(), "desktop.log"), `${new Date().toISOString()} ${sanitizeLogText(message)}\n`);
 }
 
 async function startNodeGateway() {

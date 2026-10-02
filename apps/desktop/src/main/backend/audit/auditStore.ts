@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { appendRotatingLog, MAX_LOG_FILE_BYTES, previousLogPath } from "../../logRotation";
 import { ensureAppPaths } from "../config/paths";
 
 const SENSITIVE_MARKERS = [
@@ -18,7 +19,6 @@ const SENSITIVE_MARKERS = [
 ];
 
 const MAX_AUDIT_LINE_BYTES = 32 * 1024;
-const DEFAULT_AUDIT_FILE_BYTES = 20 * 1024 * 1024;
 const DEFAULT_AUDIT_LIMIT = 200;
 const MAX_AUDIT_LIMIT = 1000;
 
@@ -73,7 +73,7 @@ export class AuditStore {
   constructor(
     rootOverride: string | undefined,
     log: (message: string) => void,
-    private readonly maxFileBytes = DEFAULT_AUDIT_FILE_BYTES,
+    private readonly maxFileBytes = MAX_LOG_FILE_BYTES,
   ) {
     const paths = ensureAppPaths(rootOverride);
     this.filePath = path.join(paths.logs, "audit.jsonl");
@@ -103,12 +103,7 @@ export class AuditStore {
     }
 
     try {
-      if (this.maxFileBytes > 0 && fs.existsSync(this.filePath) && fs.statSync(this.filePath).size + Buffer.byteLength(line, "utf8") + 1 > this.maxFileBytes) {
-        const previousPath = path.join(path.dirname(this.filePath), "audit.previous.jsonl");
-        fs.rmSync(previousPath, { force: true });
-        fs.renameSync(this.filePath, previousPath);
-      }
-      fs.appendFileSync(this.filePath, `${line}\n`, "utf8");
+      appendRotatingLog(this.filePath, `${line}\n`, this.maxFileBytes);
     } catch (error) {
       this.log(`failed to write audit event action=${sanitizeLogText(eventInput.action)}: ${String(error)}`);
     }
@@ -122,8 +117,7 @@ export class AuditStore {
     }
 
     try {
-      const previousPath = path.join(path.dirname(this.filePath), "audit.previous.jsonl");
-      const lines = [previousPath, this.filePath]
+      const lines = [previousLogPath(this.filePath), this.filePath]
         .filter((filePath) => fs.existsSync(filePath))
         .map((filePath) => fs.readFileSync(filePath, "utf8"))
         .join("")

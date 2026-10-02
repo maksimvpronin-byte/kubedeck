@@ -13,6 +13,7 @@ const { createKubectlCommand, kubectlEnvironment, clearKubectlEnvironmentCache }
 const { KubectlRunner } = require("../dist/main/backend/kubectl/runner.js");
 const { ConfigStore } = require("../dist/main/backend/config/configStore.js");
 const { AuditStore } = require("../dist/main/backend/audit/auditStore.js");
+const { appendRotatingLog, MAX_LOG_FILE_BYTES, previousLogPath } = require("../dist/main/logRotation.js");
 
 const TOKEN = "gateway-contract-test-token";
 
@@ -95,6 +96,34 @@ test("audit storage rotates at its configured size without losing the newest eve
       assert.doesNotThrow(() => JSON.parse(line));
     }
   }
+});
+
+test("desktop.log starts again at its size and keeps the file before it", (t) => {
+  // It used to grow for as long as KubeDeck was installed - past a hundred
+  // megabytes in ten days of a few connected clusters.
+  const logsDir = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-log-rotation-"));
+  t.after(() => fs.rmSync(logsDir, { recursive: true, force: true }));
+  const logPath = path.join(logsDir, "desktop.log");
+  const previousPath = previousLogPath(logPath);
+  assert.equal(previousPath, path.join(logsDir, "desktop.previous.log"));
+  assert.equal(previousLogPath(path.join(logsDir, "audit.jsonl")), path.join(logsDir, "audit.previous.jsonl"));
+  assert.equal(MAX_LOG_FILE_BYTES, 20 * 1024 * 1024);
+
+  for (let index = 0; index < 100; index += 1) appendRotatingLog(logPath, `line-${String(index).padStart(4, "0")}\n`, 100);
+
+  // Ten-byte lines against a hundred-byte cap: ten to a file, nothing split.
+  assert.ok(fs.statSync(logPath).size <= 100);
+  assert.ok(fs.statSync(previousPath).size <= 100);
+  assert.deepEqual(fs.readdirSync(logsDir).sort(), ["desktop.log", "desktop.previous.log"], "one previous file, not a growing pile");
+  assert.equal(fs.readFileSync(logPath, "utf8").trim().split("\n").at(-1), "line-0099", "the newest line is never the one dropped");
+  assert.equal(fs.readFileSync(previousPath, "utf8").trim().split("\n").at(-1), "line-0089");
+
+  // A file already past the cap - a log from before rotation existed - is
+  // moved aside by the first line written after the update.
+  fs.writeFileSync(logPath, "x".repeat(500));
+  appendRotatingLog(logPath, "fresh\n", 100);
+  assert.equal(fs.readFileSync(logPath, "utf8"), "fresh\n");
+  assert.equal(fs.statSync(previousPath).size, 500);
 });
 
 function listen(server) {
