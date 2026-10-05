@@ -1,4 +1,5 @@
-import { SquareParking, X } from "lucide-react";
+import { X } from "lucide-react";
+import type { SVGProps } from "react";
 import type { ErrorInfo, PortForwardStartRequest, ResourceRow } from "../types";
 import { forwardableServicePorts } from "../utils/serviceAddresses";
 import { ErrorPanel } from "./ErrorPanel";
@@ -112,10 +113,31 @@ export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraf
   );
 }
 
-// One picture for port forwarding wherever it is offered: a P for "port".
-// It used to be the Network icon, which is also the Related tab's, so the
-// button read as a second way to the same tab.
-export const PortForwardIcon = SquareParking;
+// One picture for port forwarding wherever it is offered: an F for "forward",
+// drawn on lucide's grid (the 18px rounded square of its square-letter icons,
+// the letter centred in it) so it sits among the other header icons. It used
+// to be the Network icon, which is also the Related tab's, and the button read
+// as a second way to the same tab.
+export function PortForwardIcon({ size = 24, strokeWidth = 2, ...rest }: SVGProps<SVGSVGElement> & { size?: number | string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...rest}
+    >
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 17V7h6" />
+      <path d="M9 12h5" />
+    </svg>
+  );
+}
 
 export function supportsPortForward(resource: string, row: ResourceRow) {
   // An ExternalName has nothing behind it to forward to, and kubectl forwards
