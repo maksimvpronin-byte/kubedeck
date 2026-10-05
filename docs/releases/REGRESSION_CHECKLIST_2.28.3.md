@@ -1,8 +1,9 @@
 # KubeDeck 2.28.3 regression checklist
 
-2.28.3 shows log colours, offers port forwarding on each port of a Service and
-keeps the cluster name at the top of the sidebar. Node-only ownership is
-unchanged at Node 59 / Python 0, and no route changed.
+2.28.3 opens a large cluster much faster, shows log colours, offers port
+forwarding on each port of a Service and keeps the cluster name at the top of
+the sidebar. Node-only ownership is unchanged at Node 59 / Python 0, and no
+route changed.
 
 Earlier 2.13.x through 2.28.2 checklists still apply.
 
@@ -11,12 +12,35 @@ Earlier 2.13.x through 2.28.2 checklists still apply.
 - [x] `npm run lint`
 - [x] `npm run lint:css`
 - [x] `npm run format:check`
-- [x] `npm run test:renderer` (316 tests, up from 307)
-- [x] `npm --workspace apps/desktop run test:gateway` (187 tests, unchanged)
+- [x] `npm run test:renderer` (320 tests, up from 307)
+- [x] `npm --workspace apps/desktop run test:gateway` (191 tests, up from 187)
 - [x] `npm run typecheck`
 - [x] `npm run build`
 - [x] `npm run verify:release`, including `--tag v2.28.3`
 - [x] `/migration/status` remains `node-only`, Node 59 / Python 0
+
+## Opening a large cluster
+
+- [ ] Open a cluster with over 1000 pods that was not open before: pod rows
+  appear in well under a second after the click; note the time against 2.28.2
+  on the same cluster.
+- [ ] CPU and memory columns fill in within a few seconds, without a reload.
+- [ ] Walk every built-in tab once (Workloads, Network, Storage, Config, RBAC,
+  Nodes, Namespaces, Events): every table loads, with the same columns as in
+  2.28.2. Secrets and ConfigMaps keep their own columns (type, keys).
+- [ ] A CRD tab and its instances still load; the CRD tree appears a moment
+  after the cluster opens.
+- [ ] Switch namespace scope (one, several, all) on Pods and Deployments: rows
+  match the scope.
+- [ ] A cluster that cannot be reached still shows the unavailable screen with
+  its error, and reconnects when it comes back.
+- [ ] A cluster that signs in through an exec plugin (EKS/GKE/OIDC) opens and
+  lists as before.
+- [ ] Settings → open the logs folder, `desktop.log`: an open is one
+  `get namespaces`, then `get --raw /api/v1/...` for the list; no
+  `cluster-info`.
+- [ ] Minimise the window for a minute with Overview open: `desktop.log` shows
+  no `get namespaces` or Overview reads meanwhile; restoring it refreshes.
 
 ## Log colours
 

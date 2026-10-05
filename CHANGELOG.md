@@ -1,4 +1,4 @@
-## 2.28.3 - Log colours, port forwarding a Service, the cluster name in sight
+## 2.28.3 - A large cluster opens fast, log colours, port forwarding a Service
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
 
@@ -18,7 +18,25 @@ two opposite arrows.
 **The cluster name scrolled away** with the resource tree. It stays at the top
 of the sidebar now.
 
-Renderer tests: 316, up from 307. Gateway tests: 187, unchanged.
+**A large cluster took seconds to show its first rows.** With ~1700 pods the
+table stayed blank for 3-4 s, nearly all of it spent in kubectl, not in
+rendering. Built-in lists are read with `kubectl get --raw` from their API path:
+`get pods -A -o json` spent 1.2-1.4 s re-encoding every object, the raw read
+takes about 0.1 s, on every open and every relist. Custom resources, and a
+server that does not serve the path, still go through `kubectl get`. Opening a
+cluster no longer runs `cluster-info` (the namespace list is the reachability
+check) and no longer waits for discovery before the first list. A pod list
+waits at most 300 ms for `kubectl top` and otherwise goes out with the usage
+already recorded, filled in again two seconds later. Measured on 1700 pods with
+60 ms of API latency: 2.2-2.6 s from the click to the first rows before,
+0.6 s after.
+
+**Background polling.** Namespaces are asked once a minute instead of at the
+table's interval, and not again right after an open that already returned them.
+Namespaces, Overview, Problems and the table's fallback poll skip their ticks
+while the window is hidden.
+
+Renderer tests: 320, up from 307. Gateway tests: 191, up from 187.
 
 ## 2.28.2 - Typing works after a question, the desktop log stops at 20 MB
 
