@@ -57,6 +57,8 @@ interface Props {
   onYamlStatusChange: (value: string) => void;
   onRequestYamlApply: () => void;
   onCopy: (text: string, message?: string) => void;
+  // Set when this resource can be forwarded to; opens the window on a port.
+  onPortForward?: (port: number) => void;
 }
 
 export function PodDrawerTabBody(props: Props) {
@@ -101,6 +103,8 @@ export function PodDrawerTabBody(props: Props) {
           serviceEndpoints={serviceEndpoints}
           usageHistory={usageHistory}
           onCopy={props.onCopy}
+          onPortForward={props.onPortForward}
+          portForwardLabel={t("drawer.portForward")}
         />
       ) : tab === "llm" ? (
         <LlmTab

@@ -24,6 +24,7 @@ import type { ResourceRow } from "../types";
 import type { NodeActionKind } from "../hooks/useBulkResourceActions";
 import { displayResource } from "./podDrawerHelpers";
 import { actionLabel, type ResourceAction } from "./PodDrawerModals";
+import { PortForwardIcon } from "./PortForwardModal";
 
 export type DrawerTab = "summary" | "llm" | "yaml" | "describe" | "logs" | "events" | "related" | "secret";
 
@@ -205,7 +206,7 @@ export function PodDrawerActions(props: ActionsProps) {
           data-tooltip={props.t("drawer.portForward")}
           aria-label={props.t("drawer.portForward")}
         >
-          <Network size={18} strokeWidth={2.25} />
+          <PortForwardIcon size={18} strokeWidth={2.25} />
         </button>
       ) : null}
       {props.involvedTarget ? (

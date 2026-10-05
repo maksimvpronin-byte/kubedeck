@@ -918,6 +918,33 @@ dd {
   color: var(--muted);
 }
 
+/* Forwarding a port starts something, where the rest of the section only
+   copies, so these are buttons that look like buttons. */
+.service-forward-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.service-forward-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.service-forward-button:hover {
+  border-color: var(--focus-ring);
+  background: var(--primary-soft);
+}
+
 .service-address-row small {
   color: var(--muted);
   font-size: 11px;

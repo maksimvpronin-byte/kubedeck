@@ -201,7 +201,7 @@ test("a Service says how to reach it, in addresses to copy rather than links to 
   assert.match(section, /className="service-address-value"/);
   assert.doesNotMatch(section, /<a href|target="_blank"/);
   assert.match(section, /onClick=\{\(\) => copy\(address\.address\)\}/);
-  assert.match(summary, /isService\(resource\) \? <ServiceAddressesSection row=\{row\} onCopy=\{onCopy\} \/> : null/);
+  assert.match(summary, /isService\(resource\) \? <ServiceAddressesSection row=\{row\} onCopy=\{onCopy\} onPortForward=\{onPortForward\} portForwardLabel=\{portForwardLabel\} \/> : null/);
 });
 
 // The two halves of a Service address were only ever tested apart: the

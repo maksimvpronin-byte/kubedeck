@@ -1,5 +1,6 @@
-import { X } from "lucide-react";
+import { Network, X } from "lucide-react";
 import type { ErrorInfo, PortForwardStartRequest, ResourceRow } from "../types";
+import { forwardableServicePorts } from "../utils/serviceAddresses";
 import { ErrorPanel } from "./ErrorPanel";
 
 interface PortForwardModalProps {
@@ -33,7 +34,7 @@ const ENGLISH: Record<string, string> = {
 };
 
 export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraftChange, onCancel, onStart, t }: PortForwardModalProps) {
-  const portChoices = portChoicesForRow(row, draft.remotePort);
+  const portChoices = portChoicesForRow(row, draft.resource, draft.remotePort);
   // Without a translator the window speaks English, as it always did.
   const say = (key: string) => {
     const translated = t?.(key);
@@ -111,12 +112,18 @@ export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraf
   );
 }
 
+// One picture for port forwarding wherever it is offered, told apart from the
+// Related tab's.
+export const PortForwardIcon = Network;
+
 export function supportsPortForward(resource: string, row: ResourceRow) {
+  // An ExternalName has nothing behind it to forward to, and kubectl forwards
+  // TCP only, so a Service of UDP ports alone has nothing to offer either.
+  if (resource === "services" && (String(row.type ?? "") === "ExternalName" || (Array.isArray(row.servicePortItems) && forwardableServicePorts(row).length === 0))) return false;
   return ["pods", "services", "deployments"].includes(resource) && Boolean(row.namespace);
 }
 
-export function defaultPortForwardDraft(resource: string, row: ResourceRow): PortForwardStartRequest {
-  const remotePort = portChoicesForRow(row)[0] || 0;
+export function defaultPortForwardDraft(resource: string, row: ResourceRow, remotePort = portChoicesForRow(row, resource)[0] || 0): PortForwardStartRequest {
   return {
     namespace: String(row.namespace || "default"),
     resource: resource.slice(0, -1),
@@ -126,7 +133,14 @@ export function defaultPortForwardDraft(resource: string, row: ResourceRow): Por
   };
 }
 
-function portChoicesForRow(row: ResourceRow, selectedPort?: number) {
+// A Service is forwarded through `svc/`, where kubectl takes one of the
+// Service's own ports and refuses its targetPorts and nodePorts, so those are
+// the only ones offered, in the order the Service declares them.
+export function portChoicesForRow(row: ResourceRow, resource: string, selectedPort?: number) {
+  if (resource.startsWith("service")) {
+    const ports = forwardableServicePorts(row).map((port) => port.port);
+    if (ports.length) return ports.slice(0, 12);
+  }
   const candidates = new Set<number>();
   addPortCandidates(candidates, row.ports);
   addPortCandidates(candidates, row.port);

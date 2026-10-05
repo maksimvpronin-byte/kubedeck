@@ -112,6 +112,19 @@ function mergeByAddress(addresses: ServiceAddress[]): ServiceAddress[] {
   return merged;
 }
 
+// The ports `kubectl port-forward svc/...` accepts: the Service's own ports,
+// not their targetPorts or nodePorts, and only TCP ones - port-forward carries
+// nothing else. An ExternalName has no pods behind it to forward to.
+export function forwardableServicePorts(row: ResourceRow): ServicePort[] {
+  if (String(row.type ?? "") === "ExternalName") return [];
+  const seen = new Set<number>();
+  return servicePorts(row).filter((port) => {
+    if (port.protocol.toUpperCase() !== "TCP" || !(port.port > 0) || seen.has(port.port)) return false;
+    seen.add(port.port);
+    return true;
+  });
+}
+
 // What reaches the Service from the machine KubeDeck runs on, which none of the
 // addresses above do. The drawer's port-forward button does the same thing.
 export function portForwardCommand(row: ResourceRow): string {

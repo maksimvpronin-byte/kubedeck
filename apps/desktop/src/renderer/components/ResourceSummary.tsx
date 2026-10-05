@@ -16,12 +16,14 @@ interface Props {
   serviceEndpoints?: ServiceEndpointsResponse | null;
   usageHistory?: UsageHistoryResponse | null;
   onCopy?: (text: string, message: string) => void;
+  onPortForward?: (port: number) => void;
+  portForwardLabel?: string;
 }
 
 type Tone = "default" | "neutral" | "pending" | "warning" | "danger" | "success";
 type Fact = { label: string; value: ReactNode; tone?: Tone };
 
-export function ResourceSummary({ row, resource, now, events = [], serviceEndpoints = null, usageHistory = null, onCopy }: Props) {
+export function ResourceSummary({ row, resource, now, events = [], serviceEndpoints = null, usageHistory = null, onCopy, onPortForward, portForwardLabel }: Props) {
   const facts = summaryFacts(row, resource, now, serviceEndpoints);
   const containers = isPod(resource) ? containerRows(row) : [];
   const failures = isPod(resource) ? restartFailures(row) : [];
@@ -40,7 +42,7 @@ export function ResourceSummary({ row, resource, now, events = [], serviceEndpoi
         ))}
       </section>
 
-      {isService(resource) ? <ServiceAddressesSection row={row} onCopy={onCopy} /> : null}
+      {isService(resource) ? <ServiceAddressesSection row={row} onCopy={onCopy} onPortForward={onPortForward} portForwardLabel={portForwardLabel} /> : null}
 
       {serviceEndpoints ? <ServiceEndpoints data={serviceEndpoints} /> : null}
 

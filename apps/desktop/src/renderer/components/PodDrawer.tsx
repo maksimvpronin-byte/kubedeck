@@ -210,6 +210,14 @@ export function PodDrawer({
     }
   }
 
+  // From the header with the first port, or from a Service's port with that one.
+  function openPortForward(remotePort?: number) {
+    if (!pod) return;
+    setError(null);
+    setApplyResult("");
+    setPortForwardDraft(defaultPortForwardDraft(resource, pod, remotePort));
+  }
+
   function closePortForwardDraft() {
     setPortForwardDraft(null);
     setApplyResult((current) => (current.startsWith("Port forward started:") ? "" : current));
@@ -312,11 +320,7 @@ export function PodDrawer({
             onTerminal={() => (isNodeResource ? onOpenNodeSsh(pod) : openTerminal())}
             onNodeAction={onNodeAction}
             canPortForward={supportsPortForward(resource, pod)}
-            onPortForward={() => {
-              setError(null);
-              setApplyResult("");
-              setPortForwardDraft(defaultPortForwardDraft(resource, pod));
-            }}
+            onPortForward={() => openPortForward()}
             onOpenRelated={onOpenRelated}
             t={t}
           />
@@ -356,6 +360,7 @@ export function PodDrawer({
           if (!yamlReadOnly) setYamlApplyConfirmOpen(true);
         }}
         onCopy={copyText}
+        onPortForward={pod && supportsPortForward(resource, pod) ? openPortForward : undefined}
       />
       {pendingAction && pod ? (
         <ResourceActionConfirmModal
