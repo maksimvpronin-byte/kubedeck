@@ -277,7 +277,8 @@ test("resource table columns, YAML match count, manifest diff and log filtering 
 
   const logsTab = fs.readFileSync(path.join(rendererRoot, "components/LogsTab.tsx"), "utf8");
   assert.match(logsTab, /const \{ lines, visibleLines, visibleText \} = useMemo\(\(\) => \{/);
-  assert.match(logsTab, /\}, \[content, normalizedQuery\]\);/);
+  assert.match(logsTab, /const parsedLines = useMemo\(\(\) => parseAnsiLines\(content \? content\.split\("\\n"\) : \[\]\), \[content\]\);/);
+  assert.match(logsTab, /\}, \[parsedLines, normalizedQuery\]\);/);
   // Scanning every visible line for occurrences is the same size of work as the
   // filter itself, so it is memoized on the same inputs rather than re-run per
   // render, and the per-line grouping the renderer reads hangs off it.

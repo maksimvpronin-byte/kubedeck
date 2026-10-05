@@ -230,8 +230,8 @@ test("a searched-for match is highlighted rather than selected, in the manifest 
   // The log viewer searches the same way. Its query still filters the lines -
   // "Current view" downloads what the filter left - and the arrows now step
   // through every occurrence inside those lines.
-  assert.match(logsTab, /filteredLines = normalizedQuery \? allLines\.filter/);
-  assert.match(logsTab, /matchRanges\(line, normalizedQuery\)/);
+  assert.match(logsTab, /filteredLines = normalizedQuery \? parsedLines\.filter/);
+  assert.match(logsTab, /matchRanges\(line\.text, normalizedQuery\)/);
   assert.match(logsTab, /nextMatchIndex\(currentMatch, direction, matches\.length\)/);
   assert.match(logsTab, /jumpMatch\(event\.shiftKey \? -1 : 1\)/);
   assert.match(logsTab, /aria-label=\{t\("logs\.previousMatch"\)\}/);

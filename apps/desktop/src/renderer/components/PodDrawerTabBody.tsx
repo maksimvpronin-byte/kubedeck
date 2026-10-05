@@ -5,6 +5,7 @@ import type { usePodDrawerLogs } from "../hooks/usePodDrawerLogs";
 import type { usePodDrawerResourceLifecycle } from "../hooks/usePodDrawerResourceLifecycle";
 import type { usePodDrawerYamlActions } from "../hooks/usePodDrawerYamlActions";
 import type { ResourceRow, Settings } from "../types";
+import { stripAnsi } from "../utils/ansi";
 import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
 import { DescribeTab } from "./DescribeTab";
 import { ErrorPanel } from "./ErrorPanel";
@@ -196,7 +197,7 @@ export function PodDrawerTabBody(props: Props) {
               onRefresh={logs.refreshLogs}
               refreshFailed={Boolean(error)}
               t={t}
-              onCopy={() => props.onCopy(content, "Logs copied")}
+              onCopy={() => props.onCopy(stripAnsi(content), "Logs copied")}
               downloadLoading={logs.logsDownloadLoading}
               onDownloadVisible={(visibleText) => downloadTextFile(`${pod.name}.visible.log`, visibleText)}
               onDownloadFull={logs.downloadFullLogs}

@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Copy, Download, Search } from "lucide-react";
 import type { ReactNode, RefCallback } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useControlledAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { type AnsiLine, parseAnsiLines } from "../utils/ansi";
 import { horizontalShift, verticalShift } from "../utils/revealMatch";
 import { matchRanges, nextMatchIndex } from "../utils/searchMatches";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
@@ -82,17 +83,20 @@ export function LogsTab({
   const currentMarkRef = useRef<HTMLElement | null>(null);
   const refreshFeedback = useControlledAsyncActionFeedback(loading, refreshFailed);
   const normalizedQuery = query.trim().toLowerCase();
+  // Programs that colour their output write terminal escapes into the log.
+  // They are read for their colours and taken out of the text, so the filter,
+  // the search and the visible download all work on what is on screen.
+  const parsedLines = useMemo(() => parseAnsiLines(content ? content.split("\n") : []), [content]);
   const { lines, visibleLines, visibleText } = useMemo(() => {
-    const allLines = content ? content.split("\n") : [];
-    const filteredLines = normalizedQuery ? allLines.filter((line) => line.toLowerCase().includes(normalizedQuery)) : allLines;
-    return { lines: allLines, visibleLines: filteredLines, visibleText: filteredLines.join("\n") };
-  }, [content, normalizedQuery]);
+    const filteredLines = normalizedQuery ? parsedLines.filter((line) => line.text.toLowerCase().includes(normalizedQuery)) : parsedLines;
+    return { lines: parsedLines, visibleLines: filteredLines, visibleText: filteredLines.map((line) => line.text).join("\n") };
+  }, [parsedLines, normalizedQuery]);
 
   // The query still filters the lines; these are the occurrences inside what
   // survived the filter, in reading order, so the arrows step through a log the
   // way they step through a manifest.
   const matches = useMemo<LogMatch[]>(
-    () => visibleLines.flatMap((line, index) => matchRanges(line, normalizedQuery).map((range) => ({ line: index, from: range.from, to: range.to }))),
+    () => visibleLines.flatMap((line, index) => matchRanges(line.text, normalizedQuery).map((range) => ({ line: index, from: range.from, to: range.to }))),
     [normalizedQuery, visibleLines],
   );
   const matchesByLine = useMemo(() => {
@@ -286,7 +290,7 @@ export function LogsTab({
           <span className="terminal-muted">{t("logs.empty")}</span>
         ) : (
           visibleLines.map((line, index) => (
-            <span className="log-line" key={`${index}-${line.slice(0, 24)}`}>
+            <span className="log-line" key={`${index}-${line.text.slice(0, 24)}`}>
               {renderLogLine(line, matchesByLine.get(index), currentMatch, (node) => {
                 currentMarkRef.current = node;
               })}
@@ -301,21 +305,44 @@ export function LogsTab({
 
 // Every occurrence in the line is marked, not just the first one, and the one
 // the arrows are standing on is picked out of them. The marks are decoration
-// only - the log pane is not editable, and nothing here is selected.
-function renderLogLine(line: string, lineMatches: Array<LogMatch & { index: number }> | undefined, current: number, currentRef: RefCallback<HTMLElement>): ReactNode {
-  if (!lineMatches?.length) return line;
+// only - the log pane is not editable, and nothing here is selected. A mark is
+// one element even when it spans two colours, so the arrows land on the whole
+// occurrence.
+function renderLogLine(line: AnsiLine, lineMatches: Array<LogMatch & { index: number }> | undefined, current: number, currentRef: RefCallback<HTMLElement>): ReactNode {
+  if (!lineMatches?.length) return renderColored(line, 0, line.text.length, "t");
   const parts: ReactNode[] = [];
   let cursor = 0;
   for (const match of lineMatches) {
-    if (match.from > cursor) parts.push(line.slice(cursor, match.from));
+    if (match.from > cursor) parts.push(renderColored(line, cursor, match.from, `t${cursor}`));
     const isCurrent = match.index === current;
     parts.push(
       <mark className={isCurrent ? "is-current" : undefined} key={match.index} ref={isCurrent ? currentRef : undefined}>
-        {line.slice(match.from, match.to)}
+        {renderColored(line, match.from, match.to, `m${match.index}`)}
       </mark>,
     );
     cursor = match.to;
   }
-  if (cursor < line.length) parts.push(line.slice(cursor));
+  if (cursor < line.text.length) parts.push(renderColored(line, cursor, line.text.length, `t${cursor}`));
+  return parts;
+}
+
+// The stretch [from, to) of a line, with the coloured parts of it in spans.
+function renderColored(line: AnsiLine, from: number, to: number, keyPrefix: string): ReactNode {
+  const runs = line.runs.filter((run) => run.to > from && run.from < to);
+  if (!runs.length) return line.text.slice(from, to);
+  const parts: ReactNode[] = [];
+  let cursor = from;
+  for (const run of runs) {
+    const start = Math.max(run.from, from);
+    const end = Math.min(run.to, to);
+    if (start > cursor) parts.push(line.text.slice(cursor, start));
+    parts.push(
+      <span style={run.style} key={`${keyPrefix}-${start}`}>
+        {line.text.slice(start, end)}
+      </span>,
+    );
+    cursor = end;
+  }
+  if (cursor < to) parts.push(line.text.slice(cursor, to));
   return parts;
 }

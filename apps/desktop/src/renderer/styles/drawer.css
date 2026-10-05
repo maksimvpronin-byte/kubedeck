@@ -712,6 +712,13 @@ dd {
   outline: 1px solid var(--warning-text);
 }
 
+/* A coloured stretch inside a match takes the match's colours, so the
+   highlight reads the same whatever colour the program printed. */
+.log-line mark span {
+  color: inherit !important;
+  background-color: transparent !important;
+}
+
 .pod-terminal {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
