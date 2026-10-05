@@ -7,6 +7,7 @@ import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
 import { normalizeResourceItems } from "../resources/normalizers";
+import { rawListPath, withItemTypes } from "../resources/rawListPaths";
 import {
   applyNamespaceMetricsSnapshot,
   applyNodeMetricsSnapshot,
@@ -89,6 +90,22 @@ export function matchResourceListRoute(method: string | undefined, pathname: str
     useCache: parseBooleanQuery(url.searchParams.get("useCache"), "useCache", false),
     forceRefresh: parseBooleanQuery(url.searchParams.get("forceRefresh"), "forceRefresh", false),
   };
+}
+
+// A built-in type is read straight from its API path: kubectl then only moves
+// bytes, where `-o json` re-encodes every object - ten times the cost on a
+// large list. A server that does not serve that path (an older cluster without
+// that API version) gets the list the way it always did.
+async function listResource(configStore: ConfigStore, runner: KubectlRunner, target: ResourceListTarget, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  const path = rawListPath(target.resource, target.namespace);
+  if (path) {
+    try {
+      return withItemTypes(await runner.runJson(clusterCommand(configStore, target.clusterId, ["get", "--raw", path], RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal));
+    } catch (error) {
+      if (!(error instanceof KubectlError) || error.info.code !== "NOT_FOUND" || isRequestCancelled(error, signal)) throw error;
+    }
+  }
+  return runner.runJson(clusterCommand(configStore, target.clusterId, resourceArgs(target), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal);
 }
 
 function resourceArgs(target: ResourceListTarget): string[] {
@@ -240,7 +257,7 @@ async function loadResources(
   const metrics = startListMetrics(target, configStore, runner, signal);
 
   try {
-    const data = await runner.runJson(clusterCommand(configStore, target.clusterId, resourceArgs(target), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal);
+    const data = await listResource(configStore, runner, target, signal);
 
     const rawItems = asItems(data);
     const rows = normalizeResourceItems(target.resource, rawItems);

@@ -700,7 +700,8 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
   assert.equal(fresh.items[0].memoryUsage, "64Mi");
   // The list and its `kubectl top` enrichment run concurrently, so the contract
   // is that both commands are issued, not the order they are issued in.
-  assert.ok(commands.some((command) => command.args.join(" ") === "get pods -n default -o json"));
+  // Built-in types are read from their API path; see the raw-list test below.
+  assert.ok(commands.some((command) => command.args.join(" ") === "get --raw /api/v1/namespaces/default/pods"));
   assert.ok(commands.some((command) => command.args.join(" ") === "top pods --no-headers -n default"));
 
   const cachedResponse = await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&useCache=true`);
@@ -777,6 +778,106 @@ test("a pod list does not wait for a slow kubectl top", async (t) => {
   assert.equal(body.items[0].memoryUsage, "64Mi");
   // Let the slow command finish before the test ends, so nothing outlives it.
   await topIssued;
+});
+
+// Reported from a real cluster of ~1700 pods: `kubectl get pods -A -o json`
+// took 1.2-1.4 s, nearly all of it kubectl decoding, converting and
+// pretty-printing every object; `kubectl get --raw /api/v1/pods` returned the
+// same list in about 0.1 s. Built-in types are read raw now.
+test("built-in lists are read from their API path, everything else through kubectl get", () => {
+  const { rawListPath } = require("../dist/main/backend/resources/rawListPaths.js");
+  assert.equal(rawListPath("pods", "all"), "/api/v1/pods");
+  assert.equal(rawListPath("pods", "kube-system"), "/api/v1/namespaces/kube-system/pods");
+  assert.equal(rawListPath("deployments", "shop"), "/apis/apps/v1/namespaces/shop/deployments");
+  assert.equal(rawListPath("cronjobs", "all"), "/apis/batch/v1/cronjobs");
+  // Cluster-scoped types ignore the namespace selection.
+  assert.equal(rawListPath("nodes", "shop"), "/api/v1/nodes");
+  assert.equal(rawListPath("clusterroles", "all"), "/apis/rbac.authorization.k8s.io/v1/clusterroles");
+  // A namespaced list with no namespace means the context's default, which only
+  // kubectl knows; custom resources are found through discovery.
+  assert.equal(rawListPath("pods", "_cluster"), null);
+  assert.equal(rawListPath("widgets.example.com", "all"), null);
+  assert.equal(rawListPath("verticalpodautoscalers", "all"), null, "a CRD, wherever the sidebar lists it");
+  assert.equal(rawListPath("constructor", "all"), null, "only the table's own entries, never Object.prototype");
+});
+
+test("a raw list reaches the normalizers in the shape kubectl get -o json gives", async (t) => {
+  const commands = [];
+  const runner = {
+    async runJson(command) {
+      commands.push(command.args.join(" "));
+      // What the API server sends: the list says what its items are, the items do not.
+      return { kind: "SecretList", apiVersion: "v1", items: [{ metadata: { uid: "s1", name: "db", namespace: "shop" }, type: "Opaque", data: { password: "c2VjcmV0" } }] };
+    },
+    async run() {
+      return { ok: true, stdout: "", stderr: "", commandPreview: "kubectl", returnCode: 0 };
+    },
+  };
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    handleResourceListRequest(
+      request,
+      response,
+      pathname,
+      fakeConfigStore(),
+      runner,
+      new ResourceSnapshotCache(),
+      () => {},
+      fakeUsageHistory(),
+      () => true,
+      () => {},
+    );
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+
+  const body = await (await fetch(`${baseUrl}/clusters/cluster-1/resources/secrets?namespace=shop&forceRefresh=true`)).json();
+  assert.deepEqual(commands, ["get --raw /api/v1/namespaces/shop/secrets"]);
+  assert.equal(body.items[0].name, "db");
+  // Secrets and ConfigMaps share a normalizer that tells them apart by kind.
+  assert.equal(body.items[0].kind, "Secret", "the item kind comes from the list");
+  assert.equal(body.items[0].keyNames, "password");
+});
+
+test("a cluster that does not serve the API path still gets its list through kubectl get", async (t) => {
+  const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
+  const commands = [];
+  const runner = {
+    async runJson(command) {
+      const args = command.args.join(" ");
+      commands.push(args);
+      if (args.startsWith("get --raw")) {
+        // An older cluster without autoscaling/v2.
+        throw new KubectlError({ code: "NOT_FOUND", message: "the server could not find the requested resource", rawStderr: "", commandPreview: "kubectl get --raw" });
+      }
+      return { items: [{ apiVersion: "autoscaling/v1", kind: "HorizontalPodAutoscaler", metadata: { uid: "h1", name: "web", namespace: "shop" }, spec: {}, status: {} }] };
+    },
+    async run() {
+      return { ok: true, stdout: "", stderr: "", commandPreview: "kubectl", returnCode: 0 };
+    },
+  };
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    handleResourceListRequest(
+      request,
+      response,
+      pathname,
+      fakeConfigStore(),
+      runner,
+      new ResourceSnapshotCache(),
+      () => {},
+      fakeUsageHistory(),
+      () => true,
+      () => {},
+    );
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+
+  const response = await fetch(`${baseUrl}/clusters/cluster-1/resources/horizontalpodautoscalers?namespace=shop&forceRefresh=true`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(commands, ["get --raw /apis/autoscaling/v2/namespaces/shop/horizontalpodautoscalers", "get horizontalpodautoscalers -n shop -o json"]);
+  assert.equal((await response.json()).items[0].name, "web");
 });
 
 test("cached rows are discarded when cluster readiness fails", async (t) => {
