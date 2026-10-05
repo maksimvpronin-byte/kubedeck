@@ -1065,6 +1065,22 @@ tr.selected td:first-child {
   margin-bottom: 12px;
 }
 
+/* The cluster (or the product name) stays at the top while the tree scrolls
+   under it. It takes over the sidebar's padding so nothing shows above it,
+   and has no z-index so its menu is not trapped below the workspace. */
+.sidebar > .sidebar-cluster,
+.sidebar > .brand {
+  position: sticky;
+  top: -14px;
+  margin: -14px -14px 0;
+  padding: 14px 14px 12px;
+  background: var(--sidebar-bg);
+}
+
+.sidebar > .brand {
+  box-sizing: content-box;
+}
+
 .sidebar-cluster-button {
   display: flex;
   align-items: center;
