@@ -1,3 +1,25 @@
+## 2.28.3 - Log colours, port forwarding a Service, the cluster name in sight
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**Log colours were printed as text.** Escape sequences from programs that colour
+their output showed as a box and `[32m`. They are read as colours now, in the
+pod terminal's palette and the theme's; a colour carries to the next line until
+reset. Search, the filter, copy and the "Current view" download work on the
+text on screen; the full download stays as the cluster sends it.
+
+**A Service's port forward was not found.** It was an unlabelled icon in the
+header, the Related tab's icon. "How to reach it" has a button per TCP port now,
+opening the window on that port; the window offers a Service only its own ports,
+not the targetPorts and nodePorts `kubectl port-forward svc/` refuses; an
+ExternalName or UDP-only Service offers none. Port forwarding has its own icon,
+two opposite arrows.
+
+**The cluster name scrolled away** with the resource tree. It stays at the top
+of the sidebar now.
+
+Renderer tests: 316, up from 307. Gateway tests: 187, unchanged.
+
 ## 2.28.2 - Typing works after a question, the desktop log stops at 20 MB
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
