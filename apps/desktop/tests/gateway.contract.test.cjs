@@ -162,6 +162,10 @@ function createFakeChild(onKill) {
   return child;
 }
 
+// Every kubectl command the fake was asked to run, without the kubeconfig and
+// timeout flags, so a test can say which commands a route issues.
+const spawnedKubectlCommands = [];
+
 function fakeKubectlSpawn(executable, args) {
   const child = createFakeChild();
 
@@ -180,6 +184,8 @@ function fakeKubectlSpawn(executable, args) {
       if (index === kubeconfigIndex || index === kubeconfigIndex + 1) return false;
       return true;
     });
+
+    spawnedKubectlCommands.push(commandArgs.join(" "));
 
     let kubeconfig = "";
     if (kubeconfigPath && fs.existsSync(kubeconfigPath)) {
@@ -379,11 +385,16 @@ test("Node Gateway alpha.3 kubectl runtime contract", async (t) => {
   const goodCluster = await importGood.json();
   assert.equal(importGood.status, 200);
 
+  const commandsBeforeOpen = spawnedKubectlCommands.length;
   const openGood = await fetch(`${gateway.baseUrl}/clusters/${goodCluster.id}/open`, {
     method: "POST",
     headers: authHeaders,
   });
   assert.equal(openGood.status, 200);
+  // Opening is one kubectl call: the namespace list is the reachability check.
+  // A `cluster-info` before it cost a process and a credential exchange ahead
+  // of the first table on every open.
+  assert.deepEqual(spawnedKubectlCommands.slice(commandsBeforeOpen), ["get namespaces -o json"]);
   const opened = await openGood.json();
   assert.equal(opened.cluster.id, goodCluster.id);
   assert.equal(opened.cluster.lastOpened, true);

@@ -60,6 +60,22 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
     onError: setError,
   });
 
+  // Discovery arrives after the cluster is already on screen. A failure is
+  // shown, but it does not take the cluster away: its lists still load.
+  const applyDefinitionsWhenReady = useCallback(
+    (pending: Promise<{ items: ResourceDefinition[] }>, stillCurrent: () => boolean) => {
+      pending.then(
+        (definitions) => {
+          if (stillCurrent()) setResourceDefinitions(definitions.items);
+        },
+        (error) => {
+          if (stillCurrent()) setError(asErrorInfo(error));
+        },
+      );
+    },
+    [setError],
+  );
+
   const reloadConfig = useCallback(async () => {
     if (!api) return;
     setConfig(normalizeConfig(await api.config()));
@@ -124,15 +140,17 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
           .then(async (result) => {
             if (cancelled || clusterOpenSequenceRef.current !== requestId || !result.cluster) return;
             beginBootStage("cluster", result.cluster.displayName);
-            const definitions = await client.resourceDefinitions(result.cluster.id);
-            if (cancelled || clusterOpenSequenceRef.current !== requestId) return;
+            // Built-in lists do not need the definitions, so the table starts
+            // loading now and they fill in when discovery answers.
+            const definitions = client.resourceDefinitions(result.cluster.id);
             namespaceController.activateClusterNamespaces(
               result.cluster.id,
               (result.namespaces ?? []).map((item) => item.metadata.name),
             );
             setActiveCluster(result.cluster);
             setUnavailableCluster(null);
-            setResourceDefinitions(definitions.items);
+            setResourceDefinitions([]);
+            applyDefinitionsWhenReady(definitions, () => !cancelled && clusterOpenSequenceRef.current === requestId);
             // The config fetch above races this open, so it can answer before
             // the cluster is marked connected. Without this re-read the rail
             // would show the restored cluster as disconnected.
@@ -163,7 +181,7 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
     return () => {
       cancelled = true;
     };
-  }, [setError, namespaceController.activateClusterNamespaces]);
+  }, [setError, namespaceController.activateClusterNamespaces, applyDefinitionsWhenReady]);
 
   useEffect(() => {
     if (!config || !activeCluster) return;
@@ -202,9 +220,14 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
       if (!silent) setOpeningClusterId(cluster.id);
       try {
         await api.clearResourceCache(cluster.id).catch(() => undefined);
+        // Opening, discovery and then the first list used to run one after
+        // another, each a kubectl process with its own credential exchange,
+        // and the table stayed blank through all of them. Discovery now runs
+        // alongside the open and nothing waits for it: built-in lists such as
+        // pods do not need it.
+        const definitions = api.resourceDefinitions(cluster.id);
+        definitions.catch(() => undefined);
         const result = await api.openCluster(cluster.id);
-        if (clusterOpenSequenceRef.current !== requestId) return;
-        const definitions = await api.resourceDefinitions(result.cluster.id);
         if (clusterOpenSequenceRef.current !== requestId) return;
         namespaceController.activateClusterNamespaces(
           result.cluster.id,
@@ -212,7 +235,9 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
         );
         setActiveCluster(result.cluster);
         setUnavailableCluster(null);
-        setResourceDefinitions(definitions.items);
+        // The previous cluster's definitions would describe the wrong API.
+        setResourceDefinitions([]);
+        applyDefinitionsWhenReady(definitions, () => clusterOpenSequenceRef.current === requestId);
         setError(null);
         await reloadConfig();
       } catch (error) {
@@ -233,7 +258,7 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
         if (!silent) setOpeningClusterId((current) => (current === cluster.id ? null : current));
       }
     },
-    [api, namespaceController.activateClusterNamespaces, namespaceController.setNamespaces, reloadConfig, setError, setLoading, setRows],
+    [api, applyDefinitionsWhenReady, namespaceController.activateClusterNamespaces, namespaceController.setNamespaces, reloadConfig, setError, setLoading, setRows],
   );
 
   useEffect(() => {

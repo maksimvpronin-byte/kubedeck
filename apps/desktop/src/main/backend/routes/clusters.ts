@@ -175,8 +175,10 @@ export async function writeOpenCluster(response: ServerResponse, clusterId: stri
   }
 
   try {
-    await runner.run(clusterCommand(configStore, clusterId, ["cluster-info"], 30, 16 * 1024 * 1024));
-
+    // The namespace list is the reachability check: it fails the same way
+    // `cluster-info` did on a cluster that cannot be reached, and asking both
+    // in sequence cost a kubectl process and a credential exchange before the
+    // first table could even start loading.
     const namespaces = await runner.runJson(clusterCommand(configStore, clusterId, ["get", "namespaces", "-o", "json"], 30, 64 * 1024 * 1024));
 
     const opened = configStore.markOpened(clusterId);
