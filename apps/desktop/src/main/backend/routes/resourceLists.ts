@@ -27,6 +27,11 @@ import { writeRouteError } from "./routeErrors";
 const RESOURCE_TIMEOUT_SECONDS = 45;
 const RESOURCE_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const READINESS_TIMEOUT_SECONDS = 5;
+// How long a pod list may wait for its `kubectl top` once the list itself is
+// ready. metrics-server is often slower than the API server on a big cluster,
+// and the table used to stay blank until it answered (up to its 12 s timeout).
+// Past this the rows go out with the usage KubeDeck already recorded.
+export const LIST_METRICS_GRACE_MS = 300;
 const READINESS_MAX_OUTPUT_BYTES = 1024 * 1024;
 
 interface ResourceListTarget {
@@ -135,6 +140,16 @@ function startListMetricsCommand(target: ResourceListTarget, configStore: Config
   return null;
 }
 
+const LATE = Symbol("late");
+
+function withinGrace<T>(pending: Promise<T>, graceMs: number): Promise<T | typeof LATE> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<typeof LATE>((resolve) => {
+    timer = setTimeout(() => resolve(LATE), graceMs);
+  });
+  return Promise.race([pending, late]).finally(() => clearTimeout(timer));
+}
+
 async function applyListMetrics(
   pending: PendingListMetrics,
   rows: ReturnType<typeof normalizeResourceItems>,
@@ -146,7 +161,13 @@ async function applyListMetrics(
   const clusterId = target.clusterId;
   if (!pending) return;
   if (pending.kind === "pods") {
-    const snapshot = await pending.snapshot;
+    let snapshot = await withinGrace(pending.snapshot, LIST_METRICS_GRACE_MS);
+    if (snapshot === LATE) {
+      // Nothing measured in time: start from an empty reading and let the
+      // backfill below fill every pod from the recorded samples. The late
+      // reading is dropped - it would be no fresher than the next sample.
+      snapshot = { metrics: new Map(), allNamespaces: target.namespace === "all" };
+    }
     if (snapshot) {
       // The list's own `kubectl top` reading is deliberately NOT recorded any
       // more. It is rounded to whole millicores and carries no scrape

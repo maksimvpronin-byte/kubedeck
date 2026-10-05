@@ -9,6 +9,11 @@ import { applyPodUsage } from "../utils/podUsagePatch";
 // Matches the sampling interval: the table cannot show anything newer than the
 // samples behind it.
 const POD_USAGE_REFRESH_MS = 15_000;
+// A pod list no longer waits for a slow `kubectl top`: it goes out with what
+// was recorded, which on a cluster opened a moment ago may be nothing yet. The
+// sampler's first reading lands within a couple of seconds of the open, so the
+// table asks once more then instead of showing N/A for a whole interval.
+const FIRST_ROWS_FOLLOW_UP_MS = 2_000;
 
 function isPodResourceTab(resource: string): boolean {
   return ["pods", "pod", "po"].includes(resource);
@@ -20,6 +25,10 @@ interface Options {
   connectedClusterIds: string[];
   resourceTab: string;
   selectedNamespaces: string[];
+  // Whether the pods table has rows. The first refresh used to run before they
+  // arrived and find nothing to fill, leaving the column empty until the next
+  // interval.
+  podRowsLoaded: boolean;
   setRows: Dispatch<SetStateAction<Record<string, ResourceRow[]>>>;
 }
 
@@ -28,7 +37,7 @@ interface Options {
 // happened to catch - N/A for a pod metrics-server had not reported yet. This
 // refreshes only the usage, from samples KubeDeck already recorded, so it costs
 // no kubectl call.
-export function usePodUsageRefresh({ api, activeCluster, connectedClusterIds, resourceTab, selectedNamespaces, setRows }: Options): void {
+export function usePodUsageRefresh({ api, activeCluster, connectedClusterIds, resourceTab, selectedNamespaces, podRowsLoaded, setRows }: Options): void {
   useEffect(() => {
     // A disconnected cluster has no samples left to read, so this would poll
     // the store for an empty answer every tick.
@@ -53,13 +62,15 @@ export function usePodUsageRefresh({ api, activeCluster, connectedClusterIds, re
     };
 
     void refresh();
+    const followUp = podRowsLoaded ? window.setTimeout(() => void refresh(), FIRST_ROWS_FOLLOW_UP_MS) : undefined;
     // Aligned rather than free-running: the drawer's usage panel reads the same
     // recorded samples on the same interval, and two unaligned timers make the
     // table and the drawer disagree about a pod whose usage is moving.
     const stop = setAlignedInterval(() => void refresh(), POD_USAGE_REFRESH_MS);
     return () => {
       cancelled = true;
+      window.clearTimeout(followUp);
       stop();
     };
-  }, [api, activeCluster?.id, resourceTab, selectedNamespaces, connectedClusterIds]);
+  }, [api, activeCluster?.id, resourceTab, selectedNamespaces, connectedClusterIds, podRowsLoaded]);
 }

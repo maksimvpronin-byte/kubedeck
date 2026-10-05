@@ -719,6 +719,66 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
   assert.deepEqual(discoveryClears, ["cluster-1"]);
 });
 
+// Reported from a real cluster: opening one with ~1700 pods left the Pods table
+// blank for seconds. The list was ready; its response was waiting for
+// `kubectl top`, which metrics-server answers slowly on a big cluster and which
+// may take up to its 12 s timeout. The list now waits a moment at most and
+// fills the usage from what the sampler already recorded.
+test("a pod list does not wait for a slow kubectl top", async (t) => {
+  let releaseTop;
+  const topIssued = new Promise((resolve) => {
+    releaseTop = resolve;
+  });
+  const runner = {
+    async runJson() {
+      return { items: [{ metadata: { uid: "u1", name: "demo", namespace: "default" }, spec: { containers: [{ name: "main" }] }, status: { phase: "Running" } }] };
+    },
+    async run(command) {
+      if (command.args[0] === "top") {
+        // metrics-server taking its time: answers long after the list.
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        releaseTop();
+        return { ok: true, stdout: "demo 999m 999Mi\n", stderr: "", commandPreview: "kubectl top pods", returnCode: 0 };
+      }
+      return { ok: true, stdout: "ok\n", stderr: "", commandPreview: "kubectl", returnCode: 0 };
+    },
+  };
+  const usageHistory = {
+    ...fakeUsageHistory(),
+    // What the background sampler recorded for this pod a few seconds ago.
+    backfillPodMetrics(_clusterId, metrics, rows) {
+      for (const row of rows) metrics.set(row.name, { cpu: "25m", memory: "64Mi" });
+    },
+  };
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    handleResourceListRequest(
+      request,
+      response,
+      pathname,
+      fakeConfigStore(),
+      runner,
+      new ResourceSnapshotCache(),
+      () => {},
+      usageHistory,
+      () => true,
+      () => {},
+    );
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+
+  const started = Date.now();
+  const response = await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&forceRefresh=true`);
+  const elapsed = Date.now() - started;
+  const body = await response.json();
+  assert.ok(elapsed < 1500, `the list answered in ${elapsed} ms instead of waiting for kubectl top`);
+  assert.equal(body.items[0].cpuUsage, "25m", "the usage comes from the recorded samples");
+  assert.equal(body.items[0].memoryUsage, "64Mi");
+  // Let the slow command finish before the test ends, so nothing outlives it.
+  await topIssued;
+});
+
 test("cached rows are discarded when cluster readiness fails", async (t) => {
   const cache = new ResourceSnapshotCache();
   cache.set("cluster-1", "pods", "default", {

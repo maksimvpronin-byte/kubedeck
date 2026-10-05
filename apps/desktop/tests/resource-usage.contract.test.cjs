@@ -92,7 +92,7 @@ test("the pods table refreshes usage from recorded samples rather than reloading
   // Reloading the list would mean another `kubectl get pods` every tick, which
   // is what moving from polling to watch was avoiding.
   const effectStart = app.indexOf("A pods table driven by watch events");
-  const effectEnd = app.indexOf("}, [api, activeCluster?.id, resourceTab, selectedNamespaces, connectedClusterIds]);");
+  const effectEnd = app.indexOf("}, [api, activeCluster?.id, resourceTab, selectedNamespaces, connectedClusterIds, podRowsLoaded]);");
   assert.ok(effectStart >= 0 && effectEnd > effectStart, "the usage refresh effect must still be recognisable");
   const effect = app.slice(effectStart, effectEnd);
   assert.doesNotMatch(effect, /loadResources/);
@@ -101,6 +101,15 @@ test("the pods table refreshes usage from recorded samples rather than reloading
   // A disconnected cluster has nothing recorded to read, and polling it would
   // undo half of what disconnecting is for.
   assert.match(effect, /connectedClusterIds\.includes\(activeCluster\.id\)/);
+
+  // A pod list no longer waits for a slow `kubectl top`, so on a cluster opened
+  // a moment ago it can arrive before the sampler's first reading. The usage is
+  // read again when the rows arrive and once more shortly after, not only at
+  // the next 15 s tick.
+  assert.match(effect, /const followUp = podRowsLoaded \? window\.setTimeout\(\(\) => void refresh\(\), FIRST_ROWS_FOLLOW_UP_MS\) : undefined;/);
+  assert.match(effect, /window\.clearTimeout\(followUp\);/);
+  const appSource = fs.readFileSync(path.join(rendererRoot, "App.tsx"), "utf8");
+  assert.match(appSource, /podRowsLoaded: \(rows\[resourceTab\]\?\.length \?\? 0\) > 0/);
 });
 
 // A clock that only moves when a test moves it, so the alignment can be watched

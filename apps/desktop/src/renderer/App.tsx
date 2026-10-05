@@ -316,7 +316,7 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources, watchHealthy, connectedClusterIds]);
 
-  usePodUsageRefresh({ api, activeCluster, connectedClusterIds, resourceTab, selectedNamespaces, setRows });
+  usePodUsageRefresh({ api, activeCluster, connectedClusterIds, resourceTab, selectedNamespaces, podRowsLoaded: (rows[resourceTab]?.length ?? 0) > 0, setRows });
 
   async function saveSettings(next: Settings, apiKeyUpdate?: ApiKeyUpdate) {
     if (!api) return;
