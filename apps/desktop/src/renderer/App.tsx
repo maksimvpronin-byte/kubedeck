@@ -42,6 +42,7 @@ import { loadUiState } from "./uiState";
 import { asErrorInfo } from "./utils/errors";
 import { getAutoRefreshIntervalSeconds, shouldPollResources } from "./utils/refresh";
 import { normalizeSettingsSsh, saveStoredSshDefaults } from "./utils/sshDefaults";
+import { pageHidden } from "./utils/pageVisibility";
 
 // One shared empty array: `rows[tab] ?? []` handed the table a new identity on
 // every render, which re-ran its filter and sort memos for nothing.
@@ -311,7 +312,7 @@ export function App() {
     const intervalSeconds = getAutoRefreshIntervalSeconds(settings);
     if (!shouldPollResources(intervalSeconds, watchHealthy)) return;
     const timer = window.setInterval(() => {
-      loadResources(activeCluster.id, resourceTab, selectedNamespaces, true);
+      if (!pageHidden()) loadResources(activeCluster.id, resourceTab, selectedNamespaces, true);
     }, intervalSeconds * 1000);
     return () => window.clearInterval(timer);
   }, [api, activeCluster?.id, resourceTab, selectedNamespaces, section, settings?.refreshIntervalSeconds, loadResources, watchHealthy, connectedClusterIds]);

@@ -178,3 +178,56 @@ test("a failed poll is silent by default and speaks when asked", async (t) => {
   await r.act(() => r.hook().loadNamespaces("cluster-a", false));
   assert.equal(r.errors.length, 1, "one the reader asked for is");
 });
+
+// Reported from a real cluster: the desktop log held a `get namespaces` every
+// 10 s for as long as the window stayed open - minimised included - and a
+// second one a few hundred milliseconds after every open, whose response had
+// already carried the namespaces.
+test("namespaces are not asked again right after an open, and not every table interval", async (t) => {
+  const { window: domWindow } = require("./helpers/dom.cjs");
+  const calls = [];
+  const api = { namespaces: async (clusterId) => (calls.push(clusterId), namespaceList("default")) };
+  const timers = [];
+  const realSetInterval = domWindow.setInterval;
+  domWindow.setInterval = (callback, delay) => (timers.push({ callback, delay }), 0);
+  t.after(() => {
+    domWindow.setInterval = realSetInterval;
+  });
+  const onError = () => {};
+  const settings = { refreshIntervalSeconds: 10 };
+  let hook;
+  let activeClusterId;
+  function Harness() {
+    hook = useNamespaceRefresh({ api, activeClusterId, settings, initialSelectedNamespaces: ["all"], onError });
+    return null;
+  }
+  const view = mount(React.createElement(Harness));
+  t.after(() => view.unmount());
+
+  // What opening a cluster does: its namespaces arrive with the open response,
+  // then it becomes the active one.
+  await React.act(async () => {
+    hook.activateClusterNamespaces("cluster-a", ["default", "tools"]);
+    activeClusterId = "cluster-a";
+    view.update(React.createElement(Harness));
+  });
+  assert.deepEqual(calls, [], "the open response already carried them");
+
+  const poll = timers.at(-1);
+  assert.equal(poll.delay, 60_000, "a 10 s table interval does not set the namespace pace");
+
+  // Out of sight, the tick asks nothing.
+  Object.defineProperty(domWindow.document, "visibilityState", { configurable: true, get: () => "hidden" });
+  await React.act(async () => poll.callback());
+  assert.deepEqual(calls, []);
+  Object.defineProperty(domWindow.document, "visibilityState", { configurable: true, get: () => "visible" });
+  await React.act(async () => poll.callback());
+  assert.deepEqual(calls, ["cluster-a"]);
+
+  // Switching to a cluster that was not just opened still loads its list.
+  await React.act(async () => {
+    activeClusterId = "cluster-b";
+    view.update(React.createElement(Harness));
+  });
+  assert.deepEqual(calls, ["cluster-a", "cluster-b"]);
+});

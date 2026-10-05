@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, ProblemsSummary, ResourceRow, Settings } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
+import { pageHidden } from "../utils/pageVisibility";
 import { getAutoRefreshIntervalSeconds, shouldSkipSilentRefresh } from "../utils/refresh";
-import { ErrorPanel } from "./ErrorPanel";
-import { ResourceTable } from "./ResourceTable";
 import { refreshActionLabels } from "./AsyncActionButton";
-import { categoryLabel, problemAdvice, problemCategory, problemDiagnosticText, problemOpenLocator, readString, rowKey, type SeverityFilter, summarizeGuidance, uniqueSorted } from "./problemsModel";
+import { ErrorPanel } from "./ErrorPanel";
 import { PriorityProblems, ProblemsControls, ProblemsEmptyState, ProblemsGuidance, ProblemsSummaryBar } from "./ProblemsPanelParts";
+import { categoryLabel, problemAdvice, problemCategory, problemDiagnosticText, problemOpenLocator, readString, rowKey, type SeverityFilter, summarizeGuidance, uniqueSorted } from "./problemsModel";
+import { ResourceTable } from "./ResourceTable";
 
 export function ProblemsPanel({
   api,
@@ -110,7 +111,9 @@ export function ProblemsPanel({
     if (!api || !cluster) return;
     const intervalSeconds = getAutoRefreshIntervalSeconds(settings);
     if (intervalSeconds <= 0) return;
-    const timer = window.setInterval(() => refreshProblems(true), intervalSeconds * 1000);
+    const timer = window.setInterval(() => {
+      if (!pageHidden()) refreshProblems(true);
+    }, intervalSeconds * 1000);
     return () => window.clearInterval(timer);
   }, [api, cluster?.id, settings?.refreshIntervalSeconds]);
 

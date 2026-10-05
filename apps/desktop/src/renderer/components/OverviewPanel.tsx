@@ -1,13 +1,14 @@
-import { formatBytes, formatCpuMillicores } from "../../shared/formatQuantity";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Gauge, RefreshCw, Server, ShieldAlert } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { formatBytes, formatCpuMillicores } from "../../shared/formatQuantity";
 import type { ApiClient } from "../api";
-import type { Cluster, ClusterOverviewResponse, ErrorInfo, Settings } from "../types";
-import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
-import { asErrorInfo, isAbortError } from "../utils/errors";
-import { getAutoRefreshIntervalSeconds, shouldSkipSilentRefresh } from "../utils/refresh";
 import { useOwnedError } from "../hooks/useOwnedError";
+import type { Cluster, ClusterOverviewResponse, ErrorInfo, Settings } from "../types";
+import { asErrorInfo, isAbortError } from "../utils/errors";
+import { pageHidden } from "../utils/pageVisibility";
+import { getAutoRefreshIntervalSeconds, shouldSkipSilentRefresh } from "../utils/refresh";
 import { formatElapsed } from "../utils/time";
+import type { ResourceWorkspaceTab } from "../utils/workspaceTabs";
 import { ThemedSelect } from "./ThemedSelect";
 
 type CapacityAmount = {
@@ -106,7 +107,9 @@ export function OverviewPanel({
   useEffect(() => {
     const seconds = getAutoRefreshIntervalSeconds(settings);
     if (!api || !cluster || seconds <= 0) return;
-    const timer = window.setInterval(() => void refresh(true), seconds * 1000);
+    const timer = window.setInterval(() => {
+      if (!pageHidden()) void refresh(true);
+    }, seconds * 1000);
     return () => window.clearInterval(timer);
   }, [api, cluster?.id, namespaces.join(","), settings?.refreshIntervalSeconds, refresh]);
 

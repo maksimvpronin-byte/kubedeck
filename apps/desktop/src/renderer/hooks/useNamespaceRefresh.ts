@@ -3,8 +3,11 @@ import type { ApiClient } from "../api";
 import type { ErrorInfo, Settings } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { arraysEqual, normalizeNamespaceSelection } from "../utils/kubeResources";
-import { rememberNamespaceUsage, type NamespaceUsage } from "../utils/namespaceUsage";
+import { type NamespaceUsage, rememberNamespaceUsage } from "../utils/namespaceUsage";
+import { pageHidden } from "../utils/pageVisibility";
 import { getAutoRefreshIntervalSeconds } from "../utils/refresh";
+
+const NAMESPACE_REFRESH_FLOOR_SECONDS = 60;
 
 export type ClusterNamespaceSelections = Record<string, string[]>;
 
@@ -77,8 +80,14 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
     return nextSelection;
   }, []);
 
+  // The cluster whose namespaces just came with its open response: the refresh
+  // effect that runs as it becomes active has nothing to add, and asking again
+  // was a second identical kubectl call a few hundred milliseconds later.
+  const freshlyActivatedRef = useRef<string | null>(null);
+
   const activateClusterNamespaces = useCallback(
     (clusterId: string, availableNamespaces: string[]) => {
+      freshlyActivatedRef.current = clusterId;
       const sortedNamespaces = Array.from(new Set(availableNamespaces.filter(Boolean))).sort((left, right) => left.localeCompare(right));
       const remembered = rememberedNamespacesForCluster(selectionsRef.current, clusterId);
       const reconciled = reconcileClusterNamespaceSelection(remembered, sortedNamespaces);
@@ -198,12 +207,15 @@ export function useNamespaceRefresh({ api, activeClusterId, settings, initialSel
 
   useEffect(() => {
     if (!activeClusterId || !api) return;
-    loadNamespaces(activeClusterId, true);
+    if (freshlyActivatedRef.current === activeClusterId) freshlyActivatedRef.current = null;
+    else loadNamespaces(activeClusterId, true);
     const intervalSeconds = getAutoRefreshIntervalSeconds(settings);
     if (intervalSeconds <= 0) return;
+    // Namespaces come and go far more rarely than the rows of a table, and this
+    // followed the table's own interval - every 10 s by default, forever.
     const timer = window.setInterval(() => {
-      loadNamespaces(activeClusterId, true, true);
-    }, intervalSeconds * 1000);
+      if (!pageHidden()) loadNamespaces(activeClusterId, true, true);
+    }, Math.max(intervalSeconds, NAMESPACE_REFRESH_FLOOR_SECONDS) * 1000);
     return () => window.clearInterval(timer);
   }, [api, activeClusterId, settings?.refreshIntervalSeconds, loadNamespaces]);
 
