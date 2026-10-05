@@ -1,4 +1,4 @@
-import { Network, X } from "lucide-react";
+import { SquareParking, X } from "lucide-react";
 import type { ErrorInfo, PortForwardStartRequest, ResourceRow } from "../types";
 import { forwardableServicePorts } from "../utils/serviceAddresses";
 import { ErrorPanel } from "./ErrorPanel";
@@ -112,9 +112,10 @@ export function PortForwardModal({ draft, row, error, copyLabel, loading, onDraf
   );
 }
 
-// One picture for port forwarding wherever it is offered, told apart from the
-// Related tab's.
-export const PortForwardIcon = Network;
+// One picture for port forwarding wherever it is offered: a P for "port".
+// It used to be the Network icon, which is also the Related tab's, so the
+// button read as a second way to the same tab.
+export const PortForwardIcon = SquareParking;
 
 export function supportsPortForward(resource: string, row: ResourceRow) {
   // An ExternalName has nothing behind it to forward to, and kubectl forwards
