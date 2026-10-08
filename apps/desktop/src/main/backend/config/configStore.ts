@@ -73,6 +73,7 @@ export function defaultSettings(): Settings {
     restartProblemThreshold: 3,
     terminalFontSize: 13,
     logsSince: "",
+    directApi: true,
     llm: defaultLlmSettings(),
     ssh: defaultSshSettings(),
   };
@@ -157,6 +158,7 @@ export function normalizeSettings(value: unknown): Settings {
     restartProblemThreshold: asInteger(value.restartProblemThreshold, defaults.restartProblemThreshold),
     terminalFontSize: asInteger(value.terminalFontSize, defaults.terminalFontSize),
     logsSince: asString(value.logsSince, defaults.logsSince),
+    directApi: asBoolean(value.directApi, defaults.directApi),
     llm: normalizeLlmSettings(value.llm),
     ssh: normalizeSshSettings(value.ssh),
   };

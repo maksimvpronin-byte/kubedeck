@@ -65,6 +65,9 @@ export interface GatewayOptions {
   sshClientFactory?: SshClientFactory;
   sshHostKeyDecisionTimeoutMs?: number;
   secretStore?: SecretStore;
+  // Answer raw GETs with KubeDeck's own API client (the application turns this
+  // on; tests that drive a fake kubectl leave it off).
+  directApi?: boolean;
 }
 
 export interface GatewayHandle {

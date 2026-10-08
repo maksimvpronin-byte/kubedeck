@@ -29,6 +29,7 @@ import { writeKubectlStatus } from "./routes/kubectl";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import { handleResourceDetailsRequest } from "./routes/resourceDetails";
 import { clearResourceDefinitionCache, handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscoveryEvents";
+import { DirectApiTransport } from "./api/directApi";
 import { clearCustomListEndpoints } from "./resources/customListPaths";
 import { clearNodeDiskMetricsCache } from "./resources/metrics";
 import { UsageHistorySampler } from "./resources/usageHistorySampler";
@@ -58,6 +59,7 @@ interface GatewayServices {
   configStore: ConfigStore;
   auditStore: AuditStore;
   kubectlRunner: KubectlRunner;
+  directApi: DirectApiTransport | null;
   resourceCache: ResourceSnapshotCache;
   watchManager: WatchManager;
   usageHistory: UsageHistorySampler;
@@ -503,7 +505,8 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   const watchWebSocket = new ResourceWatchWebSocketServer(watchEvents, options.log);
   const configStore = new ConfigStore(options.appDataRoot);
   const auditStore = new AuditStore(options.appDataRoot, options.log);
-  const kubectlRunner = new KubectlRunner(options.log, options.spawnKubectl);
+  const directApi = options.directApi ? new DirectApiTransport(options.log) : null;
+  const kubectlRunner = new KubectlRunner(options.log, options.spawnKubectl, directApi);
   const portForwardManager = new PortForwardManager(options.log, {
     spawnProcess: options.spawnKubectl,
   });
@@ -523,6 +526,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
     configStore,
     auditStore,
     kubectlRunner,
+    directApi,
     resourceCache,
     watchManager,
     usageHistory,
@@ -580,6 +584,7 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
         await services.watchManager.close();
         watchWebSocket.close();
         await services.kubectlRunner.close();
+        services.directApi?.close();
 
         for (const socket of sockets) {
           socket.destroy();

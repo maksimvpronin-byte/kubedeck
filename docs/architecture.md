@@ -51,6 +51,7 @@ Resource Snapshot Cache, история потребления подов, watch
 - `gateway.ts` — HTTP/WebSocket composition root и lifecycle сервисов;
 - `config/` — пути, валидация и сохранение конфигурации;
 - `kubectl/` — безопасная сборка команд, spawn без shell, timeout и output limits;
+- `api/` — собственный HTTP-клиент к API-серверу для чтения: профиль подключения из kubeconfig, постоянное соединение на кластер, exec-плагины авторизации, CONNECT-прокси, ошибки в форме kubectl;
 - `routes/` — HTTP handlers по функциональным областям;
 - `cache/` — in-memory snapshots ресурсов;
 - `watch/` — lifecycle `kubectl watch`, invalidation cache и WebSocket events;
@@ -68,6 +69,8 @@ Resource Snapshot Cache, история потребления подов, watch
 ## Kubectl transport
 
 Kubernetes API вызывается через системный `kubectl`, указанный в Settings или доступный через `PATH`. Portable/DMG payload не содержит встроенного kubectl.
+
+Чтения (`kubectl get --raw <path>`) `KubectlRunner` сначала отдаёт `api/DirectApiTransport`: если kubeconfig кластера понятен клиенту (`api/kubeconfigProfile.ts` — current context, сертификаты, токен, tokenFile, exec-плагин, `proxy-url`), запрос уходит прямо на API-сервер по постоянному keep-alive соединению этого кластера, без процесса kubectl. Всё, что клиент не понимает (`auth-provider`, impersonation, basic auth, SOCKS-прокси, exec с `interactiveMode: Always`), и всё, в чём Node может разойтись с Go (ошибка TLS-проверки, отказ прокси, упавший exec-плагин), уходит в kubectl, как раньше; после такого отказа kubeconfig остаётся на kubectl до его изменения. Ответы API-сервера и сетевые ошибки возвращаются как `KubectlError` с теми же кодами и формулировками, что у kubectl, потому что окно различает «кластер недоступен» и «нет прав» по тексту. Настройка «Читать напрямую через Kubernetes API» выключает транспорт целиком.
 
 Все команды проходят через `KubectlRunner` и command builders. Они обеспечивают:
 

@@ -90,6 +90,7 @@ Redaction является дополнительной защитой, а не 
 ## Kubernetes commands
 
 - `kubectl` запускается без shell с массивом аргументов.
+- Прямые чтения через `api/` используют только то, что указано в kubeconfig кластера (CA, клиентский сертификат, токен, exec-плагин); без CA в kubeconfig проверка идёт по встроенным и системным корням, `insecure-skip-tls-verify` соблюдается так же, как kubectl. Токены и сертификаты не попадают ни в command preview (`GET <server><path>`), ни в лог. Exec-плагин запускается без shell, без терминала (`interactive: false`), его stderr не сохраняется.
 - Resource names, namespaces, container names и actions валидируются.
 - YAML передаётся только через stdin и ограничивается одним объектом на запрос.
 - Команды имеют timeout и output limits.

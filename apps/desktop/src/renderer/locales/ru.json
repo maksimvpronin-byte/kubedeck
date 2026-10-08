@@ -115,6 +115,8 @@
   "settings.logs": "Открыть папку логов",
   "settings.save": "Сохранить настройки",
   "settings.kubectlPath": "Путь к kubectl",
+  "settings.directApi": "Читать напрямую через Kubernetes API",
+  "settings.directApiHint": "Быстрее: списки и другие чтения идут по одному постоянному соединению на кластер, а не через процесс kubectl на каждый запрос. Кластеры, чей kubeconfig KubeDeck так использовать не умеет, по-прежнему работают через kubectl. Выключите, если кластер ведёт себя не так, как с kubectl.",
   "settings.theme": "Тема",
   "settings.theme.system": "Системная",
   "settings.theme.system.description": "Следовать теме операционной системы",

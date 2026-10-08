@@ -146,6 +146,7 @@ export function SettingsPanel({
     const same = (left: unknown, right: unknown) => stableJson(left) === stableJson(right);
     if (
       current.kubectlPath !== saved.kubectlPath ||
+      current.directApi !== saved.directApi ||
       current.theme !== saved.theme ||
       current.language !== saved.language ||
       normalizeRefreshIntervalSeconds(current.refreshIntervalSeconds) !== normalizeRefreshIntervalSeconds(saved.refreshIntervalSeconds)
@@ -357,6 +358,11 @@ export function SettingsPanel({
                     </select>
                   </label>
                 </div>
+                <label className="settings-checkbox">
+                  <input type="checkbox" checked={draft.directApi !== false} onChange={(event) => setDraft({ ...draft, directApi: event.target.checked })} />
+                  {t("settings.directApi")}
+                </label>
+                <p className="settings-hint">{t("settings.directApiHint")}</p>
                 <div className="settings-card-footer">
                   <button className="secondary-btn" type="button" onClick={() => window.kubedeck.openLogsFolder()}>
                     {t("settings.logs")}
@@ -591,6 +597,8 @@ function stableJson(value: unknown): string {
 function normalizeSettings(settings: Settings): Settings {
   return {
     ...normalizeSettingsSsh(settings),
+    // Settings saved before the option existed read as on, as the backend does.
+    directApi: settings.directApi !== false,
     llm: normalizeLlmSettings(settings.llm),
   };
 }

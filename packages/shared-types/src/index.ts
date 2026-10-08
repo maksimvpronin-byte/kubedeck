@@ -41,6 +41,10 @@ export interface Settings {
   restartProblemThreshold: number;
   terminalFontSize: number;
   logsSince: string;
+  // Read lists and other GETs through KubeDeck's own API client rather than
+  // a kubectl process per request. On by default; off is the escape hatch for
+  // a cluster the client understands differently from kubectl.
+  directApi: boolean;
   llm: LlmSettings;
   ssh: SshSettings;
 }

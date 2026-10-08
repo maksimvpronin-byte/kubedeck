@@ -115,6 +115,8 @@
   "settings.logs": "Open app logs folder",
   "settings.save": "Save settings",
   "settings.kubectlPath": "kubectl path",
+  "settings.directApi": "Read through the Kubernetes API directly",
+  "settings.directApiHint": "Faster: lists and other reads go over one kept connection per cluster instead of a kubectl process per request. Clusters whose kubeconfig KubeDeck cannot use this way keep going through kubectl. Turn off if a cluster behaves differently than with kubectl.",
   "settings.theme": "Theme",
   "settings.theme.system": "System",
   "settings.theme.system.description": "Follow the operating system",

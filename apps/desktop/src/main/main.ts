@@ -97,6 +97,7 @@ async function startNodeGateway() {
     appVersion: app.getVersion(),
     log: logDesktop,
     secretStore,
+    directApi: true,
   });
   gatewayUrl = gateway.baseUrl;
 }

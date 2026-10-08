@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from "node:child_process";
+import type { DirectApiTransport } from "../api/directApi";
 import { buildKubectlCommand, type KubectlCommand } from "./command";
 import { classifyKubectlError, KubectlError, sanitizeKubectlText, truncateKubectlText } from "./errors";
 
@@ -24,9 +25,20 @@ export class KubectlRunner {
   constructor(
     private readonly log: (message: string) => void,
     private readonly spawnProcess: SpawnProcess = spawn as SpawnProcess,
+    private readonly direct: DirectApiTransport | null = null,
   ) {}
 
-  run(command: KubectlCommand, signal?: AbortSignal): Promise<CommandResult> {
+  // A raw GET is answered by the cluster's own API client when it can be;
+  // everything else, and anything that client cannot serve, starts kubectl.
+  async run(command: KubectlCommand, signal?: AbortSignal): Promise<CommandResult> {
+    if (this.direct && !this.closed) {
+      const answered = await this.direct.run(command, signal);
+      if (answered) return answered;
+    }
+    return this.spawn(command, signal);
+  }
+
+  private spawn(command: KubectlCommand, signal?: AbortSignal): Promise<CommandResult> {
     if (this.closed) {
       return Promise.reject(
         new KubectlError({

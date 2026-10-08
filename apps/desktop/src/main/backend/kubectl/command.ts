@@ -10,6 +10,9 @@ export interface KubectlCommand {
   timeoutSeconds: number;
   maxOutputBytes: number;
   stdinText?: string;
+  // Whether a raw GET may be answered by KubeDeck's own API client instead
+  // of a kubectl process (the "read through the API" setting).
+  directApi?: boolean;
 }
 
 export interface BuiltKubectlCommand {
@@ -28,6 +31,7 @@ export function createKubectlCommand(values: Omit<Partial<KubectlCommand>, "args
     timeoutSeconds: values.timeoutSeconds ?? 30,
     maxOutputBytes: values.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
     ...(typeof values.stdinText === "string" ? { stdinText: values.stdinText } : {}),
+    ...(values.directApi ? { directApi: true } : {}),
   };
 }
 

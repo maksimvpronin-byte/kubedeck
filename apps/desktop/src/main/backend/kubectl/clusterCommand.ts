@@ -13,6 +13,7 @@ export function clusterCommand(configStore: ConfigStore, clusterId: string, args
     args,
     timeoutSeconds,
     maxOutputBytes,
+    directApi: config.settings.directApi,
   });
 }
 
