@@ -6,6 +6,7 @@ import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
 import { KubectlError } from "../kubectl/errors";
 import type { KubectlRunner } from "../kubectl/runner";
+import { customListPath, forgetCustomListEndpoint, resolveCustomListEndpoint } from "../resources/customListPaths";
 import { normalizeResourceItems } from "../resources/normalizers";
 import { rawListPath, withItemTypes } from "../resources/rawListPaths";
 import {
@@ -94,15 +95,30 @@ export function matchResourceListRoute(method: string | undefined, pathname: str
 
 // A built-in type is read straight from its API path: kubectl then only moves
 // bytes, where `-o json` re-encodes every object - ten times the cost on a
-// large list. A server that does not serve that path (an older cluster without
-// that API version) gets the list the way it always did.
+// large list. A custom resource is read the same way once its group says which
+// version it serves. A server that does not serve that path (an older cluster
+// without that API version, a CRD that changed) gets the list the way it
+// always did.
+async function rawListPathFor(configStore: ConfigStore, runner: KubectlRunner, target: ResourceListTarget, signal?: AbortSignal): Promise<string | null> {
+  const builtIn = rawListPath(target.resource, target.namespace);
+  if (builtIn) return builtIn;
+  try {
+    const endpoint = await resolveCustomListEndpoint(configStore, runner, target.clusterId, target.resource, signal);
+    return endpoint ? customListPath(endpoint, target.namespace) : null;
+  } catch (error) {
+    if (isRequestCancelled(error, signal)) throw error;
+    return null;
+  }
+}
+
 async function listResource(configStore: ConfigStore, runner: KubectlRunner, target: ResourceListTarget, signal?: AbortSignal): Promise<Record<string, unknown>> {
-  const path = rawListPath(target.resource, target.namespace);
+  const path = await rawListPathFor(configStore, runner, target, signal);
   if (path) {
     try {
       return withItemTypes(await runner.runJson(clusterCommand(configStore, target.clusterId, ["get", "--raw", path], RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal));
     } catch (error) {
       if (!(error instanceof KubectlError) || error.info.code !== "NOT_FOUND" || isRequestCancelled(error, signal)) throw error;
+      forgetCustomListEndpoint(target.clusterId, target.resource);
     }
   }
   return runner.runJson(clusterCommand(configStore, target.clusterId, resourceArgs(target), RESOURCE_TIMEOUT_SECONDS, RESOURCE_MAX_OUTPUT_BYTES), signal);

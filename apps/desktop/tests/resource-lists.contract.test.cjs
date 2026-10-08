@@ -880,6 +880,132 @@ test("a cluster that does not serve the API path still gets its list through kub
   assert.equal((await response.json()).items[0].name, "web");
 });
 
+// Reported from a real cluster: Argo CD Applications in one namespace did not
+// list within the table's 30 seconds. They went through `kubectl get
+// applications.argoproj.io -o json`, which re-encodes every object - and an
+// Application carries its whole resource tree in status. Custom resources are
+// read raw now too, once their group says which version it serves.
+function customResourceServer(t, runJson) {
+  const { clearCustomListEndpoints } = require("../dist/main/backend/resources/customListPaths.js");
+  clearCustomListEndpoints();
+  t.after(() => clearCustomListEndpoints());
+  const runner = {
+    runJson,
+    async run() {
+      return { ok: true, stdout: "", stderr: "", commandPreview: "kubectl", returnCode: 0 };
+    },
+  };
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    handleResourceListRequest(
+      request,
+      response,
+      pathname,
+      fakeConfigStore(),
+      runner,
+      new ResourceSnapshotCache(),
+      () => {},
+      fakeUsageHistory(),
+      () => true,
+      () => {},
+    );
+  });
+  t.after(() => close(server));
+  return listen(server);
+}
+
+function argoDiscovery(args) {
+  if (args === "get --raw /apis/argoproj.io") return { kind: "APIGroup", name: "argoproj.io", preferredVersion: { groupVersion: "argoproj.io/v1alpha1", version: "v1alpha1" } };
+  if (args === "get --raw /apis/argoproj.io/v1alpha1") {
+    return {
+      kind: "APIResourceList",
+      groupVersion: "argoproj.io/v1alpha1",
+      resources: [
+        { name: "applications", namespaced: true, kind: "Application", verbs: ["get", "list", "watch"] },
+        { name: "applications/status", namespaced: true, kind: "Application", verbs: ["get"] },
+      ],
+    };
+  }
+  return null;
+}
+
+test("custom resource lists are read from their API path once the group is known", async (t) => {
+  const commands = [];
+  const baseUrl = await customResourceServer(t, async (command) => {
+    const args = command.args.join(" ");
+    commands.push(args);
+    const discovery = argoDiscovery(args);
+    if (discovery) return discovery;
+    return {
+      kind: "ApplicationList",
+      apiVersion: "argoproj.io/v1alpha1",
+      items: [{ apiVersion: "argoproj.io/v1alpha1", kind: "Application", metadata: { uid: "a1", name: "shop", namespace: "argocd" }, spec: {}, status: {} }],
+    };
+  });
+
+  const first = await (await fetch(`${baseUrl}/clusters/cluster-1/resources/applications.argoproj.io?namespace=argocd&forceRefresh=true`)).json();
+  assert.equal(first.items[0].name, "shop");
+  assert.deepEqual(commands, ["get --raw /apis/argoproj.io", "get --raw /apis/argoproj.io/v1alpha1", "get --raw /apis/argoproj.io/v1alpha1/namespaces/argocd/applications"]);
+
+  // The version is remembered: a refresh is one request.
+  commands.length = 0;
+  await (await fetch(`${baseUrl}/clusters/cluster-1/resources/applications.argoproj.io?namespace=all&forceRefresh=true`)).json();
+  assert.deepEqual(commands, ["get --raw /apis/argoproj.io/v1alpha1/applications"]);
+});
+
+test("a custom resource whose group cannot be read still lists through kubectl get", async (t) => {
+  const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
+  const commands = [];
+  const baseUrl = await customResourceServer(t, async (command) => {
+    const args = command.args.join(" ");
+    commands.push(args);
+    if (args.startsWith("get --raw")) throw new KubectlError({ code: "FORBIDDEN", message: "forbidden", rawStderr: "", commandPreview: "kubectl get --raw" });
+    return { items: [{ apiVersion: "example.com/v1", kind: "Widget", metadata: { uid: "w1", name: "w", namespace: "shop" } }] };
+  });
+
+  const response = await fetch(`${baseUrl}/clusters/cluster-1/resources/widgets.example.com?namespace=shop&forceRefresh=true`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(commands, ["get --raw /apis/example.com", "get widgets.example.com -n shop -o json"]);
+  assert.equal((await response.json()).items[0].name, "w");
+});
+
+test("a custom resource that moved off its remembered version is rediscovered", async (t) => {
+  const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
+  const commands = [];
+  let removed = false;
+  const baseUrl = await customResourceServer(t, async (command) => {
+    const args = command.args.join(" ");
+    commands.push(args);
+    const discovery = argoDiscovery(args);
+    if (discovery) return discovery;
+    if (removed && args.startsWith("get --raw"))
+      throw new KubectlError({ code: "NOT_FOUND", message: "the server could not find the requested resource", rawStderr: "", commandPreview: "kubectl get --raw" });
+    return { items: [] };
+  });
+
+  await fetch(`${baseUrl}/clusters/cluster-1/resources/applications.argoproj.io?namespace=argocd&forceRefresh=true`);
+  removed = true;
+  commands.length = 0;
+  assert.equal((await fetch(`${baseUrl}/clusters/cluster-1/resources/applications.argoproj.io?namespace=argocd&forceRefresh=true`)).status, 200);
+  assert.deepEqual(commands, ["get --raw /apis/argoproj.io/v1alpha1/namespaces/argocd/applications", "get applications.argoproj.io -n argocd -o json"]);
+  commands.length = 0;
+  await fetch(`${baseUrl}/clusters/cluster-1/resources/applications.argoproj.io?namespace=argocd&forceRefresh=true`);
+  assert.equal(commands[0], "get --raw /apis/argoproj.io", "the stale version was forgotten");
+});
+
+test("only <plural>.<group> names are looked up in their group", () => {
+  const { splitGroupResource, customListPath } = require("../dist/main/backend/resources/customListPaths.js");
+  assert.deepEqual(splitGroupResource("applications.argoproj.io"), { plural: "applications", group: "argoproj.io" });
+  assert.deepEqual(splitGroupResource("ingresses.networking.k8s.io"), { plural: "ingresses", group: "networking.k8s.io" });
+  assert.equal(splitGroupResource("applications"), null);
+  assert.equal(splitGroupResource("../x.y"), null);
+  const clusterScoped = { prefix: "/apis/cert-manager.io/v1", plural: "clusterissuers", namespaced: false };
+  assert.equal(customListPath(clusterScoped, "_cluster"), "/apis/cert-manager.io/v1/clusterissuers");
+  assert.equal(customListPath(clusterScoped, "shop"), "/apis/cert-manager.io/v1/clusterissuers");
+  const namespaced = { prefix: "/apis/argoproj.io/v1alpha1", plural: "applications", namespaced: true };
+  assert.equal(customListPath(namespaced, "_cluster"), null, "the context's default namespace is kubectl's to know");
+});
+
 test("cached rows are discarded when cluster readiness fails", async (t) => {
   const cache = new ResourceSnapshotCache();
   cache.set("cluster-1", "pods", "default", {

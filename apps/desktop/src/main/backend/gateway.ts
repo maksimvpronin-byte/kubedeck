@@ -29,6 +29,7 @@ import { writeKubectlStatus } from "./routes/kubectl";
 import { writeMigrationStatus } from "./routes/migrationStatus";
 import { handleResourceDetailsRequest } from "./routes/resourceDetails";
 import { clearResourceDefinitionCache, handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscoveryEvents";
+import { clearCustomListEndpoints } from "./resources/customListPaths";
 import { clearNodeDiskMetricsCache } from "./resources/metrics";
 import { UsageHistorySampler } from "./resources/usageHistorySampler";
 import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
@@ -91,6 +92,7 @@ function applyCors(request: IncomingMessage, response: ServerResponse): boolean 
 // another once the cluster underneath them has changed.
 function clearClusterReadCaches(clusterId?: string): void {
   clearResourceDefinitionCache(clusterId);
+  clearCustomListEndpoints(clusterId);
   clearAggregateSourceCache(clusterId);
 }
 
