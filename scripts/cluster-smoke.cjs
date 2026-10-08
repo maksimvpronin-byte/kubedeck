@@ -17,6 +17,9 @@
 //   KUBEDECK_SMOKE_KUBECTL      kubectl binary (default: kubectl)
 //   KUBEDECK_SMOKE_NAMESPACE    namespace for the scoped calls (default: all)
 //   KUBEDECK_SMOKE_REPORT       write the timing table to this file as Markdown
+//   KUBEDECK_SMOKE_DIRECT_API   0 to read through kubectl only; otherwise reads
+//                               go through KubeDeck's own API client, as in the
+//                               application
 //   KUBEDECK_SMOKE_BASELINE     an earlier report to compare against; every step
 //                               gets a delta, and a step that got materially
 //                               slower is called out (it does not fail the run -
@@ -63,6 +66,7 @@ const { ConfigStore } = require(path.join(root, "apps/desktop/dist/main/backend/
 
 const namespace = process.env.KUBEDECK_SMOKE_NAMESPACE || "all";
 const kubectlPath = process.env.KUBEDECK_SMOKE_KUBECTL || "kubectl";
+const directApi = process.env.KUBEDECK_SMOKE_DIRECT_API !== "0";
 const token = crypto.randomBytes(24).toString("hex");
 const headers = { "Content-Type": "application/json", "X-KubeDeck-Token": token };
 
@@ -134,15 +138,17 @@ async function main() {
     const cluster = store.importCluster(kubeconfig, "smoke");
     const config = store.load();
     config.settings.kubectlPath = kubectlPath;
+    config.settings.directApi = directApi;
     store.save(config, false);
 
-    process.stdout.write(`cluster smoke: read-only, temporary app data in ${appDataRoot}\n\n`);
+    process.stdout.write(`cluster smoke: read-only, ${directApi ? "direct API client" : "kubectl only"}, temporary app data in ${appDataRoot}\n\n`);
 
     gateway = await startGateway({
       sessionToken: token,
       appDataRoot,
       appVersion: require(path.join(root, "package.json")).version,
       log: (message) => logLines.push(message),
+      directApi: true,
     });
 
     const get = async (route, init) => {
