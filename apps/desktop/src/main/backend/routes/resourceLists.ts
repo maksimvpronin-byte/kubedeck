@@ -36,6 +36,9 @@ const READINESS_TIMEOUT_SECONDS = 5;
 export const LIST_METRICS_GRACE_MS = 300;
 const READINESS_MAX_OUTPUT_BYTES = 1024 * 1024;
 
+// The list of a scope that a running API watch keeps in memory, or null.
+export type WatchedListSnapshot = (clusterId: string, resource: string, namespace: string) => Record<string, unknown> | null;
+
 interface ResourceListTarget {
   clusterId: string;
   resource: string;
@@ -111,7 +114,11 @@ async function rawListPathFor(configStore: ConfigStore, runner: KubectlRunner, t
   }
 }
 
-async function listResource(configStore: ConfigStore, runner: KubectlRunner, target: ResourceListTarget, signal?: AbortSignal): Promise<Record<string, unknown>> {
+async function listResource(configStore: ConfigStore, runner: KubectlRunner, target: ResourceListTarget, signal?: AbortSignal, watched?: WatchedListSnapshot): Promise<Record<string, unknown>> {
+  // A scope an API watch keeps current is answered from memory: the reload a
+  // watch event asks for no longer goes back to the API server.
+  const snapshot = watched?.(target.clusterId, target.resource, target.namespace);
+  if (snapshot) return snapshot;
   const path = await rawListPathFor(configStore, runner, target, signal);
   if (path) {
     try {
@@ -240,6 +247,7 @@ async function loadResources(
   usageHistory: UsageHistorySampler,
   isConnected: (clusterId: string) => boolean,
   signal?: AbortSignal,
+  watched?: WatchedListSnapshot,
 ): Promise<void> {
   // Browsing a connected cluster is what starts its usage history: sampling
   // every configured cluster regardless of use would spend kubectl processes
@@ -273,7 +281,7 @@ async function loadResources(
   const metrics = startListMetrics(target, configStore, runner, signal);
 
   try {
-    const data = await listResource(configStore, runner, target, signal);
+    const data = await listResource(configStore, runner, target, signal, watched);
 
     const rawItems = asItems(data);
     const rows = normalizeResourceItems(target.resource, rawItems);
@@ -325,6 +333,7 @@ export function handleResourceListRequest(
   usageHistory: UsageHistorySampler,
   isConnected: (clusterId: string) => boolean,
   log: (message: string) => void,
+  watched?: WatchedListSnapshot,
 ): boolean {
   try {
     if (handleCacheStatus(request, response, pathname, cache, clearDiscoveryCache)) {
@@ -338,7 +347,7 @@ export function handleResourceListRequest(
     // this the kubectl process behind it kept running for an answer that could
     // no longer be delivered.
     const signal = requestAbortSignal(request, response);
-    void loadResources(response, target, configStore, runner, cache, usageHistory, isConnected, signal).catch((error) => {
+    void loadResources(response, target, configStore, runner, cache, usageHistory, isConnected, signal, watched).catch((error) => {
       if (isRequestCancelled(error, signal)) return;
       writeRouteError(response, error, log, { label: "resource list", fallbackCode: "RESOURCE_LIST_FAILED", fallbackMessage: "Unable to load Kubernetes resources" });
     });

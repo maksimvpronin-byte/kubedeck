@@ -55,6 +55,8 @@ export function resourceWatchEventMatches(event: ResourceWatchEvent, filter: Res
 
 export class ResourceWatchEventHub {
   private readonly listeners = new Set<ResourceWatchListener>();
+  // The scope each subscriber listens to, for those that said.
+  private readonly filters = new Map<ResourceWatchListener, ResourceWatchFilter>();
 
   publish(event: UnpublishedEvent<ResourceWatchEvent>): ResourceWatchEvent {
     const published = {
@@ -67,9 +69,21 @@ export class ResourceWatchEventHub {
     return published;
   }
 
-  subscribe(listener: ResourceWatchListener): () => void {
+  subscribe(listener: ResourceWatchListener, filter?: ResourceWatchFilter): () => void {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    if (filter) this.filters.set(listener, filter);
+    return () => {
+      this.listeners.delete(listener);
+      this.filters.delete(listener);
+    };
+  }
+
+  // Whether somebody listens to exactly this watch scope.
+  hasSubscriber(scope: ResourceWatchFilter): boolean {
+    for (const filter of this.filters.values()) {
+      if (filter.clusterId === scope.clusterId && normalize(filter.resource) === normalize(scope.resource) && filter.namespace === scope.namespace) return true;
+    }
+    return false;
   }
 
   subscriberCount(): number {
@@ -78,5 +92,6 @@ export class ResourceWatchEventHub {
 
   clear(): void {
     this.listeners.clear();
+    this.filters.clear();
   }
 }

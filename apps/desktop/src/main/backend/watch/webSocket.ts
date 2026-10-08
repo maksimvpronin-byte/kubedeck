@@ -113,7 +113,7 @@ export class ResourceWatchWebSocketServer {
       if (!resourceWatchEventMatches(event, filter)) return;
       queue.enqueue(event);
       scheduleHeartbeat();
-    });
+    }, filter);
     const cleanup = () => {
       if (heartbeat) clearTimeout(heartbeat);
       unsubscribe();

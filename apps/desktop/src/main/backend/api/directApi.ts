@@ -16,6 +16,8 @@ import { ClusterApi, DirectApiUnavailable } from "./clusterApi";
 import { AGGREGATED_DISCOVERY_ACCEPT, apiResourcesTable, isApiResourcesCommand } from "./discoveryTable";
 import { ExecCredentialCache } from "./execCredentials";
 import { type GetJsonRequest, getJsonPath, parseGetJson, type ResolvedEndpoint } from "./getTranslation";
+import { ApiInformer, type InformerCallbacks } from "../watch/apiInformer";
+import type { ApiWatchSource } from "../watch/watchManager";
 import { connectionProfile } from "./kubeconfigProfile";
 
 const DISCOVERY_TIMEOUT_SECONDS = 15;
@@ -39,7 +41,7 @@ export function rawGetPath(args: readonly string[]): string | null {
   return null;
 }
 
-export class DirectApiTransport {
+export class DirectApiTransport implements ApiWatchSource {
   private readonly clients = new Map<string, ClientEntry>();
   // Kubeconfigs (by profile stamp) this transport gave up on: kubectl answers
   // for them until the file changes, instead of every request failing over.
@@ -207,6 +209,39 @@ export class DirectApiTransport {
     // A list read raw leaves kind and apiVersion off its items, where
     // `kubectl get -o json` fills them in.
     return request.name ? value : withItemTypes(value);
+  }
+
+  // A watch of `resource` in `namespace` ("all", "_cluster" or one namespace)
+  // kept over the cluster's connection, already listed; null when kubectl has
+  // to watch it.
+  async informerFor(command: KubectlCommand, resource: string, namespace: string, callbacks: InformerCallbacks): Promise<ApiInformer | null> {
+    const target = this.usable(command);
+    if (!target) return null;
+    const { api, kubeconfigPath } = target;
+    const request: GetJsonRequest = {
+      resource,
+      name: null,
+      namespace: namespace === "all" || namespace === "_cluster" ? null : namespace,
+      allNamespaces: namespace === "all",
+      fieldSelector: null,
+      labelSelector: null,
+    };
+    const endpoint = await this.endpointFor(api, kubeconfigPath, request);
+    const listPath = endpoint ? getJsonPath(request, endpoint) : null;
+    if (!listPath) return null;
+    const informer = new ApiInformer(api, listPath, callbacks, this.log);
+    try {
+      await informer.start();
+    } catch (error) {
+      if (error instanceof DirectApiUnavailable) {
+        this.giveUp(api, kubeconfigPath, error.message);
+        return null;
+      }
+      // A version the server does not serve: kubectl finds the one it does.
+      if (isMissingPath(error)) return null;
+      throw error;
+    }
+    return informer;
   }
 
   clear(): void {

@@ -54,7 +54,7 @@ Resource Snapshot Cache, история потребления подов, watch
 - `api/` — собственный HTTP-клиент к API-серверу для чтения: профиль подключения из kubeconfig, постоянное соединение на кластер, exec-плагины авторизации, CONNECT-прокси, ошибки в форме kubectl;
 - `routes/` — HTTP handlers по функциональным областям;
 - `cache/` — in-memory snapshots ресурсов;
-- `watch/` — lifecycle `kubectl watch`, invalidation cache и WebSocket events;
+- `watch/` — lifecycle watch-сессий, invalidation cache и WebSocket events. Где kubeconfig понятен `api/`, watch — это `ApiInformer`: LIST, затем WATCH с `resourceVersion` и закладками по постоянному соединению, список держится в памяти и отвечает на перечитывание таблицы (`WatchManager.listSnapshot`; watch всех namespace отвечает и за каждый namespace). 410 Gone — новый LIST и одно событие `RESYNC`; потеря соединения — LIST после паузы; отказ (401/403/404) — `watch.ended`. Сразу после изменения из KubeDeck списки кластера до первого события (не дольше 3 с) читаются из API. Watch, который никто не слушает 5 минут, останавливается. Иначе — процесс `kubectl get --watch-only`, как раньше;
 - `terminal/` — интерактивные Pod Terminal sessions через `node-pty`;
 - `ssh/` — Node SSH sessions через `ssh2`;
 - `portForward/` — registry и lifecycle управляемых `kubectl port-forward`;

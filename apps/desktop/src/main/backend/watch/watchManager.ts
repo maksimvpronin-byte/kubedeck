@@ -6,12 +6,29 @@ import type { ResourceSnapshotCache } from "../cache/resourceSnapshotCache";
 import { buildKubectlCommand, type KubectlCommand } from "../kubectl/command";
 import { sanitizeKubectlText, truncateKubectlText } from "../kubectl/errors";
 import type { SpawnProcess } from "../kubectl/runner";
+import type { KubectlError } from "../kubectl/errors";
+import type { ApiInformer, InformerCallbacks } from "./apiInformer";
 import type { ResourceWatchEventHub } from "./eventHub";
 
 const WATCH_TAIL_LINES = 20;
 const WATCH_TAIL_LINE_CHARS = 1000;
 const WATCH_STOP_TIMEOUT_MS = 3000;
 const WATCH_TERMINAL_RETENTION_SECONDS = 5 * 60;
+// An API watch nobody has listened to for this long is stopped: it holds the
+// whole list in memory, and the table that wanted it is gone.
+const API_WATCH_IDLE_MS = 5 * 60_000;
+const API_WATCH_SWEEP_MS = 60_000;
+// After a change made from KubeDeck, how long the lists of that cluster are
+// read from the API server instead of memory if no watch event arrives: the
+// table reloads right after the change, often before its event does.
+const MUTATION_SETTLE_MS = 3000;
+
+// Where a watch can be kept over the cluster's own API connection instead of
+// a kubectl process.
+export interface ApiWatchSource {
+  // A started informer for the scope, or null when kubectl has to watch it.
+  informerFor(command: KubectlCommand, resource: string, namespace: string, callbacks: InformerCallbacks): Promise<ApiInformer | null>;
+}
 
 export type WatchStatus = "running" | "stopping" | "stopped" | "failed";
 
@@ -25,7 +42,14 @@ interface WatchSession {
   id: string;
   key: WatchKey;
   commandPreview: string;
-  process: ChildProcessWithoutNullStreams;
+  // Exactly one of these: a kubectl watch process, or an API informer.
+  process: ChildProcessWithoutNullStreams | null;
+  informer: ApiInformer | null;
+  // When a subscriber or a list last wanted this watch (API watches only).
+  lastWantedAt: number;
+  // When KubeDeck changed something on this cluster and no event has
+  // arrived since (API watches only).
+  mutatedAt: number | null;
   startedAt: number;
   updatedAt: number;
   status: WatchStatus;
@@ -151,7 +175,7 @@ function waitForSpawn(child: ChildProcessWithoutNullStreams): Promise<void> {
 }
 
 function waitForClose(session: WatchSession, timeoutMs: number): Promise<boolean> {
-  if (session.process.exitCode !== null || session.status === "stopped" || session.status === "failed") {
+  if (!session.process || session.process.exitCode !== null || session.status === "stopped" || session.status === "failed") {
     return Promise.resolve(true);
   }
   return Promise.race([session.closePromise.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs))]);
@@ -160,7 +184,11 @@ function waitForClose(session: WatchSession, timeoutMs: number): Promise<boolean
 export class WatchManager {
   private readonly sessions = new Map<string, WatchSession>();
   private readonly runningByKey = new Map<string, string>();
+  // API watches still listing, so a second start for the same scope waits
+  // for the first instead of listing twice.
+  private readonly startingByKey = new Map<string, Promise<WatchStartResult | null>>();
   private closed = false;
+  private sweepTimer: NodeJS.Timeout | undefined;
 
   constructor(
     private readonly log: (message: string) => void,
@@ -169,9 +197,170 @@ export class WatchManager {
     private readonly spawnProcess: SpawnProcess = spawn as SpawnProcess,
     private readonly now: () => number = Date.now,
     private readonly stopTimeoutMs = WATCH_STOP_TIMEOUT_MS,
-  ) {}
+    private readonly apiWatch: ApiWatchSource | null = null,
+  ) {
+    if (apiWatch) {
+      this.sweepTimer = setInterval(() => this.sweepIdleApiWatches(), API_WATCH_SWEEP_MS);
+      this.sweepTimer.unref?.();
+    }
+  }
 
   async start(command: KubectlCommand, resource: string, namespace = "all"): Promise<WatchStartResult> {
+    if (this.apiWatch && !this.closed) {
+      const keyText = normalizedKey({ clusterId: command.clusterId, resource: resource.trim().toLowerCase(), namespace: normalizeNamespace(namespace) });
+      const running = this.sessions.get(this.runningByKey.get(keyText) ?? "");
+      if (running?.status === "running") {
+        running.lastWantedAt = this.now();
+        return { ...this.view(running), alreadyRunning: true };
+      }
+      let starting = this.startingByKey.get(keyText);
+      if (!starting) {
+        starting = this.startApiWatch(command, resource, namespace).finally(() => this.startingByKey.delete(keyText));
+        this.startingByKey.set(keyText, starting);
+      }
+      const started = await starting;
+      if (started) return started;
+    }
+    return this.startProcess(command, resource, namespace);
+  }
+
+  // The scope watched over the API, or null when kubectl has to watch it. A
+  // refusal of the first list is the answer kubectl would give too, so it is
+  // reported, not retried through kubectl.
+  private async startApiWatch(command: KubectlCommand, resource: string, namespace: string): Promise<WatchStartResult | null> {
+    const key: WatchKey = { clusterId: command.clusterId, resource: resource.trim().toLowerCase(), namespace: normalizeNamespace(namespace) };
+    const startedAt = this.now() / 1000;
+    let resolveClose!: () => void;
+    const closePromise = new Promise<void>((resolve) => {
+      resolveClose = resolve;
+    });
+    const session: WatchSession = {
+      id: randomUUID(),
+      key,
+      commandPreview: "",
+      process: null,
+      informer: null,
+      lastWantedAt: this.now(),
+      mutatedAt: null,
+      startedAt,
+      updatedAt: startedAt,
+      status: "running",
+      stdoutLines: 0,
+      stderrLines: 0,
+      cacheEvents: 0,
+      cacheInvalidations: 0,
+      exitCode: null,
+      stoppedByUser: false,
+      outputTail: [],
+      errorTail: [],
+      closePromise,
+      resolveClose,
+    };
+    const publishChange = (namespaceOfObject: string, name: string, eventType: string) => {
+      session.mutatedAt = null;
+      session.cacheEvents += 1;
+      session.updatedAt = this.now() / 1000;
+      const cleared = this.cache.clearResource(key.clusterId, key.resource, namespaceOfObject, "watch.event");
+      session.cacheInvalidations += cleared;
+      this.eventHub.publish({
+        type: "resource.changed",
+        clusterId: key.clusterId,
+        watchId: session.id,
+        resource: key.resource,
+        namespace: namespaceOfObject,
+        name,
+        eventType,
+        cacheInvalidations: cleared,
+      });
+    };
+    const callbacks: InformerCallbacks = {
+      changed: (change) => publishChange(change.namespace, change.name, change.eventType),
+      // Changes made while the copy was being rebuilt are in the new list; the
+      // table is told to reload once.
+      resynced: () => publishChange(key.namespace === "all" ? "_cluster" : key.namespace, "", "RESYNC"),
+      failed: (error: KubectlError) => {
+        if (session.status !== "running") return;
+        session.status = "failed";
+        session.updatedAt = this.now() / 1000;
+        tailPush(session.errorTail, error.info.rawStderr || error.message);
+        this.forgetRunning(session);
+        resolveClose();
+        if (this.closed) return;
+        this.eventHub.publish({ type: "watch.ended", clusterId: key.clusterId, watchId: session.id, resource: key.resource, namespace: key.namespace, status: "failed", exitCode: null });
+      },
+    };
+
+    let informer: ApiInformer | null;
+    try {
+      informer = await (this.apiWatch as ApiWatchSource).informerFor(command, key.resource, key.namespace, callbacks);
+    } catch (error) {
+      const info = (error as { info?: { code?: string; message?: string; rawStderr?: string; commandPreview?: string } }).info;
+      throw new WatchStartError(
+        "WATCH_START_FAILED",
+        info?.message ?? "watch could not be started",
+        info?.rawStderr ?? (error instanceof Error ? error.message : String(error)),
+        info?.commandPreview ?? "",
+      );
+    }
+    if (!informer) return null;
+    if (this.closed) {
+      informer.stop();
+      return null;
+    }
+    session.informer = informer;
+    session.commandPreview = informer.preview;
+    this.sessions.set(session.id, session);
+    this.runningByKey.set(normalizedKey(key), session.id);
+    this.log(`node watch started id=${session.id} api objects=${informer.size} preview=${informer.preview}`);
+    return { ...this.view(session), alreadyRunning: false };
+  }
+
+  // The watched list of this scope as `kubectl get -o json` gives it, from
+  // memory, or null when no synced API watch covers it. An all-namespaces
+  // watch covers each namespace too.
+  listSnapshot(clusterId: string, resource: string, namespace: string): Record<string, unknown> | null {
+    const lookup = (scope: string) => {
+      const session = this.sessions.get(this.runningByKey.get(normalizedKey({ clusterId, resource: resource.trim().toLowerCase(), namespace: scope })) ?? "");
+      if (session?.status !== "running" || !session.informer?.synced) return null;
+      if (session.mutatedAt !== null && this.now() - session.mutatedAt < MUTATION_SETTLE_MS) return null;
+      return session;
+    };
+    const exact = lookup(normalizeNamespace(namespace));
+    if (exact?.informer) {
+      exact.lastWantedAt = this.now();
+      return exact.informer.snapshot();
+    }
+    if (namespace === "all" || namespace === "_cluster") return null;
+    const wide = lookup("all");
+    if (!wide?.informer) return null;
+    wide.lastWantedAt = this.now();
+    return wide.informer.snapshot(namespace);
+  }
+
+  // KubeDeck just changed something on this cluster: until a watch reports
+  // it, its lists come from the API server.
+  noteMutation(clusterId: string): void {
+    const now = this.now();
+    for (const session of this.sessions.values()) {
+      if (session.informer && session.key.clusterId === clusterId) session.mutatedAt = now;
+    }
+  }
+
+  private sweepIdleApiWatches(): void {
+    const now = this.now();
+    for (const session of this.sessions.values()) {
+      if (!session.informer || session.status !== "running") continue;
+      if (this.eventHub.hasSubscriber(session.key)) {
+        session.lastWantedAt = now;
+        continue;
+      }
+      if (now - session.lastWantedAt < API_WATCH_IDLE_MS) continue;
+      this.log(`node watch idle id=${session.id}, stopping`);
+      void this.stopSession(session, false);
+    }
+  }
+
+  private async startProcess(command: KubectlCommand, resource: string, namespace = "all"): Promise<WatchStartResult> {
     if (this.closed) {
       throw new WatchStartError("WATCH_START_FAILED", "Watch manager is stopped", "", "");
     }
@@ -219,6 +408,9 @@ export class WatchManager {
       key,
       commandPreview: built.preview,
       process: child,
+      informer: null,
+      lastWantedAt: this.now(),
+      mutatedAt: null,
       startedAt,
       updatedAt: startedAt,
       status: "running",
@@ -364,7 +556,7 @@ export class WatchManager {
       running: watches.filter((watch) => watch.status === "running").length,
       total: watches.length,
       watches,
-      note: "Running watches parse kubectl watch events, invalidate matching Node resource snapshots, and publish WebSocket events. HTTP polling remains the fallback.",
+      note: "Watches over the cluster's API connection keep their list in memory and answer table reloads from it; kubectl watches (clusters the API client cannot use) invalidate snapshots. Both publish WebSocket events; HTTP polling remains the fallback.",
     };
   }
 
@@ -418,6 +610,15 @@ export class WatchManager {
     session.stoppedByUser = session.stoppedByUser || stoppedByUser;
     session.status = "stopping";
     session.updatedAt = this.now() / 1000;
+    if (session.informer) {
+      session.informer.stop();
+      session.status = "stopped";
+      session.resolveClose();
+      this.forgetRunning(session);
+      this.sessions.delete(session.id);
+      return;
+    }
+    if (!session.process) return;
     try {
       if (!session.process.killed) session.process.kill();
     } catch (error) {
@@ -450,6 +651,7 @@ export class WatchManager {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
     await this.stopAll(false);
   }
 
@@ -461,7 +663,7 @@ export class WatchManager {
       resource: session.key.resource,
       namespace: session.key.namespace,
       status: session.status,
-      pid: typeof session.process.pid === "number" ? session.process.pid : null,
+      pid: typeof session.process?.pid === "number" ? session.process.pid : null,
       startedAt: session.startedAt,
       updatedAt: session.updatedAt,
       ageSeconds: Math.max(0, now - session.startedAt),

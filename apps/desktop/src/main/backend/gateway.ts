@@ -410,6 +410,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
       services.usageHistory,
       (clusterId) => services.connections.isConnected(clusterId),
       options.log,
+      (clusterId, resource, namespace) => services.watchManager.listSnapshot(clusterId, resource, namespace),
     )
   ) {
     return;
@@ -426,6 +427,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
   if (
     handleResourceActionRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log, async (clusterId) => {
       services.resourceCache.clear(clusterId, "mutation");
+      services.watchManager.noteMutation(clusterId);
       clearClusterReadCaches(clusterId);
     })
   ) {
@@ -435,6 +437,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
   if (
     handleYamlRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log, async (clusterId) => {
       services.resourceCache.clear(clusterId, "mutation");
+      services.watchManager.noteMutation(clusterId);
       clearClusterReadCaches(clusterId);
     })
   ) {
@@ -501,11 +504,11 @@ function handleUpgrade(
 export async function startGateway(options: GatewayOptions): Promise<GatewayHandle> {
   const resourceCache = new ResourceSnapshotCache();
   const watchEvents = new ResourceWatchEventHub();
-  const watchManager = new WatchManager(options.log, resourceCache, watchEvents, options.spawnKubectl);
+  const directApi = options.directApi ? new DirectApiTransport(options.log) : null;
+  const watchManager = new WatchManager(options.log, resourceCache, watchEvents, options.spawnKubectl, undefined, undefined, directApi);
   const watchWebSocket = new ResourceWatchWebSocketServer(watchEvents, options.log);
   const configStore = new ConfigStore(options.appDataRoot);
   const auditStore = new AuditStore(options.appDataRoot, options.log);
-  const directApi = options.directApi ? new DirectApiTransport(options.log) : null;
   const kubectlRunner = new KubectlRunner(options.log, options.spawnKubectl, directApi);
   const portForwardManager = new PortForwardManager(options.log, {
     spawnProcess: options.spawnKubectl,
