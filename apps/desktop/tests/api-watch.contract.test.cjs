@@ -344,3 +344,44 @@ test("right after a change from KubeDeck, lists come from the API server until t
   now += 3500;
   assert.notEqual(manager.listSnapshot("c1", "pods", "shop"), null);
 });
+
+// Reported from a real cluster: Argo CD Applications in all namespaces were
+// over 64 MB of JSON. The table's load failed on its size limit while the
+// watch read the same list beside it and kept every Application whole in
+// memory - resource trees and sync history - and the application froze.
+test("a custom resource is kept in memory as the table reads it, not whole", () => {
+  const { tableProjection } = require("../dist/main/backend/resources/normalizers/index.js");
+  assert.equal(tableProjection("pods"), null, "built-in types with their own columns keep the whole object");
+  const project = tableProjection("applications.argoproj.io");
+  const application = {
+    apiVersion: "argoproj.io/v1alpha1",
+    kind: "Application",
+    metadata: { name: "shop", namespace: "argocd", uid: "u1", creationTimestamp: "2026-10-01T00:00:00Z", labels: { team: "a" }, annotations: { big: "x".repeat(10_000) }, resourceVersion: "7" },
+    spec: { source: { repoURL: "https://example" }, destination: {} },
+    status: { resources: Array.from({ length: 500 }, (_, i) => ({ name: `r${i}` })), history: [{}, {}], conditions: [{ type: "A" }, { type: "SyncError" }], sync: { status: "Synced" } },
+  };
+  const projected = project(application);
+  assert.ok(JSON.stringify(projected).length < 600, "a few hundred bytes, not the resource tree");
+  const { normalizeResourceItems } = require("../dist/main/backend/resources/normalizers/index.js");
+  assert.deepEqual(normalizeResourceItems("applications.argoproj.io", [projected]), normalizeResourceItems("applications.argoproj.io", [application]), "the row is the same");
+});
+
+test("a table's load and its watch read the list once, and the load is answered from the watch", async (t) => {
+  const server = await fakeApiServer(t);
+  const kubeconfig = kubeconfigFor(t, server.port);
+  const { manager, spawned } = setup(t);
+  const [listed, started] = await Promise.all([manager.listFromApiWatch(watchCommand(kubeconfig), "pods", "shop"), manager.start(watchCommand(kubeconfig), "pods", "shop")]);
+  assert.deepEqual(listed.items.map((item) => item.metadata.name).sort(), ["a", "b"]);
+  assert.equal(started.status, "running");
+  assert.equal(server.requests.filter((url) => !url.includes("watch=1")).length, 1, "one LIST for both");
+  assert.deepEqual(spawned, []);
+});
+
+test("a table's load never starts a kubectl watch, and a scope that cannot be watched is not retried at once", async (t) => {
+  const kubeconfig = kubeconfigFor(t, 1, { "auth-provider": { name: "oidc" } });
+  const { manager, spawned } = setup(t);
+  assert.equal(await manager.listFromApiWatch(watchCommand(kubeconfig), "pods", "shop"), null);
+  assert.equal(await manager.listFromApiWatch(watchCommand(kubeconfig), "pods", "shop"), null);
+  assert.deepEqual(spawned, []);
+  assert.equal(manager.status().running, 0);
+});

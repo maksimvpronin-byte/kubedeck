@@ -22,6 +22,9 @@ const API_WATCH_SWEEP_MS = 60_000;
 // read from the API server instead of memory if no watch event arrives: the
 // table reloads right after the change, often before its event does.
 const MUTATION_SETTLE_MS = 3000;
+// A scope whose API watch could not be started or was refused is not tried
+// again from a table load for this long; its lists go to the API server.
+const API_WATCH_RETRY_AFTER_MS = 2 * 60_000;
 
 // Where a watch can be kept over the cluster's own API connection instead of
 // a kubectl process.
@@ -189,6 +192,8 @@ export class WatchManager {
   private readonly startingByKey = new Map<string, Promise<WatchStartResult | null>>();
   private closed = false;
   private sweepTimer: NodeJS.Timeout | undefined;
+  // Scopes whose API watch failed, and when.
+  private readonly apiWatchFailedAt = new Map<string, number>();
 
   constructor(
     private readonly log: (message: string) => void,
@@ -280,6 +285,7 @@ export class WatchManager {
       resynced: () => publishChange(key.namespace === "all" ? "_cluster" : key.namespace, "", "RESYNC"),
       failed: (error: KubectlError) => {
         if (session.status !== "running") return;
+        this.apiWatchFailedAt.set(normalizedKey(key), this.now());
         session.status = "failed";
         session.updatedAt = this.now() / 1000;
         tailPush(session.errorTail, error.info.rawStderr || error.message);
@@ -335,6 +341,38 @@ export class WatchManager {
     if (!wide?.informer) return null;
     wide.lastWantedAt = this.now();
     return wide.informer.snapshot(namespace);
+  }
+
+  // The list of a scope from its API watch, starting that watch if needed
+  // and waiting for one already starting: a table's load and its watch then
+  // read the list once, not twice side by side. Null when the scope cannot
+  // be watched over the API, so the load reads the server itself.
+  async listFromApiWatch(command: KubectlCommand, resource: string, namespace: string): Promise<Record<string, unknown> | null> {
+    const ready = this.listSnapshot(command.clusterId, resource, namespace);
+    if (ready || !this.apiWatch || this.closed) return ready;
+    const key: WatchKey = { clusterId: command.clusterId, resource: resource.trim().toLowerCase(), namespace: normalizeNamespace(namespace) };
+    const keyText = normalizedKey(key);
+    const running = this.sessions.get(this.runningByKey.get(keyText) ?? "");
+    // Running but not synced (relisting), or synced and inside the window
+    // after a change: the server answers.
+    if (running?.status === "running") return null;
+    const failedAt = this.apiWatchFailedAt.get(keyText);
+    if (failedAt !== undefined && this.now() - failedAt < API_WATCH_RETRY_AFTER_MS) return null;
+    let starting = this.startingByKey.get(keyText);
+    if (!starting) {
+      starting = this.startApiWatch(command, resource, namespace).finally(() => this.startingByKey.delete(keyText));
+      this.startingByKey.set(keyText, starting);
+    }
+    try {
+      if (!(await starting)) {
+        this.apiWatchFailedAt.set(keyText, this.now());
+        return null;
+      }
+    } catch {
+      this.apiWatchFailedAt.set(keyText, this.now());
+      return null;
+    }
+    return this.listSnapshot(command.clusterId, resource, namespace);
   }
 
   // KubeDeck just changed something on this cluster: until a watch reports

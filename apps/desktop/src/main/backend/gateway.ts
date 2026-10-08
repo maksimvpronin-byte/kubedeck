@@ -30,6 +30,7 @@ import { writeMigrationStatus } from "./routes/migrationStatus";
 import { handleResourceDetailsRequest } from "./routes/resourceDetails";
 import { clearResourceDefinitionCache, handleResourceDiscoveryEventsRequest } from "./routes/resourceDiscoveryEvents";
 import { DirectApiTransport } from "./api/directApi";
+import { clusterCommand } from "./kubectl/clusterCommand";
 import { clearCustomListEndpoints } from "./resources/customListPaths";
 import { clearNodeDiskMetricsCache } from "./resources/metrics";
 import { UsageHistorySampler } from "./resources/usageHistorySampler";
@@ -39,7 +40,7 @@ import { handleSecretRequest } from "./routes/secrets";
 import { handleResourceActionRequest } from "./routes/resourceActions";
 import { handlePodExecRequest } from "./routes/podExec";
 import { handleResourceListRequest } from "./routes/resourceLists";
-import { handleWatchRequest } from "./routes/watch";
+import { handleWatchRequest, watchArgs } from "./routes/watch";
 import { handlePortForwardRequest } from "./routes/portForward";
 import { ClusterConnectionRegistry } from "./clusterConnections";
 import { handleClusterDisconnectRequest, type ClusterLiveSessions } from "./routes/clusterConnection";
@@ -410,7 +411,10 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
       services.usageHistory,
       (clusterId) => services.connections.isConnected(clusterId),
       options.log,
-      (clusterId, resource, namespace) => services.watchManager.listSnapshot(clusterId, resource, namespace),
+      (clusterId, resource, namespace) =>
+        services.connections.isConnected(clusterId)
+          ? services.watchManager.listFromApiWatch(clusterCommand(services.configStore, clusterId, watchArgs(resource, namespace), 0, 0), resource, namespace)
+          : services.watchManager.listSnapshot(clusterId, resource, namespace),
     )
   ) {
     return;

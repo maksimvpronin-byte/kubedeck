@@ -84,6 +84,39 @@ export function normalizerForResource(resource: string): (item: JsonObject) => R
   return NORMALIZERS[resource.trim().toLowerCase()] ?? genericSummary;
 }
 
+// What a table needs of an object it keeps in memory, or null to keep the
+// whole object. Only types shown through `genericSummary` - custom resources
+// above all - are cut down: an Argo CD Application carries its whole resource
+// tree and sync history in status, and a namespace of them ran to hundreds of
+// megabytes held by a watch, for a row of name, age and status.
+export function tableProjection(resource: string): ((item: JsonObject) => JsonObject) | null {
+  if (normalizerForResource(resource) !== genericSummary) return null;
+  return (item) => {
+    const metadata = isRecord(item.metadata) ? item.metadata : {};
+    const status = isRecord(item.status) ? item.status : {};
+    const spec = isRecord(item.spec) ? item.spec : {};
+    const conditions = Array.isArray(status.conditions) ? status.conditions : [];
+    const projected: JsonObject = {
+      apiVersion: item.apiVersion,
+      kind: item.kind,
+      metadata: {
+        uid: metadata.uid,
+        name: metadata.name,
+        namespace: metadata.namespace,
+        creationTimestamp: metadata.creationTimestamp,
+        deletionTimestamp: metadata.deletionTimestamp,
+        generation: metadata.generation,
+        labels: metadata.labels,
+        ownerReferences: metadata.ownerReferences,
+        resourceVersion: metadata.resourceVersion,
+      },
+      status: { phase: status.phase, conditions: conditions.length ? [conditions.at(-1)] : [] },
+    };
+    if (spec.type !== undefined) projected.spec = { type: spec.type };
+    return projected;
+  };
+}
+
 export function normalizeResourceItems(resource: string, items: unknown[]): ResourceRow[] {
   const normalizedResource = resource.trim().toLowerCase();
   const normalizer = normalizerForResource(normalizedResource);

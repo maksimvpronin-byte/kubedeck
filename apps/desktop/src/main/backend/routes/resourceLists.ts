@@ -36,8 +36,9 @@ const READINESS_TIMEOUT_SECONDS = 5;
 export const LIST_METRICS_GRACE_MS = 300;
 const READINESS_MAX_OUTPUT_BYTES = 1024 * 1024;
 
-// The list of a scope that a running API watch keeps in memory, or null.
-export type WatchedListSnapshot = (clusterId: string, resource: string, namespace: string) => Record<string, unknown> | null;
+// The list of a scope from the API watch that keeps it in memory, started or
+// awaited for it, or null when the server has to be read.
+export type WatchedListSnapshot = (clusterId: string, resource: string, namespace: string) => Promise<Record<string, unknown> | null> | Record<string, unknown> | null;
 
 interface ResourceListTarget {
   clusterId: string;
@@ -117,7 +118,8 @@ async function rawListPathFor(configStore: ConfigStore, runner: KubectlRunner, t
 async function listResource(configStore: ConfigStore, runner: KubectlRunner, target: ResourceListTarget, signal?: AbortSignal, watched?: WatchedListSnapshot): Promise<Record<string, unknown>> {
   // A scope an API watch keeps current is answered from memory: the reload a
   // watch event asks for no longer goes back to the API server.
-  const snapshot = watched?.(target.clusterId, target.resource, target.namespace);
+  const snapshot = await watched?.(target.clusterId, target.resource, target.namespace);
+  if (isRequestCancelled(null, signal)) throw new KubectlError({ code: "KUBECTL_CANCELLED", message: "kubectl command cancelled", rawStderr: "", commandPreview: "" });
   if (snapshot) return snapshot;
   const path = await rawListPathFor(configStore, runner, target, signal);
   if (path) {

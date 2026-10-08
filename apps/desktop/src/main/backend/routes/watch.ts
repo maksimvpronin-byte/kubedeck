@@ -12,7 +12,7 @@ interface WatchStartBody {
   namespace?: string;
 }
 
-function watchArgs(resource: string, namespace: string): string[] {
+export function watchArgs(resource: string, namespace: string): string[] {
   const args = ["get", resource, "-o", "json", "--watch-only=true", "--output-watch-events=true"];
   if (namespace === "all") args.push("-A");
   else if (namespace !== "_cluster") args.push("-n", namespace);

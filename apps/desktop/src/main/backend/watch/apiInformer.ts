@@ -84,6 +84,8 @@ export class ApiInformer {
     private readonly listPath: string,
     private readonly callbacks: InformerCallbacks,
     private readonly log: (message: string) => void,
+    // Cuts each object down to what is read from memory (`tableProjection`).
+    private readonly project: ((object: JsonObject) => JsonObject) | null = null,
   ) {}
 
   get preview(): string {
@@ -136,7 +138,8 @@ export class ApiInformer {
   // Typed like a `kubectl get -o json` item, and without managedFields: often
   // half of an object, held for as long as the watch runs, read by nothing a
   // table shows (the YAML view reads the object from the server itself).
-  private typed(object: JsonObject): JsonObject {
+  private typed(source: JsonObject): JsonObject {
+    const object = this.project ? this.project(source) : source;
     const metadata = record(object.metadata);
     if ("managedFields" in metadata) delete metadata.managedFields;
     if (this.listKind.endsWith("List") && !object.kind) object.kind = this.listKind.slice(0, -"List".length);

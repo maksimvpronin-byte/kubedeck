@@ -11,6 +11,7 @@ import { type KubectlCommand, kubectlEnvironment } from "../kubectl/command";
 import { KubectlError } from "../kubectl/errors";
 import { type CommandResult, parseJsonOutput } from "../kubectl/runner";
 import { forgetCustomListEndpoint, resolveEndpointWith } from "../resources/customListPaths";
+import { tableProjection } from "../resources/normalizers";
 import { builtInEndpoint, withItemTypes } from "../resources/rawListPaths";
 import { ClusterApi, DirectApiUnavailable } from "./clusterApi";
 import { AGGREGATED_DISCOVERY_ACCEPT, apiResourcesTable, isApiResourcesCommand } from "./discoveryTable";
@@ -229,7 +230,7 @@ export class DirectApiTransport implements ApiWatchSource {
     const endpoint = await this.endpointFor(api, kubeconfigPath, request);
     const listPath = endpoint ? getJsonPath(request, endpoint) : null;
     if (!listPath) return null;
-    const informer = new ApiInformer(api, listPath, callbacks, this.log);
+    const informer = new ApiInformer(api, listPath, callbacks, this.log, tableProjection(resource));
     try {
       await informer.start();
     } catch (error) {
