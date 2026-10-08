@@ -285,9 +285,11 @@ test("a cancelled request stops at once and an oversized answer is refused", asy
 test("an HTTP proxy from the kubeconfig carries the connection through CONNECT", async (t) => {
   const server = await tlsServer(t, (request, response) => json(response, 200, { ok: true }));
   const tunnels = [];
+  const tunnelSockets = [];
   const proxy = http.createServer();
   proxy.on("connect", (request, socket, head) => {
     tunnels.push(request.url);
+    tunnelSockets.push(socket);
     const [host, port] = request.url.split(":");
     // The test server listens on IPv4 only; "localhost" may resolve to ::1 first.
     const upstream = net.connect(Number(port), host === "localhost" ? "127.0.0.1" : host, () => {
@@ -296,8 +298,14 @@ test("an HTTP proxy from the kubeconfig carries the connection through CONNECT",
       upstream.pipe(socket);
       socket.pipe(upstream);
     });
+    tunnelSockets.push(upstream);
     upstream.on("error", () => socket.destroy());
     socket.on("error", () => upstream.destroy());
+  });
+  // A tunnel is no longer the server's connection once CONNECT is answered:
+  // closing the server does not end it, and on Node 22.12 waits for it.
+  t.after(() => {
+    for (const socket of tunnelSockets) socket.destroy();
   });
   closeServer(t, proxy);
   const proxyPort = await listen(proxy);
