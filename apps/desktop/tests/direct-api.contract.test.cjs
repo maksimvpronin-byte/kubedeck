@@ -98,7 +98,7 @@ async function tlsServer(t, handler, options = {}) {
   const requests = [];
   let connections = 0;
   const server = https.createServer({ key: pem("server.key"), cert: pem("server.crt"), ...options }, (request, response) => {
-    requests.push({ url: request.url, headers: request.headers, peer: request.socket.getPeerCertificate?.()?.subject?.CN ?? null });
+    requests.push({ url: request.url, headers: request.headers, peer: request.socket.getPeerCertificate?.()?.subject?.CN ?? null, servername: request.socket.servername ?? null });
     handler(request, response);
   });
   server.on("secureConnection", () => connections++);
@@ -153,14 +153,17 @@ test("a client certificate from files next to the kubeconfig authenticates the r
   fs.writeFileSync(path.join(dir, "certs", "client.crt"), pem("client.crt"));
   fs.writeFileSync(path.join(dir, "certs", "client.key"), pem("client.key"));
   const kubeconfig = writeKubeconfig(dir, {
-    server: `https://localhost:${server.port}`,
-    cluster: { "certificate-authority": "certs/ca.crt" },
+    // An IP with tls-server-name: "localhost" resolves to ::1 first on the
+    // Windows runners, where this IPv4-only server is not listening.
+    server: `https://127.0.0.1:${server.port}`,
+    cluster: { "certificate-authority": "certs/ca.crt", "tls-server-name": "localhost" },
     user: { "client-certificate": "certs/client.crt", "client-key": "certs/client.key" },
   });
   const { runner, kubectlCalls } = setup(t);
 
-  const result = await runner.runJson(rawCommand(kubeconfig, "/version"));
+  const result = await runner.runJson(rawCommand(kubeconfig, "/version")).catch((error) => assert.fail(`${error.message}: ${error.info?.rawStderr}`));
   assert.equal(result.ok, true);
+  assert.equal(server.requests[0].servername, "localhost", "tls-server-name is the name asked for");
   assert.equal(server.requests[0].peer, "kubedeck-test-user");
   assert.deepEqual(kubectlCalls, []);
 });
