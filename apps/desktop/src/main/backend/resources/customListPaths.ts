@@ -59,8 +59,9 @@ export function customListPath(endpoint: CustomListEndpoint, namespace: string):
   return `${endpoint.prefix}/namespaces/${encodeURIComponent(namespace)}/${endpoint.plural}`;
 }
 
-async function discoverEndpoint(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, plural: string, group: string, signal?: AbortSignal): Promise<CustomListEndpoint | null> {
-  const read = (path: string) => runner.runJson(clusterCommand(configStore, clusterId, ["get", "--raw", path], DISCOVERY_TIMEOUT_SECONDS, DISCOVERY_MAX_OUTPUT_BYTES), signal);
+export type DiscoveryRead = (path: string) => Promise<Record<string, unknown>>;
+
+async function discoverEndpoint(read: DiscoveryRead, plural: string, group: string): Promise<CustomListEndpoint | null> {
   const apiGroup = await read(`/apis/${group}`);
   const preferred = apiGroup.preferredVersion as Record<string, unknown> | undefined;
   const version = readString(preferred?.version);
@@ -74,7 +75,20 @@ async function discoverEndpoint(configStore: ConfigStore, runner: KubectlRunner,
   return { prefix: `/apis/${group}/${version}`, plural, namespaced: found.namespaced === true };
 }
 
-export async function resolveCustomListEndpoint(
+// The endpoint for `resource`, discovered through `read` and kept under
+// `scope` (a cluster id, or anything else that names one API server).
+export async function resolveEndpointWith(read: DiscoveryRead, scope: string, resource: string, now: () => number = Date.now): Promise<CustomListEndpoint | null> {
+  const parts = splitGroupResource(resource);
+  if (!parts) return null;
+  const key = cacheKey(scope, resource);
+  const cached = cache.get(key);
+  if (cached && cached.expiresAt > now()) return cached.endpoint;
+  const endpoint = await discoverEndpoint(read, parts.plural, parts.group);
+  cache.set(key, { expiresAt: now() + ENDPOINT_CACHE_TTL_MS, endpoint });
+  return endpoint;
+}
+
+export function resolveCustomListEndpoint(
   configStore: ConfigStore,
   runner: KubectlRunner,
   clusterId: string,
@@ -82,20 +96,14 @@ export async function resolveCustomListEndpoint(
   signal?: AbortSignal,
   now: () => number = Date.now,
 ): Promise<CustomListEndpoint | null> {
-  const parts = splitGroupResource(resource);
-  if (!parts) return null;
-  const key = cacheKey(clusterId, resource);
-  const cached = cache.get(key);
-  if (cached && cached.expiresAt > now()) return cached.endpoint;
-  const endpoint = await discoverEndpoint(configStore, runner, clusterId, parts.plural, parts.group, signal);
-  cache.set(key, { expiresAt: now() + ENDPOINT_CACHE_TTL_MS, endpoint });
-  return endpoint;
+  const read: DiscoveryRead = (path) => runner.runJson(clusterCommand(configStore, clusterId, ["get", "--raw", path], DISCOVERY_TIMEOUT_SECONDS, DISCOVERY_MAX_OUTPUT_BYTES), signal);
+  return resolveEndpointWith(read, clusterId, resource, now);
 }
 
 // Called when a raw list at the resolved path was not found: the CRD changed
 // its served version, or was removed.
-export function forgetCustomListEndpoint(clusterId: string, resource: string): void {
-  cache.delete(cacheKey(clusterId, resource));
+export function forgetCustomListEndpoint(scope: string, resource: string): void {
+  cache.delete(cacheKey(scope, resource));
 }
 
 export function clearCustomListEndpoints(clusterId?: string): void {

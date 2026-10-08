@@ -134,6 +134,8 @@ test("overview bounds how many lists it starts at once, filters events, and shar
       return { stdout: "", stderr: "", exitCode: 0 };
     },
     async runJson(command) {
+      // Node usage is a Metrics API read now; it is not one of the lists.
+      if (command.args.some((arg) => arg.startsWith("/apis/metrics.k8s.io/"))) return { items: [] };
       commands.push(command.args);
       active += 1;
       maximum = Math.max(maximum, active);

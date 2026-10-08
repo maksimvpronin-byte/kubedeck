@@ -97,14 +97,90 @@ export function parseNodeMetrics(output: string): Map<string, { cpu: string; cpu
 
 export type NodeMetricsSnapshot = ReturnType<typeof parseNodeMetrics> | null;
 
+const METRICS_API = "/apis/metrics.k8s.io/v1beta1";
+
+// A Metrics API quantity in millicores, unrounded ("1234567n" is 1.234567).
+function cpuMillicoresExact(value: unknown): number | null {
+  const raw = text(value).trim();
+  const match = /^(\d+(?:\.\d+)?)(n|u|m)?$/.exec(raw);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (match[2] === "n") return amount / 1_000_000;
+  if (match[2] === "u") return amount / 1000;
+  if (match[2] === "m") return amount;
+  return amount * 1000;
+}
+
+// How `kubectl top` prints a reading: CPU in whole millicores rounded up (as
+// Quantity.MilliValue rounds), memory in whole MiB rounded down. The tables
+// were built on that output, so the Metrics API read directly is rendered the
+// same way.
+function topCpu(millicores: number): string {
+  return `${Math.ceil(millicores - 1e-9)}m`;
+}
+
+function topMemory(bytes: number): string {
+  return `${Math.floor(bytes / (1024 * 1024))}Mi`;
+}
+
+function metricItems(data: Record<string, unknown>): Record<string, unknown>[] {
+  return Array.isArray(data.items) ? data.items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+}
+
+// PodMetrics summed per pod, keyed the way `parsePodMetrics` keys `kubectl top pods`.
+export function podMetricsFromApi(data: Record<string, unknown>, allNamespaces: boolean): Map<string, { cpu: string; memory: string }> {
+  const result = new Map<string, { cpu: string; memory: string }>();
+  for (const item of metricItems(data)) {
+    const metadata = asRecord(item.metadata);
+    const name = text(metadata.name);
+    if (!name) continue;
+    let cpu = 0;
+    let memory = 0;
+    for (const container of Array.isArray(item.containers) ? item.containers : []) {
+      const usage = asRecord(asRecord(container).usage);
+      cpu += cpuMillicoresExact(usage.cpu) ?? 0;
+      memory += parseMemoryBytes(usage.memory) ?? 0;
+    }
+    result.set(allNamespaces ? `${text(metadata.namespace)}/${name}` : name, { cpu: topCpu(cpu), memory: topMemory(memory) });
+  }
+  return result;
+}
+
+// NodeMetrics by node name. The percentages `kubectl top nodes` prints need
+// the node list; the rows they are applied to already carry allocatable, so
+// they are left empty here and worked out there.
+export function nodeMetricsFromApi(data: Record<string, unknown>): Map<string, { cpu: string; cpuPercent: string; memory: string; memoryPercent: string }> {
+  const result = new Map<string, { cpu: string; cpuPercent: string; memory: string; memoryPercent: string }>();
+  for (const item of metricItems(data)) {
+    const name = text(asRecord(item.metadata).name);
+    const usage = asRecord(item.usage);
+    const cpu = cpuMillicoresExact(usage.cpu);
+    const memory = parseMemoryBytes(usage.memory);
+    if (!name || cpu === null || memory === null) continue;
+    result.set(name, { cpu: topCpu(cpu), cpuPercent: "", memory: topMemory(memory), memoryPercent: "" });
+  }
+  return result;
+}
+
+function readMetricsApi(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, path: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  return runner.runJson(clusterCommand(configStore, clusterId, ["get", "--raw", path], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES), signal);
+}
+
+// Go's integer percentage, as `kubectl top nodes` prints it.
+function topPercent(used: number | null, total: number | null): string {
+  if (used === null || total === null || total <= 0) return "";
+  return `${Math.floor((used * 100) / total)}%`;
+}
+
 // `kubectl top` does not depend on the resource list, so the caller can start it
 // before awaiting `kubectl get` and pay for one round trip instead of two. A
 // missing metrics-server is reported as a KubectlError and leaves the usage
 // columns empty, exactly as the combined call did.
 export async function fetchNodeMetrics(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, signal?: AbortSignal): Promise<NodeMetricsSnapshot> {
   try {
-    const result = await runner.run(clusterCommand(configStore, clusterId, ["top", "nodes", "--no-headers"], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES), signal);
-    return parseNodeMetrics(result.stdout);
+    // Read from the Metrics API: `kubectl top nodes` is the same reading plus a
+    // node list and API discovery, in a process of its own.
+    return nodeMetricsFromApi(await readMetricsApi(configStore, runner, clusterId, `${METRICS_API}/nodes`, signal));
   } catch (error) {
     if (!(error instanceof KubectlError)) throw error;
     return null;
@@ -116,20 +192,25 @@ export function applyNodeMetricsSnapshot(metrics: NodeMetricsSnapshot, rows: Res
   for (const row of rows) {
     const metric = metrics.get(text(row.name));
     if (!metric) continue;
-    const cpuFree = remaining(parseCpuMillicores(row.cpuAllocatableRaw), parseCpuMillicores(metric.cpu));
+    const cpuAllocatable = parseCpuMillicores(row.cpuAllocatableRaw);
+    const cpuUsed = parseCpuMillicores(metric.cpu);
+    const cpuFree = remaining(cpuAllocatable, cpuUsed);
     const memoryUsed = parseMemoryBytes(metric.memory);
-    const memoryFree = remaining(parseMemoryBytes(row.memoryAllocatableRaw), memoryUsed);
+    const memoryAllocatable = parseMemoryBytes(row.memoryAllocatableRaw);
+    const memoryFree = remaining(memoryAllocatable, memoryUsed);
+    const cpuPercent = metric.cpuPercent || topPercent(cpuUsed, cpuAllocatable);
+    const memoryPercent = metric.memoryPercent || topPercent(memoryUsed, memoryAllocatable);
     row.cpuUsage = metric.cpu;
     row.cpuUsageRaw = metric.cpu;
-    row.cpuUsagePercent = metric.cpuPercent;
+    row.cpuUsagePercent = cpuPercent;
     row.cpuAvailable = formatCpu(cpuFree);
     row.memoryUsage = formatNodeBytes(memoryUsed);
     row.memoryUsageRaw = metric.memory;
-    row.memoryUsagePercent = metric.memoryPercent;
+    row.memoryUsagePercent = memoryPercent;
     row.memoryAvailable = formatNodeBytes(memoryFree);
     // The displayed values are formatted strings; the table sorts on these.
-    row.cpuUsagePercentValue = percentValue(metric.cpuPercent);
-    row.memoryUsagePercentValue = percentValue(metric.memoryPercent);
+    row.cpuUsagePercentValue = percentValue(cpuPercent);
+    row.memoryUsagePercentValue = percentValue(memoryPercent);
     row.nodeResources = `CPU ${metric.cpu} used · ${formatCpu(cpuFree)} free\nRAM ${formatNodeBytes(memoryUsed)} used · ${formatNodeBytes(memoryFree)} free`;
   }
 }
@@ -255,13 +336,16 @@ export interface PodMetricsSnapshot {
 
 export async function fetchPodMetrics(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, namespace: string, signal?: AbortSignal): Promise<PodMetricsSnapshot | null> {
   const allNamespaces = namespace === "all";
-  const args = ["top", "pods", "--no-headers"];
-  if (allNamespaces) args.push("-A");
-  else if (namespace !== "_cluster") args.push("-n", namespace);
 
   try {
-    const result = await runner.run(clusterCommand(configStore, clusterId, args, METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES), signal);
-    return { metrics: parsePodMetrics(result.stdout, allNamespaces), allNamespaces };
+    // Pods with no namespace are the kubeconfig context's default, which only
+    // kubectl knows; every other scope reads the Metrics API directly.
+    if (namespace === "_cluster") {
+      const result = await runner.run(clusterCommand(configStore, clusterId, ["top", "pods", "--no-headers"], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES), signal);
+      return { metrics: parsePodMetrics(result.stdout, false), allNamespaces };
+    }
+    const path = allNamespaces ? `${METRICS_API}/pods` : `${METRICS_API}/namespaces/${encodeURIComponent(namespace)}/pods`;
+    return { metrics: podMetricsFromApi(await readMetricsApi(configStore, runner, clusterId, path, signal), allNamespaces), allNamespaces };
   } catch (error) {
     if (!(error instanceof KubectlError)) throw error;
     return null;
@@ -331,14 +415,12 @@ export async function fetchNamespaceMetrics(configStore: ConfigStore, runner: Ku
   let metricsAvailable = true;
 
   try {
-    const result = await runner.run(clusterCommand(configStore, clusterId, ["top", "pods", "-A", "--no-headers"], METRICS_TIMEOUT_SECONDS, METRICS_MAX_OUTPUT_BYTES), signal);
+    const pods = podMetricsFromApi(await readMetricsApi(configStore, runner, clusterId, `${METRICS_API}/pods`, signal), true);
 
-    for (const rawLine of result.stdout.split(/\r?\n/)) {
-      const parts = rawLine.trim().split(/\s+/);
-      if (parts.length < 4) continue;
-      const namespace = parts[0];
-      const cpu = parseCpuMillicores(parts.at(-2));
-      const memory = parseMemoryBytes(parts.at(-1));
+    for (const [key, metric] of pods) {
+      const namespace = key.slice(0, key.indexOf("/"));
+      const cpu = parseCpuMillicores(metric.cpu);
+      const memory = parseMemoryBytes(metric.memory);
       const bucket = usage.get(namespace) ?? { cpu: 0, memory: 0 };
       if (cpu !== null) bucket.cpu += cpu;
       if (memory !== null) bucket.memory += memory;
@@ -351,7 +433,7 @@ export async function fetchNamespaceMetrics(configStore: ConfigStore, runner: Ku
 
   const quota = new Map<string, NamespaceQuota>();
   try {
-    const data = await runner.runJson(clusterCommand(configStore, clusterId, ["get", "resourcequota", "-A", "-o", "json"], QUOTA_TIMEOUT_SECONDS, QUOTA_MAX_OUTPUT_BYTES), signal);
+    const data = await runner.runJson(clusterCommand(configStore, clusterId, ["get", "--raw", "/api/v1/resourcequotas"], QUOTA_TIMEOUT_SECONDS, QUOTA_MAX_OUTPUT_BYTES), signal);
     const items = Array.isArray(data.items) ? data.items : [];
 
     for (const rawItem of items) {

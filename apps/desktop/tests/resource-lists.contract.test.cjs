@@ -38,7 +38,24 @@ test("node metrics preserve CPU and memory usage for used/free calculations", ()
   assert.deepEqual(metrics.get("worker-2"), { cpu: "1", cpuPercent: "50%", memory: "2Gi", memoryPercent: "75%" });
 });
 
-test("node list metrics use one top command regardless of node count", async () => {
+// What the Metrics API answers, from `kubectl top`-style lines.
+function podMetricsList(text) {
+  return {
+    kind: "PodMetricsList",
+    items: text
+      .trim()
+      .split("\n")
+      .map((line) => line.trim().split(/\s+/))
+      .map(([namespace, name, cpu, memory]) => ({ metadata: { namespace, name }, containers: [{ name: "main", usage: { cpu, memory } }] })),
+  };
+}
+
+const isMetricsApi = (command) => command.args.some((arg) => arg.startsWith("/apis/metrics.k8s.io/"));
+
+// `kubectl top` was the same Metrics API reading plus discovery and a node
+// list, in a process of its own. The reading is taken directly now, and
+// rendered the way `kubectl top` rendered it.
+test("node list metrics use one Metrics API read regardless of node count", async () => {
   const commands = [];
   const rows = Array.from({ length: 120 }, (_, index) => ({
     uid: String(index),
@@ -47,16 +64,15 @@ test("node list metrics use one top command regardless of node count", async () 
     memoryAllocatableRaw: "2Gi",
   }));
   const runner = {
-    async run(command) {
+    async runJson(command) {
       commands.push(command);
-      return {
-        stdout: rows.map((row) => `${row.name} 100m 5% 512Mi 25%`).join("\n"),
-      };
+      // Nanocores and Ki, as metrics-server reports them.
+      return { kind: "NodeMetricsList", items: rows.map((row) => ({ metadata: { name: row.name }, usage: { cpu: "99500001n", memory: "524288Ki" } })) };
     },
   };
   await applyNodeMetrics(fakeConfigStore(), runner, "cluster-1", rows);
   assert.equal(commands.length, 1);
-  assert.deepEqual(commands[0].args, ["top", "nodes", "--no-headers"]);
+  assert.deepEqual(commands[0].args, ["get", "--raw", "/apis/metrics.k8s.io/v1beta1/nodes"]);
   assert.equal(rows[0].cpuUsage, "100m");
   assert.equal(rows[0].cpuUsageRaw, "100m");
   assert.equal(rows[119].memoryUsage, "512 MiB");
@@ -165,10 +181,8 @@ test("applyNodeDiskMetrics reuses the per-node cache across a bulk overview poll
 test("namespace usage aggregates quota without double-counting ephemeral storage", async () => {
   const rows = [{ uid: "n1", name: "tools" }];
   const runner = {
-    async run() {
-      return { stdout: "tools api 250m 512Mi\n" };
-    },
-    async runJson() {
+    async runJson(command) {
+      if (isMetricsApi(command)) return podMetricsList("tools api 250m 512Mi");
       return {
         items: [
           {
@@ -196,8 +210,8 @@ test("pod metrics use limits as denominator and keep unbounded pods percentage-f
     { uid: "p2", name: "worker", namespace: "tools", podCpuLimitValue: null, podMemoryLimitValue: null },
   ];
   const runner = {
-    async run() {
-      return { stdout: "tools api 125m 256Mi\ntools worker 50m 64Mi\n" };
+    async runJson() {
+      return podMetricsList("tools api 125m 256Mi\ntools worker 50m 64Mi");
     },
   };
   await applyPodMetrics(fakeConfigStore(), runner, "cluster-1", "all", rows);
@@ -217,8 +231,8 @@ test("pods without a limit fall back to their request, unclamped", async () => {
     { uid: "p3", name: "bare", namespace: "tools" },
   ];
   const runner = {
-    async run() {
-      return { stdout: "tools api 125m 256Mi\ntools worker 125m 256Mi\ntools bare 10m 32Mi\n" };
+    async runJson() {
+      return podMetricsList("tools api 125m 256Mi\ntools worker 125m 256Mi\ntools bare 10m 32Mi");
     },
   };
   await applyPodMetrics(fakeConfigStore(), runner, "cluster-1", "all", rows);
@@ -621,6 +635,7 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
   const runner = {
     async runJson(command) {
       commands.push(command);
+      if (isMetricsApi(command)) return podMetricsList("default demo 25m 64Mi");
       return {
         items: [
           {
@@ -649,15 +664,6 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
     },
     async run(command) {
       commands.push(command);
-      if (command.args[0] === "top") {
-        return {
-          ok: true,
-          stdout: "demo 25m 64Mi\n",
-          stderr: "",
-          commandPreview: "kubectl top pods",
-          returnCode: 0,
-        };
-      }
       return {
         ok: true,
         stdout: "ok\n",
@@ -702,7 +708,7 @@ test("resource list route builds kubectl query, enriches pods, and serves verifi
   // is that both commands are issued, not the order they are issued in.
   // Built-in types are read from their API path; see the raw-list test below.
   assert.ok(commands.some((command) => command.args.join(" ") === "get --raw /api/v1/namespaces/default/pods"));
-  assert.ok(commands.some((command) => command.args.join(" ") === "top pods --no-headers -n default"));
+  assert.ok(commands.some((command) => command.args.join(" ") === "get --raw /apis/metrics.k8s.io/v1beta1/namespaces/default/pods"));
 
   const cachedResponse = await fetch(`${baseUrl}/clusters/cluster-1/resources/pods?namespace=default&useCache=true`);
   assert.equal(cachedResponse.status, 200);
@@ -731,16 +737,16 @@ test("a pod list does not wait for a slow kubectl top", async (t) => {
     releaseTop = resolve;
   });
   const runner = {
-    async runJson() {
-      return { items: [{ metadata: { uid: "u1", name: "demo", namespace: "default" }, spec: { containers: [{ name: "main" }] }, status: { phase: "Running" } }] };
-    },
-    async run(command) {
-      if (command.args[0] === "top") {
+    async runJson(command) {
+      if (isMetricsApi(command)) {
         // metrics-server taking its time: answers long after the list.
         await new Promise((resolve) => setTimeout(resolve, 5000));
         releaseTop();
-        return { ok: true, stdout: "demo 999m 999Mi\n", stderr: "", commandPreview: "kubectl top pods", returnCode: 0 };
+        return podMetricsList("default demo 999m 999Mi");
       }
+      return { items: [{ metadata: { uid: "u1", name: "demo", namespace: "default" }, spec: { containers: [{ name: "main" }] }, status: { phase: "Running" } }] };
+    },
+    async run() {
       return { ok: true, stdout: "ok\n", stderr: "", commandPreview: "kubectl", returnCode: 0 };
     },
   };

@@ -232,33 +232,14 @@ export class KubectlRunner {
   }
 
   async runJson(command: KubectlCommand, signal?: AbortSignal): Promise<Record<string, unknown>> {
-    const result = await this.run(command, signal);
-
-    // `trim()` copies the whole string to answer this, and stdout here can be
-    // tens of megabytes of JSON.
-    if (!/\S/.test(result.stdout)) {
-      throw new KubectlError({
-        code: "KUBECTL_EMPTY_RESPONSE",
-        message: "kubectl returned an empty response instead of JSON",
-        rawStderr: "",
-        commandPreview: result.commandPreview,
-      });
+    // `get ... -o json` as well as `get --raw` can be answered by the API
+    // client, already parsed.
+    if (this.direct && !this.closed) {
+      const answered = await this.direct.runJson(command, signal);
+      if (answered) return answered;
     }
-
-    try {
-      const value: unknown = JSON.parse(result.stdout);
-      if (!value || typeof value !== "object" || Array.isArray(value)) {
-        throw new Error("JSON root must be an object");
-      }
-      return value as Record<string, unknown>;
-    } catch (error) {
-      throw new KubectlError({
-        code: "KUBECTL_INVALID_JSON",
-        message: "kubectl returned invalid JSON",
-        rawStderr: truncateKubectlText(sanitizeKubectlText(error instanceof Error ? error.message : String(error))),
-        commandPreview: result.commandPreview,
-      });
-    }
+    const result = await this.spawn(command, signal);
+    return parseJsonOutput(result.stdout, result.commandPreview);
   }
 
   activeCount(): number {
@@ -293,5 +274,33 @@ export class KubectlRunner {
     );
 
     this.active.clear();
+  }
+}
+
+export function parseJsonOutput(stdout: string, commandPreview: string): Record<string, unknown> {
+  // `trim()` copies the whole string to answer this, and stdout here can be
+  // tens of megabytes of JSON.
+  if (!/\S/.test(stdout)) {
+    throw new KubectlError({
+      code: "KUBECTL_EMPTY_RESPONSE",
+      message: "kubectl returned an empty response instead of JSON",
+      rawStderr: "",
+      commandPreview,
+    });
+  }
+
+  try {
+    const value: unknown = JSON.parse(stdout);
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("JSON root must be an object");
+    }
+    return value as Record<string, unknown>;
+  } catch (error) {
+    throw new KubectlError({
+      code: "KUBECTL_INVALID_JSON",
+      message: "kubectl returned invalid JSON",
+      rawStderr: truncateKubectlText(sanitizeKubectlText(error instanceof Error ? error.message : String(error))),
+      commandPreview,
+    });
   }
 }

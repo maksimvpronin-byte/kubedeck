@@ -10,7 +10,7 @@
 // this table does not know, keep going through `kubectl get`, which resolves
 // them through discovery.
 
-interface ListEndpoint {
+export interface ListEndpoint {
   // "/api/v1" for the core group, "/apis/<group>/<version>" otherwise.
   prefix: string;
   plural: string;
@@ -41,6 +41,8 @@ const ENDPOINTS: Record<string, ListEndpoint> = {
   jobs: group("batch/v1", "jobs"),
   cronjobs: group("batch/v1", "cronjobs"),
   ingresses: group("networking.k8s.io/v1", "ingresses"),
+  ingressclasses: group("networking.k8s.io/v1", "ingressclasses", false),
+  endpointslices: group("discovery.k8s.io/v1", "endpointslices"),
   networkpolicies: group("networking.k8s.io/v1", "networkpolicies"),
   horizontalpodautoscalers: group("autoscaling/v2", "horizontalpodautoscalers"),
   poddisruptionbudgets: group("policy/v1", "poddisruptionbudgets"),
@@ -56,6 +58,24 @@ const ENDPOINTS: Record<string, ListEndpoint> = {
   validatingwebhookconfigurations: group("admissionregistration.k8s.io/v1", "validatingwebhookconfigurations", false),
   customresourcedefinitions: group("apiextensions.k8s.io/v1", "customresourcedefinitions", false),
 };
+
+// kubectl takes a type's singular too (`get secret x`); the names it would
+// take are the plural with its plural ending undone.
+function singular(plural: string): string {
+  if (plural === "endpoints") return plural;
+  if (plural.endsWith("ies")) return `${plural.slice(0, -3)}y`;
+  if (plural.endsWith("sses") || plural.endsWith("xes")) return plural.slice(0, -2);
+  return plural.slice(0, -1);
+}
+
+const SINGULARS: Record<string, string> = Object.fromEntries(Object.keys(ENDPOINTS).map((plural) => [singular(plural), plural]));
+
+// A built-in type by its plural or singular name, or null.
+export function builtInEndpoint(resource: string): ListEndpoint | null {
+  if (Object.hasOwn(ENDPOINTS, resource)) return ENDPOINTS[resource];
+  if (Object.hasOwn(SINGULARS, resource)) return ENDPOINTS[SINGULARS[resource]];
+  return null;
+}
 
 // The path to list `resource` in `namespace` ("all", a namespace name, or
 // "_cluster"), or null when it has to go through `kubectl get` instead.

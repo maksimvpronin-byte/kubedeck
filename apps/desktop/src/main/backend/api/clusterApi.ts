@@ -31,6 +31,8 @@ export interface GetOptions {
   maxBytes: number;
   signal?: AbortSignal;
   preview: string;
+  // Defaults to plain JSON; discovery asks for its aggregated form.
+  accept?: string;
 }
 
 interface Credentials {
@@ -137,12 +139,15 @@ export class ClusterApi {
   }
 
   // Opens a GET and resolves with the response once its headers are in.
-  private async open(path: string, options: { signal?: AbortSignal; preview: string; gzip: boolean }): Promise<{ response: IncomingMessage; credentials: Credentials; request: http.ClientRequest }> {
+  private async open(
+    path: string,
+    options: { signal?: AbortSignal; preview: string; gzip: boolean; accept?: string },
+  ): Promise<{ response: IncomingMessage; credentials: Credentials; request: http.ClientRequest }> {
     if (options.signal?.aborted) throw cancelledError(options.preview);
     const credentials = await this.credentials();
     const agent = this.agentFor(credentials.cert, credentials.key);
     const target = this.url(path);
-    const headers: http.OutgoingHttpHeaders = { Accept: "application/json", "User-Agent": "KubeDeck" };
+    const headers: http.OutgoingHttpHeaders = { Accept: options.accept ?? "application/json", "User-Agent": "KubeDeck" };
     if (options.gzip) headers["Accept-Encoding"] = "gzip";
     if (credentials.token) headers.Authorization = `Bearer ${credentials.token}`;
     const transport = target.protocol === "http:" ? http : https;
@@ -217,7 +222,7 @@ export class ClusterApi {
     const translate = (error: unknown): unknown =>
       timedOut && error instanceof KubectlError && error.info.code === "KUBECTL_CANCELLED" ? timeoutError(this.profile.server, path, timeoutSeconds, options.preview) : error;
     try {
-      const { response, credentials } = await this.open(path, { signal: controller.signal, preview: options.preview, gzip: true });
+      const { response, credentials } = await this.open(path, { signal: controller.signal, preview: options.preview, gzip: true, accept: options.accept });
       const status = response.statusCode ?? 0;
       if (status >= 200 && status < 300) {
         const readAbort = () => response.destroy();

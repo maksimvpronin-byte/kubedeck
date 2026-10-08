@@ -427,3 +427,161 @@ test("a rewritten kubeconfig is read again", async (t) => {
   fs.writeFileSync(kubeconfig, JSON.stringify(doc));
   assert.equal(connectionProfile(kubeconfig).profile.token, "second");
 });
+
+// Search, Overview, Problems, related resources, Secrets and deployment logs
+// ask kubectl for `get <type> ... -o json`. Those are single GETs too.
+test("kubectl get -o json is read as the API request it stands for", () => {
+  const { parseGetJson, getJsonPath } = require("../dist/main/backend/api/getTranslation.js");
+  const pods = { prefix: "/api/v1", plural: "pods", namespaced: true };
+  const nodes = { prefix: "/api/v1", plural: "nodes", namespaced: false };
+  const path = (args, endpoint) => {
+    const request = parseGetJson(args);
+    return request && getJsonPath(request, endpoint);
+  };
+  assert.equal(path(["get", "pods", "-n", "shop", "-o", "json"], pods), "/api/v1/namespaces/shop/pods");
+  assert.equal(path(["get", "pods", "-A", "-o", "json"], pods), "/api/v1/pods");
+  assert.equal(path(["get", "pod", "web-1", "-n", "shop", "-o", "json"], pods), "/api/v1/namespaces/shop/pods/web-1");
+  assert.equal(path(["get", "events", "-A", "--field-selector", "type=Warning", "-o", "json"], { ...pods, plural: "events" }), "/api/v1/events?fieldSelector=type%3DWarning");
+  assert.equal(path(["get", "pods", "-n", "shop", "-l", "app=web", "-o", "json"], pods), "/api/v1/namespaces/shop/pods?labelSelector=app%3Dweb");
+  assert.equal(path(["get", "nodes", "-o", "json"], nodes), "/api/v1/nodes");
+  // Only kubectl knows the context's default namespace.
+  assert.equal(path(["get", "pods", "-o", "json"], pods), null);
+  // Not JSON, or a flag this does not understand.
+  assert.equal(parseGetJson(["get", "pods", "-n", "shop", "-o", "yaml"]), null);
+  assert.equal(parseGetJson(["get", "pods", "-n", "shop", "-o", "json", "--show-labels"]), null);
+  assert.equal(parseGetJson(["get", "pods,services", "-A", "-o", "json"]), null);
+  assert.equal(parseGetJson(["describe", "pod", "x"]), null);
+});
+
+async function jsonServer(t, routes) {
+  return tlsServer(t, (request, response) => {
+    const route = routes[request.url];
+    if (route) json(response, 200, typeof route === "function" ? route(request) : route);
+    else if (routes.missing?.(request.url)) json(response, 404, { kind: "Status", reason: "NotFound", message: routes.missing(request.url) });
+    else json(response, 404, { kind: "Status", reason: "NotFound", message: "the server could not find the requested resource" });
+  });
+}
+
+function getCommand(kubeconfig, args) {
+  return createKubectlCommand({ clusterId: "c1", kubeconfigPath: kubeconfig, args, timeoutSeconds: 30, maxOutputBytes: 1024 * 1024, directApi: true });
+}
+
+test("get -o json of built-in and custom types goes straight to the server", async (t) => {
+  const server = await jsonServer(t, {
+    "/api/v1/namespaces/shop/secrets": { kind: "SecretList", apiVersion: "v1", items: [{ metadata: { name: "db" } }] },
+    "/api/v1/namespaces/shop/secrets/db": { kind: "Secret", apiVersion: "v1", metadata: { name: "db" } },
+    "/apis/argoproj.io": { kind: "APIGroup", preferredVersion: { version: "v1alpha1" } },
+    "/apis/argoproj.io/v1alpha1": { kind: "APIResourceList", resources: [{ name: "applications", namespaced: true, verbs: ["get", "list", "watch"] }] },
+    "/apis/argoproj.io/v1alpha1/namespaces/argocd/applications": { kind: "ApplicationList", apiVersion: "argoproj.io/v1alpha1", items: [{ metadata: { name: "shop" } }] },
+    missing: (url) => (url === "/api/v1/namespaces/shop/configmaps/gone" ? 'configmaps "gone" not found' : null),
+  });
+  const dir = tempDir(t);
+  const kubeconfig = writeKubeconfig(dir, { server: `https://127.0.0.1:${server.port}`, cluster: { "certificate-authority-data": b64(pem("ca.crt")) }, user: { token: "t" } });
+  const { runner, kubectlCalls } = setup(t);
+
+  const list = await runner.runJson(getCommand(kubeconfig, ["get", "secrets", "-n", "shop", "-o", "json"]));
+  assert.equal(list.items[0].kind, "Secret", "items get the kind kubectl would have filled in");
+  assert.equal(list.items[0].apiVersion, "v1");
+  const one = await runner.runJson(getCommand(kubeconfig, ["get", "secret", "db", "-n", "shop", "-o", "json"]));
+  assert.equal(one.metadata.name, "db");
+  const apps = await runner.runJson(getCommand(kubeconfig, ["get", "applications.argoproj.io", "-n", "argocd", "-o", "json"]));
+  assert.equal(apps.items[0].kind, "Application");
+  await runner.runJson(getCommand(kubeconfig, ["get", "applications.argoproj.io", "-n", "argocd", "-o", "json"]));
+  assert.equal(server.requests.filter((request) => request.url === "/apis/argoproj.io").length, 1, "the group is discovered once");
+
+  // A named object that does not exist is the server's answer, worded as kubectl words it.
+  await assert.rejects(runner.runJson(getCommand(kubeconfig, ["get", "configmap", "gone", "-n", "shop", "-o", "json"])), (error) => {
+    assert.equal(error.info.code, "NOT_FOUND");
+    assert.match(error.info.rawStderr, /Error from server \(NotFound\): configmaps "gone" not found/);
+    return true;
+  });
+  assert.deepEqual(kubectlCalls, []);
+});
+
+test("short names, unknown groups and paths the server does not serve go to kubectl", async (t) => {
+  const server = await jsonServer(t, {});
+  const dir = tempDir(t);
+  const kubeconfig = writeKubeconfig(dir, { server: `https://127.0.0.1:${server.port}`, cluster: { "certificate-authority-data": b64(pem("ca.crt")) }, user: { token: "t" } });
+  const { runner, kubectlCalls } = setup(t);
+
+  assert.deepEqual(await runner.runJson(getCommand(kubeconfig, ["get", "po", "-n", "shop", "-o", "json"])), { from: "kubectl" });
+  assert.deepEqual(await runner.runJson(getCommand(kubeconfig, ["get", "widgets.example.com", "-n", "shop", "-o", "json"])), { from: "kubectl" });
+  // An older server without this API version: the path is not served.
+  assert.deepEqual(await runner.runJson(getCommand(kubeconfig, ["get", "horizontalpodautoscalers", "-n", "shop", "-o", "json"])), { from: "kubectl" });
+  assert.deepEqual(
+    kubectlCalls.map((call) => call.slice(call.indexOf(" get ") + 1)),
+    ["get po -n shop -o json", "get widgets.example.com -n shop -o json", "get horizontalpodautoscalers -n shop -o json"],
+  );
+});
+
+// `kubectl api-resources` reads kubectl's discovery cache, hundreds of files
+// on disk, in a process of its own. Aggregated discovery gives the same table
+// in two requests.
+test("api-resources comes from aggregated discovery, in the table kubectl prints", async (t) => {
+  const { parseApiResources: parseForSearch } = require("../dist/main/backend/search/searchEngine.js");
+  const { parseApiResources: parseForSidebar } = require("../dist/main/backend/routes/resourceDiscoveryEvents.js");
+  const accepts = [];
+  const core = {
+    kind: "APIGroupDiscoveryList",
+    items: [
+      {
+        metadata: {},
+        versions: [
+          {
+            version: "v1",
+            resources: [
+              { resource: "pods", responseKind: { kind: "Pod" }, scope: "Namespaced", shortNames: ["po"], verbs: ["get", "list", "watch"], categories: ["all"] },
+              { resource: "bindings", responseKind: { kind: "Binding" }, scope: "Namespaced", verbs: ["create"] },
+              { resource: "nodes", responseKind: { kind: "Node" }, scope: "Cluster", shortNames: ["no"], verbs: ["get", "list"] },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const groups = {
+    kind: "APIGroupDiscoveryList",
+    items: [
+      {
+        metadata: { name: "argoproj.io" },
+        versions: [
+          { version: "v1alpha1", resources: [{ resource: "applications", responseKind: { kind: "Application" }, scope: "Namespaced", shortNames: ["app", "apps"], verbs: ["get", "list"] }] },
+          { version: "v1alpha0", resources: [{ resource: "old", responseKind: { kind: "Old" }, scope: "Namespaced", verbs: ["list"] }] },
+        ],
+      },
+    ],
+  };
+  const server = await tlsServer(t, (request, response) => {
+    accepts.push(request.headers.accept);
+    json(response, 200, request.url === "/api" ? core : groups);
+  });
+  const dir = tempDir(t);
+  const kubeconfig = writeKubeconfig(dir, { server: `https://127.0.0.1:${server.port}`, cluster: { "certificate-authority-data": b64(pem("ca.crt")) }, user: { token: "t" } });
+  const { runner, kubectlCalls } = setup(t);
+
+  const { stdout } = await runner.run(createKubectlCommand({ clusterId: "c1", kubeconfigPath: kubeconfig, args: ["api-resources", "--verbs=list", "-o", "wide"], directApi: true }));
+  assert.deepEqual(kubectlCalls, []);
+  assert.ok(accepts.every((accept) => accept.includes("as=APIGroupDiscoveryList")));
+  const sidebar = parseForSidebar(stdout);
+  assert.deepEqual(
+    sidebar.map((item) => [item.name, item.shortNames, item.apiGroup, item.namespaced, item.kind]),
+    [
+      ["pods", "po", "v1", true, "Pod"],
+      ["nodes", "no", "v1", false, "Node"],
+      ["applications", "app,apps", "argoproj.io/v1alpha1", true, "Application"],
+    ],
+    "only listable types, from each group's preferred version",
+  );
+  const search = parseForSearch(stdout);
+  assert.equal(search.find((item) => item.name === "applications").apiGroup, "argoproj.io");
+  assert.equal(search.find((item) => item.name === "pods").apiGroup, "");
+});
+
+test("a server without aggregated discovery leaves api-resources to kubectl", async (t) => {
+  const server = await tlsServer(t, (request, response) => json(response, 200, { kind: request.url === "/api" ? "APIVersions" : "APIGroupList", versions: ["v1"], groups: [] }));
+  const dir = tempDir(t);
+  const kubeconfig = writeKubeconfig(dir, { server: `https://127.0.0.1:${server.port}`, cluster: { "certificate-authority-data": b64(pem("ca.crt")) }, user: { token: "t" } });
+  const { runner, kubectlCalls } = setup(t);
+  await runner.run(createKubectlCommand({ clusterId: "c1", kubeconfigPath: kubeconfig, args: ["api-resources", "--verbs=list", "-o", "wide"], directApi: true }));
+  assert.equal(kubectlCalls.length, 1);
+});
