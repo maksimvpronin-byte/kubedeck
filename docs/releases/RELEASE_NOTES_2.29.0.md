@@ -54,14 +54,15 @@ Node-only ownership stays at Node 59 / Python 0, and no route changed.
 
 - `npm run lint`, `npm run lint:css`, `npm run format:check`
 - `npm run test:renderer` - **320 tests**, unchanged
-- `npm --workspace apps/desktop run test:gateway` - **225 tests**, up from 191:
+- `npm --workspace apps/desktop run test:gateway` - **226 tests**, up from 191:
   a raw GET goes over one kept TLS connection with the kubeconfig's token, gzip
   undone, and never logs it; client certificates from files next to the
   kubeconfig; a server under a path prefix; refusals and an unreachable server
   fail with kubectl's codes and wording; a server Node does not trust, and
   kubeconfigs with unhandled features, go to kubectl and stay there; a
   cancelled or oversized read stops; a kubeconfig proxy is tunnelled through
-  CONNECT and NO_PROXY CIDR ranges are honoured; an exec plugin runs once for
+  CONNECT, a proxy that hangs up without answering hands the read to kubectl at
+  once, and NO_PROXY CIDR ranges are honoured; an exec plugin runs once for
   concurrent requests, is renewed before expiry and after a 401, and a failing
   one leaves the read to kubectl; `get -o json` of built-in and custom types is
   one GET, short names and unserved paths go to kubectl; `api-resources` from

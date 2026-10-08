@@ -56,6 +56,11 @@ function openTunnel(proxy: URL, host: string, port: number, callback: (error: Er
   };
   socket.on("data", onData);
   socket.once("error", (error) => finish(Object.assign(tunnelError(`proxy ${proxy.host}: ${error.message}`), { cause: error })));
+  // A proxy that hangs up without answering - it could not reach the server,
+  // or refused without saying so - would otherwise leave the request waiting
+  // for an answer that never comes.
+  socket.once("end", () => finish(tunnelError(`proxy ${proxy.host} closed the connection without answering CONNECT`)));
+  socket.once("close", () => finish(tunnelError(`proxy ${proxy.host} closed the connection without answering CONNECT`)));
   socket.setTimeout(CONNECT_TIMEOUT_MS, () => finish(tunnelError(`proxy ${proxy.host} did not answer CONNECT`)));
   socket.once(proxy.protocol === "https:" ? "secureConnect" : "connect", () => {
     const authority = net.isIPv6(host) ? `[${host}]:${port}` : `${host}:${port}`;

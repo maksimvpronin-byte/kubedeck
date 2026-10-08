@@ -12,7 +12,7 @@ Earlier 2.13.x through 2.28.3 checklists still apply.
 - [x] `npm run lint:css`
 - [x] `npm run format:check`
 - [x] `npm run test:renderer` (320 tests, unchanged)
-- [x] `npm --workspace apps/desktop run test:gateway` (225 tests, up from 191)
+- [x] `npm --workspace apps/desktop run test:gateway` (226 tests, up from 191)
 - [x] `npm run typecheck`
 - [x] `npm run build`
 - [x] `npm run verify:release`, including `--tag v2.29.0`

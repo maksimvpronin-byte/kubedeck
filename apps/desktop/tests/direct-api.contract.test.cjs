@@ -289,7 +289,8 @@ test("an HTTP proxy from the kubeconfig carries the connection through CONNECT",
   proxy.on("connect", (request, socket, head) => {
     tunnels.push(request.url);
     const [host, port] = request.url.split(":");
-    const upstream = net.connect(Number(port), host, () => {
+    // The test server listens on IPv4 only; "localhost" may resolve to ::1 first.
+    const upstream = net.connect(Number(port), host === "localhost" ? "127.0.0.1" : host, () => {
       socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
       if (head.length) upstream.write(head);
       upstream.pipe(socket);
@@ -310,6 +311,25 @@ test("an HTTP proxy from the kubeconfig carries the connection through CONNECT",
   assert.deepEqual(await runner.runJson(rawCommand(kubeconfig, "/api")), { ok: true });
   assert.deepEqual(tunnels, [`localhost:${server.port}`]);
   assert.deepEqual(kubectlCalls, []);
+});
+
+// Seen on CI: a proxy that could not reach the server hung up without an
+// answer, and the request waited for one forever.
+test("a proxy that hangs up without answering CONNECT leaves the read to kubectl at once", async (t) => {
+  const proxy = net.createServer((socket) => socket.once("data", () => socket.destroy()));
+  t.after(() => new Promise((resolve) => proxy.close(() => resolve())));
+  await new Promise((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+  const dir = tempDir(t);
+  const kubeconfig = writeKubeconfig(dir, {
+    server: "https://localhost:1",
+    cluster: { "certificate-authority-data": b64(pem("ca.crt")), "proxy-url": `http://127.0.0.1:${proxy.address().port}` },
+    user: { token: "t" },
+  });
+  const { runner, kubectlCalls } = setup(t);
+  const started = Date.now();
+  assert.deepEqual(await runner.runJson(rawCommand(kubeconfig, "/api")), { from: "kubectl" });
+  assert.ok(Date.now() - started < 2000, "no wait for an answer that never comes");
+  assert.equal(kubectlCalls.length, 1);
 });
 
 test("NO_PROXY is read the way kubectl reads it, CIDR ranges included", () => {

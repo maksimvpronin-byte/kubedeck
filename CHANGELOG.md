@@ -36,7 +36,7 @@ refusal ends the watch as before. Right after a change made from KubeDeck, lists
 come from the server until the watch reports it. A watch nobody listens to for
 five minutes stops. Clusters the client cannot use keep the kubectl watch.
 
-Renderer tests: 320, unchanged. Gateway tests: 225, up from 191.
+Renderer tests: 320, unchanged. Gateway tests: 226, up from 191.
 
 ## 2.28.3 - A large cluster opens fast, log colours, port forwarding a Service
 
