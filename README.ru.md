@@ -1,4 +1,4 @@
-# KubeDeck 2.28.3
+# KubeDeck 2.29.0
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -41,8 +41,8 @@ KubeDeck использует **Node-only runtime внутри Electron**. Пр�
 | Слой | Технологии | Назначение |
 |---|---|---|
 | Desktop UI | Electron, React, TypeScript | Таблицы ресурсов, drawer, YAML, логи и терминалы |
-| Runtime | Node.js в Electron main process | Локальный REST/WebSocket Gateway, запуск kubectl, кэш, watch, поиск, диагностика и LLM |
-| Kubernetes CLI | Системный `kubectl` | Доступ к Kubernetes API |
+| Runtime | Node.js в Electron main process | Локальный REST/WebSocket Gateway, прямые чтения и watch Kubernetes API, запуск kubectl, кэш, поиск, диагностика и LLM |
+| Kubernetes CLI | Системный `kubectl` | Изменения, YAML, describe, логи, exec, port-forward и все чтения, которые встроенный API-клиент сделать не может |
 | Нативный терминал | `node-pty` | Pod Terminal и интерактивные сессии |
 | SSH | `ssh2` | Подключение к Kubernetes nodes |
 
@@ -172,8 +172,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 Результат:
 
 ```text
-apps\desktop\release\KubeDeck-Setup-2.28.3-x64.exe
-apps\desktop\release\KubeDeck-Portable-2.28.3-x64.exe
+apps\desktop\release\KubeDeck-Setup-2.29.0-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.29.0-x64.exe
 ```
 
 Установщик — это тот артефакт, который обновление может заменить на месте; portable-файлу заменять нечего, и ему предлагается страница релизов.
@@ -187,8 +187,8 @@ npm run package:mac
 Результаты:
 
 ```text
-apps/desktop/release/KubeDeck-2.28.3-arm64.dmg
-apps/desktop/release/KubeDeck-2.28.3-arm64.zip
+apps/desktop/release/KubeDeck-2.29.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.29.0-arm64.zip
 ```
 
 macOS-сборка не подписана Apple Developer ID и не notarized. При первом запуске используйте Finder → Applications → Control-click по KubeDeck → Open.
@@ -202,7 +202,7 @@ npm run package:linux
 Результат:
 
 ```text
-apps/desktop/release/KubeDeck-2.28.3-x86_64.AppImage
+apps/desktop/release/KubeDeck-2.29.0-x86_64.AppImage
 ```
 
 Сборщик запускает полный source gate, пересобирает `node-pty` под Electron, создаёт AppImage и проверяет release payload. AppImage не подписан.
@@ -228,6 +228,8 @@ npm.cmd ci `
 ## kubectl и kubeconfig
 
 KubeDeck использует `kubectl` из `PATH` либо абсолютный путь к исполняемому файлу, указанный в Settings.
+
+Чтения — таблицы, потребление, поиск, Overview, Problems, связанные ресурсы — и watch таблиц идут прямо на API-сервер по одному постоянному соединению на кластер, по current context kubeconfig: клиентские сертификаты, токены, token files, exec-плагины (запускаются раз на срок жизни учётных данных) и HTTP-прокси из kubeconfig или окружения. Kubeconfig, которому нужно другое (`auth-provider`, impersonation, basic auth, SOCKS-прокси), и кластер, чьи настройки TLS или прокси клиент использовать не может, продолжают работать через `kubectl`. Settings → General → «Читать напрямую через Kubernetes API» выключает это.
 
 ```bash
 kubectl version --client
@@ -288,8 +290,8 @@ Linux:
 
 ## Документация
 
-- [Release notes 2.28.3](./docs/releases/RELEASE_NOTES_2.28.3.md)
-- [Regression checklist 2.28.3](./docs/releases/REGRESSION_CHECKLIST_2.28.3.md)
+- [Release notes 2.29.0](./docs/releases/RELEASE_NOTES_2.29.0.md)
+- [Regression checklist 2.29.0](./docs/releases/REGRESSION_CHECKLIST_2.29.0.md)
 - [Статус миграции на Node](./NODE_MIGRATION_PROGRESS.md)
 - [Лицензии сторонних компонентов](./docs/third-party-notices.md)
 

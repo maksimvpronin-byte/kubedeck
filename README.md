@@ -1,4 +1,4 @@
-# KubeDeck 2.28.3
+# KubeDeck 2.29.0
 
 [English](./README.md) | [Русский](./README.ru.md)
 
@@ -41,8 +41,8 @@ KubeDeck uses a **Node-only runtime inside Electron**. It does not start or pack
 | Layer | Technology | Responsibility |
 |---|---|---|
 | Desktop UI | Electron, React, TypeScript | Resource tables, drawers, YAML, logs, and terminals |
-| Runtime | Node.js in the Electron main process | Local REST/WebSocket gateway, kubectl execution, cache, watch, search, diagnostics, and LLM integration |
-| Kubernetes CLI | System `kubectl` | Kubernetes API access |
+| Runtime | Node.js in the Electron main process | Local REST/WebSocket gateway, direct Kubernetes API reads and watches, kubectl execution, cache, search, diagnostics, and LLM integration |
+| Kubernetes CLI | System `kubectl` | Changes, YAML, describe, logs, exec, port-forward, and every read the built-in API client cannot make |
 | Native terminal | `node-pty` | Pod Terminal and interactive sessions |
 | SSH | `ssh2` | Kubernetes node connections |
 
@@ -171,8 +171,8 @@ The builder verifies the Node-only release contract, repairs required native hel
 Output:
 
 ```text
-apps\desktop\release\KubeDeck-Setup-2.28.3-x64.exe
-apps\desktop\release\KubeDeck-Portable-2.28.3-x64.exe
+apps\desktop\release\KubeDeck-Setup-2.29.0-x64.exe
+apps\desktop\release\KubeDeck-Portable-2.29.0-x64.exe
 ```
 
 The installer is the artifact an update can replace in place; the portable executable has no installation to replace and is offered the release page instead.
@@ -186,8 +186,8 @@ npm run package:mac
 Outputs:
 
 ```text
-apps/desktop/release/KubeDeck-2.28.3-arm64.dmg
-apps/desktop/release/KubeDeck-2.28.3-arm64.zip
+apps/desktop/release/KubeDeck-2.29.0-arm64.dmg
+apps/desktop/release/KubeDeck-2.29.0-arm64.zip
 ```
 
 The macOS package is not signed with an Apple Developer ID and is not notarized. On first launch, use Finder → Applications → Control-click KubeDeck → Open.
@@ -201,7 +201,7 @@ npm run package:linux
 Output:
 
 ```text
-apps/desktop/release/KubeDeck-2.28.3-x86_64.AppImage
+apps/desktop/release/KubeDeck-2.29.0-x86_64.AppImage
 ```
 
 The builder runs the full source gate, rebuilds `node-pty` for Electron, produces the AppImage, and validates the release payload. The AppImage is not signed.
@@ -227,6 +227,8 @@ If Node.js must use proxy variables for an Electron download, enable environment
 ## kubectl and kubeconfig
 
 KubeDeck uses either `kubectl` from `PATH` or an absolute executable path configured in Settings.
+
+Reads - tables, usage, search, Overview, Problems, related resources - and table watches go straight to the API server over one kept connection per cluster, using the kubeconfig's current context: client certificates, tokens, token files, exec plugins (run once per credential lifetime) and HTTP proxies from the kubeconfig or the environment. A kubeconfig that needs something else (an `auth-provider`, impersonation, basic auth, a SOCKS proxy), or a cluster whose TLS or proxy setup the client cannot use, keeps going through `kubectl`. Settings → General → "Read through the Kubernetes API directly" turns this off.
 
 ```bash
 kubectl version --client
@@ -287,8 +289,8 @@ Linux:
 
 ## Documentation
 
-- [Release notes 2.28.3](./docs/releases/RELEASE_NOTES_2.28.3.md)
-- [Regression checklist 2.28.3](./docs/releases/REGRESSION_CHECKLIST_2.28.3.md)
+- [Release notes 2.29.0](./docs/releases/RELEASE_NOTES_2.29.0.md)
+- [Regression checklist 2.29.0](./docs/releases/REGRESSION_CHECKLIST_2.29.0.md)
 - [Node migration status](./NODE_MIGRATION_PROGRESS.md)
 - [Third-party notices](./docs/third-party-notices.md)
 

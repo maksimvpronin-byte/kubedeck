@@ -1,3 +1,43 @@
+## 2.29.0 - Reads and watches go straight to the Kubernetes API
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**Every read started a kubectl process.** A table, its refresh, its usage
+columns, a search, Overview and Problems each started kubectl: on Windows with
+an antivirus that is hundreds of milliseconds before the request leaves, plus
+the kubeconfig's auth plugin and a new TLS handshake, every time. KubeDeck now
+reads the API server itself over one kept connection per cluster, from the
+kubeconfig's current context: client certificates, tokens, token files, exec
+plugins (run once per credential lifetime, again after a 401) and HTTP proxies
+from the kubeconfig or the environment, CIDR entries in NO_PROXY included. It
+answers `get --raw`, `get <type> [name] [-n|-A] [selectors] -o json` for
+built-in and `<plural>.<group>` types, and `api-resources` from aggregated
+discovery. Errors keep kubectl's codes and wording. A kubeconfig with an
+`auth-provider`, impersonation, basic auth or a SOCKS proxy, and any TLS, proxy
+or plugin failure kubectl might not share, goes to kubectl as before. Settings
+→ General → "Read through the Kubernetes API directly" turns it off. Measured on
+k3s 1.35: table lists 3-4 ms against 22-30 ms, search 18 ms against 159 ms,
+related resources 8 ms against 95 ms.
+
+**Usage came from `kubectl top`.** It is read from the Metrics API it stood for,
+rendered the way `kubectl top` rendered it; node percentages come from the
+allocatable the rows already carry.
+
+**Argo CD Applications did not open.** A namespace of Applications timed out
+after 30 s: custom resources still went through `kubectl get -o json`, which
+re-encodes objects that carry their whole resource tree. They are read from
+their API path now, the version found through their group's discovery.
+
+**A watch event reloaded the whole list from the cluster.** Table watches run
+over the API connection: a LIST, then a WATCH from its resourceVersion, the list
+kept in memory and every event applied to it. The reload an event triggers is
+answered from memory. A 410 relists, a lost connection relists after a pause, a
+refusal ends the watch as before. Right after a change made from KubeDeck, lists
+come from the server until the watch reports it. A watch nobody listens to for
+five minutes stops. Clusters the client cannot use keep the kubectl watch.
+
+Renderer tests: 320, unchanged. Gateway tests: 225, up from 191.
+
 ## 2.28.3 - A large cluster opens fast, log colours, port forwarding a Service
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
