@@ -1,3 +1,21 @@
+## 2.29.1 - A large custom resource list no longer freezes KubeDeck
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**Argo CD Applications in all namespaces froze the application.** Over 64 MB
+of JSON: the table's load failed on its size limit while the watch read the
+same list beside it, and kept every Application whole in memory - resource
+tree, sync history - in the main process, twice when a namespace watch ran
+too. A watched custom resource is now kept as its row reads it (metadata,
+phase, the last condition, spec.type): a few hundred bytes instead of the
+object, the same row. A table's load takes its list from the scope's API
+watch, starting it or waiting for the one starting, so the list is read once
+and under the watch's larger limit; a scope that cannot be watched over the
+API is not retried from a load for two minutes and never starts a kubectl
+watch.
+
+Renderer tests: 320, unchanged. Gateway tests: 229, up from 226.
+
 ## 2.29.0 - Reads and watches go straight to the Kubernetes API
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
