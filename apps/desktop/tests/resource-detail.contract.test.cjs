@@ -296,6 +296,22 @@ test("a CronJob can be run by hand, under a name the confirmation showed", () =>
   assert.match(api, /body: JSON\.stringify\(\{ action, replicas, jobName, confirmation \}\)/);
 });
 
+test("Scale opens on the workload's current replica count, not on one", () => {
+  const modals = loadTypeScript("components/PodDrawerModals.tsx");
+  const drawer = fs.readFileSync(path.join(rendererRoot, "components/PodDrawer.tsx"), "utf8");
+
+  assert.equal(modals.currentReplicas({ uid: "d", name: "repo-server", desired: 5 }), 5);
+  assert.equal(modals.currentReplicas({ uid: "d", name: "parked", desired: 0 }), 0, "a workload scaled to zero stays at zero");
+  assert.equal(modals.currentReplicas({ uid: "d", name: "legacy", replicas: "3" }), 3);
+  // Nothing to read is not the same as zero: confirming must not scale it away.
+  assert.equal(modals.currentReplicas({ uid: "d", name: "unknown" }), 1);
+  assert.equal(modals.currentReplicas({ uid: "d", name: "unknown", desired: null }), 1);
+  assert.equal(modals.currentReplicas({ uid: "d", name: "odd", desired: "" }), 1);
+
+  // grep contract: the count is taken at the press, from the row the drawer shows.
+  assert.match(drawer, /if \(action === "scale"\) setReplicas\(currentReplicas\(pod\)\);/);
+});
+
 test("a node's disk percentage comes from the backend, not from re-reading its own printed size", () => {
   const summary = loadTypeScript("components/ResourceSummary.tsx");
 

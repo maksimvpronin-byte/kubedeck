@@ -181,6 +181,14 @@ export function supportedActions(resource: string): ResourceAction[] {
   return [];
 }
 
+// Scale opens on the count the workload asks for now, so confirming without
+// touching the field leaves it as it is rather than dropping it to one.
+export function currentReplicas(row: ResourceRow) {
+  const raw = row.desired ?? row.replicas;
+  const value = typeof raw === "number" || (typeof raw === "string" && raw.trim()) ? Number(raw) : NaN;
+  return Number.isInteger(value) && value >= 0 ? value : 1;
+}
+
 const ACTION_LABELS: Record<string, [key: string, english: string]> = {
   trigger: ["drawer.action.trigger", "Run now"],
   restartPod: ["drawer.action.restartPod", "Restart pod"],

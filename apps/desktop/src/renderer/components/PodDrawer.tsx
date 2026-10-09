@@ -3,7 +3,7 @@ import type { ApiClient } from "../api";
 import type { PortForwardSession, PortForwardStartRequest, ResourceRow, Settings } from "../types";
 import type { YamlEditorHandle } from "./YamlSourceEditor";
 import { PortForwardModal, defaultPortForwardDraft, supportsPortForward } from "./PortForwardModal";
-import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, actionLabel, supportedActions, type ResourceAction } from "./PodDrawerModals";
+import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, actionLabel, currentReplicas, supportedActions, type ResourceAction } from "./PodDrawerModals";
 import { useUiClock } from "../hooks/useUiClock";
 import { containerNames, eventTargetForOpen } from "./podDrawerHelpers";
 import { availableDrawerTabs, PodDrawerActions, PodDrawerHeader, PodDrawerTabs, type DrawerTab } from "./PodDrawerChrome";
@@ -315,6 +315,7 @@ export function PodDrawer({
               // Fixed at the press, not at each render of the confirmation, so
               // the name in the preview is the name the Job is created under.
               if (action === "trigger") setTriggerJobName(manualJobName(pod.name, Date.now()));
+              if (action === "scale") setReplicas(currentReplicas(pod));
               setPendingAction(action);
             }}
             onTerminal={() => (isNodeResource ? onOpenNodeSsh(pod) : openTerminal())}
