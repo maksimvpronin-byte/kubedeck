@@ -20,6 +20,7 @@ declare global {
       downloadUpdate(): Promise<UpdateState>;
       installUpdate(): Promise<UpdateState>;
       openReleases(): Promise<void>;
+      readClipboardText(): Promise<string>;
       onUpdateState(listener: (state: UpdateState) => void): () => void;
     };
   }

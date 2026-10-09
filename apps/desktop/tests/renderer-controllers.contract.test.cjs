@@ -177,6 +177,52 @@ test("Pod Terminal delegates paste to the single xterm input path", () => {
   assert.doesNotMatch(source, /navigator\.clipboard\?\.readText/);
 });
 
+test("a right-click in a terminal pastes the clipboard through xterm's own paste", async () => {
+  const xterm = loadTypeScript("utils/xtermSession.ts");
+  const listeners = {};
+  const host = {
+    addEventListener: (type, listener) => (listeners[type] = listener),
+    removeEventListener: (type, listener) => {
+      if (listeners[type] === listener) delete listeners[type];
+    },
+  };
+  const pasted = [];
+  let focused = 0;
+  const terminal = { paste: (text) => pasted.push(text), focus: () => focused++ };
+  let clipboard = "kubectl get pods -A\n";
+  const stop = xterm.pasteOnRightClick(terminal, host, async () => clipboard);
+
+  let prevented = false;
+  listeners.contextmenu({ preventDefault: () => (prevented = true) });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(prevented, true, "the browser's context menu does not open over the terminal");
+  assert.deepEqual(pasted, ["kubectl get pods -A\n"]);
+  assert.equal(focused, 1, "typing carries on in the terminal after the paste");
+
+  // An empty clipboard, or one that cannot be read, pastes nothing.
+  clipboard = "";
+  listeners.contextmenu({ preventDefault() {} });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(pasted, ["kubectl get pods -A\n"]);
+  const failing = xterm.pasteOnRightClick(terminal, host, () => Promise.reject(new Error("denied")));
+  listeners.contextmenu({ preventDefault() {} });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(pasted, ["kubectl get pods -A\n"]);
+  failing();
+
+  stop();
+  assert.equal(listeners.contextmenu, undefined, "the listener goes with the terminal");
+
+  // grep contract: both terminals wire it up and keep macOS from selecting the
+  // word under the pointer, which would copy it over the clipboard first.
+  for (const file of ["components/TerminalTab.tsx", "components/NodeSshTab.tsx"]) {
+    const source = fs.readFileSync(path.join(rendererRoot, file), "utf8");
+    assert.match(source, /pasteOnRightClick\(terminal, hostRef\.current!\)/, file);
+    assert.match(source, /stopPasteOnRightClick\(\);/, file);
+    assert.match(source, /rightClickSelectsWord: false/, file);
+  }
+});
+
 // grep contract: asserts on source text, not behaviour.
 // Stays one, and here is why. What the themed select *does* - open a listbox,
 // close on Escape, on Tab, on a press outside, report a choice once - is checked

@@ -6,7 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import type { ApiClient } from "../api";
 import type { ResourceRow } from "../types";
 import { terminalThemeFromCss } from "../utils/terminalTheme";
-import { copyTerminalSelection, disconnectTerminal, fitAndResizeTerminal, sendTerminalResizeIfChanged, terminalStatusClass, type TerminalSize } from "../utils/xtermSession";
+import { copyTerminalSelection, disconnectTerminal, pasteOnRightClick, fitAndResizeTerminal, sendTerminalResizeIfChanged, terminalStatusClass, type TerminalSize } from "../utils/xtermSession";
 import { ThemedSelect } from "./ThemedSelect";
 
 type TerminalShell = "auto" | "sh" | "bash" | "ash";
@@ -67,6 +67,9 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       cursorBlink: true,
       fontFamily: 'Consolas, "Cascadia Mono", "Liberation Mono", monospace',
       fontSize: 13,
+      // On macOS a right-click selects the word under it, and the selection
+      // would be copied over the clipboard just before it is pasted.
+      rightClickSelectsWord: false,
       scrollback: 5000,
       theme: terminalThemeFromCss(),
     });
@@ -94,6 +97,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
         copyTerminalSelection(terminal, lastCopiedSelectionRef);
       }, 180);
     });
+    const stopPasteOnRightClick = pasteOnRightClick(terminal, hostRef.current!);
     terminalRef.current = terminal;
     fitRef.current = fit;
 
@@ -127,6 +131,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       window.removeEventListener("resize", onResize);
       window.removeEventListener("kubedeck-theme-change", onThemeChange);
       resizeObserver?.disconnect();
+      stopPasteOnRightClick();
       disconnectTerminal(socketRef, setConnected, setStatus, setConnecting);
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
       if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);

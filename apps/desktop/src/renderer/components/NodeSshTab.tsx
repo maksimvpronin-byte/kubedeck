@@ -6,7 +6,7 @@ import type { ApiClient } from "../api";
 import type { ResourceRow, Settings } from "../types";
 import { resolveSshDefaults } from "../utils/sshDefaults";
 import { terminalThemeFromCss } from "../utils/terminalTheme";
-import { copyTerminalSelection, disconnectTerminal, fitAndResizeTerminal, sendTerminalResizeIfChanged, terminalStatusClass, type TerminalSize } from "../utils/xtermSession";
+import { copyTerminalSelection, disconnectTerminal, pasteOnRightClick, fitAndResizeTerminal, sendTerminalResizeIfChanged, terminalStatusClass, type TerminalSize } from "../utils/xtermSession";
 
 type AuthMethod = "agent" | "password" | "privateKey";
 
@@ -147,6 +147,9 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true, t }:
       convertEol: true,
       fontFamily: 'Consolas, "Cascadia Mono", "Liberation Mono", monospace',
       fontSize: 13,
+      // On macOS a right-click selects the word under it, and the selection
+      // would be copied over the clipboard just before it is pasted.
+      rightClickSelectsWord: false,
       scrollback: 5000,
       theme: terminalThemeFromCss(),
     });
@@ -164,6 +167,7 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true, t }:
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
       copyTimerRef.current = window.setTimeout(() => copyTerminalSelection(terminal, lastCopiedSelectionRef), 180);
     });
+    const stopPasteOnRightClick = pasteOnRightClick(terminal, hostRef.current!);
     terminalRef.current = terminal;
     fitRef.current = fit;
 
@@ -184,6 +188,7 @@ export function NodeSshTab({ api, clusterId, node, settings, active = true, t }:
       window.removeEventListener("resize", fitAndResize);
       window.removeEventListener("kubedeck-theme-change", onThemeChange);
       resizeObserver?.disconnect();
+      stopPasteOnRightClick();
       disconnectTerminal(socketRef, setConnected, setStatus, setConnecting);
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
       terminal.dispose();

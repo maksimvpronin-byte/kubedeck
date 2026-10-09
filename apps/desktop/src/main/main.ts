@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, screen, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, screen, shell } from "electron";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -314,6 +314,10 @@ ipcMain.handle("kubedeck:checkForUpdates", () => updateController().check());
 ipcMain.handle("kubedeck:downloadUpdate", () => updateController().download());
 ipcMain.handle("kubedeck:installUpdate", () => updateController().install());
 ipcMain.handle("kubedeck:openReleases", () => updateController().openReleases());
+// A terminal pastes on right-click. navigator.clipboard.readText waits on a
+// permission and on document focus, and can hang where neither arrives; the
+// main process reads the clipboard directly.
+ipcMain.handle("kubedeck:readClipboardText", () => clipboard.readText());
 
 // Without an explicit AppUserModelID Windows groups the window under the host
 // process, which shows the wrong taskbar icon and breaks pinning. The value

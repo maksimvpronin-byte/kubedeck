@@ -44,6 +44,25 @@ export function fitAndResizeTerminal(fit: FitAddon, socket: WebSocket | null, te
   }
 }
 
+// Right-click pastes, as in PuTTY and the Windows console; a selection is
+// already copied as it is made. The text goes through xterm's own paste, the
+// path Ctrl+V takes, so bracketed paste and line endings are handled the same
+// and the input reaches the session through onData alone.
+export function pasteOnRightClick(terminal: XTerm, host: HTMLElement, readClipboard: () => Promise<string> = () => window.kubedeck.readClipboardText()) {
+  const onContextMenu = (event: MouseEvent) => {
+    event.preventDefault();
+    terminal.focus();
+    readClipboard().then(
+      (text) => {
+        if (text) terminal.paste(text);
+      },
+      () => undefined,
+    );
+  };
+  host.addEventListener("contextmenu", onContextMenu);
+  return () => host.removeEventListener("contextmenu", onContextMenu);
+}
+
 export function copyTerminalSelection(terminal: XTerm | null, lastCopiedRef?: { current: string }, force = false) {
   const selection = terminal?.getSelection();
   if (!selection || (!force && selection === lastCopiedRef?.current)) return;

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("kubedeck", {
   downloadUpdate: () => ipcRenderer.invoke("kubedeck:downloadUpdate") as Promise<UpdateState>,
   installUpdate: () => ipcRenderer.invoke("kubedeck:installUpdate") as Promise<UpdateState>,
   openReleases: () => ipcRenderer.invoke("kubedeck:openReleases") as Promise<void>,
+  readClipboardText: () => ipcRenderer.invoke("kubedeck:readClipboardText") as Promise<string>,
   // Progress arrives on its own rather than being polled, so a download shows a
   // moving bar. The disposer matters: About is mounted and unmounted every time
   // the section is opened, and without it each visit would leave a listener
