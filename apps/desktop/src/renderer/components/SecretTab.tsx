@@ -251,7 +251,13 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
           const chip = mode === "text" ? t("secret.chipText") : storedInvalid ? t("secret.chipAsIs") : "base64";
           const fieldState = typedInvalid !== undefined || storedInvalid ? " is-invalid" : dirty ? " is-dirty" : "";
           const toggleLabel =
-            mode === "text" ? t("secret.showBase64") : !item.validBase64 || typedInvalid !== undefined ? t("secret.notBase64") : !textual || currentText === null ? t("secret.base64Only") : t("secret.decode");
+            mode === "text"
+              ? t("secret.showBase64")
+              : !item.validBase64 || typedInvalid !== undefined
+                ? t("secret.notBase64")
+                : !textual || currentText === null
+                  ? t("secret.base64Only")
+                  : t("secret.decode");
           return (
             <article className="secret-key-row" key={key} data-key={key}>
               <header>
@@ -282,7 +288,15 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
                   </div>
                 )}
                 <div className="secret-key-actions">
-                  <button type="button" className={mode === "text" ? "icon-button is-active" : "icon-button"} aria-label={toggleLabel} title={toggleLabel} aria-pressed={mode === "text"} disabled={!canToggle} onClick={() => void toggleMode(item)}>
+                  <button
+                    type="button"
+                    className={mode === "text" ? "icon-button is-active" : "icon-button"}
+                    aria-label={toggleLabel}
+                    title={toggleLabel}
+                    aria-pressed={mode === "text"}
+                    disabled={!canToggle}
+                    onClick={() => void toggleMode(item)}
+                  >
                     {mode === "text" ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                   <button

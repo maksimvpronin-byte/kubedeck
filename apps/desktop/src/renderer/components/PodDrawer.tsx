@@ -3,7 +3,16 @@ import type { ApiClient } from "../api";
 import type { PortForwardSession, PortForwardStartRequest, ResourceRow, Settings } from "../types";
 import type { YamlEditorHandle } from "./YamlSourceEditor";
 import { PortForwardModal, defaultPortForwardDraft, supportsPortForward } from "./PortForwardModal";
-import { ResourceActionConfirmModal, TerminalContainerPickerModal, UnsavedYamlConfirmModal, YamlApplyConfirmModal, actionLabel, currentReplicas, supportedActions, type ResourceAction } from "./PodDrawerModals";
+import {
+  ResourceActionConfirmModal,
+  TerminalContainerPickerModal,
+  UnsavedYamlConfirmModal,
+  YamlApplyConfirmModal,
+  actionLabel,
+  currentReplicas,
+  supportedActions,
+  type ResourceAction,
+} from "./PodDrawerModals";
 import { useUiClock } from "../hooks/useUiClock";
 import { containerNames, eventTargetForOpen } from "./podDrawerHelpers";
 import { availableDrawerTabs, PodDrawerActions, PodDrawerHeader, PodDrawerTabs, type DrawerTab } from "./PodDrawerChrome";

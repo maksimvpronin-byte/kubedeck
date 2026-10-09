@@ -221,7 +221,11 @@ test("an immutable Secret is shown read-only, with no Save", async (t) => {
 
 test("a value too large to show is not put in a field", async (t) => {
   const s = await secretTab(t, {
-    secretKeys: async () => ({ type: "Opaque", immutable: false, keys: [{ key: "huge", encoded: null, encodedBytes: 3_000_000, decodedBytes: 2_250_000, validBase64: true, binary: true, utf8: false }] }),
+    secretKeys: async () => ({
+      type: "Opaque",
+      immutable: false,
+      keys: [{ key: "huge", encoded: null, encodedBytes: 3_000_000, decodedBytes: 2_250_000, validBase64: true, binary: true, utf8: false }],
+    }),
   });
 
   assert.equal(s.textarea("huge"), null);
