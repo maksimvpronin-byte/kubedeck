@@ -1,3 +1,30 @@
+## 2.30.0 - Secrets as base64, ready to edit; a right-click pastes in a terminal
+
+No new routes. Node-only ownership stays at Node 59 / Python 0. The Secret
+`keys` and `update` routes gain fields.
+
+**The Secret tab shows values as base64, ready to edit.** Each value is on
+screen as the manifest holds it - the YAML tab already showed the same base64 -
+in a field that can be edited at once. The eye decodes a value to text and
+back; decoding is what the audit log records, once per key per load. Save
+writes immediately, with no confirmation, and an edit nobody saved is dropped
+without a question when the Secret is left. The Reveal step, the 30-second
+auto-hide and the `secretRevealTimeoutSeconds` setting are gone. A value is
+edited as text only when its bytes survive UTF-8 unchanged; binary and other
+non-UTF-8 values stay base64 and are edited that way. `keys` sends each value's
+base64 unless it is too large to reveal, and `update` takes `encoded` - base64
+written as it is - beside the text `value`.
+
+**A right-click in a terminal pastes.** Selecting text already copied it; a
+right-click now pastes, in the pod terminal and in node SSH, through xterm's own
+paste, as Ctrl+V does. The clipboard is read in the main process. On macOS a
+right-click no longer selects the word under it first.
+
+**Scale opens on the current replica count.** The field always started at 1,
+so confirming the dialog as it opened scaled a workload down to one replica.
+
+Renderer tests: 323, up from 320. Gateway tests: 229, unchanged.
+
 ## 2.29.1 - A large custom resource list no longer freezes KubeDeck
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.

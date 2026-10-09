@@ -64,7 +64,7 @@ Refresh переиспользуют уже полученный ответ, н�
 - resources: discovery, lists, YAML, Describe, Events, logs, endpoints сервиса, история потребления и related resources;
 - mutations: YAML dry-run/apply, resource actions и Pod exec;
 - diagnostics: Problems, Global Search, cache и watch status;
-- sensitive data: Secret keys/reveal/copy;
+- sensitive data: Secret keys/reveal/copy/update;
 - long-running sessions: watch events, Pod Terminal, Node SSH и Port Forward;
 - LLM: status, connection test, prompt preview и resource analysis.
 
