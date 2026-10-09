@@ -37,7 +37,6 @@ export interface Settings {
   theme: Theme;
   refreshIntervalSeconds: number;
   logsTailLines: number;
-  secretRevealTimeoutSeconds: number;
   restartProblemThreshold: number;
   terminalFontSize: number;
   logsSince: string;

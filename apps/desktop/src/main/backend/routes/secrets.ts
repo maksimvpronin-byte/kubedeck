@@ -40,11 +40,6 @@ export function matchSecretRoute(method: string | undefined, pathname: string): 
   };
 }
 
-function revealTimeoutSeconds(configStore: ConfigStore): number {
-  const configured = configStore.load().settings.secretRevealTimeoutSeconds;
-  return Math.max(1, Math.min(300, Math.trunc(configured)));
-}
-
 export function secretDataMap(secret: JsonObject): Record<string, string> {
   const data = secret.data;
   if (!isRecord(data)) return {};
@@ -89,7 +84,10 @@ export async function loadSecretRaw(target: SecretRouteTarget, configStore: Conf
   return runner.runJson(clusterCommand(configStore, target.clusterId, ["get", "secret", target.name, "-n", target.namespace, "-o", "json"], 30, SECRET_JSON_MAX_OUTPUT_BYTES));
 }
 
-export function secretKeysPayload(secret: JsonObject, target: SecretRouteTarget, timeoutSeconds: number): JsonObject {
+// The Data tab shows each value as the manifest holds it, base64, the way the
+// YAML tab already does; decoding it to text is what gets audited. A value too
+// big to reveal is not sent either, so one large key cannot make the tab heavy.
+export function secretKeysPayload(secret: JsonObject, target: SecretRouteTarget): JsonObject {
   const data = secretDataMap(secret);
   const keys = Object.keys(data)
     .sort((left, right) => left.localeCompare(right))
@@ -98,21 +96,29 @@ export function secretKeysPayload(secret: JsonObject, target: SecretRouteTarget,
       let decodedBytes = 0;
       let validBase64 = true;
       let binary = false;
+      // Text only if the bytes survive a trip through UTF-8 unchanged; anything
+      // else would be altered by editing it as text, so it stays base64.
+      let utf8 = false;
 
       try {
         const decoded = decodeBase64Strict(encoded);
         decodedBytes = decoded.length;
         binary = isBinaryPayload(decoded);
+        utf8 = Buffer.from(decoded.toString("utf8"), "utf8").equals(decoded);
       } catch {
         validBase64 = false;
       }
 
+      const encodedBytes = Buffer.byteLength(encoded, "utf8");
+      const tooLarge = (validBase64 ? decodedBytes : encodedBytes) > SECRET_VALUE_MAX_BYTES;
       return {
         key,
-        encodedBytes: Buffer.byteLength(encoded, "utf8"),
+        encodedBytes,
         decodedBytes,
         validBase64,
         binary,
+        utf8,
+        encoded: tooLarge ? null : encoded,
       };
     });
 
@@ -123,7 +129,6 @@ export function secretKeysPayload(secret: JsonObject, target: SecretRouteTarget,
     namespace: typeof metadata.namespace === "string" ? metadata.namespace : target.namespace,
     name: typeof metadata.name === "string" ? metadata.name : target.name,
     keys,
-    revealTimeoutSeconds: timeoutSeconds,
   };
 }
 
@@ -137,7 +142,7 @@ async function readSecretKey(request: IncomingMessage): Promise<string> {
 
 async function writeSecretKeys(response: ServerResponse, target: SecretRouteTarget, configStore: ConfigStore, runner: KubectlRunner): Promise<void> {
   const secret = await loadSecretRaw(target, configStore, runner);
-  writeJson(response, secretKeysPayload(secret, target, revealTimeoutSeconds(configStore)));
+  writeJson(response, secretKeysPayload(secret, target));
 }
 
 async function writeSecretReveal(
@@ -203,7 +208,6 @@ async function writeSecretReveal(
     value: decoded.toString("utf8"),
     decodedBytes: decoded.length,
     binary,
-    revealTimeoutSeconds: revealTimeoutSeconds(configStore),
   });
 }
 
@@ -222,10 +226,30 @@ async function writeSecretCopy(request: IncomingMessage, response: ServerRespons
 }
 
 async function writeSecretUpdate(request: IncomingMessage, response: ServerResponse, target: SecretRouteTarget, configStore: ConfigStore, auditStore: AuditStore, runner: KubectlRunner) {
-  const body = await readJsonBody(request, SECRET_VALUE_MAX_BYTES + SECRET_REQUEST_MAX_BYTES);
-  if (!isRecord(body) || typeof body.key !== "string" || typeof body.value !== "string") throw new RequestValidationError(422, "INVALID_REQUEST", "Request body must contain key and value");
+  // Room for the largest value as base64, a third longer than its bytes.
+  const body = await readJsonBody(request, Math.ceil((SECRET_VALUE_MAX_BYTES * 4) / 3) + SECRET_REQUEST_MAX_BYTES);
+  if (!isRecord(body) || typeof body.key !== "string" || (typeof body.value !== "string" && typeof body.encoded !== "string")) {
+    throw new RequestValidationError(422, "INVALID_REQUEST", "Request body must contain key and value or encoded");
+  }
   const key = validateIdentifier(body.key, "secret key", 512);
-  const bytes = Buffer.byteLength(body.value, "utf8");
+  // `encoded` is the value as base64, written as it is: the Data tab edits a
+  // value in base64 as well as in text, and binary data only that way.
+  let encoded: string;
+  let bytes: number;
+  if (typeof body.encoded === "string") {
+    let decoded: Buffer;
+    try {
+      decoded = decodeBase64Strict(body.encoded);
+    } catch {
+      throw new RequestValidationError(422, "SECRET_VALUE_INVALID_BASE64", "Secret value is not valid base64");
+    }
+    encoded = body.encoded;
+    bytes = decoded.length;
+  } else {
+    const value = String(body.value);
+    encoded = Buffer.from(value, "utf8").toString("base64");
+    bytes = Buffer.byteLength(value, "utf8");
+  }
   if (bytes > SECRET_VALUE_MAX_BYTES) throw new RequestValidationError(413, "SECRET_VALUE_TOO_LARGE", "Secret value is too large");
   const secret = await loadSecretRaw(target, configStore, runner);
   if (secret.immutable === true) throw new RequestValidationError(409, "SECRET_IMMUTABLE", "Immutable Secret cannot be updated");
@@ -242,7 +266,7 @@ async function writeSecretUpdate(request: IncomingMessage, response: ServerRespo
   // named "-" and the update always failed. `replace -f -` does read standard
   // input, which is what keeps the value out of the command line, the command
   // preview and the log.
-  const next = { ...secret, data: { ...data, [key]: Buffer.from(body.value, "utf8").toString("base64") } };
+  const next = { ...secret, data: { ...data, [key]: encoded } };
   const command = clusterCommand(configStore, target.clusterId, ["replace", "-f", "-", "-n", target.namespace, "-o", "name"], 30, SECRET_JSON_MAX_OUTPUT_BYTES);
   command.stdinText = JSON.stringify(next);
 

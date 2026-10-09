@@ -81,18 +81,17 @@ test("manifest compare marks equal, changed, added, and removed lines", () => {
 });
 
 // grep contract: asserts on source text, not behaviour.
-// Stays one, and here is why. What the Secret tab *does* - reveal a value only
-// when asked, open a text value for editing at once, refuse to edit binary or
-// immutable ones, confirm in a dialog that never shows the decoded value, hide
-// on a timer and take an open confirmation down with it - is checked by
-// revealing and clicking in secret-tab-dom.contract.test.cjs. What is left is
+// Stays one, and here is why. What the Secret tab *does* - show each value
+// as base64 ready to edit, decode on the eye, keep binary and non-UTF-8 values
+// in base64, save at once, refuse to edit an immutable one - is checked by
+// typing and clicking in secret-tab-dom.contract.test.cjs. What is left is
 // the colour of the field the value is typed into, and jsdom has no cascade:
 // nothing it reports would tell whether the caret is visible against the
 // background. Section B of docs/unseen-defects-plan.md is where that kind of
 // question gets an answer with arithmetic behind it.
 test("the Secret editing field is themed rather than left to the browser", () => {
-  const styles = fs.readFileSync(path.join(rendererRoot, "styles/modals.css"), "utf8");
-  assert.match(styles, /\.secret-edit textarea\s*\{[^}]*background:\s*var\(--code-bg\);[^}]*color:\s*var\(--text\);[^}]*caret-color:\s*var\(--focus-ring\);/s);
+  const styles = fs.readFileSync(path.join(rendererRoot, "styles/panels.css"), "utf8");
+  assert.match(styles, /\.secret-value-text textarea\s*\{[^}]*background:\s*var\(--code-bg\);[^}]*color:\s*var\(--text\);[^}]*caret-color:\s*var\(--focus-ring\);/s);
 });
 
 // grep contract: asserts on source text, not behaviour.

@@ -360,6 +360,10 @@ export interface SecretKeyInfo {
   decodedBytes: number;
   validBase64: boolean;
   binary: boolean;
+  // The bytes are valid UTF-8 and come back unchanged from it: safe to edit as text.
+  utf8: boolean;
+  // The value as the manifest holds it; null when it is too large to show.
+  encoded: string | null;
 }
 
 export interface SecretKeysResponse {
@@ -368,7 +372,6 @@ export interface SecretKeysResponse {
   namespace: string;
   name: string;
   keys: SecretKeyInfo[];
-  revealTimeoutSeconds: number;
 }
 
 export interface SecretRevealResponse {
@@ -376,7 +379,6 @@ export interface SecretRevealResponse {
   value: string;
   decodedBytes: number;
   binary: boolean;
-  revealTimeoutSeconds: number;
 }
 
 export interface ResourceDefinition {

@@ -308,27 +308,6 @@
   background: transparent;
   color: var(--muted);
 }
-.secret-edit {
-  display: grid;
-  gap: 8px;
-}
-.secret-edit textarea {
-  min-height: 110px;
-  width: 100%;
-  resize: vertical;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--code-bg);
-  color: var(--text);
-  caret-color: var(--focus-ring);
-  padding: 10px;
-  font: inherit;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-}
-.secret-edit textarea:focus-visible {
-  border-color: var(--focus-ring);
-}
-
 @media (max-width: 760px) {
   .manifest-compare-toolbar,
   .manifest-compare-controls {

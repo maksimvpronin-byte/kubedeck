@@ -59,20 +59,21 @@ test("Secret parsing and metadata contract", () => {
         binary: "AAEC",
         invalid: "%%%",
         empty: "",
+        latin1: Buffer.from("café au lait", "latin1").toString("base64"),
+        huge: Buffer.alloc(SECRET_VALUE_MAX_BYTES + 1, 65).toString("base64"),
       },
     },
     target,
-    45,
   );
 
   assert.equal(payload.type, "kubernetes.io/tls");
   assert.equal(payload.immutable, true);
   assert.equal(payload.namespace, "actual-ns");
   assert.equal(payload.name, "actual-name");
-  assert.equal(payload.revealTimeoutSeconds, 45);
+  assert.equal("revealTimeoutSeconds" in payload, false, "nothing hides itself on a timer any more");
   assert.deepEqual(
     payload.keys.map((item) => item.key),
-    ["binary", "empty", "invalid", "text"],
+    ["binary", "empty", "huge", "invalid", "latin1", "text"],
   );
   assert.deepEqual(
     payload.keys.find((item) => item.key === "text"),
@@ -82,10 +83,22 @@ test("Secret parsing and metadata contract", () => {
       decodedBytes: 5,
       validBase64: true,
       binary: false,
+      utf8: true,
+      encoded: "aGVsbG8=",
     },
   );
-  assert.equal(payload.keys.find((item) => item.key === "binary").binary, true);
-  assert.equal(payload.keys.find((item) => item.key === "invalid").validBase64, false);
+  const byKey = (key) => payload.keys.find((item) => item.key === key);
+  assert.equal(byKey("binary").binary, true);
+  assert.equal(byKey("binary").encoded, "AAEC", "binary data is shown as base64 too");
+  assert.equal(byKey("invalid").validBase64, false);
+  assert.equal(byKey("invalid").encoded, "%%%", "a value that is not base64 is shown as it is stored");
+  // Text-like bytes that are not UTF-8 would change if edited as text.
+  assert.equal(byKey("latin1").binary, false);
+  assert.equal(byKey("latin1").utf8, false);
+  assert.equal(byKey("empty").encoded, "");
+  // One value too large to reveal is not sent at all.
+  assert.equal(byKey("huge").encoded, null);
+  assert.equal(byKey("huge").decodedBytes, SECRET_VALUE_MAX_BYTES + 1);
 });
 
 test("Secret HTTP handler does not log or audit decoded values", async (t) => {
@@ -100,7 +113,6 @@ test("Secret HTTP handler does not log or audit decoded values", async (t) => {
       return {
         settings: {
           kubectlPath: "kubectl",
-          secretRevealTimeoutSeconds: 45,
         },
       };
     },
@@ -169,7 +181,7 @@ test("Secret HTTP handler does not log or audit decoded values", async (t) => {
   assert.equal(keysResponse.status, 200);
   const keys = await keysResponse.json();
   assert.equal(keys.name, "app-secret");
-  assert.equal(keys.revealTimeoutSeconds, 45);
+  assert.equal(keys.keys.find((item) => item.key === "text").encoded, Buffer.from(secretValue, "utf8").toString("base64"));
   assert.deepEqual(
     keys.keys.map((item) => item.key),
     ["binary", "empty", "invalid", "text"],
@@ -189,7 +201,6 @@ test("Secret HTTP handler does not log or audit decoded values", async (t) => {
     value: secretValue,
     decodedBytes: Buffer.byteLength(secretValue),
     binary: false,
-    revealTimeoutSeconds: 45,
   });
   assert.equal(auditEvents.at(-1).action, "secret.reveal");
   assert.equal(auditEvents.at(-1).status, "success");
@@ -222,6 +233,9 @@ test("Secret HTTP handler does not log or audit decoded values", async (t) => {
   });
   assert.equal(missingKeyResponse.status, 404);
   assert.equal((await missingKeyResponse.json()).detail.code, "SECRET_KEY_NOT_FOUND");
+
+  const largeKeys = await (await fetch(`${baseUrl}/clusters/demo/secrets/default/large-secret/keys`)).json();
+  assert.equal(largeKeys.keys[0].encoded, null, "a value too large to reveal is not sent with the keys either");
 
   const tooLargeResponse = await fetch(`${baseUrl}/clusters/demo/secrets/default/large-secret/reveal`, {
     method: "POST",
@@ -271,7 +285,7 @@ test("Secret update contract", async (t) => {
 
   const configStore = {
     load() {
-      return { settings: { kubectlPath: "kubectl", secretRevealTimeoutSeconds: 45 } };
+      return { settings: { kubectlPath: "kubectl" } };
     },
     getCluster() {
       return { kubeconfigPath: "C:\\KubeDeck\\demo.yaml" };
@@ -376,6 +390,24 @@ test("Secret update contract", async (t) => {
   const missingKeyResponse = await update("app-secret", { key: "NOPE", value: newValue });
   assert.equal(missingKeyResponse.status, 404);
   assert.equal((await missingKeyResponse.json()).detail.code, "SECRET_KEY_NOT_FOUND");
+
+  // A value edited as base64 - binary data can only be - is written as it is.
+  const binaryEncoded = Buffer.from([0, 255, 1, 2]).toString("base64");
+  const encodedResponse = await update("app-secret", { key: "AWX_PASS", encoded: binaryEncoded });
+  assert.equal(encodedResponse.status, 200);
+  const sentEncoded = JSON.parse(commands.at(-1).stdinText);
+  assert.equal(sentEncoded.data.AWX_PASS, binaryEncoded);
+  assert.equal(sentEncoded.data.AWX_LOGIN, Buffer.from("awx", "utf8").toString("base64"));
+  assert.equal(auditEvents.at(-1).extra.decodedBytes, 4);
+
+  const commandsBeforeInvalid = commands.length;
+  const invalidEncodedResponse = await update("app-secret", { key: "AWX_PASS", encoded: "not base64!" });
+  assert.equal(invalidEncodedResponse.status, 422);
+  assert.equal((await invalidEncodedResponse.json()).detail.code, "SECRET_VALUE_INVALID_BASE64");
+  assert.equal(commands.length, commandsBeforeInvalid, "nothing is read or written for a value that is not base64");
+
+  const tooLargeEncodedResponse = await update("app-secret", { key: "AWX_PASS", encoded: Buffer.alloc(SECRET_VALUE_MAX_BYTES + 1, 65).toString("base64") });
+  assert.equal(tooLargeEncodedResponse.status, 413);
 
   const missingValueResponse = await update("app-secret", { key: "AWX_PASS" });
   assert.equal(missingValueResponse.status, 422);

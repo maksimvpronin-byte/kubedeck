@@ -1,9 +1,10 @@
 import { formatBytes as sharedBytes } from "../../shared/formatQuantity";
-import { Copy, Eye, EyeOff, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Check, Copy, Eye, EyeOff, Lock, Save } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ApiClient } from "../api";
 import { toErrorInfo } from "../utils/errors";
-import type { ErrorInfo, ResourceRow, SecretKeysResponse, SecretRevealResponse } from "../types";
+import { canonicalSecretBase64, decodeSecretText, encodeSecretText } from "../utils/secretCodec";
+import type { ErrorInfo, ResourceRow, SecretKeyInfo, SecretKeysResponse } from "../types";
 import { ErrorPanel } from "./ErrorPanel";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 import { AsyncActionButton } from "./AsyncActionButton";
@@ -16,76 +17,89 @@ interface Props {
   t: (key: string) => string;
 }
 
-type RevealedValue = SecretRevealResponse & {
-  visibleUntil: number;
-};
+type ValueMode = "base64" | "text";
+type KeyNote = "copied" | "saved";
 
+// A value longer than this opens folded to a few lines.
+const LONG_VALUE_CHARS = 240;
+
+// Each value is on screen as the manifest holds it, base64, and ready to edit;
+// the eye decodes it to text (audited), Save writes it at once. An edit that
+// is not saved is dropped when the Secret is left: nothing asks about it.
 export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
   const namespace = String(row.namespace || "");
   const name = row.name;
   const [response, setResponse] = useState<SecretKeysResponse | null>(null);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [loading, setLoading] = useState(false);
-  const [revealingKey, setRevealingKey] = useState("");
-  const [revealed, setRevealed] = useState<Record<string, RevealedValue>>({});
-  const [copiedKey, setCopiedKey] = useState("");
-  const [editingKey, setEditingKey] = useState("");
-  const [draft, setDraft] = useState("");
-  const [confirmationKey, setConfirmationKey] = useState("");
-  const editingKeyRef = useRef("");
-  const hideTimers = useRef<Record<string, number>>({});
-  // The drawer is not remounted when another Secret is selected. What was
-  // revealed, and the edit in progress, belong to the Secret they were read
-  // from: kept until the next Secret loaded - for good if it could not be read -
-  // one Secret's value sat under another's name with its auto-hide timer
-  // already cleared, and Copy would have copied it and audited the wrong one.
+  const [modes, setModes] = useState<Record<string, ValueMode>>({});
+  // Keys decoded once already in this load, so toggling back and forth is
+  // audited once rather than on every press.
+  const [decodedKeys, setDecodedKeys] = useState<Record<string, true>>({});
+  const [decodingKey, setDecodingKey] = useState("");
+  // An edit as valid base64, and what was typed when it is not base64 (yet).
+  const [edited, setEdited] = useState<Record<string, string>>({});
+  const [invalid, setInvalid] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<Record<string, true>>({});
+  const [notes, setNotes] = useState<Record<string, KeyNote>>({});
+  const [savingKey, setSavingKey] = useState("");
+  const noteTimers = useRef<Record<string, number>>({});
+  const fieldIdPrefix = useId();
+  // The drawer is not remounted when another Secret is selected. Everything
+  // read from one Secret - values, edits, what was decoded - goes when the next
+  // is selected, before it has loaded and for good if it cannot be read.
   const secretIdentity = `${clusterId}\u0000${namespace}\u0000${name}`;
+  const identityRef = useRef(secretIdentity);
+  identityRef.current = secretIdentity;
   const [shownIdentity, setShownIdentity] = useState(secretIdentity);
   if (shownIdentity !== secretIdentity) {
     setShownIdentity(secretIdentity);
     setResponse(null);
-    setRevealed({});
-    setRevealingKey("");
-    setCopiedKey("");
-    setEditingKey("");
-    setDraft("");
-    setConfirmationKey("");
+    resetValueState();
   }
   const refreshFeedback = useAsyncActionFeedback();
 
   useEffect(() => {
     const controller = new AbortController();
     void loadSecret(controller.signal);
-    return () => {
-      controller.abort();
-      Object.values(hideTimers.current).forEach((timer) => window.clearTimeout(timer));
-      hideTimers.current = {};
-    };
+    return () => controller.abort();
   }, [api, clusterId, namespace, name]);
 
-  useEffect(() => {
-    if (!confirmationKey) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !loading) setConfirmationKey("");
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [confirmationKey, loading]);
+  useEffect(
+    () => () => {
+      Object.values(noteTimers.current).forEach((timer) => window.clearTimeout(timer));
+      noteTimers.current = {};
+    },
+    [],
+  );
 
-  useEffect(() => {
-    editingKeyRef.current = editingKey;
-  }, [editingKey]);
+  function resetValueState() {
+    setModes({});
+    setDecodedKeys({});
+    setDecodingKey("");
+    setEdited({});
+    setInvalid({});
+    setExpanded({});
+    setNotes({});
+    setSavingKey("");
+  }
 
-  async function loadSecret(signal?: AbortSignal) {
+  // `savedKey` keeps the other keys' edits through the reload a save makes.
+  async function loadSecret(signal?: AbortSignal, savedKey?: string) {
     if (!namespace) return false;
+    const identity = identityRef.current;
     setLoading(true);
     setError(null);
     try {
       const data = await api.secretKeys(clusterId, namespace, name, signal);
+      if (identityRef.current !== identity) return false;
       setResponse(data);
-      setRevealed({});
-      Object.values(hideTimers.current).forEach((timer) => window.clearTimeout(timer));
-      hideTimers.current = {};
+      if (savedKey === undefined) {
+        resetValueState();
+      } else {
+        setEdited((current) => without(current, savedKey));
+        setInvalid((current) => without(current, savedKey));
+      }
       return true;
     } catch (err) {
       if ((err as Error).name === "AbortError") return false;
@@ -96,50 +110,62 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
     }
   }
 
-  async function revealKey(key: string) {
-    setRevealingKey(key);
-    setError(null);
-    try {
-      const data = await api.revealSecret(clusterId, namespace, name, key);
-      const timeoutSeconds = data.revealTimeoutSeconds || response?.revealTimeoutSeconds || 30;
-      const visibleUntil = Date.now() + timeoutSeconds * 1000;
-      setRevealed((current) => ({ ...current, [key]: { ...data, visibleUntil } }));
-      if (!data.binary && !response?.immutable) {
-        setEditingKey(key);
-        setDraft(data.value);
+  function setNote(key: string, note: KeyNote | null) {
+    if (noteTimers.current[key]) window.clearTimeout(noteTimers.current[key]);
+    delete noteTimers.current[key];
+    setNotes((current) => (note ? { ...current, [key]: note } : without(current, key)));
+    if (note === "copied") noteTimers.current[key] = window.setTimeout(() => setNote(key, null), 1600);
+  }
+
+  async function toggleMode(item: SecretKeyInfo) {
+    const key = item.key;
+    if ((modes[key] ?? "base64") === "text") {
+      setModes((current) => ({ ...current, [key]: "base64" }));
+      return;
+    }
+    if (!decodedKeys[key]) {
+      // Decoding is what the audit log records; the value itself is already here.
+      const identity = identityRef.current;
+      setDecodingKey(key);
+      setError(null);
+      try {
+        await api.revealSecret(clusterId, namespace, name, key);
+      } catch (err) {
+        if (identityRef.current === identity) setError(toErrorInfo(err));
+        return;
+      } finally {
+        if (identityRef.current === identity) setDecodingKey("");
       }
-      if (hideTimers.current[key]) window.clearTimeout(hideTimers.current[key]);
-      hideTimers.current[key] = window.setTimeout(() => hideKey(key), timeoutSeconds * 1000);
-    } catch (err) {
-      setError(toErrorInfo(err));
-    } finally {
-      setRevealingKey("");
+      if (identityRef.current !== identity) return;
+      setDecodedKeys((current) => ({ ...current, [key]: true }));
+    }
+    setModes((current) => ({ ...current, [key]: "text" }));
+  }
+
+  function changeValue(key: string, mode: ValueMode, value: string) {
+    setNote(key, null);
+    if (mode === "text") {
+      setEdited((current) => ({ ...current, [key]: encodeSecretText(value) }));
+      setInvalid((current) => without(current, key));
+      return;
+    }
+    const canonical = canonicalSecretBase64(value);
+    if (canonical === null) {
+      setInvalid((current) => ({ ...current, [key]: value }));
+    } else {
+      setEdited((current) => ({ ...current, [key]: canonical }));
+      setInvalid((current) => without(current, key));
     }
   }
 
-  function hideKey(key: string) {
-    if (hideTimers.current[key]) {
-      window.clearTimeout(hideTimers.current[key]);
-      delete hideTimers.current[key];
-    }
-    setRevealed((current) => {
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
-    if (editingKeyRef.current === key) {
-      setEditingKey("");
-      setDraft("");
-      setConfirmationKey("");
-    }
+  function revert(key: string) {
+    setEdited((current) => without(current, key));
+    setInvalid((current) => without(current, key));
   }
 
-  async function copyValue(key: string) {
-    const item = revealed[key];
-    if (!item) return;
-    await navigator.clipboard?.writeText(item.value);
-    setCopiedKey(key);
-    window.setTimeout(() => setCopiedKey((current) => (current === key ? "" : current)), 1500);
+  async function copyValue(key: string, text: string) {
+    await navigator.clipboard?.writeText(text);
+    setNote(key, "copied");
     try {
       await api.auditSecretCopy(clusterId, namespace, name, key);
     } catch {
@@ -147,33 +173,26 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
     }
   }
 
-  async function saveValue() {
-    if (!editingKey || confirmationKey !== editingKey) return;
-    setLoading(true);
+  async function saveValue(key: string, encoded: string) {
+    const identity = identityRef.current;
+    setSavingKey(key);
     setError(null);
     try {
-      await api.updateSecret(clusterId, namespace, name, editingKey, draft);
-      setConfirmationKey("");
-      setEditingKey("");
-      setDraft("");
-      await loadSecret();
+      await api.updateSecret(clusterId, namespace, name, key, encoded);
+      if (identityRef.current !== identity) return;
+      if (await loadSecret(undefined, key)) setNote(key, "saved");
     } catch (err) {
-      setConfirmationKey("");
-      setError(toErrorInfo(err));
-      setLoading(false);
+      if (identityRef.current === identity) setError(toErrorInfo(err));
+    } finally {
+      if (identityRef.current === identity) setSavingKey("");
     }
   }
 
   const keys = response?.keys ?? [];
-  const timeoutSeconds = response?.revealTimeoutSeconds ?? 30;
+  const immutable = Boolean(response?.immutable);
 
   return (
     <div className="drawer-panel-stack secret-tab">
-      <section className="secret-warning">
-        <strong>{t("secret.sensitive")}</strong>
-        <span>{t("secret.sensitiveHint").replace("{seconds}", String(timeoutSeconds))}</span>
-      </section>
-
       <div className="drawer-filterbar">
         <div className="secret-meta">
           <span>
@@ -182,7 +201,11 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
           <span>
             {t("secret.keys")}: <strong>{keys.length}</strong>
           </span>
-          {response?.immutable ? <span>{t("secret.immutable")}</span> : null}
+          {immutable ? <span className="secret-immutable">{t("secret.immutable")}</span> : null}
+          <span className="secret-audit-note">
+            <Lock size={12} aria-hidden="true" />
+            {t("secret.auditNote")}
+          </span>
         </div>
         <AsyncActionButton
           className="icon-text"
@@ -198,10 +221,10 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
         />
       </div>
 
-      {loading ? <div className="muted">{t("secret.loadingKeys")}</div> : null}
+      {loading && !response ? <div className="muted">{t("secret.loadingKeys")}</div> : null}
       <ErrorPanel error={error} copyLabel={copyLabel} t={t} />
 
-      {!loading && !error && keys.length === 0 ? (
+      {!loading && !error && response && keys.length === 0 ? (
         <div className="empty-state">
           <strong>{t("secret.noKeys")}</strong>
           <p>{t("secret.noKeysHint")}</p>
@@ -210,94 +233,117 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
 
       <div className="secret-key-list">
         {keys.map((item) => {
-          const visible = revealed[item.key];
+          const key = item.key;
+          const fieldId = `${fieldIdPrefix}-${key}`;
+          const original = item.encoded;
+          const current = edited[key] ?? original;
+          const typedInvalid = invalid[key];
+          const textual = item.validBase64 && !item.binary && item.utf8;
+          const currentText = current !== null && textual ? decodeSecretText(current) : null;
+          const mode: ValueMode = (modes[key] ?? "base64") === "text" && currentText !== null && typedInvalid === undefined ? "text" : "base64";
+          const shown = mode === "text" ? (currentText ?? "") : (typedInvalid ?? current ?? "");
+          const dirty = typedInvalid !== undefined || (edited[key] !== undefined && edited[key] !== original);
+          const canSave = !immutable && dirty && typedInvalid === undefined && savingKey === "";
+          const storedInvalid = !item.validBase64 && !dirty;
+          const canToggle = original !== null && typedInvalid === undefined && (mode === "text" || currentText !== null) && decodingKey !== key;
+          const long = shown.length > LONG_VALUE_CHARS || shown.split("\n").length > 3;
+          const note = notes[key];
+          const chip = mode === "text" ? t("secret.chipText") : storedInvalid ? t("secret.chipAsIs") : "base64";
+          const fieldState = typedInvalid !== undefined || storedInvalid ? " is-invalid" : dirty ? " is-dirty" : "";
+          const toggleLabel =
+            mode === "text" ? t("secret.showBase64") : !item.validBase64 || typedInvalid !== undefined ? t("secret.notBase64") : !textual || currentText === null ? t("secret.base64Only") : t("secret.decode");
           return (
-            <article className="secret-key-card" key={item.key}>
+            <article className="secret-key-row" key={key} data-key={key}>
               <header>
-                <div>
-                  <strong>{item.key}</strong>
-                  <span>
-                    {item.validBase64 ? `${formatBytes(item.decodedBytes)} ${t("secret.decoded")}` : t("secret.invalidBase64")}
-                    {item.binary ? ` · ${t("secret.binaryLike")}` : ""}
-                  </span>
-                </div>
+                <label htmlFor={fieldId}>{key}</label>
+                <span className={item.validBase64 ? "secret-key-meta" : "secret-key-meta is-invalid"}>{keyMeta(item, t)}</span>
+              </header>
+              <div className="secret-key-body">
+                {original === null ? (
+                  <div className="secret-value-placeholder">{t("secret.tooLarge").replace("{size}", formatBytes(item.decodedBytes || item.encodedBytes))}</div>
+                ) : (
+                  <div className={`secret-value-field${fieldState}`}>
+                    <span className={`secret-format-chip is-${mode === "text" ? "text" : storedInvalid ? "invalid" : "base64"}`}>{chip}</span>
+                    <div className="secret-value-text">
+                      <textarea
+                        id={fieldId}
+                        className={long && !expanded[key] ? "is-folded" : undefined}
+                        spellCheck={false}
+                        readOnly={immutable}
+                        value={shown}
+                        onChange={(event) => changeValue(key, mode, event.target.value)}
+                      />
+                      {long ? (
+                        <button type="button" className="link-button" onClick={() => setExpanded((open) => (open[key] ? without(open, key) : { ...open, [key]: true }))}>
+                          {expanded[key] ? t("secret.collapse") : t("secret.showAll")}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
                 <div className="secret-key-actions">
-                  {visible ? (
-                    <button className="icon-text" onClick={() => hideKey(item.key)}>
-                      <EyeOff size={14} />
-                      {t("secret.hide")}
-                    </button>
-                  ) : (
-                    <button className="icon-text" disabled={!item.validBase64 || revealingKey === item.key} onClick={() => void revealKey(item.key)}>
-                      <Eye size={14} />
-                      {revealingKey === item.key ? t("secret.revealing") : t("secret.reveal")}
+                  <button type="button" className={mode === "text" ? "icon-button is-active" : "icon-button"} aria-label={toggleLabel} title={toggleLabel} aria-pressed={mode === "text"} disabled={!canToggle} onClick={() => void toggleMode(item)}>
+                    {mode === "text" ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={mode === "text" ? t("secret.copyText") : t("secret.copyBase64")}
+                    title={mode === "text" ? t("secret.copyText") : t("secret.copyBase64")}
+                    disabled={original === null}
+                    onClick={() => void copyValue(key, shown)}
+                  >
+                    {note === "copied" ? <Check size={16} /> : <Copy size={16} />}
+                  </button>
+                  {immutable ? null : (
+                    <button
+                      type="button"
+                      className={canSave ? "icon-button primary" : "icon-button"}
+                      aria-label={t("secret.save")}
+                      title={dirty ? t("secret.save") : t("secret.noChanges")}
+                      disabled={!canSave}
+                      onClick={() => {
+                        if (current !== null) void saveValue(key, current);
+                      }}
+                    >
+                      <Save size={16} />
                     </button>
                   )}
-                  <button className="icon-text" disabled={!visible} onClick={() => void copyValue(item.key)}>
-                    <Copy size={14} />
-                    {copiedKey === item.key ? t("secret.copied") : t("secret.copy")}
+                </div>
+              </div>
+              {dirty ? (
+                <div className="secret-key-note">
+                  <span className={typedInvalid !== undefined ? "is-error" : undefined}>
+                    {typedInvalid !== undefined ? t("secret.invalidDraft") : mode === "text" ? t("secret.changedText") : t("secret.changedBase64")}
+                  </span>
+                  <button type="button" className="link-button" onClick={() => revert(key)}>
+                    {t("secret.revert")}
                   </button>
                 </div>
-              </header>
-              {visible ? (
-                <div className="secret-value-panel">
-                  <div className="secret-value-meta">
-                    <span>
-                      {t("secret.autoHideAt")} {new Date(visible.visibleUntil).toLocaleTimeString()}
-                    </span>
-                    {visible.binary ? <span>{t("secret.binaryHint")}</span> : null}
-                  </div>
-                  {editingKey === item.key ? (
-                    <div className="secret-edit">
-                      <textarea aria-label={`${t("secret.value")} ${item.key}`} value={draft} onChange={(event) => setDraft(event.target.value)} />
-                      <div className="modal-actions">
-                        <button type="button" onClick={() => setDraft(visible.value)}>
-                          {t("common.cancel")}
-                        </button>
-                        <button className="primary" type="button" disabled={loading || draft === visible.value} onClick={() => setConfirmationKey(item.key)}>
-                          {t("secret.save")}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <pre>{visible.value}</pre>
-                  )}
-                </div>
-              ) : (
-                <div className="secret-value-placeholder">{t("secret.hidden")}</div>
-              )}
+              ) : storedInvalid && !immutable ? (
+                <div className="secret-key-note">{t("secret.storedInvalid")}</div>
+              ) : note ? (
+                <div className="secret-key-note is-success">{note === "saved" ? t("secret.saved") : mode === "text" ? t("secret.copiedText") : t("secret.copiedBase64")}</div>
+              ) : null}
             </article>
           );
         })}
       </div>
-      {confirmationKey ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="secret-update-confirm-title">
-            <header>
-              <h2 id="secret-update-confirm-title">{t("secret.updateTitle")}</h2>
-              <button className="icon-button" type="button" disabled={loading} onClick={() => setConfirmationKey("")} aria-label={t("common.close")}>
-                <X size={16} />
-              </button>
-            </header>
-            <div className="confirm-body">
-              <p>{t("secret.updateHint")}</p>
-              <code>
-                {clusterId} · {namespace}/{name} · {confirmationKey}
-              </code>
-            </div>
-            <footer className="modal-actions">
-              <button className="secondary" type="button" disabled={loading} onClick={() => setConfirmationKey("")}>
-                {t("common.cancel")}
-              </button>
-              <button className="primary" type="button" disabled={loading} onClick={() => void saveValue()}>
-                {loading ? t("settings.saving") : t("drawer.modal.confirm")}
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
     </div>
   );
+}
+
+function keyMeta(item: SecretKeyInfo, t: (key: string) => string) {
+  if (!item.validBase64) return t("secret.invalidBase64");
+  const kind = item.binary ? t("secret.binaryLike") : item.utf8 ? t("secret.textKind") : t("secret.notUtf8");
+  return `${formatBytes(item.decodedBytes)} · ${kind}`;
+}
+
+function without<T>(record: Record<string, T>, key: string) {
+  if (!(key in record)) return record;
+  const next = { ...record };
+  delete next[key];
+  return next;
 }
 
 const formatBytes = (value: number) => (value < 0 ? "0 B" : sharedBytes(value, { digits: 1, fallback: "0 B" }));

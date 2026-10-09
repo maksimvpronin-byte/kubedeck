@@ -308,10 +308,11 @@ export class ApiClient {
     return this.request<{ ok: boolean }>(`/clusters/${clusterId}/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/copy`, { method: "POST", body: JSON.stringify({ key }) });
   }
 
-  updateSecret(clusterId: string, namespace: string, name: string, key: string, value: string) {
+  // The value goes as base64, written to the Secret as it is.
+  updateSecret(clusterId: string, namespace: string, name: string, key: string, encoded: string) {
     return this.request<{ ok: boolean }>(`/clusters/${clusterId}/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/update`, {
       method: "POST",
-      body: JSON.stringify({ key, value }),
+      body: JSON.stringify({ key, encoded }),
     });
   }
 
