@@ -1,3 +1,25 @@
+## 2.30.1 - A saved kubeconfig takes effect on screen, and a Windows file keeps its line endings
+
+No route changes. Node-only ownership stays at Node 59 / Python 0.
+
+**Saving the kubeconfig of an unavailable cluster changed nothing on screen.**
+Only the active cluster was opened again after a save. A cluster that had
+failed to open sits behind the "cluster unavailable" panel and is not the
+active one, so nothing followed the save but the silent retry every ten
+seconds, which never replaces the error on screen - the error from before the
+edit stayed, and the edit looked as if it had not been kept. The cluster
+controller now decides what follows a save: an open or unavailable cluster is
+opened again in the open, so the screen shows the result of the new
+kubeconfig; any other cluster has the config re-read, because the save
+disconnected it on the backend. The same from the cluster menu and Settings.
+
+**A CRLF kubeconfig keeps its line endings.** The editor works in LF, so a
+Windows kubeconfig counted as changed before a key was pressed and came back
+from a save in LF. It is shown in LF and written back in the file's own line
+ending.
+
+Renderer tests: 327, up from 323. Gateway tests: 229, unchanged.
+
 ## 2.30.0 - Secrets as base64, ready to edit; a right-click pastes in a terminal
 
 No new routes. Node-only ownership stays at Node 59 / Python 0. The Secret
