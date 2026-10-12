@@ -125,6 +125,7 @@ export function App() {
     disconnectTarget,
     disconnecting,
     cancelDisconnectCluster,
+    kubeconfigSaved,
   } = useClusterController({
     initialSelectedNamespaces,
     initialSelectedNamespacesByClusterId: initialUiState.namespaceSelectionVersion === 2 ? initialUiState.selectedNamespacesByClusterId : undefined,
@@ -535,16 +536,7 @@ export function App() {
         menuLabels={clusterMenuLabels}
         menuActions={clusterMenuActions}
       />
-      <LazyKubeconfigEditor
-        api={api}
-        cluster={kubeconfigCluster}
-        t={t}
-        onClose={() => setKubeconfigCluster(null)}
-        onSaved={(cluster) => {
-          // The endpoint may have moved, so the open cluster has to be reopened.
-          if (cluster.id === activeCluster?.id) openClusterFromUi(cluster);
-        }}
-      />
+      <LazyKubeconfigEditor api={api} cluster={kubeconfigCluster} t={t} onClose={() => setKubeconfigCluster(null)} onSaved={(cluster) => void kubeconfigSaved(cluster)} />
       <DisconnectClusterModal
         target={disconnectTarget}
         disconnecting={disconnecting}
@@ -678,6 +670,7 @@ export function App() {
                   void importKubeconfig().catch(() => undefined);
                 }}
                 onOpenCluster={openClusterFromUi}
+                onKubeconfigSaved={(cluster) => void kubeconfigSaved(cluster)}
                 onRenameCluster={startRenameCluster}
                 onRemoveCluster={removeClusterWorkspace}
                 onReorderClusters={reorderClusters}

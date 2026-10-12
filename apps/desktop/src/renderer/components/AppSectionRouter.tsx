@@ -57,6 +57,7 @@ interface Props {
   onSettingsDirtyChange: (dirty: boolean) => void;
   onImportKubeconfig: () => void;
   onOpenCluster: (cluster: Cluster) => void;
+  onKubeconfigSaved: (cluster: Cluster) => void;
   onRenameCluster: (cluster: Cluster) => void;
   onRemoveCluster: (cluster: Cluster) => void;
   onReorderClusters: (clusters: Cluster[]) => Promise<void> | void;
@@ -136,6 +137,7 @@ export function AppSectionRouter(props: Props) {
           openingClusterId={props.openingClusterId}
           importKubeconfig={props.onImportKubeconfig}
           openCluster={props.onOpenCluster}
+          onKubeconfigSaved={props.onKubeconfigSaved}
           renameCluster={props.onRenameCluster}
           removeCluster={props.onRemoveCluster}
           reorderClusters={props.onReorderClusters}

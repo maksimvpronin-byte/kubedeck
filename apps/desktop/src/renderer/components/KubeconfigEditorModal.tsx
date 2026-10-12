@@ -15,12 +15,24 @@ interface Props {
   onSaved: (cluster: Cluster) => void;
 }
 
+// The editor keeps "\n" whatever the file had, so a Windows kubeconfig in CRLF
+// read as changed before a key was pressed and came back from a save in LF.
+// The text is shown in "\n" and written back in the file's own line ending.
+function editorText(content: string): string {
+  return content.replace(/\r\n?/g, "\n");
+}
+
+function fileText(content: string, lineEnding: string): string {
+  return lineEnding === "\n" ? content : content.replace(/\n/g, lineEnding);
+}
+
 // The kubeconfig holds cluster credentials: it is fetched only while the modal
 // is open, kept in component state, and never persisted to UI state.
 export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Props) {
   const [content, setContent] = useState("");
   const [loadedContent, setLoadedContent] = useState("");
   const [path, setPath] = useState("");
+  const [lineEnding, setLineEnding] = useState("\n");
   const [editable, setEditable] = useState(false);
   const [typedName, setTypedName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,8 +49,10 @@ export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Pro
     api
       .clusterKubeconfig(cluster.id, controller.signal)
       .then((result) => {
-        setContent(result.content);
-        setLoadedContent(result.content);
+        const text = editorText(result.content);
+        setContent(text);
+        setLoadedContent(text);
+        setLineEnding(result.content.includes("\r\n") ? "\r\n" : "\n");
         setPath(result.path);
         setEditable(result.editable);
       })
@@ -68,7 +82,7 @@ export function KubeconfigEditorModal({ api, cluster, t, onClose, onSaved }: Pro
     setSaving(true);
     setError(null);
     try {
-      const result = await api.saveClusterKubeconfig(cluster.id, content, typedName.trim());
+      const result = await api.saveClusterKubeconfig(cluster.id, fileText(content, lineEnding), typedName.trim());
       setLoadedContent(content);
       setTypedName("");
       onSaved(result.cluster);

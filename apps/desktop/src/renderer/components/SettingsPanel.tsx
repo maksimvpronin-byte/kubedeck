@@ -43,6 +43,7 @@ export function SettingsPanel({
   openingClusterId,
   importKubeconfig,
   openCluster,
+  onKubeconfigSaved,
   renameCluster,
   removeCluster,
   reorderClusters,
@@ -62,6 +63,8 @@ export function SettingsPanel({
   openingClusterId: string | null;
   importKubeconfig: () => void;
   openCluster: (cluster: Cluster) => void;
+  // The editor's save; what follows it is the cluster controller's to decide.
+  onKubeconfigSaved: (cluster: Cluster) => void;
   renameCluster: (cluster: Cluster) => void;
   removeCluster: (cluster: Cluster) => void;
   reorderClusters: (clusters: Cluster[]) => void | Promise<void>;
@@ -477,16 +480,7 @@ export function SettingsPanel({
           {section === "activity" ? <AuditPanel api={api} t={t} onError={onError} /> : null}
         </div>
       </div>
-      <KubeconfigEditorModal
-        api={api}
-        cluster={kubeconfigCluster}
-        t={t}
-        onClose={() => setKubeconfigCluster(null)}
-        onSaved={(cluster) => {
-          // The endpoint may have moved, so the open cluster has to be reopened.
-          if (cluster.id === activeCluster?.id) openCluster(cluster);
-        }}
-      />
+      <KubeconfigEditorModal api={api} cluster={kubeconfigCluster} t={t} onClose={() => setKubeconfigCluster(null)} onSaved={onKubeconfigSaved} />
     </section>
   );
 }

@@ -385,6 +385,21 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
 
   const cancelDisconnectCluster = useCallback(() => setDisconnectTarget(null), []);
 
+  // Saving a kubeconfig disconnects the cluster on the backend. One that is on
+  // screen - open, or behind the "cluster unavailable" panel - is opened again
+  // in the open: the retry behind that panel is silent, so its error stayed the
+  // one from before the save and read as if the edit had not been kept.
+  const kubeconfigSaved = useCallback(
+    async (cluster: Cluster) => {
+      if (cluster.id === activeCluster?.id || cluster.id === unavailableCluster?.id) {
+        await openCluster(cluster).catch(() => undefined);
+        return;
+      }
+      await reloadConfig().catch(() => undefined);
+    },
+    [activeCluster?.id, unavailableCluster?.id, openCluster, reloadConfig],
+  );
+
   return {
     api,
     config,
@@ -418,6 +433,7 @@ export function useClusterController({ initialSelectedNamespaces, initialSelecte
     disconnectTarget,
     disconnecting,
     cancelDisconnectCluster,
+    kubeconfigSaved,
     ...namespaceController,
   };
 }
