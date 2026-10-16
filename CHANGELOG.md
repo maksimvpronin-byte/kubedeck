@@ -1,3 +1,26 @@
+## 2.31.0 - Labels on many nodes at once
+
+No new route: the resource action route takes one more action, `label`.
+Node-only ownership stays at Node 59 / Python 0.
+
+**Labels on the selected nodes.** A Labels (N) button beside Cordon, Uncordon
+and Drain opens a dialog with every label the selected nodes carry, how many
+of them carry it and with which values, and a choice per label: keep, set one
+value on all, or remove. New labels are added below. The dialog shows what
+each node will get and the `kubectl label` command for it before anything is
+sent; Apply sends one request per node with only what that node needs, and a
+node that already matches is not touched. Roles, topology and other labels
+under `kubernetes.io` or `k8s.io` sit in a folded group with a warning. The
+labels kubelet writes from the machine - hostname, os, arch, instance-type -
+are not offered, and the gateway refuses them.
+
+**The `label` action.** Every key and value is checked against the Kubernetes
+rules before it becomes a kubectl argument, so neither can be read as a flag.
+The action checks `auth can-i patch nodes`, adds `--overwrite` only when a
+value is set, and records the changes in the audit log.
+
+Renderer tests: 334, up from 327. Gateway tests: 230, up from 229.
+
 ## 2.30.1 - A saved kubeconfig takes effect on screen, and a Windows file keeps its line endings
 
 No route changes. Node-only ownership stays at Node 59 / Python 0.
