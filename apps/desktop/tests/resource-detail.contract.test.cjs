@@ -293,7 +293,7 @@ test("a CronJob can be run by hand, under a name the confirmation showed", () =>
   assert.match(drawer, /if \(action === "trigger"\) setTriggerJobName\(manualJobName\(pod\.name, Date\.now\(\)\)\);/);
   assert.match(drawer, /jobName=\{triggerJobName\}/);
   assert.match(drawer, /\.\.\.\(action === "trigger" \? \{ jobName: triggerJobName \} : \{\}\)/);
-  assert.match(api, /body: JSON\.stringify\(\{ action, replicas, jobName, confirmation \}\)/);
+  assert.match(api, /body: JSON\.stringify\(\{ action, replicas, jobName, labels, confirmation \}\)/);
 });
 
 test("Scale opens on the workload's current replica count, not on one", () => {

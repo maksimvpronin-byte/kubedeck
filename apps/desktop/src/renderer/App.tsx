@@ -6,6 +6,7 @@ import type { ClusterMenuActions, ClusterMenuLabels } from "./components/Cluster
 import { SidebarClusterHeader } from "./components/SidebarClusterHeader";
 import { LazyKubeconfigEditor } from "./components/LazyKubeconfigEditor";
 import { BulkActionModals } from "./components/BulkActionModals";
+import { NodeLabelsModal } from "./components/NodeLabelsModal";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { LazySurface } from "./components/LazySurface";
 import { AppResourceWorkspace } from "./components/AppResourceWorkspace";
@@ -677,6 +678,7 @@ export function App() {
                 onOpenResourceLocator={openResourceLocator}
                 onRefreshResources={() => loadResources()}
                 onNodeAction={bulkActions.requestNodeAction}
+                onNodeLabels={bulkActions.requestNodeLabels}
                 onVisibleNodeRows={loadVisibleNodeDisk}
                 onSelectRow={(selectedRow, resource) => {
                   if (!activeCluster) return;
@@ -786,6 +788,14 @@ export function App() {
         onCloseNodeAction={bulkActions.closeNodeAction}
         onConfirmNodeAction={() => {
           void bulkActions.confirmNodeAction();
+        }}
+      />
+      <NodeLabelsModal
+        target={bulkActions.nodeLabelTarget}
+        t={t}
+        onClose={bulkActions.closeNodeLabels}
+        onConfirm={(changes) => {
+          void bulkActions.confirmNodeLabels(changes);
         }}
       />
     </div>

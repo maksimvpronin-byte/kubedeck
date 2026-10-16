@@ -22,6 +22,7 @@ interface Props {
   onNamespaceClick: (namespace: string) => void;
   onBulkDelete: (resource: string, rows: ResourceRow[]) => void;
   onNodeAction: (action: "cordon" | "uncordon" | "drain", rows: ResourceRow[]) => Promise<void>;
+  onNodeLabels?: (rows: ResourceRow[]) => void;
   onVisibleNodeRows?: (rows: ResourceRow[]) => void;
 }
 
@@ -34,7 +35,7 @@ export function AppResourceTable(props: Props) {
       loading={props.loading}
       loadError={props.loadError}
       onRefresh={props.onRefresh}
-      {...createNodeBulkActions(props.resource, props.onNodeAction)}
+      {...createNodeBulkActions(props.resource, props.onNodeAction, props.onNodeLabels)}
       onOpen={(row) => openResourceTableRow(props.resource, row, props.onOpenLocator, props.onSelect)}
       onPin={(row) => props.onPin(row, props.resource)}
       selectedRow={props.selectedRow}

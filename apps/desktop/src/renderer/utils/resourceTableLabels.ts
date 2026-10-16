@@ -3,6 +3,7 @@ export function createResourceTableLabels(t: (key: string) => string) {
     shownOf: t("resources.shownOf"),
     page: t("resources.page"),
     deleteSelected: t("resources.deleteSelected"),
+    editLabels: t("nodeLabels.button"),
     rows: t("resources.rows"),
     of: t("resources.of"),
     pageSize: t("resources.pageSize"),

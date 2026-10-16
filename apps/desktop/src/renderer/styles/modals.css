@@ -94,6 +94,258 @@
   padding: 18px 20px 20px;
 }
 
+/* Node labels: the same confirmation frame as Cordon and Drain, with a row per
+   label - its key, how many of the selected nodes carry it, its values, and
+   keep / set / remove. */
+.node-labels-modal {
+  width: min(780px, calc(100vw - 48px));
+}
+
+.node-labels-modal:focus {
+  outline: none;
+}
+
+.node-labels-rows {
+  display: grid;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.node-labels-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1fr) auto 14px;
+  gap: 10px;
+  align-items: center;
+  min-height: 38px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.node-labels-row:first-child {
+  border-top: 0;
+}
+
+.node-labels-row.is-set {
+  background: color-mix(in srgb, var(--success-bg) 70%, var(--surface));
+}
+
+.node-labels-row.is-remove {
+  background: color-mix(in srgb, var(--danger-bg) 75%, var(--surface));
+}
+
+.node-labels-row.is-remove .node-labels-key {
+  color: var(--danger-text);
+  text-decoration: line-through;
+}
+
+.node-labels-key,
+.node-labels-values {
+  min-width: 0;
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-labels-key {
+  color: var(--text-strong);
+}
+
+.node-labels-values {
+  color: var(--muted-strong);
+}
+
+.node-labels-values em {
+  color: var(--muted-soft);
+  font-style: normal;
+}
+
+.node-labels-coverage {
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.node-labels-coverage.is-full {
+  border-color: var(--primary-border);
+  color: var(--primary-text);
+}
+
+.node-labels-modal .node-labels-input {
+  height: 28px;
+  padding: 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.node-labels-modal .node-labels-input.is-invalid {
+  border-color: var(--danger-border);
+}
+
+.node-labels-modes {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+}
+
+.node-labels-modes button {
+  padding: 4px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.node-labels-modes button + button {
+  border-left: 1px solid var(--border-strong);
+}
+
+.node-labels-modes button:hover {
+  color: var(--text-strong);
+}
+
+.node-labels-modes button.is-active {
+  background: var(--button-hover);
+  color: var(--text-strong);
+}
+
+.node-labels-modes button.is-set.is-active {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.node-labels-modes button.is-remove.is-active {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.node-labels-system-icon {
+  color: var(--warning-text);
+}
+
+.node-labels-system {
+  margin-top: 10px;
+}
+
+.node-labels-system summary {
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.node-labels-system summary span {
+  color: var(--warning-text);
+}
+
+.node-labels-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--muted-soft);
+  font-size: 12px;
+}
+
+.node-labels-rows .node-labels-note {
+  margin: 0;
+  padding: 10px;
+}
+
+.node-labels-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.node-labels-equals {
+  color: var(--muted-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.node-labels-error {
+  min-height: 18px;
+  margin: 6px 0 0;
+  color: var(--danger-text);
+  font-size: 12px;
+}
+
+.node-labels-diff {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.node-labels-diff-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 180px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.node-labels-diff-row > code {
+  overflow: hidden;
+  color: var(--text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-labels-diff-row > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.node-labels-op {
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.node-labels-op.is-add {
+  border-color: var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.node-labels-op.is-change {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.node-labels-op.is-remove {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.node-labels-actions {
+  align-items: center;
+}
+
+.node-labels-summary {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
 .manifest-compare {
   width: min(1200px, calc(100vw - 48px));
   height: min(780px, calc(100vh - 48px));

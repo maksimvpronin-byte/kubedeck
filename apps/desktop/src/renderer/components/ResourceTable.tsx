@@ -1,4 +1,4 @@
-import { Search, Trash2, X } from "lucide-react";
+import { Search, Tag, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ResourceRow } from "../types";
 import { canonicalPhase, PAGE_SIZE_OPTIONS, rowKey, useResourceTableState, type ResourceTableColumn } from "../hooks/useResourceTableState";
@@ -30,6 +30,7 @@ interface Props {
   onBulkDelete?: (rows: ResourceRow[]) => void;
   onBulkCordon?: (rows: ResourceRow[]) => void;
   onBulkUncordon?: (rows: ResourceRow[]) => void;
+  onBulkLabels?: (rows: ResourceRow[]) => void;
   onBulkDrain?: (rows: ResourceRow[]) => void;
   selectedRow?: ResourceRow | null;
   onVisibleNodeRows?: (rows: ResourceRow[]) => void;
@@ -41,6 +42,7 @@ interface Props {
     shownOf: string;
     page: string;
     deleteSelected: string;
+    editLabels: string;
     rows: string;
     of: string;
     pageSize: string;
@@ -81,6 +83,7 @@ export function ResourceTable({
   onBulkDelete,
   onBulkCordon,
   onBulkUncordon,
+  onBulkLabels,
   onBulkDrain,
   selectedRow,
   onVisibleNodeRows,
@@ -92,6 +95,7 @@ export function ResourceTable({
     shownOf: labels?.shownOf ?? "shown of",
     page: labels?.page ?? "page",
     deleteSelected: labels?.deleteSelected ?? "Delete selected",
+    editLabels: labels?.editLabels ?? "Labels",
     rows: labels?.rows ?? "Rows",
     of: labels?.of ?? "of",
     pageSize: labels?.pageSize ?? "Page size",
@@ -270,7 +274,7 @@ export function ResourceTable({
   const emptyText = filteredEmpty ? ui.emptyFilteredText : ui.emptyText;
 
   const allPageSelected = renderedRows.length > 0 && selectedPageRows.length === renderedRows.length;
-  const nodeActionsVisible = selectedRows.length > 0 && Boolean(onBulkCordon || onBulkUncordon || onBulkDrain);
+  const nodeActionsVisible = selectedRows.length > 0 && Boolean(onBulkLabels || onBulkCordon || onBulkUncordon || onBulkDrain);
   const controlsDisabled = loading && rows.length === 0;
   const nodeUsageVisible = visibleColumns.some((column) => column.key === "nodeResources");
 
@@ -297,6 +301,11 @@ export function ResourceTable({
         <div className="resource-table-actions">
           {nodeActionsVisible ? (
             <>
+              {onBulkLabels ? (
+                <button className="secondary-btn" type="button" onClick={() => onBulkLabels(selectedRows)} disabled={controlsDisabled}>
+                  <Tag size={14} /> {ui.editLabels} ({selectedRows.length})
+                </button>
+              ) : null}
               {onBulkCordon ? (
                 <button className="secondary-btn" type="button" onClick={() => onBulkCordon(selectedRows)} disabled={controlsDisabled}>
                   Cordon ({selectedRows.length})

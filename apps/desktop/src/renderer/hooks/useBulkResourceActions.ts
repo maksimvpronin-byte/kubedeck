@@ -4,6 +4,7 @@ import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, ResourceDefinition, ResourceRow } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { findResourceDefinition } from "../utils/kubeResources";
+import { nodeLabelCommandPreview, planNodeLabelChanges, type NodeLabelChanges } from "../utils/nodeLabels";
 
 export type NodeActionKind = "cordon" | "uncordon" | "drain";
 export interface NodeActionConfirmation {
@@ -14,6 +15,10 @@ export interface NodeActionConfirmation {
   affectedPods?: ResourceRow[];
   previewLoading?: boolean;
   previewError?: string;
+}
+export interface NodeLabelTarget {
+  clusterId: string;
+  rows: ResourceRow[];
 }
 export interface BulkDeleteTarget {
   clusterId: string;
@@ -110,11 +115,13 @@ export function useBulkResourceActions(options: Options) {
   const { api, activeCluster, resourceDefinitions, selectedResource, selectedRow, selectedNamespaces, setRows, setSelectedRow, setError, reloadResources, t } = options;
   const [bulkDelete, setBulkDelete] = useState<BulkDeleteTarget | null>(null);
   const [nodeActionConfirmation, setNodeActionConfirmation] = useState<NodeActionConfirmation | null>(null);
+  const [nodeLabelTarget, setNodeLabelTarget] = useState<NodeLabelTarget | null>(null);
   const nodePreviewRequestRef = useRef(0);
 
   const clearPendingActions = useCallback(() => {
     setBulkDelete(null);
     setNodeActionConfirmation(null);
+    setNodeLabelTarget(null);
   }, []);
 
   const requestBulkDelete = useCallback(
@@ -253,10 +260,53 @@ export function useBulkResourceActions(options: Options) {
     setError(null);
   }, [api, nodeActionConfirmation, reloadResources, setError]);
 
+  const requestNodeLabels = useCallback(
+    (rows: ResourceRow[]) => {
+      if (!activeCluster || rows.length === 0) return;
+      setNodeLabelTarget({ clusterId: activeCluster.id, rows });
+    },
+    [activeCluster],
+  );
+
+  const closeNodeLabels = useCallback(() => setNodeLabelTarget(null), []);
+
+  // One request per node, carrying only what that node needs; a node the
+  // changes leave as it is gets no request at all.
+  const confirmNodeLabels = useCallback(
+    async (changes: NodeLabelChanges) => {
+      if (!api || !nodeLabelTarget) return;
+      const target = nodeLabelTarget;
+      setNodeLabelTarget(null);
+      setError(null);
+      const plan = planNodeLabelChanges(target.rows, changes).filter((entry) => entry.operations.length);
+      const completed: ResourceRow[] = [];
+      const failures: BulkActionFailure[] = [];
+      for (const entry of plan) {
+        try {
+          await api.resourceAction(target.clusterId, "nodes", "_cluster", entry.row.name, "label", { labels: entry.changes });
+          completed.push(entry.row);
+        } catch (error) {
+          const info = asErrorInfo(error);
+          failures.push({ row: entry.row, message: info.message || info.code || "Label failed" });
+        }
+      }
+      await reloadResources(target.clusterId, "nodes", ["_cluster"]).catch((error) => setError(asErrorInfo(error)));
+      if (failures.length) {
+        const commandPreview = nodeLabelCommandPreview(plan.filter((entry) => failures.some((failure) => failure.row === entry.row)));
+        const message = t("nodeLabels.partialResult").replace("{completed}", String(completed.length)).replace("{failed}", String(failures.length));
+        setError(buildPartialActionError({ label: "Labels", resource: "nodes", completedCount: completed.length, failures, commandPreview, message }));
+        return;
+      }
+      setError(null);
+    },
+    [api, nodeLabelTarget, reloadResources, setError, t],
+  );
+
   useEffect(() => {
     nodePreviewRequestRef.current += 1;
     setBulkDelete(null);
     setNodeActionConfirmation(null);
+    setNodeLabelTarget(null);
   }, [activeCluster?.id]);
 
   return {
@@ -270,5 +320,9 @@ export function useBulkResourceActions(options: Options) {
     requestNodeAction,
     closeNodeAction,
     confirmNodeAction,
+    nodeLabelTarget,
+    requestNodeLabels,
+    closeNodeLabels,
+    confirmNodeLabels,
   };
 }

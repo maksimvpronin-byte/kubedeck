@@ -3,9 +3,10 @@ import { eventInvolvedLocator } from "./eventResourceLocator";
 
 type NodeAction = "cordon" | "uncordon" | "drain";
 
-export function createNodeBulkActions(resource: string, request: (action: NodeAction, rows: ResourceRow[]) => Promise<void>) {
+export function createNodeBulkActions(resource: string, request: (action: NodeAction, rows: ResourceRow[]) => Promise<void>, requestLabels?: (rows: ResourceRow[]) => void) {
   if (resource !== "nodes") return {};
   return {
+    ...(requestLabels ? { onBulkLabels: requestLabels } : {}),
     onBulkCordon: (rows: ResourceRow[]) => void request("cordon", rows),
     onBulkUncordon: (rows: ResourceRow[]) => void request("uncordon", rows),
     onBulkDrain: (rows: ResourceRow[]) => void request("drain", rows),

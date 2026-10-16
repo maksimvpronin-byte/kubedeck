@@ -64,6 +64,7 @@ interface Props {
   onOpenResourceLocator: (row: ResourceRow) => Promise<void>;
   onRefreshResources: () => void;
   onNodeAction: (action: "cordon" | "uncordon" | "drain", rows: ResourceRow[]) => Promise<void>;
+  onNodeLabels: (rows: ResourceRow[]) => void;
   onVisibleNodeRows: (rows: ResourceRow[]) => void;
   onSelectRow: (row: ResourceRow, resource: string) => void;
   onPinRow: (row: ResourceRow, resource: string) => void;
@@ -210,6 +211,7 @@ export function AppSectionRouter(props: Props) {
           resource={props.resourceTab}
           onRefresh={props.onRefreshResources}
           onNodeAction={props.onNodeAction}
+          onNodeLabels={props.onNodeLabels}
           onVisibleNodeRows={props.onVisibleNodeRows}
           onOpenLocator={props.onOpenResourceLocator}
           onSelect={props.onSelectRow}

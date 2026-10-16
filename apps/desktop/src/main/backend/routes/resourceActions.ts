@@ -15,15 +15,42 @@ const ACTION_TIMEOUT_SECONDS = 45;
 const DRAIN_TIMEOUT_SECONDS = 330;
 const AUTH_TIMEOUT_SECONDS = 15;
 
-export type ResourceAction = "delete" | "restart" | "redeploy" | "scale" | "cordon" | "uncordon" | "drain" | "trigger";
+export type ResourceAction = "delete" | "restart" | "redeploy" | "scale" | "cordon" | "uncordon" | "drain" | "trigger" | "label";
 
-const RESOURCE_ACTIONS = ["delete", "restart", "redeploy", "scale", "cordon", "uncordon", "drain", "trigger"];
+const RESOURCE_ACTIONS = ["delete", "restart", "redeploy", "scale", "cordon", "uncordon", "drain", "trigger", "label"];
 
 // A Job created by hand needs a name of its own, and Kubernetes will only take a
 // DNS-1123 label for it. The name arrives from the caller rather than being
 // invented here, so the command the confirmation showed is the command that runs.
 const JOB_NAME_PATTERN = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 const MAX_JOB_NAME_LENGTH = 63;
+
+// A label key is an optional DNS-subdomain prefix and a name; a value is empty
+// or a name. Both reach kubectl as one argument each, and neither pattern can
+// begin with "-", so nothing the caller sends is read as a flag.
+const LABEL_PREFIX_PATTERN = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/;
+const LABEL_NAME_PATTERN = /^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$/;
+const MAX_LABEL_PREFIX_LENGTH = 253;
+const MAX_LABEL_NAME_LENGTH = 63;
+const MAX_LABEL_CHANGES = 100;
+
+// Labels kubelet writes from the machine itself and restores at every
+// registration. The renderer does not offer them, and they are refused here
+// too, so a hand-made request cannot change them either.
+const PROTECTED_NODE_LABELS = new Set([
+  "kubernetes.io/hostname",
+  "kubernetes.io/os",
+  "kubernetes.io/arch",
+  "beta.kubernetes.io/os",
+  "beta.kubernetes.io/arch",
+  "beta.kubernetes.io/instance-type",
+  "node.kubernetes.io/instance-type",
+]);
+
+export interface NodeLabelChanges {
+  set: Record<string, string>;
+  remove: string[];
+}
 
 interface OperationConfirmation {
   clusterId?: unknown;
@@ -38,6 +65,7 @@ interface ResourceActionRequestPayload {
   action: ResourceAction;
   replicas?: number;
   jobName?: string;
+  labels?: NodeLabelChanges;
   confirmation?: OperationConfirmation;
 }
 
@@ -61,6 +89,7 @@ export interface ResourceActionPlan {
   namespace: string;
   replicas?: number;
   jobName?: string;
+  labels?: NodeLabelChanges;
   authorizationChecks: AuthorizationCheck[];
   timeoutSeconds: number;
   maxOutputBytes: number;
@@ -71,6 +100,7 @@ type CacheInvalidator = (clusterId: string) => Promise<void>;
 function actionExtra(plan: ResourceActionPlan): { extra?: Record<string, unknown> } {
   if (plan.action === "scale") return { extra: { replicas: plan.replicas } };
   if (plan.action === "trigger") return { extra: { jobName: plan.jobName } };
+  if (plan.action === "label") return { extra: { labels: plan.labels } };
   return {};
 }
 
@@ -122,6 +152,53 @@ function normalizeReplicas(value: unknown): number | undefined {
   return value;
 }
 
+function labelKey(value: unknown): string {
+  const key = typeof value === "string" ? value : "";
+  const parts = key.split("/");
+  const [prefix, name] = parts.length === 2 ? parts : [null, parts[0]];
+  const valid =
+    parts.length <= 2 && (prefix === null || (prefix.length <= MAX_LABEL_PREFIX_LENGTH && LABEL_PREFIX_PATTERN.test(prefix))) && name.length <= MAX_LABEL_NAME_LENGTH && LABEL_NAME_PATTERN.test(name);
+  if (!valid) {
+    throw new RequestValidationError(400, "INVALID_LABEL_KEY", `Invalid label key: ${key.slice(0, 80)}`);
+  }
+  if (PROTECTED_NODE_LABELS.has(key)) {
+    throw new RequestValidationError(400, "PROTECTED_LABEL", `${key} is set by kubelet and cannot be changed`);
+  }
+  return key;
+}
+
+function labelValue(key: string, value: unknown): string {
+  if (typeof value !== "string" || (value !== "" && (value.length > MAX_LABEL_NAME_LENGTH || !LABEL_NAME_PATTERN.test(value)))) {
+    throw new RequestValidationError(400, "INVALID_LABEL_VALUE", `Invalid value for label ${key}`);
+  }
+  return value;
+}
+
+export function normalizeNodeLabelChanges(value: unknown): NodeLabelChanges {
+  if (!isRecord(value)) {
+    throw new RequestValidationError(400, "INVALID_LABELS", "labels must be an object with set and remove");
+  }
+  const setValue = value.set ?? {};
+  const removeValue = value.remove ?? [];
+  if (!isRecord(setValue) || !Array.isArray(removeValue)) {
+    throw new RequestValidationError(400, "INVALID_LABELS", "labels.set must be an object and labels.remove an array");
+  }
+  const set: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(setValue)) set[labelKey(key)] = labelValue(key, entry);
+  const remove = [...new Set(removeValue.map(labelKey))];
+  if (remove.some((key) => key in set)) {
+    throw new RequestValidationError(400, "INVALID_LABELS", "A label cannot be set and removed at once");
+  }
+  const count = Object.keys(set).length + remove.length;
+  if (count === 0) {
+    throw new RequestValidationError(400, "INVALID_LABELS", "No label changes were requested");
+  }
+  if (count > MAX_LABEL_CHANGES) {
+    throw new RequestValidationError(400, "INVALID_LABELS", `At most ${MAX_LABEL_CHANGES} label changes per request`);
+  }
+  return { set, remove };
+}
+
 async function readActionPayload(request: IncomingMessage): Promise<ResourceActionRequestPayload> {
   const body = await readJsonBody(request, ACTION_REQUEST_MAX_BYTES);
   if (!isRecord(body)) {
@@ -132,6 +209,7 @@ async function readActionPayload(request: IncomingMessage): Promise<ResourceActi
     action: normalizeAction(body.action),
     ...(body.replicas !== undefined ? { replicas: normalizeReplicas(body.replicas) } : {}),
     ...(body.jobName !== undefined ? { jobName: normalizeJobName(body.jobName) } : {}),
+    ...(body.labels !== undefined ? { labels: normalizeNodeLabelChanges(body.labels) } : {}),
     ...(isRecord(body.confirmation) ? { confirmation: body.confirmation as OperationConfirmation } : {}),
   };
 }
@@ -140,7 +218,7 @@ function unsupported(action: ResourceAction, resource: string): never {
   throw new RequestValidationError(400, "UNSUPPORTED_ACTION", `${action} is not supported for ${resource}`);
 }
 
-export function buildResourceActionPlan(target: ResourceActionRouteTarget, action: ResourceAction, replicas?: number, jobName?: string): ResourceActionPlan {
+export function buildResourceActionPlan(target: ResourceActionRouteTarget, action: ResourceAction, replicas?: number, jobName?: string, labels?: NodeLabelChanges): ResourceActionPlan {
   const resource = target.resource;
   const namespaced = target.namespace !== "_cluster";
   const namespaceArgs = namespaced ? ["-n", target.namespace] : [];
@@ -260,6 +338,22 @@ export function buildResourceActionPlan(target: ResourceActionRouteTarget, actio
     return unsupported(action, resource);
   }
 
+  if (action === "label") {
+    const changes = normalizeNodeLabelChanges(labels);
+    const setArgs = Object.entries(changes.set).map(([key, value]) => `${key}=${value}`);
+    return {
+      action,
+      // --overwrite only when a value is set: it is what lets a label the node
+      // already has take the new value, and a removal does not need it.
+      args: ["label", "nodes", target.name, ...setArgs, ...changes.remove.map((key) => `${key}-`), ...(setArgs.length ? ["--overwrite"] : [])],
+      namespace: "_cluster",
+      labels: changes,
+      authorizationChecks: [{ verb: "patch", resource: "nodes", namespace: "_cluster" }],
+      timeoutSeconds: ACTION_TIMEOUT_SECONDS,
+      maxOutputBytes: ACTION_MAX_OUTPUT_BYTES,
+    };
+  }
+
   if (action === "drain") {
     return {
       action,
@@ -361,7 +455,7 @@ async function executeResourceAction(
   invalidateResourceCache: CacheInvalidator,
 ): Promise<void> {
   const payload = await readActionPayload(request);
-  const plan = buildResourceActionPlan(target, payload.action, payload.replicas, payload.jobName);
+  const plan = buildResourceActionPlan(target, payload.action, payload.replicas, payload.jobName, payload.labels);
   requireResourceActionConfirmation(payload.confirmation, target, plan);
 
   for (const check of plan.authorizationChecks) {

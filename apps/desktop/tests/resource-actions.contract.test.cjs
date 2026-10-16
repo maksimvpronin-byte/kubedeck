@@ -1,7 +1,13 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const { buildResourceActionPlan, handleResourceActionRequest, matchResourceActionRoute, requireResourceActionConfirmation } = require("../dist/main/backend/routes/resourceActions.js");
+const {
+  buildResourceActionPlan,
+  handleResourceActionRequest,
+  matchResourceActionRoute,
+  normalizeNodeLabelChanges,
+  requireResourceActionConfirmation,
+} = require("../dist/main/backend/routes/resourceActions.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
 function listen(server) {
@@ -293,4 +299,74 @@ test("resource action HTTP handler contract", async (t) => {
     ],
   );
   assert.equal(drainCommands.at(-1).timeoutSeconds, 330);
+
+  const commandCountBeforeLabel = commands.length;
+  const labelResponse = await fetch(`${baseUrl}/clusters/cluster-1/resources/nodes/_cluster/worker-1/action`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "label",
+      labels: { set: { disktype: "ssd" }, remove: ["gpu"] },
+      confirmation: confirmation(nodeTarget, "label"),
+    }),
+  });
+  assert.equal(labelResponse.status, 200);
+  assert.deepEqual(
+    commands.slice(commandCountBeforeLabel).map((command) => command.args),
+    [
+      ["auth", "can-i", "patch", "nodes"],
+      ["label", "nodes", "worker-1", "disktype=ssd", "gpu-", "--overwrite"],
+    ],
+  );
+  assert.equal(auditEvents.at(-1).action, "resource.label");
+  assert.deepEqual(auditEvents.at(-1).extra, { labels: { set: { disktype: "ssd" }, remove: ["gpu"] } });
+
+  // A label kubelet owns is refused before anything runs, whatever sent it.
+  const commandCountBeforeProtected = commands.length;
+  const protectedResponse = await fetch(`${baseUrl}/clusters/cluster-1/resources/nodes/_cluster/worker-1/action`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "label",
+      labels: { set: { "kubernetes.io/hostname": "elsewhere" } },
+      confirmation: confirmation(nodeTarget, "label"),
+    }),
+  });
+  assert.equal(protectedResponse.status, 400);
+  assert.equal((await protectedResponse.json()).detail.code, "PROTECTED_LABEL");
+  assert.equal(commands.length, commandCountBeforeProtected);
+});
+
+test("node label changes are validated before they become kubectl arguments", () => {
+  const nodeTarget = target("nodes", "_cluster", "worker-1");
+  const plan = buildResourceActionPlan(nodeTarget, "label", undefined, undefined, { set: { "example.com/rack": "r12", team: "" }, remove: ["gpu"] });
+  assert.deepEqual(plan.args, ["label", "nodes", "worker-1", "example.com/rack=r12", "team=", "gpu-", "--overwrite"]);
+  assert.deepEqual(plan.authorizationChecks, [{ verb: "patch", resource: "nodes", namespace: "_cluster" }]);
+  assert.equal(plan.namespace, "_cluster");
+
+  // A removal alone does not need --overwrite.
+  assert.deepEqual(buildResourceActionPlan(nodeTarget, "label", undefined, undefined, { set: {}, remove: ["gpu"] }).args, ["label", "nodes", "worker-1", "gpu-"]);
+  assert.throws(() => buildResourceActionPlan(target(), "label", undefined, undefined, { set: { a: "b" }, remove: [] }), { code: "UNSUPPORTED_ACTION" });
+
+  const code = (labels) => {
+    try {
+      normalizeNodeLabelChanges(labels);
+      return "ok";
+    } catch (error) {
+      return error.code;
+    }
+  };
+  assert.equal(code(undefined), "INVALID_LABELS");
+  assert.equal(code({ set: {}, remove: [] }), "INVALID_LABELS");
+  assert.equal(code({ set: { gpu: "a100" }, remove: ["gpu"] }), "INVALID_LABELS");
+  assert.equal(code({ set: { "--kubeconfig": "x" } }), "INVALID_LABEL_KEY");
+  assert.equal(code({ remove: ["-n"] }), "INVALID_LABEL_KEY");
+  assert.equal(code({ set: { "Example.com/rack": "r1" } }), "INVALID_LABEL_KEY");
+  assert.equal(code({ set: { "a/b/c": "r1" } }), "INVALID_LABEL_KEY");
+  assert.equal(code({ set: { team: "two words" } }), "INVALID_LABEL_VALUE");
+  assert.equal(code({ set: { team: "-x" } }), "INVALID_LABEL_VALUE");
+  assert.equal(code({ set: { team: "x".repeat(64) } }), "INVALID_LABEL_VALUE");
+  assert.equal(code({ set: { team: 7 } }), "INVALID_LABEL_VALUE");
+  assert.equal(code({ remove: ["kubernetes.io/arch"] }), "PROTECTED_LABEL");
+  assert.equal(code({ set: { "node-role.kubernetes.io/worker": "", "topology.kubernetes.io/zone": "msk-a" } }), "ok");
 });
