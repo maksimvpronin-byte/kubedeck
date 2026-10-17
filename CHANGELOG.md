@@ -1,3 +1,19 @@
+## 2.32.1 - The same labels on many nodes in one command
+
+No route changes. Node-only ownership stays at Node 60 / Python 0.
+
+**Nodes that get the same labels share one command.** A label change on many
+nodes still ran one `kubectl label nodes <node>` per node, five at a time.
+Nodes whose changes are the same now share one `kubectl label nodes a b c`,
+so setting one label on every selected node is one command. Nodes that need
+different changes - one already has the value, another still carries a label
+being removed - get one command per distinct set of changes. A node that no
+longer exists does not stop the others. The command preview in the labels
+dialog groups the nodes the same way. Every node still has its own entry in
+Local activity.
+
+Renderer tests: 336. Gateway tests: 238.
+
 ## 2.32.0 - Bulk actions in one request, and a drain that cordons every node first
 
 One new route: `POST /clusters/{cluster_id}/resources/{resource}/bulk-action`.
