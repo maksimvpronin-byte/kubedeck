@@ -76,8 +76,9 @@ test("bulk confirmations remain bound to their source cluster", () => {
   assert.match(actions, /interface BulkDeleteTarget \{\s*clusterId: string;/);
   assert.match(actions, /interface NodeActionConfirmation \{\s*clusterId: string;/);
   assert.match(actions, /setBulkDelete\(\{ clusterId: activeCluster\.id, resource, rows \}\)/);
-  assert.match(actions, /api\.resourceAction\(target\.clusterId, target\.resource/);
-  assert.match(actions, /api\.resourceAction\(target\.clusterId, "nodes"/);
+  assert.match(actions, /api\.bulkResourceAction\(\s*target\.clusterId,\s*target\.resource/);
+  assert.match(actions, /api\.bulkResourceAction\(\s*target\.clusterId,\s*"nodes"/);
+  assert.doesNotMatch(actions, /api\.resourceAction\(/);
   assert.match(actions, /reloadResources\(target\.clusterId, "nodes"/);
   assert.match(actions, /nodePreviewRequestRef\.current !== requestId/);
   assert.match(actions, /}, \[activeCluster\?\.id\]\)/);
@@ -101,4 +102,57 @@ test("bulk partial failures preserve counts and command preview without leaking 
   assert.match(error.rawStderr, /nodes _cluster\/node-c - connection timed out/);
   assert.doesNotMatch(error.rawStderr, /super-sensitive-value/);
   assert.match(error.commandPreview, /kubectl drain node-b/);
+});
+
+test("a drain preview cordons every selected node in one command before the first drain", () => {
+  const model = loadTypeScript("hooks/useBulkResourceActions.ts");
+  assert.equal(model.nodeActionCommandPreview("cordon", ["a", "b"]), "kubectl cordon a b");
+  assert.equal(model.nodeActionCommandPreview("uncordon", ["a", "b"]), "kubectl uncordon a b");
+  assert.deepEqual(model.nodeActionCommandPreview("drain", ["a", "b"]).split("\n"), [
+    "kubectl cordon a b",
+    "kubectl drain a --ignore-daemonsets --delete-emptydir-data --timeout=300s",
+    "kubectl drain b --ignore-daemonsets --delete-emptydir-data --timeout=300s",
+  ]);
+});
+
+test("one bulk request is read back as a result per row", async () => {
+  const model = loadTypeScript("hooks/useBulkResourceActions.ts");
+  const rows = [
+    { uid: "a", name: "pod-a", namespace: "default" },
+    { uid: "b", name: "pod-b", namespace: "tools" },
+    { uid: "c", name: "pod-c", namespace: "tools" },
+  ];
+  const entries = rows.map((row) => ({ row, target: { namespace: row.namespace, name: row.name } }));
+  const outcome = await model.runBulkAction(
+    async () => ({
+      results: [
+        { namespace: "default", name: "pod-a", ok: true },
+        { namespace: "tools", name: "pod-b", ok: false, error: { code: "NOT_FOUND", message: 'pods "pod-b" not found', rawStderr: "", commandPreview: "" } },
+      ],
+    }),
+    entries,
+    "Delete failed",
+  );
+  assert.deepEqual(
+    outcome.completed.map((row) => row.name),
+    ["pod-a"],
+  );
+  // A row the answer leaves out is a failure, not a success.
+  assert.deepEqual(
+    outcome.failures.map((failure) => [failure.row.name, failure.message]),
+    [
+      ["pod-b", 'pods "pod-b" not found'],
+      ["pod-c", "Delete failed"],
+    ],
+  );
+
+  const refused = await model.runBulkAction(
+    async () => {
+      throw Object.assign(new Error("Confirmation targets do not match request"), { code: "CONFIRMATION_TARGETS_MISMATCH" });
+    },
+    entries,
+    "Delete failed",
+  );
+  assert.equal(refused.completed.length, 0);
+  assert.equal(refused.failures.length, 3);
 });

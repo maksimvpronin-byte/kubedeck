@@ -37,6 +37,7 @@ import { UsageHistorySampler } from "./resources/usageHistorySampler";
 import { handleDeploymentLogsRequest } from "./routes/deploymentLogs";
 import { handleYamlRequest } from "./routes/yaml";
 import { handleSecretRequest } from "./routes/secrets";
+import { handleBulkResourceActionRequest } from "./routes/bulkResourceActions";
 import { handleResourceActionRequest } from "./routes/resourceActions";
 import { handlePodExecRequest } from "./routes/podExec";
 import { handleResourceListRequest } from "./routes/resourceLists";
@@ -430,6 +431,16 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, optio
 
   if (
     handleResourceActionRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log, async (clusterId) => {
+      services.resourceCache.clear(clusterId, "mutation");
+      services.watchManager.noteMutation(clusterId);
+      clearClusterReadCaches(clusterId);
+    })
+  ) {
+    return;
+  }
+
+  if (
+    handleBulkResourceActionRequest(request, response, pathname, services.configStore, services.auditStore, services.kubectlRunner, options.log, async (clusterId) => {
       services.resourceCache.clear(clusterId, "mutation");
       services.watchManager.noteMutation(clusterId);
       clearClusterReadCaches(clusterId);

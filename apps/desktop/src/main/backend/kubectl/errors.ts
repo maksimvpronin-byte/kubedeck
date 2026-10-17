@@ -19,7 +19,12 @@ const SENSITIVE_MARKERS = [
 ];
 
 export class KubectlError extends Error {
-  constructor(readonly info: ErrorInfo) {
+  // `stdout` stays on the server: a command that names many objects reports
+  // the ones it did change there even when it exits non-zero for the rest.
+  constructor(
+    readonly info: ErrorInfo,
+    readonly stdout = "",
+  ) {
     super(info.message);
   }
 }

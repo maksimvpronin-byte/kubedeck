@@ -166,6 +166,15 @@ export const ROUTE_OWNERSHIP: readonly RouteOwnership[] = [
     sourceModule: "routes_resources.py",
   },
   {
+    method: "POST",
+    path: "/clusters/{cluster_id}/resources/{resource}/bulk-action",
+    transport: "http",
+    owner: "node",
+    targetRelease: "2.32.0",
+    migratedIn: "2.32.0",
+    sourceModule: "routes/bulkResourceActions.ts",
+  },
+  {
     method: "GET",
     path: "/clusters/{cluster_id}/pods/{namespace}/{name}/yaml",
     transport: "http",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { ApiClient } from "../api";
+import type { ApiClient, BulkActionResult, BulkActionTarget } from "../api";
 import type { Cluster, ErrorInfo, ResourceDefinition, ResourceRow } from "../types";
 import { asErrorInfo } from "../utils/errors";
 import { findResourceDefinition } from "../utils/kubeResources";
@@ -91,6 +91,41 @@ export function selectedRowAfterBulkDelete(targetResource: string, selectedResou
   return failures.find((failure) => resourceIdentityLabel(failure.row) === selectedIdentity)?.row ?? selectedRow;
 }
 
+// What runs, in the order it runs. Cordon and uncordon name every selected
+// node in one command; a drain cordons them all that way first, so pods leaving
+// one node cannot be scheduled onto the next one in line, and then drains five
+// nodes at a time.
+export function nodeActionCommandPreview(action: NodeActionKind, names: string[]) {
+  const all = `kubectl ${action === "drain" ? "cordon" : action} ${names.join(" ")}`;
+  if (action !== "drain") return all;
+  return [all, ...names.map((name) => `kubectl drain ${name} --ignore-daemonsets --delete-emptydir-data --timeout=300s`)].join("\n");
+}
+
+// Pairs each row with its result from one bulk request. A request that failed
+// as a whole fails every row with the same reason.
+export async function runBulkAction(
+  run: () => Promise<{ results: BulkActionResult[] }>,
+  entries: Array<{ row: ResourceRow; target: BulkActionTarget }>,
+  fallbackMessage: string,
+): Promise<{ completed: ResourceRow[]; failures: BulkActionFailure[] }> {
+  const completed: ResourceRow[] = [];
+  const failures: BulkActionFailure[] = [];
+  let results: BulkActionResult[];
+  try {
+    results = (await run()).results ?? [];
+  } catch (error) {
+    const info = asErrorInfo(error);
+    return { completed, failures: entries.map(({ row }) => ({ row, message: info.message || info.code || fallbackMessage })) };
+  }
+  const byKey = new Map(results.map((result) => [`${result.namespace}/${result.name}`, result]));
+  for (const { row, target } of entries) {
+    const result = byKey.get(`${target.namespace}/${target.name}`);
+    if (result?.ok) completed.push(row);
+    else failures.push({ row, message: result?.error?.message || result?.error?.code || fallbackMessage });
+  }
+  return { completed, failures };
+}
+
 export function nodeActionLabel(action: NodeActionKind) {
   if (action === "cordon") return "Cordon";
   if (action === "uncordon") return "Uncordon";
@@ -159,19 +194,19 @@ export function useBulkResourceActions(options: Options) {
       setSelectedRow(markDeletingRow(target.resource, selectedRow));
     }
 
-    const deletedRows: ResourceRow[] = [];
-    const failures: BulkActionFailure[] = [];
-    for (const row of target.rows) {
-      try {
-        const definition = findResourceDefinition(resourceDefinitions, target.resource);
-        const namespace = definition?.namespaced === false ? "_cluster" : String(row.namespace || "_cluster");
-        await api.resourceAction(target.clusterId, target.resource, namespace, row.name, "delete");
-        deletedRows.push(row);
-      } catch (error) {
-        const info = asErrorInfo(error);
-        failures.push({ row, message: info.message || info.code || "Delete failed" });
-      }
-    }
+    const definition = findResourceDefinition(resourceDefinitions, target.resource);
+    const entries = target.rows.map((row) => ({ row, target: { namespace: definition?.namespaced === false ? "_cluster" : String(row.namespace || "_cluster"), name: row.name } }));
+    const { completed: deletedRows, failures } = await runBulkAction(
+      () =>
+        api.bulkResourceAction(
+          target.clusterId,
+          target.resource,
+          "delete",
+          entries.map((entry) => entry.target),
+        ),
+      entries,
+      "Delete failed",
+    );
 
     if (selectedResource === target.resource && selectedRow && deletingKeys.has(resourceIdentityLabel(selectedRow))) {
       setSelectedRow(selectedRowAfterBulkDelete(target.resource, selectedResource, selectedRow, deletedRows, failures));
@@ -201,9 +236,10 @@ export function useBulkResourceActions(options: Options) {
       const clusterId = activeCluster.id;
       const requestId = nodePreviewRequestRef.current + 1;
       nodePreviewRequestRef.current = requestId;
-      const commandPreview = rows
-        .map((row) => (action === "drain" ? `kubectl drain ${row.name} --ignore-daemonsets --delete-emptydir-data --timeout=300s` : `kubectl ${action} ${row.name}`))
-        .join("\n");
+      const commandPreview = nodeActionCommandPreview(
+        action,
+        rows.map((row) => String(row.name)),
+      );
       if (action !== "drain") {
         setNodeActionConfirmation({ clusterId, action, rows, commandPreview });
         return;
@@ -240,17 +276,18 @@ export function useBulkResourceActions(options: Options) {
     const label = nodeActionLabel(target.action);
     setNodeActionConfirmation(null);
     setError(null);
-    const completed: ResourceRow[] = [];
-    const failures: BulkActionFailure[] = [];
-    for (const row of target.rows) {
-      try {
-        await api.resourceAction(target.clusterId, "nodes", "_cluster", row.name, target.action);
-        completed.push(row);
-      } catch (error) {
-        const info = asErrorInfo(error);
-        failures.push({ row, message: info.message || info.code || `${label} failed` });
-      }
-    }
+    const entries = target.rows.map((row) => ({ row, target: { namespace: "_cluster", name: row.name } }));
+    const { completed, failures } = await runBulkAction(
+      () =>
+        api.bulkResourceAction(
+          target.clusterId,
+          "nodes",
+          target.action,
+          entries.map((entry) => entry.target),
+        ),
+      entries,
+      `${label} failed`,
+    );
     await reloadResources(target.clusterId, "nodes", ["_cluster"]).catch((error) => setError(asErrorInfo(error)));
     if (failures.length) {
       const error = buildPartialActionError({ label, resource: "nodes", completedCount: completed.length, failures, commandPreview: target.commandPreview });
@@ -270,8 +307,8 @@ export function useBulkResourceActions(options: Options) {
 
   const closeNodeLabels = useCallback(() => setNodeLabelTarget(null), []);
 
-  // One request per node, carrying only what that node needs; a node the
-  // changes leave as it is gets no request at all.
+  // One request for all nodes, each carrying only what that node needs; a node
+  // the changes leave as it is is not sent at all.
   const confirmNodeLabels = useCallback(
     async (changes: NodeLabelChanges) => {
       if (!api || !nodeLabelTarget) return;
@@ -279,17 +316,20 @@ export function useBulkResourceActions(options: Options) {
       setNodeLabelTarget(null);
       setError(null);
       const plan = planNodeLabelChanges(target.rows, changes).filter((entry) => entry.operations.length);
-      const completed: ResourceRow[] = [];
-      const failures: BulkActionFailure[] = [];
-      for (const entry of plan) {
-        try {
-          await api.resourceAction(target.clusterId, "nodes", "_cluster", entry.row.name, "label", { labels: entry.changes });
-          completed.push(entry.row);
-        } catch (error) {
-          const info = asErrorInfo(error);
-          failures.push({ row: entry.row, message: info.message || info.code || "Label failed" });
-        }
-      }
+      const entries = plan.map((entry) => ({ row: entry.row, target: { namespace: "_cluster", name: entry.row.name, labels: entry.changes } }));
+      const { completed, failures } = entries.length
+        ? await runBulkAction(
+            () =>
+              api.bulkResourceAction(
+                target.clusterId,
+                "nodes",
+                "label",
+                entries.map((entry) => entry.target),
+              ),
+            entries,
+            "Label failed",
+          )
+        : { completed: [], failures: [] };
       await reloadResources(target.clusterId, "nodes", ["_cluster"]).catch((error) => setError(asErrorInfo(error)));
       if (failures.length) {
         const commandPreview = nodeLabelCommandPreview(plan.filter((entry) => failures.some((failure) => failure.row === entry.row)));

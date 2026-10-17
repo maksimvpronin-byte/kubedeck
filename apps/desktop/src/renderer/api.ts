@@ -69,6 +69,19 @@ function isErrorInfo(value: unknown): value is ErrorInfo {
   return typeof candidate.code === "string" && typeof candidate.message === "string" && typeof candidate.rawStderr === "string" && typeof candidate.commandPreview === "string";
 }
 
+export interface BulkActionTarget {
+  namespace: string;
+  name: string;
+  labels?: { set: Record<string, string>; remove: string[] };
+}
+
+export interface BulkActionResult {
+  namespace: string;
+  name: string;
+  ok: boolean;
+  error?: ErrorInfo;
+}
+
 type OperationConfirmation = {
   clusterId: string;
   action: string;
@@ -363,6 +376,21 @@ export class ApiClient {
     return this.request<string>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/${encodeURIComponent(namespace || "_cluster")}/${encodeURIComponent(name)}/action`, {
       method: "POST",
       body: JSON.stringify({ action, replicas, jobName, labels, confirmation }),
+    });
+  }
+
+  // One request for many objects of one kind; every object comes back with its
+  // own result, so one refusal does not hide what happened to the rest.
+  bulkResourceAction(clusterId: string, resource: string, action: string, targets: BulkActionTarget[]) {
+    const confirmation = {
+      clusterId,
+      action,
+      resource: resource.toLowerCase(),
+      targets: targets.map(({ namespace, name }) => ({ namespace: namespace || "_cluster", name })),
+    };
+    return this.request<{ results: BulkActionResult[] }>(`/clusters/${clusterId}/resources/${encodeURIComponent(resource)}/bulk-action`, {
+      method: "POST",
+      body: JSON.stringify({ action, targets: targets.map((target) => ({ ...target, namespace: target.namespace || "_cluster" })), confirmation }),
     });
   }
 

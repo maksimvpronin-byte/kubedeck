@@ -188,12 +188,15 @@ export class KubectlRunner {
 
         if (returnCode !== 0) {
           reject(
-            new KubectlError({
-              code: classifyKubectlError(stderr),
-              message: "kubectl command failed",
-              rawStderr: truncateKubectlText(sanitizeKubectlText(stderr)),
-              commandPreview: built.preview,
-            }),
+            new KubectlError(
+              {
+                code: classifyKubectlError(stderr),
+                message: "kubectl command failed",
+                rawStderr: truncateKubectlText(sanitizeKubectlText(stderr)),
+                commandPreview: built.preview,
+              },
+              stdout,
+            ),
           );
           return;
         }

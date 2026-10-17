@@ -97,11 +97,29 @@ export interface ResourceActionPlan {
 
 type CacheInvalidator = (clusterId: string) => Promise<void>;
 
+// A pod is removed at once rather than after its grace period. Several names
+// may share one command when they share a namespace.
+export function deleteArgs(resource: string, names: string[], namespace: string): string[] {
+  const forceArgs = ["pod", "pods"].includes(resource) ? ["--force", "--grace-period=0"] : [];
+  return ["delete", resource, ...names, ...forceArgs, "--wait=false", ...(namespace !== "_cluster" ? ["-n", namespace] : [])];
+}
+
 function actionExtra(plan: ResourceActionPlan): { extra?: Record<string, unknown> } {
   if (plan.action === "scale") return { extra: { replicas: plan.replicas } };
   if (plan.action === "trigger") return { extra: { jobName: plan.jobName } };
   if (plan.action === "label") return { extra: { labels: plan.labels } };
   return {};
+}
+
+// A Kubernetes name or namespace begins with a letter or digit. One that
+// begins with "-" would reach kubectl as a flag - `--all` among them - so it is
+// refused before it becomes an argument.
+export function objectIdentifier(value: string, field: string): string {
+  const text = validateIdentifier(value, field);
+  if (text.startsWith("-")) {
+    throw new RequestValidationError(400, "INVALID_IDENTIFIER", `${field} must not begin with "-"`);
+  }
+  return text;
 }
 
 export function matchResourceActionRoute(method: string | undefined, pathname: string): ResourceActionRouteTarget | null {
@@ -115,8 +133,8 @@ export function matchResourceActionRoute(method: string | undefined, pathname: s
   return {
     clusterId: validateIdentifier(decodePathPart(match[1], "cluster_id"), "cluster_id", 128),
     resource: validateIdentifier(decodePathPart(match[2], "resource"), "resource", 128).toLowerCase(),
-    namespace: namespaceValue === "_cluster" ? "_cluster" : validateIdentifier(namespaceValue, "namespace"),
-    name: validateIdentifier(decodePathPart(match[4], "name"), "name"),
+    namespace: namespaceValue === "_cluster" ? "_cluster" : objectIdentifier(namespaceValue, "namespace"),
+    name: objectIdentifier(decodePathPart(match[4], "name"), "name"),
   };
 }
 
@@ -224,10 +242,9 @@ export function buildResourceActionPlan(target: ResourceActionRouteTarget, actio
   const namespaceArgs = namespaced ? ["-n", target.namespace] : [];
 
   if (action === "delete") {
-    const forceArgs = ["pod", "pods"].includes(resource) ? ["--force", "--grace-period=0"] : [];
     return {
       action,
-      args: ["delete", resource, target.name, ...forceArgs, "--wait=false", ...namespaceArgs],
+      args: deleteArgs(resource, [target.name], target.namespace),
       namespace: target.namespace,
       authorizationChecks: [
         {
@@ -415,7 +432,7 @@ export function requireResourceActionConfirmation(confirmation: OperationConfirm
   }
 }
 
-async function verifyAuthorization(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, check: AuthorizationCheck): Promise<void> {
+export async function verifyAuthorization(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, check: AuthorizationCheck): Promise<void> {
   const args = ["auth", "can-i", check.verb, check.resource];
   if (check.allNamespaces) {
     args.push("--all-namespaces");
@@ -435,6 +452,25 @@ async function verifyAuthorization(configStore: ConfigStore, runner: KubectlRunn
       commandPreview: result.commandPreview,
     });
   }
+}
+
+export function appendActionAudit(
+  auditStore: AuditStore,
+  target: ResourceActionRouteTarget,
+  plan: ResourceActionPlan,
+  outcome: { status: "success" | "failed"; commandPreview: string; message?: string },
+): void {
+  auditStore.append({
+    action: `resource.${plan.action}`,
+    status: outcome.status,
+    clusterId: target.clusterId,
+    namespace: plan.namespace,
+    resource: target.resource,
+    name: target.name,
+    commandPreview: outcome.commandPreview,
+    ...(outcome.message !== undefined ? { message: outcome.message } : {}),
+    ...actionExtra(plan),
+  });
 }
 
 function writePlainText(response: ServerResponse, body: string): void {
@@ -466,16 +502,7 @@ async function executeResourceAction(
 
   try {
     const result = await runner.run(command);
-    auditStore.append({
-      action: `resource.${plan.action}`,
-      status: "success",
-      clusterId: target.clusterId,
-      namespace: plan.namespace,
-      resource: target.resource,
-      name: target.name,
-      commandPreview: result.commandPreview,
-      ...actionExtra(plan),
-    });
+    appendActionAudit(auditStore, target, plan, { status: "success", commandPreview: result.commandPreview });
 
     try {
       await invalidateResourceCache(target.clusterId);
@@ -486,17 +513,7 @@ async function executeResourceAction(
     writePlainText(response, result.stdout);
   } catch (error) {
     if (error instanceof KubectlError) {
-      auditStore.append({
-        action: `resource.${plan.action}`,
-        status: "failed",
-        clusterId: target.clusterId,
-        namespace: plan.namespace,
-        resource: target.resource,
-        name: target.name,
-        commandPreview: error.info.commandPreview,
-        message: error.info.message,
-        ...actionExtra(plan),
-      });
+      appendActionAudit(auditStore, target, plan, { status: "failed", commandPreview: error.info.commandPreview, message: error.info.message });
     }
     throw error;
   }
