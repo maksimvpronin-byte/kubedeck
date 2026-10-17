@@ -48,6 +48,17 @@ test("a plan sends each node only what it needs", () => {
     ].join("\n"),
   );
 
+  // Nodes that get the same changes share one command, in the order they
+  // first appear.
+  assert.equal(
+    labels.nodeLabelCommandPreview(labels.planNodeLabelChanges(NODES, { set: { maintenance: "planned" }, remove: [] })),
+    "kubectl label nodes worker-01 worker-02 worker-03 maintenance=planned --overwrite",
+  );
+  assert.equal(
+    labels.nodeLabelCommandPreview(labels.planNodeLabelChanges(NODES, { set: { maintenance: "planned" }, remove: ["gpu"] })),
+    ["kubectl label nodes worker-01 worker-03 maintenance=planned --overwrite", "kubectl label nodes worker-02 maintenance=planned gpu- --overwrite"].join("\n"),
+  );
+
   // A node that already matches is left out of the command entirely.
   assert.equal(labels.nodeLabelCommandPreview(labels.planNodeLabelChanges(NODES, { set: { "node-role.kubernetes.io/worker": "" }, remove: ["absent"] })), "");
 });

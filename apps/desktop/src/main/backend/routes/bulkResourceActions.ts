@@ -12,6 +12,7 @@ import {
   appendActionAudit,
   buildResourceActionPlan,
   deleteArgs,
+  labelArgs,
   type NodeLabelChanges,
   normalizeNodeLabelChanges,
   objectIdentifier,
@@ -24,8 +25,9 @@ import { RouteInfoError, writeRouteError } from "./routeErrors";
 // One request for many objects of one kind. What it saves over a request per
 // object: permissions are asked once per namespace instead of once per object,
 // a delete names every object of a namespace in one kubectl call, a cordon
-// names every node in one, and drains and labels run side by side. Each object
-// still gets its own result and its own audit entry.
+// names every node in one, nodes that get the same labels share one, and
+// drains run side by side. Each object still gets its own result and its own
+// audit entry.
 
 const BULK_REQUEST_MAX_BYTES = 1024 * 1024;
 const MAX_BULK_TARGETS = 1000;
@@ -314,7 +316,19 @@ export async function executeBulkResourceAction(
     const cordoned = allowed.filter((entry) => results.get(targetKey(entry.target))?.ok);
     await mapWithConcurrency(cordoned, BULK_CONCURRENCY, runOne);
   } else {
-    await mapWithConcurrency(allowed, BULK_CONCURRENCY, runOne);
+    // Nodes that get the same changes share one `kubectl label nodes a b c ...`.
+    // Unlike cordon, label goes on past a node it cannot find.
+    const byChanges = new Map<string, PlannedTarget[]>();
+    for (const entry of allowed) {
+      const key = JSON.stringify(labelArgs([], entry.plan.labels ?? { set: {}, remove: [] }));
+      byChanges.set(key, [...(byChanges.get(key) ?? []), entry]);
+    }
+    const groups = [...byChanges.values()].flatMap(chunked);
+    await mapWithConcurrency(groups, BULK_CONCURRENCY, async (chunk) => {
+      const changes = chunk[0].plan.labels ?? { set: {}, remove: [] };
+      const again = await runNamed(chunk, labelArgs(namesOf(chunk), changes), true);
+      if (again.length) await runNamed(again, labelArgs(namesOf(again), changes), false);
+    });
   }
 
   return planned.map(({ target }) => results.get(targetKey(target)) ?? { namespace: target.namespace, name: target.name, ok: false, error: errorInfoOf(null, "Not run") });

@@ -606,21 +606,52 @@ test("bulk cordon names every node in one command and reads back each one", asyn
   assert.ok(downResults.every((result) => !result.ok));
 });
 
-test("bulk labels ask once and run every node's own command side by side", async () => {
+test("bulk labels ask once and give nodes with the same changes one command", async () => {
   const labels = bulkHarness();
+  const same = { set: { disktype: "ssd" }, remove: [] };
   await runBulk(labels, "nodes", "label", [
-    { namespace: "_cluster", name: "node-1", labels: { set: { disktype: "ssd" }, remove: [] } },
+    { namespace: "_cluster", name: "node-1", labels: same },
     { namespace: "_cluster", name: "node-2", labels: { set: {}, remove: ["gpu"] } },
+    { namespace: "_cluster", name: "node-3", labels: same },
   ]);
   assert.deepEqual(
     labels.commands.map((command) => command.args),
     [
       ["auth", "can-i", "patch", "nodes"],
-      ["label", "nodes", "node-1", "disktype=ssd", "--overwrite"],
+      ["label", "nodes", "node-1", "node-3", "disktype=ssd", "--overwrite"],
       ["label", "nodes", "node-2", "gpu-"],
     ],
   );
-  assert.deepEqual(labels.auditEvents.at(-1).extra, { labels: { set: {}, remove: ["gpu"] } });
+  // Each node keeps its own audit entry with its own changes.
+  assert.deepEqual(
+    labels.auditEvents.map((event) => [event.name, event.status, event.extra.labels]),
+    [
+      ["node-1", "success", same],
+      ["node-3", "success", same],
+      ["node-2", "success", { set: {}, remove: ["gpu"] }],
+    ],
+  );
+
+  // kubectl label goes on past a node it cannot find: the others keep their
+  // change and nothing is run twice.
+  const missing = bulkHarness({
+    fail: (args) => (args[0] === "label" ? { stdout: "node/node-1 labeled\nnode/node-3 labeled\n", stderr: 'Error from server (NotFound): nodes "node-2" not found' } : null),
+  });
+  const results = await runBulk(
+    missing,
+    "nodes",
+    "label",
+    ["node-1", "node-2", "node-3"].map((name) => ({ namespace: "_cluster", name, labels: same })),
+  );
+  assert.equal(missing.commands.filter((command) => command.args[0] === "label").length, 1);
+  assert.deepEqual(
+    results.map((result) => [result.name, result.ok, result.error?.code]),
+    [
+      ["node-1", true, undefined],
+      ["node-2", false, "NOT_FOUND"],
+      ["node-3", true, undefined],
+    ],
+  );
 });
 
 test("a bulk request runs only what its confirmation lists", () => {

@@ -104,6 +104,14 @@ export function deleteArgs(resource: string, names: string[], namespace: string)
   return ["delete", resource, ...names, ...forceArgs, "--wait=false", ...(namespace !== "_cluster" ? ["-n", namespace] : [])];
 }
 
+// Several nodes may share one command when they get the same changes.
+export function labelArgs(names: string[], changes: NodeLabelChanges): string[] {
+  const setArgs = Object.entries(changes.set).map(([key, value]) => `${key}=${value}`);
+  // --overwrite only when a value is set: it is what lets a label the node
+  // already has take the new value, and a removal does not need it.
+  return ["label", "nodes", ...names, ...setArgs, ...changes.remove.map((key) => `${key}-`), ...(setArgs.length ? ["--overwrite"] : [])];
+}
+
 function actionExtra(plan: ResourceActionPlan): { extra?: Record<string, unknown> } {
   if (plan.action === "scale") return { extra: { replicas: plan.replicas } };
   if (plan.action === "trigger") return { extra: { jobName: plan.jobName } };
@@ -357,12 +365,9 @@ export function buildResourceActionPlan(target: ResourceActionRouteTarget, actio
 
   if (action === "label") {
     const changes = normalizeNodeLabelChanges(labels);
-    const setArgs = Object.entries(changes.set).map(([key, value]) => `${key}=${value}`);
     return {
       action,
-      // --overwrite only when a value is set: it is what lets a label the node
-      // already has take the new value, and a removal does not need it.
-      args: ["label", "nodes", target.name, ...setArgs, ...changes.remove.map((key) => `${key}-`), ...(setArgs.length ? ["--overwrite"] : [])],
+      args: labelArgs([target.name], changes),
       namespace: "_cluster",
       labels: changes,
       authorizationChecks: [{ verb: "patch", resource: "nodes", namespace: "_cluster" }],

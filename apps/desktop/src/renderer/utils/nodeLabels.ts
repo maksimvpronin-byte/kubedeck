@@ -124,10 +124,14 @@ export function nodeLabelArgs(changes: NodeLabelChanges): string[] {
   return [...setArgs, ...changes.remove.map((key) => `${key}-`), ...(setArgs.length ? ["--overwrite"] : [])];
 }
 
-// The same command the gateway builds, so the preview is what runs.
+// The same commands the gateway builds, so the preview is what runs: nodes that
+// get the same changes share one command.
 export function nodeLabelCommandPreview(plan: NodeLabelPlanEntry[]): string {
-  return plan
-    .filter((entry) => entry.operations.length)
-    .map((entry) => ["kubectl", "label", "nodes", String(entry.row.name), ...nodeLabelArgs(entry.changes)].join(" "))
-    .join("\n");
+  const groups = new Map<string, string[]>();
+  for (const entry of plan) {
+    if (!entry.operations.length) continue;
+    const args = nodeLabelArgs(entry.changes).join(" ");
+    groups.set(args, [...(groups.get(args) ?? []), String(entry.row.name)]);
+  }
+  return [...groups.entries()].map(([args, names]) => ["kubectl", "label", "nodes", ...names, args].join(" ")).join("\n");
 }
