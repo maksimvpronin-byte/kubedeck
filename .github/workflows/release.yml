@@ -22,9 +22,9 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.12
 
@@ -56,7 +56,10 @@ jobs:
           - os: windows-latest
             script: package:win
             artifact: windows
-          - os: ubuntu-latest
+          # Pinned rather than ubuntu-latest: node-pty is rebuilt on the runner,
+          # so the AppImage needs at least the glibc it was built against, and
+          # a newer runner would quietly drop the distributions still on 24.04.
+          - os: ubuntu-24.04
             script: package:linux
             artifact: linux
 
@@ -64,9 +67,9 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.12
           cache: npm
@@ -107,7 +110,7 @@ jobs:
         run: npm run ${{ matrix.script }}
 
       - name: Keep what was built
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.artifact }}
           # The packages and the update metadata, and none of the directories
@@ -147,12 +150,12 @@ jobs:
       # generated: the last tag before this system existed is v2.0.0-beta.1, and
       # --generate-notes against it would produce hundreds of commits of prose
       # nobody wrote.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Not `packages`: this repository has a `packages/` of its own, and the
       # checkout above puts it in exactly this directory. `packages/*` then
       # globbed `packages/shared-types` and gh was asked to upload a folder.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: release-artifacts
           merge-multiple: true
