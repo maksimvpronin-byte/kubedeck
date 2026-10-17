@@ -1,3 +1,31 @@
+## 2.32.0 - Bulk actions in one request, and a drain that cordons every node first
+
+One new route: `POST /clusters/{cluster_id}/resources/{resource}/bulk-action`.
+Node-only ownership moves to Node 60 / Python 0.
+
+**Bulk actions in one request.** Deleting many objects, and cordoning,
+uncordoning, draining or relabelling many nodes, used to send one request per
+row, one after another, and each one asked `kubectl auth can-i` again. Now one
+request carries them all and answers with a result per object. Each
+permission is asked once. A delete names every object of a namespace in one
+`kubectl delete`, and cordon and uncordon name every selected node in one
+command; when kubectl stops on a node that does not exist, the other nodes are
+tried again without it. Labels run five nodes at a time. Every object still
+has its own audit entry, and a partial failure names the objects that failed.
+
+**A drain cordons every selected node first.** Draining nodes one after
+another let pods evicted from the first node land on the next one in line,
+which then had to evict them again. A bulk drain now cordons every selected
+node in one command, then drains five nodes at a time. A node that could not
+be cordoned is not drained. The confirmation shows the cordon before the
+drains.
+
+**A name beginning with "-" is refused.** The action routes accepted a name
+such as `--all`, which kubectl would have read as a flag. Kubernetes names
+never begin with "-", and both action routes now refuse one.
+
+Renderer tests: 336, up from 334. Gateway tests: 238, up from 230.
+
 ## 2.31.0 - Labels on many nodes at once
 
 No new route: the resource action route takes one more action, `label`.
