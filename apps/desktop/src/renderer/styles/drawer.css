@@ -130,16 +130,66 @@
   color: var(--muted);
 }
 
+/* A saved tab whose object is not on screen: still opening, gone from the
+   cluster, or the cluster could not be reached. A card in the drawer's place,
+   with the two ways out - try again or close the tab. */
 .resource-workspace-status {
+  grid-row: 2;
   display: grid;
-  place-content: center;
-  gap: 10px;
-  padding: 24px;
+  place-items: start center;
+  padding: 48px 16px 16px;
+  background: var(--panel);
+}
+
+.resource-workspace-status-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(100%, 360px);
+  padding: 20px 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
   text-align: center;
 }
-.resource-workspace-status span {
+
+.resource-workspace-status-card strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-workspace-status-card h2 {
+  font-size: 15px;
+}
+
+.resource-workspace-status-card p {
+  max-width: 40ch;
+  margin: 0;
   color: var(--muted);
-  text-transform: capitalize;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.resource-workspace-status.is-loading .resource-workspace-status-card h2 {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.resource-workspace-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.resource-workspace-status-actions .primary:hover:not(:disabled) {
+  border-color: var(--primary-border);
+  background: var(--primary-hover);
 }
 
 .drawer-resize-handle {

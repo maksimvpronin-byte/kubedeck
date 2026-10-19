@@ -43,14 +43,26 @@ export function AppResourceWorkspace(props: Props) {
 
   return (
     <div className="resource-workspace" style={{ width: props.width }}>
-      {props.tabs.length ? <ResourceWorkspaceTabs tabs={props.tabs} activeId={props.activeTabId} onActivate={props.onActivateTab} onClose={props.onCloseTab} /> : null}
+      {props.tabs.length ? <ResourceWorkspaceTabs tabs={props.tabs} activeId={props.activeTabId} onActivate={props.onActivateTab} onClose={props.onCloseTab} t={props.t} /> : null}
       {activeTab?.status && activeTab.status !== "ready" && !row ? (
-        <section className="resource-workspace-status">
-          <strong>{activeTab.row.name}</strong>
-          <span>{activeTab.status}</span>
-          <button type="button" onClick={() => props.onActivateTab(activeTab)}>
-            Retry
-          </button>
+        <section className={`resource-workspace-status is-${activeTab.status}`} aria-live="polite">
+          <div className="resource-workspace-status-card">
+            <strong title={activeTab.row.name}>{activeTab.row.name}</strong>
+            <h2>{props.t(`workspace.status.${activeTab.status}`)}</h2>
+            {activeTab.status !== "loading" ? (
+              <>
+                <p>{props.t(`workspace.status.${activeTab.status}.hint`)}</p>
+                <div className="resource-workspace-status-actions">
+                  <button className="secondary-btn primary" type="button" onClick={() => props.onActivateTab(activeTab)}>
+                    {props.t("common.retry")}
+                  </button>
+                  <button className="secondary-btn" type="button" onClick={() => props.onCloseTab(activeTab.id)}>
+                    {props.t("workspace.closeTab")}
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
         </section>
       ) : api && clusterId && row && displayedTab ? (
         <LazySurface resetKey={`drawer:${row.uid ?? row.name}`}>

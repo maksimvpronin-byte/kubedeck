@@ -6,11 +6,13 @@ export function ResourceWorkspaceTabs({
   activeId,
   onActivate,
   onClose,
+  t,
 }: {
   tabs: ResourceWorkspaceTab[];
   activeId: string | null;
   onActivate: (tab: ResourceWorkspaceTab) => void;
   onClose: (id: string) => void;
+  t: (key: string) => string;
 }) {
   return (
     <div className="resource-workspace-tabs" role="tablist" aria-label="Open resources">
@@ -26,7 +28,7 @@ export function ResourceWorkspaceTabs({
             <strong>{tab.row.name}</strong>
             <small>
               {tab.namespace !== "_cluster" ? `· ${tab.namespace}` : "· cluster"}
-              {tab.status && tab.status !== "ready" ? ` · ${tab.status}` : ""}
+              {tab.status && tab.status !== "ready" ? ` · ${t(`workspace.tab.${tab.status}`)}` : ""}
             </small>
           </button>
           <button
