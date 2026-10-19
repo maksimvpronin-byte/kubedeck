@@ -1,3 +1,18 @@
+## 2.32.2 - A resource tab whose object is gone says so plainly
+
+No route changes. Node-only ownership stays at Node 60 / Python 0.
+
+**The placeholder of a saved resource tab matches the app.** When a saved
+resource tab could not show its object - a pod its Deployment had replaced, or
+a cluster that did not answer - the drawer's place showed the raw status key
+("Not-Found"), a plain browser button and an untranslated Retry. It is now a
+card with the object's name, a translated message, a line on what happened,
+and Retry and Close tab in the app's button style, in every theme. While the
+tab opens the card says so without buttons. The tab label shows the status in
+the interface language too.
+
+Renderer tests: 336. Gateway tests: 238.
+
 ## 2.32.1 - The same labels on many nodes in one command
 
 No route changes. Node-only ownership stays at Node 60 / Python 0.
