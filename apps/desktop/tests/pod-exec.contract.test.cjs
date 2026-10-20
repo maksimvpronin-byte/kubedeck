@@ -141,7 +141,7 @@ test("pod exec HTTP handler authorizes, executes, and audits metadata", async (t
   });
 
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls[0].args, ["auth", "can-i", "create", "pods/exec", "-n", "default"]);
+  assert.deepEqual(calls[0].args, ["auth", "can-i", "create", "pods", "--subresource=exec", "-n", "default"]);
   assert.deepEqual(calls[1].args, ["exec", "demo", "-n", "default", "-c", "main", "--", "sh", "-lc", "printf hello"]);
 
   assert.equal(auditEvents.length, 1);

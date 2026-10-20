@@ -96,6 +96,13 @@ function MetadataGroupList({
 
 function MetadataGroup({ prefix, wellKnown, entries, startOpen }: { prefix: string; wellKnown: boolean; entries: MetadataEntry[]; startOpen: boolean }) {
   const [open, setOpen] = useState(startOpen);
+  // A filter that starts matching opens the group, or the match it counts
+  // stays hidden in a folded group; clearing the filter leaves it as it is.
+  const [wasStartOpen, setWasStartOpen] = useState(startOpen);
+  if (wasStartOpen !== startOpen) {
+    setWasStartOpen(startOpen);
+    if (startOpen) setOpen(true);
+  }
   return (
     <div className={`node-metadata-group ${wellKnown ? "is-well-known" : ""}`}>
       <button type="button" className="node-metadata-group-head" aria-expanded={open} onClick={() => setOpen((current) => !current)}>

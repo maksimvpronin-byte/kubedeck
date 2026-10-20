@@ -99,6 +99,11 @@ export function parseYamlApplyTarget(payload: string): YamlApplyTarget {
   if (!isRecord(value)) {
     throw new RequestValidationError(400, "INVALID_YAML_OBJECT", "YAML document must be a Kubernetes object");
   }
+  // kubectl flattens anything carrying an `items` array (kind: List, PodList,
+  // ...) and applies the items, none of which the confirmation below has seen.
+  if (Array.isArray(value.items)) {
+    throw new RequestValidationError(400, "MULTI_DOCUMENT_APPLY_BLOCKED", "KubeDeck allows YAML apply for one object at a time");
+  }
 
   const metadataValue = value.metadata ?? {};
   if (!isRecord(metadataValue)) {

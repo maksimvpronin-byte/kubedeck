@@ -20,9 +20,44 @@ const WORKLOAD_CONDITION_PRIORITY: Record<string, number> = {
   Progressing: 5,
 };
 
+interface ReplicaCounts {
+  desired: number;
+  ready: number;
+  current: number;
+  updated: number;
+  available: number;
+  unavailable: number;
+}
+
+// Deployments, StatefulSets and ReplicaSets count replicas; a DaemonSet counts
+// scheduled nodes in fields of its own, and read through the replica names it
+// came out as 0/0, "Scaled to zero", whatever it was running.
+function replicaCounts(item: JsonObject): ReplicaCounts {
+  const spec = record(item.spec);
+  const status = record(item.status);
+  const count = (value: unknown) => Math.trunc(numberValue(value));
+  if (text(item.kind) === "DaemonSet" || "desiredNumberScheduled" in status) {
+    return {
+      desired: count(status.desiredNumberScheduled),
+      ready: count(status.numberReady),
+      current: count(status.currentNumberScheduled),
+      updated: count(status.updatedNumberScheduled),
+      available: count(status.numberAvailable),
+      unavailable: count(status.numberUnavailable),
+    };
+  }
+  return {
+    desired: count(spec.replicas),
+    ready: count(status.readyReplicas),
+    current: count(status.replicas ?? status.currentReplicas),
+    updated: count(status.updatedReplicas),
+    available: count(status.availableReplicas),
+    unavailable: count(status.unavailableReplicas),
+  };
+}
+
 export function workloadConditionItems(item: JsonObject): WorkloadConditionItem[] {
   const metadata = record(item.metadata);
-  const spec = record(item.spec);
   const status = record(item.status);
   const result: WorkloadConditionItem[] = [];
   if (metadata.deletionTimestamp) {
@@ -57,10 +92,10 @@ export function workloadConditionItems(item: JsonObject): WorkloadConditionItem[
     });
   }
   if (!result.length) {
-    const desired = Math.trunc(numberValue(spec.replicas));
-    const ready = Math.trunc(numberValue(status.readyReplicas));
-    const available = Math.trunc(numberValue(status.availableReplicas));
-    const label = desired === 0 ? "Scaled to zero" : desired > 0 && ready >= desired && available >= desired ? "Available" : Object.keys(status).length ? "Progressing" : "Unknown";
+    const { desired, ready, available } = replicaCounts(item);
+    const daemonSet = text(item.kind) === "DaemonSet" || "desiredNumberScheduled" in status;
+    // A DaemonSet with nothing to run has no nodes to match, not a scale of zero.
+    const label = desired === 0 && !daemonSet ? "Scaled to zero" : desired > 0 && ready >= desired && available >= desired ? "Available" : Object.keys(status).length ? "Progressing" : "Unknown";
     result.push({
       type: label,
       label,
@@ -83,18 +118,15 @@ export function deploymentSummary(item: JsonObject): ResourceRow {
   const template = record(spec.template);
   const podSpec = record(template.spec);
   const workloadConditions = workloadConditionItems(item);
-  const desired = Math.trunc(numberValue(spec.replicas));
-  const ready = Math.trunc(numberValue(status.readyReplicas));
-  const updated = Math.trunc(numberValue(status.updatedReplicas));
-  const available = Math.trunc(numberValue(status.availableReplicas));
+  const { desired, ready, current, updated, available, unavailable } = replicaCounts(item);
   return {
     ...meta(item),
     ready: `${ready}/${desired}`,
     desired,
-    current: Math.trunc(numberValue(status.replicas ?? status.currentReplicas)),
+    current,
     updated,
     available,
-    unavailable: Math.trunc(numberValue(status.unavailableReplicas)),
+    unavailable,
     observedGeneration: Math.trunc(numberValue(status.observedGeneration)),
     images: records(podSpec.containers)
       .map((container) => text(container.image))
@@ -110,12 +142,46 @@ export function deploymentSummary(item: JsonObject): ResourceRow {
   };
 }
 
+// List items from the API server carry no `kind`, so the resource they were
+// listed as is written in before the shared summaries look at it.
+export function daemonSetSummary(item: JsonObject): ResourceRow {
+  return deploymentSummary({ ...item, kind: "DaemonSet" });
+}
+
+export function cronJobSummary(item: JsonObject): ResourceRow {
+  return jobSummary({ ...item, kind: "CronJob" });
+}
+
+// A Job is finished only when a terminal condition says so: `failed` counts
+// failed attempts, which a retry that then succeeds leaves above zero, and one
+// succeeded pod of ten completions is not a finished Job.
+function jobStatus(status: JsonObject): string {
+  const terminal = records(status.conditions).find((condition) => text(condition.status) === "True" && ["Complete", "Failed", "SuccessCriteriaMet", "FailureTarget"].includes(text(condition.type)));
+  if (terminal) return ["Failed", "FailureTarget"].includes(text(terminal.type)) ? "Failed" : "Succeeded";
+  if (numberValue(status.active) > 0) return "Running";
+  if (numberValue(status.failed) > 0) return "Failed";
+  return numberValue(status.succeeded) > 0 ? "Succeeded" : "Pending";
+}
+
 export function jobSummary(item: JsonObject): ResourceRow {
   const spec = record(item.spec);
   const status = record(item.status);
+  // A CronJob lists its running Jobs as references, not as a count.
+  if (Array.isArray(status.active) || text(item.kind) === "CronJob") {
+    const active = Array.isArray(status.active) ? status.active.length : 0;
+    return {
+      ...meta(item),
+      status: spec.suspend === true ? "Suspended" : active > 0 ? "Running" : "Scheduled",
+      active,
+      schedule: spec.schedule,
+      suspend: spec.suspend === true,
+      lastScheduleTime: text(status.lastScheduleTime),
+      lastSuccessfulTime: text(status.lastSuccessfulTime),
+    };
+  }
   return {
     ...meta(item),
-    status: numberValue(status.failed) > 0 ? "Failed" : numberValue(status.active) > 0 ? "Running" : numberValue(status.succeeded) > 0 ? "Succeeded" : "Pending",
+    status: jobStatus(status),
     active: Math.trunc(numberValue(status.active)),
     succeeded: Math.trunc(numberValue(status.succeeded)),
     failed: Math.trunc(numberValue(status.failed)),

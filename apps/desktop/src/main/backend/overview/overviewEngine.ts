@@ -32,12 +32,15 @@ function workloadTone(resource: string, row: Row): "healthy" | "pending" | "dang
     return "pending";
   }
   if (resource === "jobs") {
-    if (/complete|completed|succeeded/.test(phase) || number(row.succeeded) > 0) return "healthy";
-    if (number(row.failed) > 0) return "danger";
+    // The normalized status already weighs the Job's terminal conditions; one
+    // succeeded pod of a parallel Job still running is not a finished Job.
+    if (/complete|completed|succeeded/.test(phase)) return "healthy";
     return "pending";
   }
   const [ready, desired] = readyPair(row.ready);
   if (desired > 0 && ready === desired) return "healthy";
+  // Scaled to zero and settled there: nothing is pending.
+  if (desired === 0 && ready === 0 && number(row.current) === 0 && text(row.ready) !== "") return "healthy";
   return "pending";
 }
 

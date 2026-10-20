@@ -200,6 +200,14 @@ export function App() {
     },
     [t],
   );
+  // A namespace change clears the selected row (the effect on selectedNamespaces
+  // below), which closes an unpinned drawer and its YAML draft with it.
+  const changeNamespaceSelection = useCallback(
+    (next: string | string[]) => {
+      confirmDrawerNavigation(() => setNamespaceSelection(next));
+    },
+    [confirmDrawerNavigation, setNamespaceSelection],
+  );
   const setSettingsDirty = useCallback((dirty: boolean) => {
     settingsDirtyRef.current = dirty;
   }, []);
@@ -340,6 +348,9 @@ export function App() {
       setError(null);
     } catch (err) {
       setError(asErrorInfo(err));
+      // Rethrown for the form: resolving here read as success there, which
+      // cleared the API key just typed and showed "Saved" for nothing saved.
+      throw err;
     }
   }
 
@@ -590,7 +601,7 @@ export function App() {
           backendOk={backendOk}
           kubectlVersion={kubectlVersion}
           t={t}
-          onNamespaceChange={setNamespaceSelection}
+          onNamespaceChange={changeNamespaceSelection}
           onGlobalSearchChange={setGlobalSearch}
           onCommandPaletteOpenChange={setCommandPaletteOpen}
         />
@@ -697,7 +708,7 @@ export function App() {
                     setSelectedTarget({ clusterId: activeCluster.id, resource, row: selectedRow });
                   });
                 }}
-                onNamespaceClick={(nextNamespace) => setNamespaceSelection(nextNamespace)}
+                onNamespaceClick={changeNamespaceSelection}
                 onBulkDelete={bulkActions.requestBulkDelete}
               />
             </div>

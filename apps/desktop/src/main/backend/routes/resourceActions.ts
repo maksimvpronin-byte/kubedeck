@@ -438,7 +438,11 @@ export function requireResourceActionConfirmation(confirmation: OperationConfirm
 }
 
 export async function verifyAuthorization(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, check: AuthorizationCheck): Promise<void> {
-  const args = ["auth", "can-i", check.verb, check.resource];
+  // kubectl reads "deployments/scale" as TYPE/NAME - a Deployment called
+  // "scale" - so a subresource is named with --subresource instead.
+  const [resource, subresource] = check.resource.split("/", 2);
+  const args = ["auth", "can-i", check.verb, resource];
+  if (subresource) args.push(`--subresource=${subresource}`);
   if (check.allNamespaces) {
     args.push("--all-namespaces");
   } else if (check.namespace !== "_cluster") {

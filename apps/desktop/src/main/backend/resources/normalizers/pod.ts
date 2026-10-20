@@ -12,9 +12,24 @@ function effectivePodResource(spec: JsonObject, section: "requests" | "limits", 
   const regularValues = containers.map((container) => containerResource(container, section, resource));
   if (section === "limits" && regularValues.some((value) => value === null)) return null;
   const regularTotal = regularValues.reduce<number>((total, value) => total + (value ?? 0), 0);
-  const initMaximum = records(spec.initContainers).reduce((maximum, container) => Math.max(maximum, containerResource(container, section, resource) ?? 0), 0);
+  // The scheduler's formula: a native sidecar (an init container with
+  // restartPolicy Always) keeps running beside everything started after it,
+  // so it adds to every later init step and to the regular containers, while
+  // ordinary init containers run one at a time and count only at their peak.
+  let sidecars = 0;
+  let initMaximum = 0;
+  for (const container of records(spec.initContainers)) {
+    const value = containerResource(container, section, resource);
+    if (text(container.restartPolicy) === "Always") {
+      if (section === "limits" && value === null) return null;
+      sidecars += value ?? 0;
+      initMaximum = Math.max(initMaximum, sidecars);
+    } else {
+      initMaximum = Math.max(initMaximum, (value ?? 0) + sidecars);
+    }
+  }
   const overhead = resource === "cpu" ? parseCpuMillicores(record(spec.overhead).cpu) : parseMemoryBytes(record(spec.overhead).memory);
-  return Math.max(regularTotal, initMaximum) + (overhead ?? 0);
+  return Math.max(regularTotal + sidecars, initMaximum) + (overhead ?? 0);
 }
 
 function formatContainerPorts(containers: JsonObject[]): string {

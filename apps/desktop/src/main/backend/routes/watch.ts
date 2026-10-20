@@ -62,8 +62,21 @@ function writeWatchError(response: ServerResponse, error: unknown, log: (message
   writeError(response, 500, "WATCH_FAILED", "Unable to manage resource watch");
 }
 
-async function startWatch(request: IncomingMessage, response: ServerResponse, clusterId: string, configStore: ConfigStore, watchManager: WatchManager): Promise<void> {
+async function startWatch(
+  request: IncomingMessage,
+  response: ServerResponse,
+  clusterId: string,
+  configStore: ConfigStore,
+  watchManager: WatchManager,
+  isConnected: (clusterId: string) => boolean,
+): Promise<void> {
   const body = parseStartBody(await readJsonBody(request, 64 * 1024));
+  // Asked again once the body is in: a disconnect that completed meanwhile
+  // has already stopped this cluster's watches and would not see a new one.
+  if (!isConnected(clusterId)) {
+    writeError(response, 409, "CLUSTER_NOT_CONNECTED", "Cluster is disconnected. Connect it before starting a watch.");
+    return;
+  }
   const namespace = body.namespace ?? "all";
   const command = clusterCommand(configStore, clusterId, watchArgs(body.resource, namespace), 0, 0);
   writeJson(response, await watchManager.start(command, body.resource, namespace));
@@ -103,7 +116,7 @@ export function handleWatchRequest(
         writeError(response, 409, "CLUSTER_NOT_CONNECTED", "Cluster is disconnected. Connect it before starting a watch.");
         return true;
       }
-      void startWatch(request, response, clusterId, configStore, watchManager).catch((error) => writeWatchError(response, error, log));
+      void startWatch(request, response, clusterId, configStore, watchManager, isConnected).catch((error) => writeWatchError(response, error, log));
       return true;
     }
 

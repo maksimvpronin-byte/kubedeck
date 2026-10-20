@@ -297,7 +297,7 @@ test("resource action HTTP handler contract", async (t) => {
     drainCommands.map((command) => command.args),
     [
       ["auth", "can-i", "patch", "nodes"],
-      ["auth", "can-i", "create", "pods/eviction", "--all-namespaces"],
+      ["auth", "can-i", "create", "pods", "--subresource=eviction", "--all-namespaces"],
       ["drain", "worker-1", "--ignore-daemonsets", "--delete-emptydir-data", "--timeout=300s"],
     ],
   );
@@ -548,7 +548,7 @@ test("bulk drain cordons every node in one command, then drains five at a time",
   const args = harness.commands.map((command) => command.args);
   assert.deepEqual(args.slice(0, 4), [
     ["auth", "can-i", "patch", "nodes"],
-    ["auth", "can-i", "create", "pods/eviction", "--all-namespaces"],
+    ["auth", "can-i", "create", "pods", "--subresource=eviction", "--all-namespaces"],
     ["cordon", ...names],
     // node-2 stopped the first cordon; the rest are cordoned without it.
     ["cordon", ...names.filter((name) => name !== "node-2")],

@@ -292,6 +292,9 @@ export class PortForwardManager {
       resolveReady = resolve;
       rejectReady = reject;
     });
+    // When spawning fails, the wait for "spawn" below throws first and this
+    // promise is never awaited; its rejection must not go unhandled.
+    readyPromise.catch(() => undefined);
     let readinessTimer: NodeJS.Timeout | undefined;
 
     const finishReady = () => {

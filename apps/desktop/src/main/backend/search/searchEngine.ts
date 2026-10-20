@@ -359,8 +359,12 @@ export function searchResultRow(spec: SearchResourceSpec, summary: Record<string
   };
 }
 
+// Every match is scored before the limit applies - stopping at the first
+// `limit` matches dropped an exact name that came later in list order. Only
+// the ones kept are then normalized, which is the costly part. The score uses
+// the raw name and kind, which are what the normalized row carries too.
 export function rankRawItems(spec: SearchResourceSpec, rawItems: readonly unknown[], query: string, limit: number): SearchResultRow[] {
-  const collected: SearchResultRow[] = [];
+  const candidates: Array<{ value: Record<string, unknown>; name: string; score: number; matchedFields: string[] }> = [];
   const tokens = searchTokens(query);
   for (const value of rawItems) {
     if (!isRecord(value)) continue;
@@ -373,22 +377,19 @@ export function rankRawItems(spec: SearchResourceSpec, rawItems: readonly unknow
     // this rule-out is the same text the scoring below uses, built once.
     const parts = rawSearchText(value, spec.resource);
     if (!containsEveryToken(loweredFields(parts, parts.name, parts.namespace, kindCandidates(spec, value)), tokens)) continue;
-    const summary = resourceSummary(spec, value);
     const metadata = record(value.metadata);
-    const { score, matchedFields } = scoreFromParts(
-      query,
-      tokens,
-      spec.resource,
-      parts,
-      text(summary.name) || text(metadata.name),
-      text(summary.namespace) || text(metadata.namespace),
-      text(summary.kind) || text(value.kind),
-    );
+    const name = text(metadata.name);
+    // A CRD's row reports the kind it defines, as its normalized summary does.
+    const kind = text(record(record(value.spec).names).kind) || text(value.kind);
+    const { score, matchedFields } = scoreFromParts(query, tokens, spec.resource, parts, name, text(metadata.namespace), kind);
     if (score <= 0) continue;
-    collected.push(searchResultRow(spec, summary, score, matchedFields));
-    if (collected.length >= limit) break;
+    candidates.push({ value, name, score, matchedFields });
   }
-  return collected.sort(compareSearchResults).slice(0, limit);
+  candidates.sort((left, right) => right.score - left.score || left.name.localeCompare(right.name));
+  return candidates
+    .slice(0, Math.max(0, limit))
+    .map((candidate) => searchResultRow(spec, resourceSummary(spec, candidate.value), candidate.score, candidate.matchedFields))
+    .sort(compareSearchResults);
 }
 
 export function compareSearchResults(left: SearchResultRow, right: SearchResultRow): number {

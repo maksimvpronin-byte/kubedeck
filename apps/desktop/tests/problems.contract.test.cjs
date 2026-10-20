@@ -255,6 +255,34 @@ test("problems engine preserves categories, severity, targets, and summary", () 
   });
 });
 
+test("a finished Job pod and a cordoned Ready node are not problems", () => {
+  const rows = buildProblemRows(
+    [
+      {
+        uid: "job-pod",
+        name: "nightly-abc",
+        namespace: "default",
+        phase: "Succeeded",
+        restarts: 0,
+        containerProblems: "job: Completed",
+        conditions: "Ready=False PodCompleted",
+      },
+    ],
+    [],
+    [],
+    [
+      { uid: "node-1", name: "worker-1", status: "Ready, SchedulingDisabled" },
+      { uid: "node-2", name: "worker-2", status: "NotReady, SchedulingDisabled" },
+    ],
+    [],
+    2,
+  );
+  assert.deepEqual(
+    rows.map((row) => [row.uid, row.reason]),
+    [["node-ready-node-2", "Node not ready"]],
+  );
+});
+
 test("Problems route loads five sources concurrently and returns partial errors", async (t) => {
   const resources = rawResources();
   const commands = [];

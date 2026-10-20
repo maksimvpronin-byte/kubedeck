@@ -171,7 +171,9 @@ export function filterEventsForTarget(events: JsonObject[], target: ResourceEven
     const eventUid = asString(involved.uid);
     const eventNamespace = asString(involved.namespace) || asString(asObject(event.metadata).namespace);
 
-    if (targetUid && eventUid && eventUid === targetUid) return true;
+    // Two UIDs settle it either way: a same-named object recreated with a new
+    // UID (a StatefulSet's web-0) must not inherit its predecessor's events.
+    if (targetUid && eventUid) return eventUid === targetUid;
     if (eventName !== target.name) return false;
     if (targetKind && eventKind && eventKind !== targetKind) return false;
     if (targetNamespace && eventNamespace && eventNamespace !== targetNamespace) return false;

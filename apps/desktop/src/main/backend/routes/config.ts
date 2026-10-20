@@ -93,13 +93,30 @@ export async function writeSettings(
     const settings = settingsFromBody(body);
     const apiKeyUpdate = apiKeyUpdateFromBody(body);
 
+    // The key changes before the settings are validated and saved, because
+    // apiKeyConfigured is saved with them. A save that is then refused puts
+    // the previous key back, so a rejected form leaves both as they were.
+    const previousKey = apiKeyUpdate.action !== "keep" && secretStore.has(SECRET_NAME) ? secretStore.read(SECRET_NAME) : null;
     applyApiKeyUpdate(secretStore, apiKeyUpdate);
 
     if (isRecord(settings.llm)) {
       settings.llm.apiKeyConfigured = secretStore.has(SECRET_NAME);
     }
 
-    const updated = configStore.updateSettings(settings);
+    let updated: AppConfig;
+    try {
+      updated = configStore.updateSettings(settings);
+    } catch (error) {
+      if (apiKeyUpdate.action !== "keep") {
+        try {
+          if (previousKey === null) secretStore.delete(SECRET_NAME);
+          else secretStore.write(SECRET_NAME, previousKey);
+        } catch {
+          // The original error is the one worth reporting.
+        }
+      }
+      throw error;
+    }
 
     auditStore.append({
       action: "settings.update",

@@ -119,11 +119,11 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
 
   async function toggleMode(item: SecretKeyInfo) {
     const key = item.key;
-    if ((modes[key] ?? "base64") === "text") {
+    if ((own(modes, key) ?? "base64") === "text") {
       setModes((current) => ({ ...current, [key]: "base64" }));
       return;
     }
-    if (!decodedKeys[key]) {
+    if (!own(decodedKeys, key)) {
       // Decoding is what the audit log records; the value itself is already here.
       const identity = identityRef.current;
       setDecodingKey(key);
@@ -236,18 +236,20 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
           const key = item.key;
           const fieldId = `${fieldIdPrefix}-${key}`;
           const original = item.encoded;
-          const current = edited[key] ?? original;
-          const typedInvalid = invalid[key];
+          const editedValue = own(edited, key);
+          const current = editedValue ?? original;
+          const typedInvalid = own(invalid, key);
           const textual = item.validBase64 && !item.binary && item.utf8;
           const currentText = current !== null && textual ? decodeSecretText(current) : null;
-          const mode: ValueMode = (modes[key] ?? "base64") === "text" && currentText !== null && typedInvalid === undefined ? "text" : "base64";
+          const mode: ValueMode = (own(modes, key) ?? "base64") === "text" && currentText !== null && typedInvalid === undefined ? "text" : "base64";
           const shown = mode === "text" ? (currentText ?? "") : (typedInvalid ?? current ?? "");
-          const dirty = typedInvalid !== undefined || (edited[key] !== undefined && edited[key] !== original);
+          const dirty = typedInvalid !== undefined || (editedValue !== undefined && editedValue !== original);
           const canSave = !immutable && dirty && typedInvalid === undefined && savingKey === "";
           const storedInvalid = !item.validBase64 && !dirty;
           const canToggle = original !== null && typedInvalid === undefined && (mode === "text" || currentText !== null) && decodingKey !== key;
           const long = shown.length > LONG_VALUE_CHARS || shown.split("\n").length > 3;
-          const note = notes[key];
+          const note = own(notes, key);
+          const isExpanded = Boolean(own(expanded, key));
           const chip = mode === "text" ? t("secret.chipText") : storedInvalid ? t("secret.chipAsIs") : "base64";
           const fieldState = typedInvalid !== undefined || storedInvalid ? " is-invalid" : dirty ? " is-dirty" : "";
           const toggleLabel =
@@ -273,15 +275,18 @@ export function SecretTab({ api, clusterId, row, copyLabel, t }: Props) {
                     <div className="secret-value-text">
                       <textarea
                         id={fieldId}
-                        className={long && !expanded[key] ? "is-folded" : undefined}
+                        className={long && !isExpanded ? "is-folded" : undefined}
                         spellCheck={false}
-                        readOnly={immutable}
+                        // Read-only while its own save is out: the reload that
+                        // follows replaces the draft, and anything typed in
+                        // between would be lost with it.
+                        readOnly={immutable || savingKey === key}
                         value={shown}
                         onChange={(event) => changeValue(key, mode, event.target.value)}
                       />
                       {long ? (
-                        <button type="button" className="link-button" onClick={() => setExpanded((open) => (open[key] ? without(open, key) : { ...open, [key]: true }))}>
-                          {expanded[key] ? t("secret.collapse") : t("secret.showAll")}
+                        <button type="button" className="link-button" onClick={() => setExpanded((open) => (own(open, key) ? without(open, key) : { ...open, [key]: true }))}>
+                          {isExpanded ? t("secret.collapse") : t("secret.showAll")}
                         </button>
                       ) : null}
                     </div>
@@ -353,8 +358,15 @@ function keyMeta(item: SecretKeyInfo, t: (key: string) => string) {
   return `${formatBytes(item.decodedBytes)} · ${kind}`;
 }
 
+// Secret keys are arbitrary: "constructor" or "toString" read through a plain
+// index find Object.prototype's functions, and a function where a value was
+// expected took the drawer down.
+function own<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 function without<T>(record: Record<string, T>, key: string) {
-  if (!(key in record)) return record;
+  if (!Object.hasOwn(record, key)) return record;
   const next = { ...record };
   delete next[key];
   return next;

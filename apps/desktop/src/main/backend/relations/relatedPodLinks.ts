@@ -43,6 +43,13 @@ export function podReferenceLinks(pod: UnknownRecord, namespace: string): Relate
     for (const [ref, field, resource, kind, relation] of refs) {
       if (text(ref[field])) links.push(relatedLink(resource, namespace, text(ref[field]), kind, relation, detail));
     }
+    // A projected volume names its sources by `name`, Secrets included.
+    for (const source of records(record(volume.projected).sources)) {
+      const configMap = text(record(source.configMap).name);
+      const secret = text(record(source.secret).name);
+      if (configMap) links.push(relatedLink("configmaps", namespace, configMap, "ConfigMap", "mounted config", detail));
+      if (secret) links.push(relatedLink("secrets", namespace, secret, "Secret", "mounted secret", detail));
+    }
   }
   for (const container of [...records(spec.containers), ...records(spec.initContainers)]) links.push(...containerConfigLinks(container, namespace));
   return links;

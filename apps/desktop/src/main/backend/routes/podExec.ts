@@ -159,7 +159,7 @@ export function buildPodExecPlan(target: PodExecRouteTarget, payload: Pick<PodEx
 }
 
 async function verifyPodExecAuthorization(configStore: ConfigStore, runner: KubectlRunner, target: PodExecRouteTarget): Promise<void> {
-  const authCommand = clusterCommand(configStore, target.clusterId, ["auth", "can-i", "create", "pods/exec", "-n", target.namespace], AUTH_TIMEOUT_SECONDS, AUTH_MAX_OUTPUT_BYTES);
+  const authCommand = clusterCommand(configStore, target.clusterId, ["auth", "can-i", "create", "pods", "--subresource=exec", "-n", target.namespace], AUTH_TIMEOUT_SECONDS, AUTH_MAX_OUTPUT_BYTES);
 
   const result = await runner.run(authCommand);
   const output = result.stdout.trim().toLowerCase();

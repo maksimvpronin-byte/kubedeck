@@ -95,6 +95,52 @@ async function put(baseUrl, clusterId, body) {
   return { status: response.status, body: await response.json().catch(() => ({})) };
 }
 
+test("an imported kubeconfig keeps pointing at the files beside its source", (t) => {
+  const appDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kubedeck-kubeconfig-"));
+  t.after(() => fs.rmSync(appDataRoot, { recursive: true, force: true }));
+  const sourceDir = path.join(appDataRoot, "from");
+  fs.mkdirSync(sourceDir);
+  const source = path.join(sourceDir, "config");
+  const text = [
+    "# kept as written",
+    "apiVersion: v1",
+    "kind: Config",
+    "clusters:",
+    "  - name: demo",
+    "    cluster:",
+    "      server: https://127.0.0.1:6443",
+    "      certificate-authority: ca.crt",
+    "users:",
+    "  - name: demo",
+    "    user:",
+    "      client-key: keys/client.key",
+    "      client-certificate: /etc/absolute.crt",
+    "      exec:",
+    "        command: ./bin/auth-helper",
+    "  - name: path-lookup",
+    "    user:",
+    "      exec:",
+    "        command: aws",
+    "",
+  ].join("\n");
+  fs.writeFileSync(source, text, "utf8");
+
+  const configStore = new ConfigStore(appDataRoot);
+  const cluster = configStore.importCluster(source, "demo");
+  const imported = fs.readFileSync(cluster.kubeconfigPath, "utf8");
+  assert.match(imported, /# kept as written/);
+  assert.ok(imported.includes(`certificate-authority: ${path.join(sourceDir, "ca.crt")}`));
+  assert.ok(imported.includes(`client-key: ${path.join(sourceDir, "keys", "client.key")}`));
+  assert.ok(imported.includes(`command: ${path.join(sourceDir, "bin", "auth-helper")}`));
+  assert.match(imported, /client-certificate: \/etc\/absolute\.crt/);
+  assert.match(imported, /command: aws/);
+
+  // Nothing relative: the file is copied byte for byte.
+  const plain = path.join(sourceDir, "plain");
+  fs.writeFileSync(plain, VALID_KUBECONFIG, "utf8");
+  assert.equal(fs.readFileSync(configStore.importCluster(plain, "plain").kubeconfigPath, "utf8"), VALID_KUBECONFIG);
+});
+
 test("kubeconfig route matching and document validation", () => {
   assert.deepEqual(matchClusterKubeconfigRoute("GET", "/clusters/demo/kubeconfig"), { clusterId: "demo", operation: "read" });
   assert.deepEqual(matchClusterKubeconfigRoute("PUT", "/clusters/demo/kubeconfig"), { clusterId: "demo", operation: "write" });

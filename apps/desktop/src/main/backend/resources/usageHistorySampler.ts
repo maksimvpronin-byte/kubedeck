@@ -179,8 +179,13 @@ export class UsageHistorySampler {
   }
 
   private async sample(clusterId: string): Promise<void> {
+    // The timer identifies this round of sampling: a cluster forgotten (and
+    // perhaps connected again) while the request was out has another timer or
+    // none, and the answer from before the teardown is dropped.
+    const timer = this.timers.get(clusterId);
     try {
       const result = await this.runner.run(clusterCommand(this.configStore, clusterId, ["get", "--raw", METRICS_API_PODS], SAMPLE_TIMEOUT_SECONDS, SAMPLE_MAX_OUTPUT_BYTES));
+      if (this.timers.get(clusterId) !== timer) return;
       this.ingest(clusterId, samplesFromMetricsApi(result.stdout));
     } catch (error) {
       // A cluster without metrics-server, or one that went away, must not turn

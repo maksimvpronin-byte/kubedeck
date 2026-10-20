@@ -1,7 +1,7 @@
 import { copyLineDown, defaultKeymap, history, historyKeymap, indentWithTab, moveLineDown, moveLineUp, toggleComment } from "@codemirror/commands";
 import { yaml } from "@codemirror/lang-yaml";
 import { codeFolding, foldEffect, foldedRanges, foldGutter, HighlightStyle, indentUnit, syntaxHighlighting, unfoldAll } from "@codemirror/language";
-import { Compartment, EditorState, StateEffect, StateField } from "@codemirror/state";
+import { Compartment, EditorState, StateEffect, StateField, Transaction } from "@codemirror/state";
 import type { DecorationSet } from "@codemirror/view";
 import { crosshairCursor, Decoration, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
@@ -196,6 +196,7 @@ export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const readOnlyCompartment = useRef(new Compartment());
+  const historyCompartment = useRef(new Compartment());
   // Held in refs so a new callback identity never tears the editor down and
   // rebuilds it, which would drop the selection, the folds and the undo history.
   const onChangeRef = useRef(onChange);
@@ -225,7 +226,7 @@ export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef
           lineNumbers(),
           foldGutter(),
           codeFolding(),
-          history(),
+          historyCompartment.current.of(history()),
           drawSelection(),
           dropCursor(),
           highlightActiveLine(),
@@ -280,7 +281,14 @@ export function YamlSourceEditor({ value, readOnly = false, ariaLabel, editorRef
     // Equal on every keystroke, because the change that produced this value came
     // out of this editor. Dispatching anyway would fight the caret.
     if (current === value) return;
-    view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+    // A value from outside - another resource selected into the same editor, a
+    // reload, the answer to an apply - is a new starting point, not an edit:
+    // it stays out of the undo history, and the history before it is dropped,
+    // or Ctrl+Z would bring the previous resource's manifest into this one.
+    view.dispatch({ changes: { from: 0, to: current.length, insert: value }, annotations: Transaction.addToHistory.of(false) });
+    // Taking the history extension out and putting it back drops its state.
+    view.dispatch({ effects: historyCompartment.current.reconfigure([]) });
+    view.dispatch({ effects: historyCompartment.current.reconfigure(history()) });
   }, [value]);
 
   useEffect(() => {

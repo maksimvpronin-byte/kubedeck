@@ -204,10 +204,19 @@ export class WatchManager {
     private readonly stopTimeoutMs = WATCH_STOP_TIMEOUT_MS,
     private readonly apiWatch: ApiWatchSource | null = null,
   ) {
-    if (apiWatch) {
-      this.sweepTimer = setInterval(() => this.sweepIdleApiWatches(), API_WATCH_SWEEP_MS);
-      this.sweepTimer.unref?.();
-    }
+    // kubectl watches are swept too: the renderer closes its socket when it
+    // leaves a scope but never stops the watch, so without the sweep every
+    // scope visited kept a kubectl process until disconnect.
+    this.sweepTimer = setInterval(() => this.sweepIdleWatches(), API_WATCH_SWEEP_MS);
+    this.sweepTimer.unref?.();
+  }
+
+  // Bumped by stopCluster, so a start that was still listing when the cluster
+  // was disconnected does not register its watch behind the teardown.
+  private readonly clusterGenerations = new Map<string, number>();
+
+  private clusterGeneration(clusterId: string): number {
+    return this.clusterGenerations.get(clusterId) ?? 0;
   }
 
   async start(command: KubectlCommand, resource: string, namespace = "all"): Promise<WatchStartResult> {
@@ -234,6 +243,7 @@ export class WatchManager {
   // reported, not retried through kubectl.
   private async startApiWatch(command: KubectlCommand, resource: string, namespace: string): Promise<WatchStartResult | null> {
     const key: WatchKey = { clusterId: command.clusterId, resource: resource.trim().toLowerCase(), namespace: normalizeNamespace(namespace) };
+    const generation = this.clusterGeneration(key.clusterId);
     const startedAt = this.now() / 1000;
     let resolveClose!: () => void;
     const closePromise = new Promise<void>((resolve) => {
@@ -313,6 +323,12 @@ export class WatchManager {
       informer.stop();
       return null;
     }
+    if (this.clusterGeneration(key.clusterId) !== generation) {
+      // Thrown, not null: null would send the caller on to start a kubectl
+      // watch against the cluster that was just disconnected.
+      informer.stop();
+      throw new WatchStartError("WATCH_START_FAILED", "Cluster was disconnected while the watch was starting", "", informer.preview);
+    }
     session.informer = informer;
     session.commandPreview = informer.preview;
     this.sessions.set(session.id, session);
@@ -384,10 +400,10 @@ export class WatchManager {
     }
   }
 
-  private sweepIdleApiWatches(): void {
+  private sweepIdleWatches(): void {
     const now = this.now();
     for (const session of this.sessions.values()) {
-      if (!session.informer || session.status !== "running") continue;
+      if (session.status !== "running") continue;
       if (this.eventHub.hasSubscriber(session.key)) {
         session.lastWantedAt = now;
         continue;
@@ -412,6 +428,7 @@ export class WatchManager {
     if (existingId) {
       const existing = this.sessions.get(existingId);
       if (existing && existing.status === "running") {
+        existing.lastWantedAt = this.now();
         return { ...this.view(existing), alreadyRunning: true };
       }
       this.runningByKey.delete(keyText);
@@ -624,6 +641,7 @@ export class WatchManager {
   }
 
   async stopCluster(clusterId: string): Promise<number> {
+    this.clusterGenerations.set(clusterId, this.clusterGeneration(clusterId) + 1);
     const sessions = [...this.sessions.values()].filter((session) => session.key.clusterId === clusterId && (session.status === "running" || session.status === "stopping"));
     await Promise.all(sessions.map((session) => this.stopSession(session, false)));
     return sessions.length;

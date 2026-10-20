@@ -255,14 +255,14 @@ test("an API watch nobody listens to is stopped after a while", async (t) => {
   await manager.start(watchCommand(kubeconfig), "pods", "shop");
   const unsubscribe = hub.subscribe(() => {}, { clusterId: "c1", resource: "pods", namespace: "shop" });
   now += 10 * 60_000;
-  manager.sweepIdleApiWatches();
+  manager.sweepIdleWatches();
   assert.equal(manager.status().running, 1, "kept while a table listens");
   unsubscribe();
   now += 4 * 60_000;
-  manager.sweepIdleApiWatches();
+  manager.sweepIdleWatches();
   assert.equal(manager.status().running, 1, "kept for a while after the table went away");
   now += 2 * 60_000;
-  manager.sweepIdleApiWatches();
+  manager.sweepIdleWatches();
   await until(() => manager.status().running === 0, "the idle stop");
 });
 

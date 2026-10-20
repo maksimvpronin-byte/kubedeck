@@ -577,7 +577,13 @@ test("api-resources comes from aggregated discovery, in the table kubectl prints
         metadata: { name: "argoproj.io" },
         versions: [
           { version: "v1alpha1", resources: [{ resource: "applications", responseKind: { kind: "Application" }, scope: "Namespaced", shortNames: ["app", "apps"], verbs: ["get", "list"] }] },
-          { version: "v1alpha0", resources: [{ resource: "old", responseKind: { kind: "Old" }, scope: "Namespaced", verbs: ["list"] }] },
+          {
+            version: "v1alpha0",
+            resources: [
+              { resource: "applications", responseKind: { kind: "Application" }, scope: "Namespaced", shortNames: ["app"], verbs: ["get", "list"] },
+              { resource: "olds", responseKind: { kind: "Old" }, scope: "Namespaced", shortNames: ["od"], verbs: ["list"] },
+            ],
+          },
         ],
       },
     ],
@@ -600,8 +606,9 @@ test("api-resources comes from aggregated discovery, in the table kubectl prints
       ["pods", "po", "v1", true, "Pod"],
       ["nodes", "no", "v1", false, "Node"],
       ["applications", "app,apps", "argoproj.io/v1alpha1", true, "Application"],
+      ["olds", "od", "argoproj.io/v1alpha0", true, "Old"],
     ],
-    "only listable types, from each group's preferred version",
+    "only listable types, each at the first version serving it, as kubectl's preferred resources",
   );
   const search = parseForSearch(stdout);
   assert.equal(search.find((item) => item.name === "applications").apiGroup, "argoproj.io");

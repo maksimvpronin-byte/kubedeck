@@ -34,6 +34,11 @@ export interface NormalizedConnectPayload {
   cols: number;
 }
 export function limitedText(value: unknown, maxBytes: number, field: string): string {
+  if (typeof value === "object" && value !== null) {
+    // String() on a parsed object can throw ({"toString":null}) and never
+    // yields a meaningful value anyway.
+    throw new RequestValidationError(400, "SSH_VALUE_INVALID", `${field} must be text`);
+  }
   const text = typeof value === "string" ? value : String(value ?? "");
   if (Buffer.byteLength(text, "utf8") > maxBytes) {
     throw new RequestValidationError(400, "SSH_VALUE_TOO_LARGE", `${field} is too large`);

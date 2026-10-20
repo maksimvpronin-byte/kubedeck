@@ -558,7 +558,18 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   };
 
   const sockets = new Set<Socket>();
-  const server = http.createServer((request, response) => handleRequest(request, response, options, services));
+  // A request target that the URL parser or decodeURIComponent rejects throws
+  // synchronously, before any route has a chance to answer. Unguarded, that
+  // throw lands in the main process as an uncaught exception.
+  const server = http.createServer((request, response) => {
+    try {
+      handleRequest(request, response, options, services);
+    } catch (error) {
+      options.log(`gateway request rejected url=${JSON.stringify(request.url ?? "")} error=${error instanceof Error ? error.message : String(error)}`);
+      if (!response.headersSent) writeError(response, 400, "INVALID_REQUEST", "Request target is not valid");
+      else response.destroy();
+    }
+  });
 
   server.on("connection", (socket) => {
     sockets.add(socket);
@@ -566,7 +577,12 @@ export async function startGateway(options: GatewayOptions): Promise<GatewayHand
   });
 
   server.on("upgrade", (request, socket, head) => {
-    handleUpgrade(request, socket, head, options, watchWebSocket, terminalWebSocket, sshWebSocket, logsWebSocket, (clusterId) => connections.isConnected(clusterId));
+    try {
+      handleUpgrade(request, socket, head, options, watchWebSocket, terminalWebSocket, sshWebSocket, logsWebSocket, (clusterId) => connections.isConnected(clusterId));
+    } catch (error) {
+      options.log(`gateway upgrade rejected url=${JSON.stringify(request.url ?? "")} error=${error instanceof Error ? error.message : String(error)}`);
+      socket.destroy();
+    }
   });
 
   await new Promise<void>((resolve, reject) => {

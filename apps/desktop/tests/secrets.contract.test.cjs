@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const { decodeBase64Strict, handleSecretRequest, isBinaryPayload, matchSecretRoute, SECRET_VALUE_MAX_BYTES, secretKeysPayload } = require("../dist/main/backend/routes/secrets.js");
+const { decodeBase64Strict, handleSecretRequest, isBinaryPayload, matchSecretRoute, SECRET_VALUE_MAX_BYTES, secretDataMap, secretKeysPayload } = require("../dist/main/backend/routes/secrets.js");
 const { KubectlError } = require("../dist/main/backend/kubectl/errors.js");
 
 function listen(server) {
@@ -42,6 +42,15 @@ test("Secret parsing and metadata contract", () => {
   assert.equal(isBinaryPayload(Buffer.from("plain text\n", "utf8")), false);
   assert.equal(isBinaryPayload(Buffer.from([0, 1, 2])), true);
   assert.equal(isBinaryPayload(Buffer.alloc(0)), false);
+
+  // "__proto__" and "constructor" are valid Secret keys: copied into a plain
+  // object the first vanished (and a save then deleted it), the second read
+  // back as an inherited function.
+  const data = secretDataMap(JSON.parse('{"data":{"__proto__":"cHJvdG8=","password":"cGFzcw=="}}'));
+  assert.deepEqual(Object.keys(data).sort(), ["__proto__", "password"]);
+  assert.equal(data.__proto__, "cHJvdG8=");
+  assert.equal(data.constructor, undefined);
+  assert.deepEqual(Object.keys({ ...data, password: "eA==" }).sort(), ["__proto__", "password"]);
 
   const target = {
     clusterId: "demo",

@@ -4,7 +4,6 @@ export { buildSshCommandPreview, matchNodeSshWebSocket, normalizeSshConnectPaylo
 export type { NodeSshTarget } from "./sshPayload";
 import {
   buildSshCommandPreview,
-  limitedText,
   MAX_PRIVATE_KEY_BYTES,
   matchNodeSshWebSocket,
   type NodeSshTarget,
@@ -18,6 +17,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import { homedir } from "node:os";
 import path from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import type { Duplex } from "node:stream";
 import { Client, type ConnectConfig, type HostVerifier } from "ssh2";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
@@ -52,6 +52,9 @@ export class SshHostKeyError extends Error {
 interface HostKeyVerification {
   verifier: HostVerifier;
   failure: () => SshHostKeyError | null;
+  // True while the user is being asked about an unknown host key: that wait
+  // is bounded by the decision timeout, not by the connection timeout.
+  awaitingDecision: () => boolean;
 }
 
 type SshWindow = {
@@ -167,8 +170,10 @@ function connectConfig(connection: NormalizedConnection, connectTimeoutMs: numbe
   return config;
 }
 
-function withHostVerifier(config: ConnectConfig, verification: HostKeyVerification): ConnectConfig {
-  return { ...config, hostVerifier: verification.verifier };
+// ssh2's readyTimeout keeps running while the host verifier waits for the
+// user, so it is lengthened by the time the user is given to decide.
+function withHostVerifier(config: ConnectConfig, verification: HostKeyVerification, decisionTimeoutMs: number): ConnectConfig {
+  return { ...config, hostVerifier: verification.verifier, readyTimeout: (config.readyTimeout ?? 0) + decisionTimeoutMs };
 }
 
 function redactError(error: unknown, secrets: string[]): string {
@@ -351,11 +356,15 @@ export class NodeSshWebSocketServer {
       let tunnel: Duplex | undefined;
       if (payload.jump) {
         const jumpVerification = this.hostKeyVerification(session, payload.jump, "jump");
-        jumpClient = await this.connectClient(withHostVerifier(connectConfig(payload.jump, this.connectTimeoutMs), jumpVerification), session, jumpVerification);
+        jumpClient = await this.connectClient(withHostVerifier(connectConfig(payload.jump, this.connectTimeoutMs), jumpVerification, this.hostKeyDecisionTimeoutMs), session, jumpVerification);
         tunnel = await this.forwardOut(jumpClient, payload.target.host, payload.target.port);
       }
       const targetVerification = this.hostKeyVerification(session, payload.target, "target");
-      const targetClient = await this.connectClient(withHostVerifier(connectConfig(payload.target, this.connectTimeoutMs, tunnel), targetVerification), session, targetVerification);
+      const targetClient = await this.connectClient(
+        withHostVerifier(connectConfig(payload.target, this.connectTimeoutMs, tunnel), targetVerification, this.hostKeyDecisionTimeoutMs),
+        session,
+        targetVerification,
+      );
       const channel = await this.openShell(targetClient, payload.cols, payload.rows);
       session.channel = channel;
       session.opened = true;
@@ -438,10 +447,14 @@ export class NodeSshWebSocketServer {
    */
   private hostKeyVerification(session: SshSession, connection: NormalizedConnection, role: SshHostKeyRole): HostKeyVerification {
     let failure: SshHostKeyError | null = null;
+    let awaiting = false;
     return {
       failure: () => failure,
+      awaitingDecision: () => awaiting,
       verifier: (key, verify) => {
-        void this.decideHostKey(session, connection, role, key).then(
+        void this.decideHostKey(session, connection, role, key, (waiting) => {
+          awaiting = waiting;
+        }).then(
           () => verify(true),
           (error: unknown) => {
             failure = error instanceof SshHostKeyError ? error : new SshHostKeyError("SSH_HOST_KEY_REJECTED", redactError(error, []));
@@ -452,7 +465,7 @@ export class NodeSshWebSocketServer {
     };
   }
 
-  private async decideHostKey(session: SshSession, connection: NormalizedConnection, role: SshHostKeyRole, key: Buffer): Promise<void> {
+  private async decideHostKey(session: SshSession, connection: NormalizedConnection, role: SshHostKeyRole, key: Buffer, onWaiting: (waiting: boolean) => void = () => {}): Promise<void> {
     const fingerprint = sshSha256Fingerprint(key);
     const algorithm = sshKeyAlgorithm(key);
     const known = this.hostKeys.lookup(connection.host, connection.port);
@@ -470,7 +483,14 @@ export class NodeSshWebSocketServer {
 
     safeSend(session.socket, { type: "host-key-request", data: { role, host: connection.host, port: connection.port, algorithm, fingerprint } });
 
-    if ((await this.waitForHostKeyDecision(session.socket)) !== "trust") {
+    onWaiting(true);
+    let decision: "trust" | "reject";
+    try {
+      decision = await this.waitForHostKeyDecision(session.socket);
+    } finally {
+      onWaiting(false);
+    }
+    if (decision !== "trust") {
       throw new SshHostKeyError("SSH_HOST_KEY_REJECTED", `Host key for ${connection.host}:${connection.port} was not accepted`);
     }
 
@@ -552,9 +572,13 @@ export class NodeSshWebSocketServer {
       const client = this.clientFactory();
       session.clients.add(client);
       let settled = false;
-      const timer = setTimeout(() => {
-        fail(new Error("SSH connection timed out"));
-      }, this.connectTimeoutMs + 1000);
+      // While the user is deciding on a host key the connection is not the
+      // one keeping us waiting; the decision has its own timeout.
+      const expire = () => {
+        if (verification?.awaitingDecision()) timer = setTimeout(expire, 1000);
+        else fail(new Error("SSH connection timed out"));
+      };
+      let timer = setTimeout(expire, this.connectTimeoutMs + 1000);
       const cleanup = () => {
         clearTimeout(timer);
         client.removeListener("ready", ready);
@@ -631,18 +655,16 @@ export class NodeSshWebSocketServer {
 
   private bindConnectedSession(session: SshSession, payload: NormalizedConnectPayload, channel: SshChannelLike): void {
     const { socket } = session;
-    channel.on("data", (data: Buffer | string) => {
-      safeSend(socket, {
-        type: "output",
-        data: Buffer.isBuffer(data) ? data.toString("utf8") : String(data),
-      });
-    });
-    channel.stderr?.on("data", (data: Buffer | string) => {
-      safeSend(socket, {
-        type: "output",
-        data: Buffer.isBuffer(data) ? data.toString("utf8") : String(data),
-      });
-    });
+    // One decoder per stream: a multibyte character split across two chunks
+    // is held over instead of turning into two replacement characters.
+    const stdoutDecoder = new StringDecoder("utf8");
+    const stderrDecoder = new StringDecoder("utf8");
+    const forward = (decoder: StringDecoder, data: Buffer | string) => {
+      const text = Buffer.isBuffer(data) ? decoder.write(data) : String(data);
+      if (text) safeSend(socket, { type: "output", data: text });
+    };
+    channel.on("data", (data: Buffer | string) => forward(stdoutDecoder, data));
+    channel.stderr?.on("data", (data: Buffer | string) => forward(stderrDecoder, data));
     channel.once("close", () => void session.stop("SSH channel closed"));
     channel.once("end", () => void session.stop("SSH channel ended"));
     channel.once("error", (error: unknown) => {
@@ -670,7 +692,9 @@ export class NodeSshWebSocketServer {
         return;
       }
       if (message.type === "input") {
-        const input = limitedText(message.data, MAX_CLIENT_MESSAGE_BYTES, "input");
+        // Strings only: String() on a parsed object can throw, and the message
+        // itself is already bounded by MAX_CLIENT_MESSAGE_BYTES.
+        const input = typeof message.data === "string" ? message.data : "";
         if (input && !channel.destroyed) channel.write(input);
         return;
       }

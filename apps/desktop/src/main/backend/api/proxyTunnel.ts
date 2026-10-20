@@ -19,6 +19,16 @@ function tunnelError(message: string): Error {
   return Object.assign(new Error(message), { code: "ERR_PROXY_TUNNEL" });
 }
 
+// The URL parser lets a stray "%" through in userinfo, decodeURIComponent does
+// not - and this runs in a socket callback, where a throw has no catch above it.
+function decodeCredential(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 // Opens a CONNECT tunnel to host:port through `proxy`.
 function openTunnel(proxy: URL, host: string, port: number, callback: (error: Error | null, socket?: net.Socket | tls.TLSSocket) => void): void {
   const proxyPort = Number(proxy.port) || (proxy.protocol === "https:" ? 443 : 80);
@@ -66,7 +76,7 @@ function openTunnel(proxy: URL, host: string, port: number, callback: (error: Er
     const authority = net.isIPv6(host) ? `[${host}]:${port}` : `${host}:${port}`;
     const lines = [`CONNECT ${authority} HTTP/1.1`, `Host: ${authority}`];
     if (proxy.username || proxy.password) {
-      const credentials = `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`;
+      const credentials = `${decodeCredential(proxy.username)}:${decodeCredential(proxy.password)}`;
       lines.push(`Proxy-Authorization: Basic ${Buffer.from(credentials).toString("base64")}`);
     }
     socket.write(`${lines.join("\r\n")}\r\n\r\n`);

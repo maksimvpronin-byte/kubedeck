@@ -101,7 +101,12 @@ export interface UsageHistoryResult {
 
 interface ClusterHistory {
   series: Map<string, UsageSeries>;
+  // Workloads learned from a pod list before the pod's first sample, applied
+  // when its series is created. Bounded: an entry only waits for one sample.
+  pendingWorkloads: Map<string, string>;
 }
+
+const MAX_PENDING_WORKLOADS = 20_000;
 
 function seriesKey(namespace: string, pod: string): string {
   return `${namespace}\u0000${pod}`;
@@ -176,7 +181,9 @@ function statFrom(averages: number[], maxima: number[]): UsageStat {
     avg: Math.round((total / averages.length) * 1000) / 1000,
     p50: percentile(sorted, 0.5),
     p95: percentile(sorted, 0.95),
-    max: maxima.length ? Math.max(...maxima) : null,
+    // A loop, not Math.max(...maxima): a large workload pools more buckets
+    // than a call may take arguments.
+    max: maxima.length ? maxima.reduce((highest, value) => (value > highest ? value : highest), Number.NEGATIVE_INFINITY) : null,
   };
 }
 
@@ -247,7 +254,7 @@ export class UsageHistoryStore {
   private cluster(clusterId: string): ClusterHistory {
     let entry = this.clusters.get(clusterId);
     if (!entry) {
-      entry = { series: new Map() };
+      entry = { series: new Map(), pendingWorkloads: new Map() };
       this.clusters.set(clusterId, entry);
     }
     return entry;
@@ -266,7 +273,9 @@ export class UsageHistoryStore {
       const key = seriesKey(sample.namespace, sample.pod);
       let series = cluster.series.get(key);
       if (!series) {
-        series = { namespace: sample.namespace, pod: sample.pod, workload: "", firstSampleAt: timestamp, updatedAt: timestamp, buckets: [], fineBuckets: [], lastSampledAt: 0 };
+        const workload = cluster.pendingWorkloads.get(key) ?? "";
+        cluster.pendingWorkloads.delete(key);
+        series = { namespace: sample.namespace, pod: sample.pod, workload, firstSampleAt: timestamp, updatedAt: timestamp, buckets: [], fineBuckets: [], lastSampledAt: 0 };
         cluster.series.set(key, series);
       }
 
@@ -290,8 +299,20 @@ export class UsageHistoryStore {
   // own history is available.
   attribute(clusterId: string, namespace: string, pod: string, workload: string): void {
     if (!workload) return;
-    const series = this.cluster(clusterId).series.get(seriesKey(namespace, pod));
-    if (series) series.workload = workload;
+    const cluster = this.cluster(clusterId);
+    const key = seriesKey(namespace, pod);
+    const series = cluster.series.get(key);
+    if (series) {
+      series.workload = workload;
+      return;
+    }
+    // The list arrived before the pod's first sample: kept until the series
+    // exists, or the rollup would stay missing until the list is loaded again.
+    if (!cluster.pendingWorkloads.has(key) && cluster.pendingWorkloads.size >= MAX_PENDING_WORKLOADS) {
+      const oldest = cluster.pendingWorkloads.keys().next().value;
+      if (oldest !== undefined) cluster.pendingWorkloads.delete(oldest);
+    }
+    cluster.pendingWorkloads.set(key, workload);
   }
 
   prune(clusterId: string): void {

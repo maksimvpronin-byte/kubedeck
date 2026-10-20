@@ -109,6 +109,36 @@ test("LLM sanitizer removes structured and textual secrets", () => {
   assert.match(text, /\[REDACTED\]/);
 });
 
+test("resource context redacts env values and Secret data that only the YAML structure reveals", () => {
+  const podYaml = [
+    "apiVersion: v1",
+    "kind: Pod",
+    "metadata:",
+    "  name: api-0",
+    "  annotations:",
+    `    kubectl.kubernetes.io/last-applied-configuration: '{"kind":"Pod","spec":{"note":"applied-sentinel"}}'`,
+    "spec:",
+    "  containers:",
+    "  - name: api",
+    "    env:",
+    "    - name: DB_PASSWORD",
+    "      value: env-secret-sentinel",
+    "    - name: LOG_LEVEL",
+    "      value: debug",
+  ].join("\n");
+  const pod = buildResourceContext(resourceRequest({ yaml: podYaml }), 60000).context;
+  assert.doesNotMatch(pod, /env-secret-sentinel|applied-sentinel/);
+  assert.match(pod, /LOG_LEVEL/);
+  assert.match(pod, /debug/);
+
+  const secretYaml = "apiVersion: v1\nkind: Secret\nmetadata:\n  name: app\ndata:\n  config: c2VjcmV0LXNlbnRpbmVs\n";
+  const secret = buildResourceContext(resourceRequest({ kind: "Secret", resource: "secrets", yaml: secretYaml }), 60000).context;
+  assert.doesNotMatch(secret, /c2VjcmV0LXNlbnRpbmVs/);
+
+  const object = sanitizeValue({ spec: { containers: [{ env: [{ name: "API_TOKEN", value: "object-sentinel" }] }] } });
+  assert.doesNotMatch(JSON.stringify(object), /object-sentinel/);
+});
+
 test("resource context excludes Kubernetes log streams and preserves truncation", () => {
   const sentinel = "forbidden-log-sentinel";
   const built = buildResourceContext(resourceRequest({ logs: sentinel, previousLogs: `previous-${sentinel}` }), 60000);

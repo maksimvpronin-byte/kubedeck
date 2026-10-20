@@ -10,6 +10,10 @@ export function podUsesConfigResource(pod: UnknownRecord, refKind: "configMap" |
   const nameField = refKind === "configMap" ? "name" : "secretName";
   for (const volume of records(spec.volumes)) {
     if (text(record(volume[volumeField])[nameField]) === name) return "mounted by pod";
+    // A projected volume names its sources by `name`, Secrets included.
+    for (const source of records(record(volume.projected).sources)) {
+      if (text(record(source[volumeField]).name) === name) return "mounted by pod";
+    }
   }
   for (const container of [...records(spec.containers), ...records(spec.initContainers)]) {
     for (const envFrom of records(container.envFrom)) {

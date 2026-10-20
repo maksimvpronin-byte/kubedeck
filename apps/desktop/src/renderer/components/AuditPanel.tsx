@@ -3,6 +3,7 @@ import type { ApiClient } from "../api";
 import type { AuditEvent, ErrorInfo } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
 import { useAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
+import { useOwnedError } from "../hooks/useOwnedError";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
 const STATUS_FILTERS = ["all", "success", "failed", "opened", "closed"] as const;
@@ -46,7 +47,10 @@ function downloadText(filename: string, text: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function AuditPanel({ api, t, onError }: { api: ApiClient | null; t: (key: string) => string; onError: (error: ErrorInfo) => void }) {
+export function AuditPanel({ api, t, onError }: { api: ApiClient | null; t: (key: string) => string; onError: (error: ErrorInfo | null) => void }) {
+  // A load that fails puts its error on the shared banner; the next one that
+  // succeeds takes that error down again - and only that one.
+  const ownedError = useOwnedError(onError);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [limit, setLimit] = useState(300);
@@ -67,17 +71,18 @@ export function AuditPanel({ api, t, onError }: { api: ApiClient | null; t: (key
       try {
         const response = await api.audit(requestedLimit, controller.signal);
         setEvents(response.items);
+        ownedError.clear();
         return true;
       } catch (err) {
         if (isAbortError(err)) return false;
-        onError(asErrorInfo(err));
+        ownedError.report(asErrorInfo(err));
         return false;
       } finally {
         if (requestRef.current === controller) requestRef.current = null;
         if (!silent) setLoading(false);
       }
     },
-    [api, limit, onError],
+    [api, limit, ownedError],
   );
 
   useEffect(() => {

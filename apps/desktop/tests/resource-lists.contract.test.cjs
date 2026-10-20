@@ -204,6 +204,25 @@ test("namespace usage aggregates quota without double-counting ephemeral storage
   assert.equal(rows[0].namespaceStorageUsagePercent, 18);
 });
 
+test("overlapping quotas in a namespace are not added together", async () => {
+  const rows = [{ uid: "n1", name: "tools" }];
+  const runner = {
+    async runJson(command) {
+      if (isMetricsApi(command)) return podMetricsList("tools api 500m 512Mi");
+      return {
+        items: [
+          { metadata: { namespace: "tools" }, status: { hard: { "limits.cpu": "2", "requests.storage": "10Gi" }, used: { "requests.storage": "2Gi" } } },
+          { metadata: { namespace: "tools" }, status: { hard: { "limits.cpu": "3", "requests.storage": "10Gi" }, used: { "requests.storage": "2Gi" } } },
+        ],
+      };
+    },
+  };
+  await applyNamespaceMetrics(fakeConfigStore(), runner, "cluster-1", rows);
+  assert.equal(rows[0].namespaceCpuQuotaValue, 2000, "the tightest ceiling applies");
+  assert.equal(rows[0].namespaceStorageQuota, "10 GiB");
+  assert.equal(rows[0].namespaceStorageUsed, "2 GiB", "the same usage reported twice is counted once");
+});
+
 test("pod metrics use limits as denominator and keep unbounded pods percentage-free", async () => {
   const rows = [
     { uid: "p1", name: "api", namespace: "tools", podCpuLimitValue: 500, podMemoryLimitValue: 1024 ** 3 },
@@ -278,6 +297,46 @@ test("deployment conditions preserve simultaneous Lens-style labels", () => {
   assert.match(row.workloadConditionsText, /FailedCreate/);
   assert.match(row.status, /Available/);
   assert.match(row.status, /ReplicaFailure/);
+});
+
+test("DaemonSets, Jobs and CronJobs are counted in their own status fields", () => {
+  // Listed from the API server, items carry no kind: the resource decides.
+  const [daemonSet] = normalizeResourceItems("daemonsets", [
+    {
+      metadata: { uid: "ds1", name: "node-exporter", namespace: "monitoring" },
+      spec: { template: { spec: { containers: [] } } },
+      status: { desiredNumberScheduled: 3, currentNumberScheduled: 3, numberReady: 3, updatedNumberScheduled: 3, numberAvailable: 3 },
+    },
+  ]);
+  assert.equal(daemonSet.ready, "3/3");
+  assert.equal(daemonSet.available, 3);
+  assert.doesNotMatch(daemonSet.status, /Scaled to zero/);
+
+  const [retried] = normalizeResourceItems("jobs", [
+    { metadata: { uid: "j1", name: "migrate", namespace: "default" }, spec: {}, status: { failed: 1, succeeded: 1, conditions: [{ type: "Complete", status: "True" }] } },
+  ]);
+  assert.equal(retried.status, "Succeeded", "a failed attempt followed by a success is a finished Job");
+
+  const [cronJob] = normalizeResourceItems("cronjobs", [
+    { metadata: { uid: "c1", name: "nightly", namespace: "default" }, spec: { schedule: "0 1 * * *" }, status: { active: [{ name: "nightly-1", namespace: "default" }] } },
+  ]);
+  assert.equal(cronJob.active, 1);
+  assert.equal(cronJob.status, "Running");
+});
+
+test("a native sidecar adds to the pod's requests rather than hiding in the init maximum", () => {
+  const [pod] = normalizeResourceItems("pods", [
+    {
+      metadata: { uid: "p1", name: "app", namespace: "default" },
+      spec: {
+        initContainers: [{ name: "proxy", restartPolicy: "Always", resources: { requests: { cpu: "100m" }, limits: { cpu: "200m" } } }],
+        containers: [{ name: "app", resources: { requests: { cpu: "500m" }, limits: { cpu: "1" } } }],
+      },
+      status: {},
+    },
+  ]);
+  assert.equal(pod.podCpuRequestValue, 600);
+  assert.equal(pod.podCpuLimitValue, 1200);
 });
 
 test("a Service carries the pieces an address is built from, not only a printed port list", () => {

@@ -29,6 +29,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
   const [shell, setShell] = useState<TerminalShell>("auto");
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [reconnectPending, setReconnectPending] = useState(false);
   const [status, setStatus] = useState("Disconnected");
   const [transport, setTransport] = useState<"pty" | "pipes" | "">("");
   const socketRef = useRef<WebSocket | null>(null);
@@ -135,6 +136,7 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
       disconnectTerminal(socketRef, setConnected, setStatus, setConnecting);
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
       if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
+      setReconnectPending(false);
       terminal.dispose();
       terminalRef.current = null;
       fitRef.current = null;
@@ -237,10 +239,17 @@ export function TerminalTab({ api, clusterId, pod, containers, container, setCon
   function reconnect() {
     disconnectTerminal(socketRef, setConnected, setStatus, setConnecting);
     if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
-    reconnectTimerRef.current = window.setTimeout(() => connect(), 150);
+    // The selectors stay locked until the timer fires: it connects to the
+    // container and shell of this render, and a change made in between would
+    // show one target while the session opened on the other.
+    setReconnectPending(true);
+    reconnectTimerRef.current = window.setTimeout(() => {
+      setReconnectPending(false);
+      connect();
+    }, 150);
   }
 
-  const terminalBusy = connected || connecting;
+  const terminalBusy = connected || connecting || reconnectPending;
 
   return (
     <section className="pod-terminal">

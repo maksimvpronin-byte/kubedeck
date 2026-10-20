@@ -242,9 +242,11 @@ export async function chatCompletion(settings: ResolvedLlmSettings, messages: Ll
   const timer = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
   timer.unref?.();
   const started = performance.now();
-  let response: FetchResponseLike;
+  let raw: string;
+  // The timeout covers the body as well: fetch resolves on the headers, and a
+  // provider that then trickles an unfinished answer must still be cut off.
   try {
-    response = await fetchImpl(endpoint, {
+    const response = await fetchImpl(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -255,7 +257,12 @@ export async function chatCompletion(settings: ResolvedLlmSettings, messages: Ll
       }),
       signal: controller.signal,
     });
-  } catch {
+    if (!response.ok) {
+      throw new LlmClientError("LLM_HTTP_ERROR", `LLM server returned HTTP ${response.status}.`);
+    }
+    raw = await response.text();
+  } catch (error) {
+    if (error instanceof LlmClientError) throw error;
     if (controller.signal.aborted) {
       throw new LlmClientError("LLM_TIMEOUT", "LLM request timed out.");
     }
@@ -264,11 +271,6 @@ export async function chatCompletion(settings: ResolvedLlmSettings, messages: Ll
     clearTimeout(timer);
   }
 
-  if (!response.ok) {
-    throw new LlmClientError("LLM_HTTP_ERROR", `LLM server returned HTTP ${response.status}.`);
-  }
-
-  const raw = await response.text();
   let body: unknown;
   try {
     body = JSON.parse(raw);

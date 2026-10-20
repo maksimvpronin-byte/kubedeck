@@ -44,7 +44,10 @@ export function secretDataMap(secret: JsonObject): Record<string, string> {
   const data = secret.data;
   if (!isRecord(data)) return {};
 
-  const result: Record<string, string> = {};
+  // No prototype: "__proto__" and "constructor" are valid Secret keys, and on a
+  // plain object the first is swallowed by the setter (and so dropped from the
+  // replacement on save) while the second reads back an inherited function.
+  const result: Record<string, string> = Object.create(null);
   for (const [key, value] of Object.entries(data)) {
     result[String(key)] = String(value ?? "");
   }

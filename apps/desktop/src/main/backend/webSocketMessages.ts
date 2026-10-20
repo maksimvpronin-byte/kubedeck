@@ -12,7 +12,9 @@ export function rawDataText(data: RawData): string {
   return Buffer.from(data).toString("utf8");
 }
 export function clampInteger(value: unknown, fallback: number, minimum: number, maximum: number): number {
-  const parsed = typeof value === "number" ? value : Number(value);
+  // Only primitives are converted: Number() on a parsed object such as
+  // {"toString":null} throws, and this runs inside a socket callback.
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(maximum, Math.max(minimum, Math.trunc(parsed)));
 }

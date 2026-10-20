@@ -432,6 +432,12 @@ export async function fetchNamespaceMetrics(configStore: ConfigStore, runner: Ku
   }
 
   const quota = new Map<string, NamespaceQuota>();
+  // Quotas in one namespace constrain independently; they do not add up. The
+  // ceiling that applies is the tightest one, and every quota reports the same
+  // usage, so usage is taken once (the largest report), not summed.
+  const tightest = (current: number | null, next: number | null) => (next === null ? current : current === null ? next : Math.min(current, next));
+  const largest = (current: number | null, next: number | null) => (next === null ? current : current === null ? next : Math.max(current, next));
+  const storageParts = new Map<string, { persistent: number | null; ephemeral: number | null; persistentUsed: number | null; ephemeralUsed: number | null }>();
   try {
     const data = await runner.runJson(clusterCommand(configStore, clusterId, ["get", "--raw", "/api/v1/resourcequotas"], QUOTA_TIMEOUT_SECONDS, QUOTA_MAX_OUTPUT_BYTES), signal);
     const items = Array.isArray(data.items) ? data.items : [];
@@ -456,28 +462,34 @@ export async function fetchNamespaceMetrics(configStore: ConfigStore, runner: Ku
         if (memory !== null) break;
       }
 
-      const persistentStorage = parseMemoryBytes(hard["requests.storage"]);
-      const ephemeralStorage = parseMemoryBytes(hard["limits.ephemeral-storage"]) ?? parseMemoryBytes(hard["requests.ephemeral-storage"]);
-      const storage = persistentStorage === null && ephemeralStorage === null ? null : (persistentStorage ?? 0) + (ephemeralStorage ?? 0);
       const usedValues = asRecord(status.used);
-      const persistentStorageUsed = parseMemoryBytes(usedValues["requests.storage"]);
-      const ephemeralStorageUsed = parseMemoryBytes(usedValues["limits.ephemeral-storage"]) ?? parseMemoryBytes(usedValues["requests.ephemeral-storage"]);
-      const storageUsed = persistentStorageUsed === null && ephemeralStorageUsed === null ? null : (persistentStorageUsed ?? 0) + (ephemeralStorageUsed ?? 0);
+      // Persistent and ephemeral storage are different resources, each with
+      // its own tightest quota; the row shows them together.
+      const parts = storageParts.get(namespace) ?? { persistent: null, ephemeral: null, persistentUsed: null, ephemeralUsed: null };
+      parts.persistent = tightest(parts.persistent, parseMemoryBytes(hard["requests.storage"]));
+      parts.ephemeral = tightest(parts.ephemeral, parseMemoryBytes(hard["limits.ephemeral-storage"]) ?? parseMemoryBytes(hard["requests.ephemeral-storage"]));
+      parts.persistentUsed = largest(parts.persistentUsed, parseMemoryBytes(usedValues["requests.storage"]));
+      parts.ephemeralUsed = largest(parts.ephemeralUsed, parseMemoryBytes(usedValues["limits.ephemeral-storage"]) ?? parseMemoryBytes(usedValues["requests.ephemeral-storage"]));
+      storageParts.set(namespace, parts);
 
       const bucket = quota.get(namespace) ?? { cpu: null, memory: null, storage: null };
-      if (cpu !== null) bucket.cpu = (bucket.cpu ?? 0) + cpu;
-      if (memory !== null) bucket.memory = (bucket.memory ?? 0) + memory;
-      if (storage !== null) bucket.storage = (bucket.storage ?? 0) + storage;
+      bucket.cpu = tightest(bucket.cpu, cpu);
+      bucket.memory = tightest(bucket.memory, memory);
       quota.set(namespace, bucket);
-      const usageBucket = usage.get(namespace) as (NamespaceUsage & { storage?: number }) | undefined;
-      if (storageUsed !== null) {
-        const next = usageBucket ?? { cpu: 0, memory: 0 };
-        next.storage = (next.storage ?? 0) + storageUsed;
-        usage.set(namespace, next);
-      }
     }
   } catch (error) {
     if (!(error instanceof KubectlError)) throw error;
+  }
+
+  for (const [namespace, parts] of storageParts) {
+    const bucket = quota.get(namespace) ?? { cpu: null, memory: null, storage: null };
+    bucket.storage = parts.persistent === null && parts.ephemeral === null ? null : (parts.persistent ?? 0) + (parts.ephemeral ?? 0);
+    quota.set(namespace, bucket);
+    if (parts.persistentUsed !== null || parts.ephemeralUsed !== null) {
+      const next = (usage.get(namespace) as (NamespaceUsage & { storage?: number }) | undefined) ?? { cpu: 0, memory: 0 };
+      (next as NamespaceUsage & { storage?: number }).storage = (parts.persistentUsed ?? 0) + (parts.ephemeralUsed ?? 0);
+      usage.set(namespace, next);
+    }
   }
 
   return { usage, quota, metricsAvailable };

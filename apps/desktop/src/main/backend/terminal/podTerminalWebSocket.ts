@@ -218,7 +218,7 @@ function terminalErrorText(error: unknown): string {
 }
 
 async function verifyTerminalAuthorization(configStore: ConfigStore, runner: KubectlRunner, target: PodTerminalTarget): Promise<string> {
-  const command = clusterCommand(configStore, target.clusterId, ["auth", "can-i", "create", "pods/exec", "-n", target.namespace], AUTH_TIMEOUT_SECONDS, AUTH_MAX_OUTPUT_BYTES);
+  const command = clusterCommand(configStore, target.clusterId, ["auth", "can-i", "create", "pods", "--subresource=exec", "-n", target.namespace], AUTH_TIMEOUT_SECONDS, AUTH_MAX_OUTPUT_BYTES);
   const result = await runner.run(command);
   const output = result.stdout.trim().toLowerCase();
   if (!new Set(["yes", "y"]).has(output)) {
@@ -306,6 +306,10 @@ export class PodTerminalWebSocketServer {
   }
 
   private async open(socket: WebSocket, target: PodTerminalTarget): Promise<void> {
+    // Attached before anything is awaited: an 'error' a socket emits with no
+    // listener (an oversized frame while authorization is pending) is thrown in
+    // the main process.
+    socket.on("error", (error) => this.log(`node terminal websocket error: ${error.message}`));
     safeSend(socket, { type: "status", data: "authorizing" });
     try {
       await verifyTerminalAuthorization(this.configStore, this.runner, target);

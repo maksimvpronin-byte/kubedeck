@@ -237,6 +237,10 @@ export function buildProblemRows(
       const category = classifyProblem("Pod", reason, message);
       results.push(problemRow(`pod-status-${uid}`, severityForCategory(category, "Warning"), "Pod", "pods", pod.namespace, pod.name, reason, message, pod.createdAt, { category }));
     }
+    // A pod that ran to completion reports its containers as terminated
+    // ("Completed") and itself as not Ready (PodCompleted): the normal end of a
+    // Job, not two warnings.
+    if (phase === "Succeeded" || phase === "Completed") continue;
     if (pod.containerProblems) {
       const message = text(pod.containerProblems);
       const category = classifyProblem("Pod", "Container problem", message);
@@ -299,7 +303,8 @@ export function buildProblemRows(
   }
 
   for (const node of nodes) {
-    if (text(node.status) !== "Ready") {
+    // A cordoned node reads "Ready, SchedulingDisabled": still Ready.
+    if (text(node.status).split(",")[0].trim() !== "Ready") {
       results.push(problemRow(`node-ready-${text(node.uid)}`, "Critical", "Node", "nodes", "_cluster", node.name, "Node not ready", text(node.status), node.createdAt, { category: "node" }));
     }
     if (node.pressure) {

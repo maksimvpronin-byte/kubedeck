@@ -45,6 +45,51 @@ function selectorFromWorkload(spec: UnknownRecord): UnknownRecord {
   return record(selector.matchLabels);
 }
 
+// A workload's whole LabelSelector: matchExpressions narrow (or, alone, make)
+// the selection, and a pod that fails one of them is not the workload's.
+function workloadSelectorMatches(labelsValue: unknown, spec: UnknownRecord): boolean {
+  const labels = record(labelsValue);
+  const selector = record(spec.selector);
+  const matchLabels = Object.entries(record(selector.matchLabels));
+  const expressions = records(selector.matchExpressions);
+  if (matchLabels.length === 0 && expressions.length === 0) return false;
+  if (!matchLabels.every(([key, value]) => Object.hasOwn(labels, key) && text(labels[key]) === text(value))) return false;
+  return expressions.every((expression) => {
+    const key = text(expression.key);
+    const present = Object.hasOwn(labels, key);
+    const values = Array.isArray(expression.values) ? expression.values.map((value) => text(value)) : [];
+    switch (text(expression.operator)) {
+      case "In":
+        return present && values.includes(text(labels[key]));
+      case "NotIn":
+        return !present || !values.includes(text(labels[key]));
+      case "Exists":
+        return present;
+      case "DoesNotExist":
+        return !present;
+      default:
+        return false;
+    }
+  });
+}
+
+function workloadSelectorDetail(spec: UnknownRecord): string {
+  const selector = record(spec.selector);
+  const expressions = records(selector.matchExpressions).map((expression) => {
+    const values = Array.isArray(expression.values) ? expression.values.map((value) => text(value)).join(",") : "";
+    return `${text(expression.key)} ${text(expression.operator)}${values ? ` (${values})` : ""}`;
+  });
+  return [selectorDetail(selector.matchLabels), ...expressions].filter(Boolean).join(", ");
+}
+
+// The labels the workload's pods are created with - what a Service selects.
+// The workload selector may name only some of them.
+function podTemplateLabels(spec: UnknownRecord): UnknownRecord {
+  const template = record(spec.template);
+  const jobTemplate = record(record(record(spec.jobTemplate).spec).template);
+  return record(record(Object.keys(template).length ? template.metadata : jobTemplate.metadata).labels);
+}
+
 export function selectorMatches(labelsValue: unknown, selectorValue: unknown): boolean {
   const labels = record(labelsValue);
   const selector = record(selectorValue);
@@ -205,15 +250,19 @@ export async function buildRelatedResources(context: RelatedResourcesContext): P
   ]);
   if (workloads.has(resource)) {
     const selector = selectorFromWorkload(spec);
-    if (targetNamespace && Object.keys(selector).length > 0) {
+    const hasSelector = Object.keys(selector).length > 0 || records(record(spec.selector).matchExpressions).length > 0;
+    if (targetNamespace && hasSelector) {
+      const detail = workloadSelectorDetail(spec);
       for (const pod of await safeLoad("pods", targetNamespace)) {
-        if (selectorMatches(record(metadata(pod).labels), selector)) {
-          links.push(relatedLink("pods", targetNamespace, metadataName(pod), "Pod", "matches workload selector", selectorDetail(selector)));
+        if (workloadSelectorMatches(record(metadata(pod).labels), spec)) {
+          links.push(relatedLink("pods", targetNamespace, metadataName(pod), "Pod", "matches workload selector", detail));
         }
       }
+      const templateLabels = podTemplateLabels(spec);
+      const serviceTarget = Object.keys(templateLabels).length ? templateLabels : selector;
       for (const service of await safeLoad("services", targetNamespace)) {
         const serviceSelector = record(record(service.spec).selector);
-        if (selectorMatches(selector, serviceSelector)) {
+        if (selectorMatches(serviceTarget, serviceSelector)) {
           links.push(relatedLink("services", targetNamespace, metadataName(service), "Service", "targets this workload", selectorDetail(serviceSelector)));
         }
       }

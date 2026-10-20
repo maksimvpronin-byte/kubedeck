@@ -53,6 +53,26 @@ test("YAML parsing and confirmation contract", () => {
     documentCount: 1,
   });
 
+  // A List passes as one document, but kubectl applies every item in it -
+  // none of which the confirmation of the wrapper's name has seen.
+  const list = [
+    "apiVersion: v1",
+    "kind: List",
+    "metadata:",
+    "  name: settings",
+    "  namespace: default",
+    "items:",
+    "- apiVersion: apps/v1",
+    "  kind: Deployment",
+    "  metadata: { name: production-api, namespace: production }",
+    "  spec: { replicas: 0 }",
+    "",
+  ].join("\n");
+  assert.throws(
+    () => parseYamlApplyTarget(list),
+    (error) => error.code === "MULTI_DOCUMENT_APPLY_BLOCKED",
+  );
+
   assert.doesNotThrow(() =>
     requireYamlApplyConfirmation(
       {

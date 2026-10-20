@@ -1,3 +1,4 @@
+import { parseAllDocuments, stringify as stringifyYaml } from "yaml";
 import { formatBytes, formatCpuMillicores } from "../../../shared/formatQuantity";
 import type { LlmAnalyzeResourceRequest } from "./types";
 import { isRecord } from "../validation";
@@ -54,15 +55,22 @@ export function sanitizeText(text: string): string {
   return sanitized;
 }
 
+// The applied manifest again, as one JSON string: Secret data and env values
+// included, and nothing a diagnosis needs that the object itself lacks.
+const LAST_APPLIED_ANNOTATION = "kubectl.kubernetes.io/last-applied-configuration";
+
 export function sanitizeValue(value: unknown, parentKey = ""): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => sanitizeValue(item, parentKey));
   }
   if (isRecord(value)) {
     const kind = String(value.kind ?? "").toLocaleLowerCase();
+    // An env entry names its secret in one field and carries it in another:
+    // {name: DB_PASSWORD, value: ...}.
+    const sensitiveEntry = typeof value.name === "string" && sensitiveKey(value.name);
     const sanitized: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
-      if ((kind === "secret" && (key === "data" || key === "stringData")) || sensitiveKey(key) || sensitiveKey(parentKey)) {
+      if ((kind === "secret" && (key === "data" || key === "stringData")) || (sensitiveEntry && key === "value") || key === LAST_APPLIED_ANNOTATION || sensitiveKey(key) || sensitiveKey(parentKey)) {
         sanitized[key] = REDACTED;
       } else {
         sanitized[key] = sanitizeValue(item, key);
@@ -176,7 +184,7 @@ function restartRateLine(combined: string, object: Record<string, unknown>, coun
 
 function diagnosticSignals(request: LlmAnalyzeResourceRequest): string {
   const describe = request.describe ?? "";
-  const yaml = request.yaml ?? "";
+  const yaml = sanitizeYaml(request.yaml ?? "");
   const combined = [describe, yaml, jsonExcerpt(request.resourceObject)].join("\n");
   const lines: string[] = [];
 
@@ -279,7 +287,7 @@ function containers(request: LlmAnalyzeResourceRequest): string {
   if (Object.keys(payload).length > 0) return jsonExcerpt(payload);
 
   const snippets: string[] = [];
-  const yamlStatus = snippetAround(request.yaml ?? "", /^\s*(containerStatuses|initContainerStatuses):\s*$/im, 0, 80);
+  const yamlStatus = snippetAround(sanitizeYaml(request.yaml ?? ""), /^\s*(containerStatuses|initContainerStatuses):\s*$/im, 0, 80);
   if (yamlStatus) snippets.push(`yaml container status snippet:\n${sanitizeText(yamlStatus)}`);
   const describeContainers = snippetAround(request.describe ?? "", /^\s*Containers:\s*$/im, 0, 80);
   if (describeContainers) {
@@ -322,8 +330,26 @@ function eventsFromDescribe(describe: string): string {
   return sanitizeText(lines.slice(index).join("\n").trim());
 }
 
+// Line-by-line redaction cannot see structure: the value of an env entry sits
+// on a different line from its name, and a Secret's data keys are arbitrary.
+// The YAML is therefore parsed and redacted as an object; only text that does
+// not parse falls back to the line-based pass.
+export function sanitizeYaml(text: string): string {
+  if (!text) return "";
+  try {
+    const documents = parseAllDocuments(text, { uniqueKeys: false });
+    if (documents.some((document) => document.errors.length > 0)) return sanitizeText(text);
+    return documents
+      .filter((document) => document.contents !== null)
+      .map((document) => stringifyYaml(sanitizeValue(document.toJS({ maxAliasCount: 100 })), { lineWidth: 0 }).trimEnd())
+      .join("\n---\n");
+  } catch {
+    return sanitizeText(text);
+  }
+}
+
 function yamlExcerpt(request: LlmAnalyzeResourceRequest): string {
-  if (request.yaml) return compactText(sanitizeText(request.yaml), 4000);
+  if (request.yaml) return compactText(sanitizeYaml(request.yaml), 4000);
   return compactText(jsonExcerpt(request.resourceObject), 4000);
 }
 

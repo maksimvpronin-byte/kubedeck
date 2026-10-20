@@ -145,6 +145,9 @@ export class ClusterApi {
   ): Promise<{ response: IncomingMessage; credentials: Credentials; request: http.ClientRequest }> {
     if (options.signal?.aborted) throw cancelledError(options.preview);
     const credentials = await this.credentials();
+    // Again after the wait: an exec plugin can take seconds, and a listener
+    // added below to a signal that already fired would never be called.
+    if (options.signal?.aborted) throw cancelledError(options.preview);
     const agent = this.agentFor(credentials.cert, credentials.key);
     const target = this.url(path);
     const headers: http.OutgoingHttpHeaders = { Accept: options.accept ?? "application/json", "User-Agent": "KubeDeck" };
@@ -224,19 +227,22 @@ export class ClusterApi {
     try {
       const { response, credentials } = await this.open(path, { signal: controller.signal, preview: options.preview, gzip: true, accept: options.accept });
       const status = response.statusCode ?? 0;
-      if (status >= 200 && status < 300) {
-        const readAbort = () => response.destroy();
-        controller.signal.addEventListener("abort", readAbort, { once: true });
-        try {
-          return await this.readBody(response, options.maxBytes, options.preview);
-        } catch (error) {
-          if (controller.signal.aborted) throw cancelledError(options.preview);
-          throw error;
-        } finally {
-          controller.signal.removeEventListener("abort", readAbort);
-        }
+      // The timeout and the caller's cancel cover the body too, an error body
+      // included: a server that sends 403 headers and then stalls must not
+      // hold the request past its deadline.
+      const readAbort = () => response.destroy();
+      controller.signal.addEventListener("abort", readAbort, { once: true });
+      let body: string;
+      try {
+        if (status >= 200 && status < 300) return await this.readBody(response, options.maxBytes, options.preview);
+        body = await this.readBody(response, MAX_ERROR_BODY_BYTES, options.preview).catch(() => "");
+      } catch (error) {
+        if (controller.signal.aborted) throw cancelledError(options.preview);
+        throw error;
+      } finally {
+        controller.signal.removeEventListener("abort", readAbort);
       }
-      const body = await this.readBody(response, MAX_ERROR_BODY_BYTES, options.preview).catch(() => "");
+      if (controller.signal.aborted) throw cancelledError(options.preview);
       if (status === 401 && credentials.exec && !retried && this.profile.exec) {
         this.execCredentials.invalidate(this.profile.exec, this.profile.execClusterInfo, credentials.exec);
         clearTimeout(timer);
@@ -259,8 +265,16 @@ export class ClusterApi {
     const { response, credentials } = await this.open(path, { ...options, gzip: false });
     const status = response.statusCode ?? 0;
     if (status >= 200 && status < 300) {
-      if (options.signal.aborted) response.destroy();
-      else options.signal.addEventListener("abort", () => response.destroy(), { once: true });
+      if (options.signal.aborted) {
+        response.destroy();
+        return response;
+      }
+      // The informer keeps one signal across every renewal of its watch, so a
+      // listener left behind by each finished stream would pile up with the
+      // response it holds.
+      const onAbort = () => response.destroy();
+      options.signal.addEventListener("abort", onAbort, { once: true });
+      response.once("close", () => options.signal.removeEventListener("abort", onAbort));
       return response;
     }
     const body = await this.readBody(response, MAX_ERROR_BODY_BYTES, options.preview).catch(() => "");

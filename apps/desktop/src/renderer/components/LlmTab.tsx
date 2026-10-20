@@ -63,7 +63,8 @@ export function LlmTab({
   // - and its "done" - under the next object's name; an open prompt preview
   // stayed with it too. Whatever comes back for an object no longer shown is
   // dropped.
-  const objectKey = `${clusterId}\u0000${resource}\u0000${String(row.namespace ?? "")}\u0000${row.name}`;
+  // The UID too: an object deleted and recreated under the same name is another object.
+  const objectKey = `${clusterId}\u0000${resource}\u0000${String(row.namespace ?? "")}\u0000${row.name}\u0000${String(row.uid ?? "")}`;
   const objectKeyRef = useRef(objectKey);
   objectKeyRef.current = objectKey;
   const [previewKey, setPreviewKey] = useState(objectKey);

@@ -261,7 +261,9 @@ function verifyReleasePayload(releaseDir, artifact, version, signed) {
   if (!releaseDir) return;
   const resolved = path.resolve(root, releaseDir);
   assert(fs.existsSync(resolved), `Release directory does not exist: ${resolved}`);
-  const forbiddenNames = /^(?:kubectl\.exe|KubeDeck Backend\.exe|kubedeck-backend\.exe|pythonw?\.exe|python\d*\.dll)$/i;
+  // Unix builds carry no extension, so kubectl and the old backend are matched bare too. A bare
+  // python3 is left out: node-gyp leaves a build/node_gyp_bins/python3 link in native modules.
+  const forbiddenNames = /^(?:kubectl(?:\.exe)?|KubeDeck Backend(?:\.exe)?|kubedeck-backend(?:\.exe)?|pythonw?\.exe|python\d*\.dll)$/i;
   for (const target of walk(resolved)) {
     assert(!forbiddenNames.test(path.basename(target)), `Forbidden release payload: ${target}`);
     assert(!/[\\/]resources[\\/]backend(?:[\\/]|$)/i.test(target), `Forbidden backend payload: ${target}`);

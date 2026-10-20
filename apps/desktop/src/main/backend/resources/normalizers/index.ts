@@ -7,7 +7,7 @@ import { nodeSummary } from "./node";
 import { podSummary } from "./pod";
 import { type JsonObject, isRecord, type ResourceRow, text } from "./primitives";
 import { roleBindingSummary, roleSummary, serviceAccountSummary } from "./rbac";
-import { deploymentSummary, jobSummary } from "./workload";
+import { cronJobSummary, daemonSetSummary, deploymentSummary, jobSummary } from "./workload";
 
 export type { JsonObject, ResourceRow } from "./primitives";
 export { meta } from "./primitives";
@@ -19,7 +19,7 @@ export { nodeAnnotationItems, nodeLabelItems, nodeRoles, nodeSummary } from "./n
 export type { RestartDiagnostic } from "./pod";
 export { podRestartDiagnostics, podSummary } from "./pod";
 export { roleBindingSummary, roleSummary, serviceAccountSummary } from "./rbac";
-export { deploymentSummary, jobSummary, workloadConditionItems } from "./workload";
+export { cronJobSummary, daemonSetSummary, deploymentSummary, jobSummary, workloadConditionItems } from "./workload";
 
 const NORMALIZERS: Record<string, (item: JsonObject) => ResourceRow> = {
   pods: podSummary,
@@ -30,14 +30,14 @@ const NORMALIZERS: Record<string, (item: JsonObject) => ResourceRow> = {
   "deployment.apps": deploymentSummary,
   statefulsets: deploymentSummary,
   statefulset: deploymentSummary,
-  daemonsets: deploymentSummary,
-  daemonset: deploymentSummary,
+  daemonsets: daemonSetSummary,
+  daemonset: daemonSetSummary,
   replicasets: deploymentSummary,
   replicaset: deploymentSummary,
   jobs: jobSummary,
   job: jobSummary,
-  cronjobs: jobSummary,
-  cronjob: jobSummary,
+  cronjobs: cronJobSummary,
+  cronjob: cronJobSummary,
   services: serviceSummary,
   service: serviceSummary,
   svc: serviceSummary,

@@ -102,6 +102,8 @@ export function PodDrawer({
   onDirtyChangeRef.current = onDirtyChange;
 
   const currentObjectKey = drawerResourceIdentity(clusterId, resource, pod);
+  const objectKeyRef = useRef(currentObjectKey);
+  objectKeyRef.current = currentObjectKey;
   const llm = usePodDrawerLlm(currentObjectKey);
   const lifecycle = usePodDrawerResourceLifecycle({ api, clusterId, pod, resource, tab, currentObjectKey });
   const { setContent, yamlBaseline, setYamlBaseline, yamlDraft, setYamlDraft, setYamlObjectKey, loading, setLoading, error, setError } = lifecycle;
@@ -174,6 +176,12 @@ export function PodDrawer({
   async function runAction(action: ResourceAction) {
     if (!pod) return;
     const label = actionLabel(action, resource, t);
+    // The drawer is reused when another row is selected. An answer that comes
+    // back after that belongs to the object it was asked about: the list is
+    // still refreshed, but this drawer's result, error, loading state - and
+    // closing it - are left to the object now on screen.
+    const actionObjectKey = currentObjectKey;
+    const stillShown = () => objectKeyRef.current === actionObjectKey;
 
     // Close the confirmation dialog immediately. Kubernetes delete/restart operations can
     // wait for graceful termination or controller reconciliation, so keeping the modal
@@ -188,14 +196,16 @@ export function PodDrawer({
         ...(action === "trigger" ? { jobName: triggerJobName } : {}),
         typedName: action === "delete" ? "" : pod.name,
       });
-      setApplyResult(result || `${label}: ${t("drawer.action.requested")}`);
       onActionComplete();
+      if (!stillShown()) return;
+      setApplyResult(result || `${label}: ${t("drawer.action.requested")}`);
       if (action === "delete" || (resource === "pods" && action === "restart")) onClose();
     } catch (err) {
+      if (!stillShown()) return;
       setApplyResult(`${label}: ${t("drawer.action.failed")}`);
       setError(toErrorInfo(err));
     } finally {
-      setLoading(false);
+      if (stillShown()) setLoading(false);
     }
   }
 

@@ -43,28 +43,34 @@ function discoveryRows(document: Record<string, unknown>): Row[] | null {
   for (const item of document.items) {
     const group = record(item);
     const groupName = typeof record(group.metadata).name === "string" ? (record(group.metadata).name as string) : "";
-    // The first version listed is the group's preferred one, which is the one
-    // kubectl api-resources shows.
+    // Versions come in preference order. Like kubectl api-resources, each
+    // resource is shown at the first version that serves it: a resource that
+    // only an older version still serves is listed too, not dropped.
     const versions = Array.isArray(group.versions) ? group.versions : [];
-    const preferred = record(versions[0]);
-    const version = typeof preferred.version === "string" ? preferred.version : "";
-    if (!version) continue;
-    const apiVersion = groupName ? `${groupName}/${version}` : version;
-    for (const entry of Array.isArray(preferred.resources) ? preferred.resources : []) {
-      const resource = record(entry);
-      const name = typeof resource.resource === "string" ? resource.resource : "";
-      const verbs = strings(resource.verbs);
-      if (!name || !verbs.includes("list")) continue;
-      const kind = typeof record(resource.responseKind).kind === "string" ? (record(resource.responseKind).kind as string) : "";
-      rows.push({
-        name,
-        shortNames: strings(resource.shortNames).join(","),
-        apiVersion,
-        namespaced: resource.scope === "Namespaced" ? "true" : "false",
-        kind,
-        verbs: verbs.join(","),
-        categories: strings(resource.categories).join(","),
-      });
+    const seen = new Set<string>();
+    for (const versionEntry of versions) {
+      const served = record(versionEntry);
+      const version = typeof served.version === "string" ? served.version : "";
+      if (!version) continue;
+      const apiVersion = groupName ? `${groupName}/${version}` : version;
+      for (const entry of Array.isArray(served.resources) ? served.resources : []) {
+        const resource = record(entry);
+        const name = typeof resource.resource === "string" ? resource.resource : "";
+        const verbs = strings(resource.verbs);
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        if (!verbs.includes("list")) continue;
+        const kind = typeof record(resource.responseKind).kind === "string" ? (record(resource.responseKind).kind as string) : "";
+        rows.push({
+          name,
+          shortNames: strings(resource.shortNames).join(","),
+          apiVersion,
+          namespaced: resource.scope === "Namespaced" ? "true" : "false",
+          kind,
+          verbs: verbs.join(","),
+          categories: strings(resource.categories).join(","),
+        });
+      }
     }
   }
   return rows;

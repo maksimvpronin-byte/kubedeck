@@ -25,6 +25,9 @@ const MAX_LINES_PER_FLUSH = 500;
 // oldest lines are dropped and the client is told how many - the tab shows a
 // tail, so the newest lines are the ones worth keeping.
 const MAX_PENDING_LINES = 5000;
+// What ws may hold unsent for a client that stopped reading. Above it lines
+// wait in `pending` instead, which is bounded; the socket's own queue is not.
+const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
 const MAX_LINE_CHARS = 8000;
 const DEFAULT_TAIL_LINES = 500;
 
@@ -143,6 +146,10 @@ export class PodLogsWebSocketServer {
     const flush = () => {
       flushTimer = undefined;
       if (closed || pending.length === 0 || socket.readyState !== WebSocket.OPEN) return;
+      if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+        scheduleFlush();
+        return;
+      }
       const lines = pending.length > MAX_LINES_PER_FLUSH ? pending.slice(-MAX_LINES_PER_FLUSH) : pending;
       const skipped = dropped + (pending.length - lines.length);
       pending = [];

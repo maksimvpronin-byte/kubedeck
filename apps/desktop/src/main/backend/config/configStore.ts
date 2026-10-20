@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isMap, isSeq, parseDocument } from "yaml";
 import { kubeconfigClusterName, MAX_KUBECONFIG_BYTES } from "./kubeconfigName";
 import { ensureAppPaths, type AppPaths } from "./paths";
 import type { AppConfig, Cluster, Language, LlmSettings, Settings, SshAuthMethod, SshSettings, Theme } from "./types";
@@ -12,6 +13,47 @@ const SSH_AUTH_METHODS = new Set<SshAuthMethod>(["agent", "password", "privateKe
 
 function utcNow(): string {
   return new Date().toISOString();
+}
+
+const CLUSTER_PATH_FIELDS = ["certificate-authority"];
+const USER_PATH_FIELDS = ["client-certificate", "client-key", "tokenFile"];
+
+// A kubeconfig resolves its relative file references against its own
+// directory. Imported, it is copied into KubeDeck's directory, where a
+// `certificate-authority: ca.crt` would point at nothing - for the direct API
+// client and for kubectl alike. Such paths are made absolute against where the
+// file came from; the rest of the document, comments included, is kept as is.
+// Null when nothing needs rewriting or the text is not YAML a copy can fix.
+export function kubeconfigWithAbsolutePaths(text: string, baseDir: string): string | null {
+  let document: ReturnType<typeof parseDocument>;
+  try {
+    document = parseDocument(text);
+  } catch {
+    return null;
+  }
+  if (document.errors.length > 0) return null;
+  let changed = false;
+  const absolutize = (map: unknown, field: string, onlyWithSeparator = false) => {
+    if (!isMap(map)) return;
+    const value = map.get(field);
+    if (typeof value !== "string" || !value.trim() || path.isAbsolute(value)) return;
+    // An exec command without a separator is looked up on PATH, not on disk.
+    if (onlyWithSeparator && !/[\\/]/.test(value)) return;
+    map.set(field, path.resolve(baseDir, value));
+    changed = true;
+  };
+  const entries = (key: string, inner: string) => {
+    const list = document.get(key);
+    return isSeq(list) ? list.items.map((item) => (isMap(item) ? item.get(inner) : null)) : [];
+  };
+  for (const cluster of entries("clusters", "cluster")) {
+    for (const field of CLUSTER_PATH_FIELDS) absolutize(cluster, field);
+  }
+  for (const user of entries("users", "user")) {
+    for (const field of USER_PATH_FIELDS) absolutize(user, field);
+    if (isMap(user)) absolutize(user.get("exec"), "command", true);
+  }
+  return changed ? document.toString() : null;
 }
 
 function asString(value: unknown, fallback = ""): string {
@@ -487,7 +529,9 @@ export class ConfigStore {
     };
 
     try {
-      fs.copyFileSync(source, temporaryTarget);
+      const relocated = stat.size <= MAX_KUBECONFIG_BYTES ? kubeconfigWithAbsolutePaths(fs.readFileSync(source, "utf8"), path.dirname(source)) : null;
+      if (relocated === null) fs.copyFileSync(source, temporaryTarget);
+      else fs.writeFileSync(temporaryTarget, relocated, { encoding: "utf8", mode: 0o600 });
       fs.renameSync(temporaryTarget, target);
 
       const config = this.load();

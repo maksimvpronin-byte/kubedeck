@@ -98,7 +98,8 @@ function matchesCompiledSelector(labelsValue: unknown, selector: CompiledSelecto
   const labels = asObject(labelsValue);
 
   for (const [key, expected] of Object.entries(selector.matchLabels)) {
-    if (String(labels[key] ?? "") !== String(expected ?? "")) return false;
+    // Present, not merely equal: an absent label is not the empty value.
+    if (!Object.prototype.hasOwnProperty.call(labels, key) || String(labels[key] ?? "") !== String(expected ?? "")) return false;
   }
 
   for (const expression of selector.expressions) {
