@@ -1,3 +1,19 @@
+## 2.32.3 - Init containers are seen, and their logs read
+
+No route changes. Node-only ownership stays at Node 60 / Python 0.
+
+**A pod held back by its init containers shows them.** A pod stuck on a
+crashing init container read as plain Pending with no restarts, and the Logs
+tab asked for the regular container, which kubectl refuses while the pod
+initializes. The Logs tab now lists the init containers, marked "(init)", and
+opens on the init step the pod is stuck on, moving on to the pod's container
+once it starts. A failed logs request clears the tab instead of leaving the
+Describe text counted as log lines. The pod row shows a cube for an init
+container while it runs or fails, counts its restarts and names it first in
+the problem reason; the Summary tab lists init containers too.
+
+Renderer tests: 340. Gateway tests: 239.
+
 ## 2.32.2 - A resource tab whose object is gone says so plainly
 
 No route changes. Node-only ownership stays at Node 60 / Python 0.
