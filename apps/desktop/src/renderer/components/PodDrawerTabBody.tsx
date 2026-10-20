@@ -11,7 +11,7 @@ import { DescribeTab } from "./DescribeTab";
 import { ErrorPanel } from "./ErrorPanel";
 import { LlmTab } from "./LlmTab";
 import { LogsTab } from "./LogsTab";
-import { containerNames, downloadTextFile } from "./podDrawerHelpers";
+import { downloadTextFile, initContainerNames, logContainerNames } from "./podDrawerHelpers";
 import type { DrawerTab } from "./PodDrawerChrome";
 import { RelatedTab } from "./RelatedTab";
 import { ResourceSummary } from "./ResourceSummary";
@@ -190,8 +190,9 @@ export function PodDrawerTabBody(props: Props) {
               onTimestampsChange={logs.setLogsTimestamps}
               follow={logs.logsFollow}
               onFollowChange={logs.setLogsFollow}
-              containers={props.isDeploymentResource ? logs.deploymentLogContainers : containerNames(pod)}
-              selectedContainer={props.isDeploymentResource ? logs.logsContainer : logs.logsContainer || containerNames(pod)[0] || ""}
+              containers={props.isDeploymentResource ? logs.deploymentLogContainers : logContainerNames(pod)}
+              initContainers={props.isDeploymentResource ? [] : initContainerNames(pod)}
+              selectedContainer={props.isDeploymentResource ? logs.logsContainer : logs.podLogsContainer}
               onContainerChange={logs.setLogsContainer}
               allowAllContainers={props.isDeploymentResource}
               targetPods={props.isDeploymentResource ? logs.deploymentLogPods : []}

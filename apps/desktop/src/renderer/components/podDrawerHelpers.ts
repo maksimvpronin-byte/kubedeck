@@ -8,6 +8,36 @@ export function containerNames(row: ResourceRow) {
   return Array.isArray(row.containers) ? row.containers.map(String).filter(Boolean) : [];
 }
 
+export function initContainerNames(row: ResourceRow) {
+  return Array.isArray(row.initContainers) ? row.initContainers.map(String).filter(Boolean) : [];
+}
+
+// Every container kubectl can read a log from, init containers first, in the
+// order they run. The terminal stays with containerNames: an init container is
+// gone, or about to be, by the time one could open a shell in it.
+export function logContainerNames(row: ResourceRow) {
+  return [...initContainerNames(row), ...containerNames(row)];
+}
+
+function stateRecords(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+}
+
+// The container the Logs tab opens on. A pod still initializing has nothing in
+// its own containers' logs - kubectl refuses with PodInitializing - and the
+// log worth reading is the init step it is stuck on: the first one that has
+// not completed, as they run one at a time. Native sidecars never complete and
+// are not that step. Once any regular container has started, it is the pod's.
+export function defaultLogContainer(row: ResourceRow) {
+  const regular = containerNames(row);
+  const started = stateRecords(row.containerStates).some((item) => ["running", "ready", "terminated"].includes(String(item.state)));
+  if (!started) {
+    const pending = stateRecords(row.initContainerStates).find((item) => item.completed !== true && item.sidecar !== true && item.name);
+    if (pending) return String(pending.name);
+  }
+  return regular[0] ?? "";
+}
+
 export function displayResource(resource: string) {
   return resource
     .split(".")[0]

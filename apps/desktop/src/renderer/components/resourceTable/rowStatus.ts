@@ -11,12 +11,16 @@ export interface ContainerStatusItem {
 }
 
 export function normalizeContainerStatusItems(row: ResourceRow): ContainerStatusItem[] {
-  const rawStates = row.containerStates;
+  // An init container is shown while it still has a part to play - running, or
+  // failing and holding the pod in Pending; once it has completed it is left
+  // out, so a healthy pod's cell reads as before.
+  const initStates = Array.isArray(row.initContainerStates) ? row.initContainerStates.filter((item) => item && typeof item === "object" && (item as Record<string, unknown>).completed !== true) : [];
+  const rawStates = Array.isArray(row.containerStates) ? [...initStates, ...row.containerStates] : row.containerStates;
   if (Array.isArray(rawStates) && rawStates.length > 0) {
     return rawStates.flatMap((item, index) => {
       if (!item || typeof item !== "object") return [];
       const record = item as Record<string, unknown>;
-      const name = String(record.name || `container-${index + 1}`);
+      const name = `${record.init === true ? "init " : ""}${String(record.name || `container-${index + 1}`)}`;
       const state = String(record.state || "unknown").toLowerCase();
       const ready = record.ready === true;
       const reason = String(record.reason || "");

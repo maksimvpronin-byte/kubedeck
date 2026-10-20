@@ -408,6 +408,55 @@ function fakeConfigStore() {
   };
 }
 
+// Reported from a real cluster: a pod stuck on a crashing init container read
+// as plain Pending with no restarts, and nothing in the app named the init
+// container - not the row, not the summary, not the Logs tab.
+test("a pod held back by a failing init container says so", () => {
+  const pod = podSummary({
+    metadata: { uid: "pod-uid", name: "bridge", namespace: "spfsgw" },
+    spec: {
+      initContainers: [
+        { name: "wait-db", image: "busybox" },
+        { name: "migrate", image: "liquibase" },
+        { name: "proxy", image: "envoy", restartPolicy: "Always" },
+      ],
+      containers: [{ name: "app", image: "bridge" }],
+    },
+    status: {
+      phase: "Pending",
+      initContainerStatuses: [
+        { name: "wait-db", ready: true, restartCount: 0, state: { terminated: { reason: "Completed", exitCode: 0 } } },
+        {
+          name: "migrate",
+          ready: false,
+          restartCount: 3,
+          state: { waiting: { reason: "CrashLoopBackOff", message: "back-off 40s" } },
+          lastState: { terminated: { reason: "Error", exitCode: 1, finishedAt: "2026-10-20T09:16:48Z" } },
+        },
+        { name: "proxy", ready: false, restartCount: 0, state: { waiting: { reason: "PodInitializing" } } },
+      ],
+      containerStatuses: [{ name: "app", ready: false, restartCount: 0, state: { waiting: { reason: "PodInitializing" } } }],
+    },
+  });
+
+  assert.deepEqual(pod.containers, ["app"], "the regular containers stay what Ready and the terminal count");
+  assert.deepEqual(pod.initContainers, ["wait-db", "migrate", "proxy"]);
+  assert.deepEqual(
+    pod.initContainerStates.map((item) => [item.name, item.state, item.completed, item.sidecar === true]),
+    [
+      ["wait-db", "terminated", true, false],
+      ["migrate", "waiting", false, false],
+      ["proxy", "waiting", false, true],
+    ],
+  );
+  assert.equal(pod.ready, "0/1");
+  assert.equal(pod.restarts, 3, "init restarts are the pod's restarts");
+  assert.match(pod.containerProblems, /^migrate: CrashLoopBackOff/, "the failing init step comes first, as the cause");
+  assert.doesNotMatch(pod.containerProblems, /wait-db/, "a completed init step is not a problem");
+  assert.equal(pod.lastRestartReason, "Error");
+  assert.equal(pod.lastRestartExitCode, 1);
+});
+
 test("resource normalizers preserve KubeDeck row contracts", () => {
   const pod = podSummary({
     metadata: {

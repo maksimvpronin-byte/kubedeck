@@ -29,6 +29,8 @@ interface LogsTabProps {
   follow: boolean;
   onFollowChange: (value: boolean) => void;
   containers: string[];
+  // Which of the containers are init containers; they are marked in the list.
+  initContainers?: string[];
   selectedContainer: string;
   onContainerChange: (value: string) => void;
   allowAllContainers?: boolean;
@@ -60,6 +62,7 @@ export function LogsTab({
   follow,
   onFollowChange,
   containers,
+  initContainers = [],
   selectedContainer,
   onContainerChange,
   allowAllContainers = false,
@@ -186,7 +189,7 @@ export function LogsTab({
               {allowAllContainers ? <option value="">{t("logs.allContainers")}</option> : null}
               {containers.map((name) => (
                 <option value={name} key={name}>
-                  {name}
+                  {initContainers.includes(name) ? `${name} (init)` : name}
                 </option>
               ))}
             </select>

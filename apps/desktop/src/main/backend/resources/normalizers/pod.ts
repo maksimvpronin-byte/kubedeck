@@ -115,6 +115,36 @@ function containerStateSummary(containerName: string, status: JsonObject | undef
   };
 }
 
+// An init container that ran to exit 0 is done, not a problem: it says nothing
+// about the pod any more.
+function initContainerCompleted(status: JsonObject | undefined): boolean {
+  const terminated = record(record(status?.state).terminated);
+  return Object.keys(terminated).length > 0 && numberValue(terminated.exitCode) === 0;
+}
+
+// Init containers run before the others, one at a time; while one of them
+// fails, the pod's own containers only wait (PodInitializing) and have no logs
+// to show. They are listed apart from the regular containers - the Ready count
+// and the terminal are about those - but the drawer reads their logs and the
+// row says when one of them is what holds the pod back.
+function initContainerStates(spec: JsonObject, statuses: JsonObject[]): JsonObject[] {
+  const statusByName = new Map(statuses.map((container) => [text(container.name), container]));
+  return records(spec.initContainers).flatMap((container) => {
+    const name = text(container.name);
+    if (!name) return [];
+    const status = statusByName.get(name);
+    const summary = containerStateSummary(name, status);
+    summary.init = true;
+    summary.completed = initContainerCompleted(status);
+    // A native sidecar (restartPolicy: Always) keeps running beside the pod's
+    // containers; it never completes, and is not the step the pod waits on.
+    if (text(container.restartPolicy) === "Always") summary.sidecar = true;
+    const image = text(container.image);
+    if (image) summary.image = image;
+    return [summary];
+  });
+}
+
 function firstRestartDiagnosticValue(diagnostics: RestartDiagnostic[], key: keyof RestartDiagnostic): unknown {
   for (const diagnostic of diagnostics) {
     const value = diagnostic[key];
@@ -137,10 +167,14 @@ export function podSummary(item: JsonObject): ResourceRow {
   const status = record(item.status);
   const spec = record(item.spec);
   const containerStatuses = records(status.containerStatuses);
+  const initStatuses = records(status.initContainerStatuses);
+  // Init containers come first, as they run first: while one of them fails it
+  // is the cause, and the regular containers' PodInitializing only the effect.
+  const activeInitStatuses = initStatuses.filter((container) => !initContainerCompleted(container));
   const specContainers = records(spec.containers);
   const containerStatusByName = new Map(containerStatuses.map((container) => [text(container.name), container]));
-  const restarts = containerStatuses.reduce((total, container) => total + Math.trunc(numberValue(container.restartCount)), 0);
-  const restartDiagnostics = podRestartDiagnostics(containerStatuses);
+  const restarts = [...initStatuses, ...containerStatuses].reduce((total, container) => total + Math.trunc(numberValue(container.restartCount)), 0);
+  const restartDiagnostics = podRestartDiagnostics([...activeInitStatuses, ...containerStatuses]);
   const ready = containerStatuses.filter((container) => container.ready === true).length;
   const desiredContainers = Math.max(containerStatuses.length, specContainers.length);
 
@@ -161,7 +195,7 @@ export function podSummary(item: JsonObject): ResourceRow {
   }
 
   const containerProblems: string[] = [];
-  for (const container of containerStatuses) {
+  for (const container of [...activeInitStatuses, ...containerStatuses]) {
     const state = record(container.state);
     const waiting = record(state.waiting);
     const terminated = record(state.terminated);
@@ -201,6 +235,10 @@ export function podSummary(item: JsonObject): ResourceRow {
     conditions: conditionSummary.join("; "),
     containers: specContainers.map((container) => text(container.name)).filter(Boolean),
     containerStates,
+    initContainers: records(spec.initContainers)
+      .map((container) => text(container.name))
+      .filter(Boolean),
+    initContainerStates: initContainerStates(spec, initStatuses),
     restartDiagnostics,
     lastRestartReason: firstRestartDiagnosticValue(restartDiagnostics, "lastReason"),
     lastRestartExitCode: firstRestartDiagnosticValue(restartDiagnostics, "lastExitCode"),

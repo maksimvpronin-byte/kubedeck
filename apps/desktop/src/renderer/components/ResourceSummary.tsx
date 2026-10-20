@@ -83,7 +83,7 @@ export function ResourceSummary({ row, resource, now, events = [], serviceEndpoi
               <div className={`summary-container-row is-${item.tone}`} key={item.name}>
                 <strong>{item.name}</strong>
                 <span>{item.state}</span>
-                <span>{item.ready ? "Ready" : "Not ready"}</span>
+                <span>{item.init ? "Init" : item.ready ? "Ready" : "Not ready"}</span>
                 {item.restarts ? (
                   <span>
                     {item.restarts} restart{item.restarts === 1 ? "" : "s"}
@@ -345,23 +345,29 @@ function addFact(items: Fact[], label: string, value: unknown, tone?: Tone) {
   items.push({ label, value: value as ReactNode, tone });
 }
 
+// Init containers first, in the order they run; one that ran to exit 0 is done,
+// which is its success, not a stopped container.
 function containerRows(row: ResourceRow) {
-  if (!Array.isArray(row.containerStates)) return [];
-  return row.containerStates.flatMap((value, index) => {
+  const initStates = Array.isArray(row.initContainerStates) ? row.initContainerStates : [];
+  const states = Array.isArray(row.containerStates) ? row.containerStates : [];
+  return [...initStates, ...states].flatMap((value, index) => {
     if (!value || typeof value !== "object") return [];
     const item = value as Record<string, unknown>;
-    const state = String(item.state || "unknown");
+    const init = item.init === true;
+    const completed = init && item.completed === true;
+    const state = completed ? "completed" : String(item.state || "unknown");
     const ready = item.ready === true;
-    const reason = String(item.reason || "");
+    const reason = completed ? "" : String(item.reason || "");
     return [
       {
         name: String(item.name || `container-${index + 1}`),
+        init,
         state,
         ready,
         reason,
         message: String(item.message || ""),
         restarts: Number(item.restartCount || 0),
-        tone: ready ? "success" : isKubernetesFailure(reason) || state === "terminated" ? "danger" : "pending",
+        tone: ready || completed ? "success" : isKubernetesFailure(reason) || state === "terminated" ? "danger" : "pending",
       },
     ];
   });

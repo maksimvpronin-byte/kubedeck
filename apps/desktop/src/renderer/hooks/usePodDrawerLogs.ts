@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ApiClient } from "../api";
 import type { DrawerTab } from "../components/PodDrawerChrome";
-import { containerNames, downloadTextFile, isAbortError } from "../components/podDrawerHelpers";
+import { defaultLogContainer, downloadTextFile, isAbortError } from "../components/podDrawerHelpers";
 import type { ErrorInfo, ResourceRow } from "../types";
 import { toErrorInfo } from "../utils/errors";
 
@@ -40,7 +40,10 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
   // The stream is keyed by what it reads, never by the row object: every table
   // refresh hands the drawer a new object for the same pod, and a stream keyed
   // by it was torn down and reopened - blanking the tab - on each one.
-  const streamContainer = logsContainer || (pod ? containerNames(pod)[0] : "") || "";
+  // Until a container is picked, the tab reads the one the pod is at - an init
+  // step while it initializes, then its first container - and moves on with it.
+  const defaultContainer = pod ? defaultLogContainer(pod) : "";
+  const streamContainer = logsContainer || defaultContainer;
 
   useEffect(() => {
     setLogsFollow(false);
@@ -94,6 +97,7 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
         })
         .catch((err) => {
           if (isAbortError(err)) return;
+          setContent("");
           setError(toErrorInfo(err));
         })
         .finally(() => {
@@ -102,7 +106,7 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
       return () => controller.abort();
     }
 
-    const selectedContainer = logsContainer || containerNames(pod)[0] || "";
+    const selectedContainer = logsContainer || defaultContainer;
     api
       .podLogs(
         clusterId,
@@ -122,13 +126,31 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
       })
       .catch((err) => {
         if (isAbortError(err)) return;
+        setContent("");
         setError(toErrorInfo(err));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLogsLoading(false);
       });
     return () => controller.abort();
-  }, [api, clusterId, podUid, podName, podNamespace, resource, isDeploymentResource, tab, streaming, logsTail, logsPrevious, logsTimestamps, logsContainer, logsPodFilter, logsRefreshToken]);
+  }, [
+    api,
+    clusterId,
+    podUid,
+    podName,
+    podNamespace,
+    resource,
+    isDeploymentResource,
+    tab,
+    streaming,
+    logsTail,
+    logsPrevious,
+    logsTimestamps,
+    logsContainer,
+    defaultContainer,
+    logsPodFilter,
+    logsRefreshToken,
+  ]);
 
   // Following used to re-run `kubectl logs --tail=500` every three seconds and
   // transfer the whole tail again, whatever had changed. One socket carries one
@@ -244,7 +266,7 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
         downloadTextFile(`${pod.name}.deployment.full.log`, text);
         return;
       }
-      const selectedContainer = logsContainer || containerNames(pod)[0] || "";
+      const selectedContainer = logsContainer || defaultContainer;
       const text = await api.podLogs(clusterId, String(pod.namespace), pod.name, {
         all: true,
         previous: logsPrevious,
@@ -274,6 +296,7 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
     setLogsQuery,
     logsContainer,
     setLogsContainer,
+    podLogsContainer: logsContainer || defaultContainer,
     logsPodFilter,
     setLogsPodFilter,
     deploymentLogPods,

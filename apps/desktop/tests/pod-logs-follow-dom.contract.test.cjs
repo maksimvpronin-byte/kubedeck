@@ -44,7 +44,7 @@ function pod(extra = {}) {
   return { uid: "uid-api", name: "api", namespace: "default", containers: ["app"], ...extra };
 }
 
-function harness() {
+function harness({ row = pod(), podLogs = async () => "one-shot tail", initialContent = "" } = {}) {
   const clock = createTestScheduler();
   const saved = { setTimeout: domWindow.setTimeout, clearTimeout: domWindow.clearTimeout, WebSocket: globalThis.WebSocket };
   domWindow.setTimeout = clock.scheduler.setTimeout;
@@ -52,7 +52,7 @@ function harness() {
   globalThis.WebSocket = FakeSocket;
   FakeSocket.instances = [];
 
-  let content = "";
+  let content = initialContent;
   const contents = [];
   const setContent = (next) => {
     content = typeof next === "function" ? next(content) : next;
@@ -61,7 +61,7 @@ function harness() {
   // Stable, as the drawer's useState setters are.
   const setError = () => {};
   const api = {
-    podLogs: async () => "one-shot tail",
+    podLogs,
     podLogsStreamUrl: (clusterId, namespace, name) => `ws://gateway/${clusterId}/${namespace}/${name}`,
     parsePodLogsStreamMessage: (raw) => JSON.parse(raw),
   };
@@ -70,7 +70,7 @@ function harness() {
     logs = usePodDrawerLogs({ api, clusterId: "cluster-a", pod: row, resource: "pods", tab: "logs", currentObjectKey: "pods/default/api", isDeploymentResource: false, setContent, setError });
     return null;
   }
-  const view = mount(React.createElement(Probe, { row: pod() }));
+  const view = mount(React.createElement(Probe, { row }));
   return {
     get content() {
       return content;
@@ -163,6 +163,64 @@ test("a finished stream stays finished, a failing one is retried further apart",
     h.act(() => h.socket.drop());
     h.advance(Math.max(...LOG_STREAM_RETRY_DELAYS_MS) * 2);
     assert.equal(h.sockets.length, 2, "no reconnect loop after the stream reached its end");
+  } finally {
+    h.close();
+  }
+});
+
+async function settle() {
+  await React.act(async () => {
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+}
+
+test("a pod stuck initializing shows the log of its failing init container", async () => {
+  const requests = [];
+  const initializing = {
+    initContainers: ["migrate"],
+    initContainerStates: [{ name: "migrate", init: true, completed: false, state: "waiting", reason: "CrashLoopBackOff" }],
+    containerStates: [{ name: "app", state: "waiting", reason: "PodInitializing" }],
+  };
+  const h = harness({
+    row: pod(initializing),
+    podLogs: async (_cluster, _namespace, _name, options) => {
+      requests.push(options.container);
+      return `log of ${options.container}`;
+    },
+  });
+  try {
+    await settle();
+    assert.deepEqual(requests, ["migrate"]);
+    assert.equal(h.content, "log of migrate");
+
+    // The init step passes and the pod starts: the tab moves on with it.
+    h.rerender(
+      pod({
+        initContainers: ["migrate"],
+        initContainerStates: [{ name: "migrate", init: true, completed: true, state: "terminated" }],
+        containerStates: [{ name: "app", state: "running", ready: true }],
+      }),
+    );
+    await settle();
+    assert.deepEqual(requests, ["migrate", "app"]);
+    assert.equal(h.content, "log of app");
+  } finally {
+    h.close();
+  }
+});
+
+// Reported from a real cluster: the logs request failed and the tab went on
+// showing the Describe text it shares its content with, counted as log lines.
+test("a failed logs request leaves no other text standing in for the log", async () => {
+  const h = harness({
+    initialContent: "Name: api\nNamespace: default",
+    podLogs: async () => {
+      throw new Error("kubectl command failed");
+    },
+  });
+  try {
+    await settle();
+    assert.equal(h.content, "");
   } finally {
     h.close();
   }

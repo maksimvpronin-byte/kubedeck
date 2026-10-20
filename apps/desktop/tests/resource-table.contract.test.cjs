@@ -346,6 +346,56 @@ test("container cubes are built from states when there are any, and from names o
   assert.deepEqual(rowStatus.normalizeContainerStatusItems({}), [], "a row with neither shows no cubes at all");
 });
 
+test("an init container gets a cube while it is still running or failing", () => {
+  const items = rowStatus.normalizeContainerStatusItems({
+    initContainerStates: [
+      { name: "wait-db", init: true, completed: true, state: "terminated", reason: "Completed" },
+      { name: "migrate", init: true, completed: false, state: "waiting", reason: "CrashLoopBackOff", restartCount: 2 },
+    ],
+    containerStates: [{ name: "app", state: "waiting", ready: false, reason: "PodInitializing" }],
+  });
+  assert.deepEqual(
+    items.map((item) => [item.name, item.tone]),
+    [
+      ["init migrate", "danger"],
+      ["app", "waiting"],
+    ],
+  );
+
+  const healthy = rowStatus.normalizeContainerStatusItems({
+    initContainerStates: [{ name: "wait-db", init: true, completed: true, state: "terminated", reason: "Completed" }],
+    containerStates: [{ name: "app", state: "running", ready: true }],
+  });
+  assert.deepEqual(
+    healthy.map((item) => item.name),
+    ["app"],
+    "once initialized, the cell reads as it did without init containers",
+  );
+});
+
+test("the Logs tab opens on the init step a pod is stuck on, and on the pod once it has started", () => {
+  const helpers = loadTypeScript("components/podDrawerHelpers.ts");
+  const initializing = {
+    uid: "u",
+    name: "bridge",
+    containers: ["app"],
+    initContainers: ["wait-db", "proxy", "migrate"],
+    initContainerStates: [
+      { name: "wait-db", init: true, completed: true, state: "terminated" },
+      { name: "proxy", init: true, completed: false, sidecar: true, state: "running" },
+      { name: "migrate", init: true, completed: false, state: "waiting", reason: "CrashLoopBackOff" },
+    ],
+    containerStates: [{ name: "app", state: "waiting", reason: "PodInitializing" }],
+  };
+  assert.deepEqual(helpers.logContainerNames(initializing), ["wait-db", "proxy", "migrate", "app"], "init containers first, in the order they run");
+  assert.equal(helpers.defaultLogContainer(initializing), "migrate", "not the completed step, not the sidecar");
+
+  const started = { ...initializing, containerStates: [{ name: "app", state: "running", ready: false }] };
+  assert.equal(helpers.defaultLogContainer(started), "app");
+  assert.equal(helpers.defaultLogContainer({ uid: "u", name: "plain", containers: ["app", "side"] }), "app");
+  assert.deepEqual(helpers.containerNames(initializing), ["app"], "the terminal still offers only the regular containers");
+});
+
 test("usage values are formatted at the unit a reader thinks in", () => {
   // The table prints Kubernetes notation here, not the display format: these
   // are the limit and request shown beside row.cpuUsage, which the backend
