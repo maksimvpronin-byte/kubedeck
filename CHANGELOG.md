@@ -1,3 +1,17 @@
+## 2.32.5 - 7zip-bin is gone
+
+No route changes. Node-only ownership stays at Node 60 / Python 0. The app is
+unchanged.
+
+**Build tooling.** A Grype scan of package-lock.json reported 20 7-Zip CVEs.
+All of them were against the 7za.exe 21.07 inside 7zip-bin 5.2.0, the
+package's last release, which nothing ran. electron-builder 26 resolves its own
+7za from a checksum-pinned toolset (24.09 on Windows). The direct
+devDependency is removed, together with repair-7zip-bin.ps1, the 7za check in
+build-macos.sh and p7zip in the macOS build requirements.
+
+Renderer tests: 340. Gateway tests: 245.
+
 ## 2.32.4 - Review fixes, and Electron 43.8.3 for the Trivy findings
 
 No route changes. Node-only ownership stays at Node 60 / Python 0.
