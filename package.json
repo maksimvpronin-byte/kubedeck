@@ -25,8 +25,7 @@
     "smoke:cluster": "node scripts/cluster-smoke.cjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.3",
-    "7zip-bin": "^5.2.0"
+    "@biomejs/biome": "2.5.3"
   },
   "allowScripts": {
     "esbuild@0.21.5": true,

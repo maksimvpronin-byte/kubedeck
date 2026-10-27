@@ -75,11 +75,11 @@ kubectl version --client
 - Mac с Apple Silicon;
 - Xcode Command Line Tools;
 - Homebrew;
-- `kubectl` и `p7zip`.
+- `kubectl`.
 
 ```bash
 xcode-select --install
-brew install node@22 kubectl p7zip
+brew install node@22 kubectl
 ```
 
 ### Linux

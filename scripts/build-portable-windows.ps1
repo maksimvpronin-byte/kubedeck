@@ -283,12 +283,7 @@ try {
     Write-Step "Checking npm dependencies"
     Ensure-NpmDependencies -Root $Root -Install:$InstallNpmDeps
 
-    Write-Step "Repairing electron-builder helpers"
-    $Repair7zipScript = Join-Path $Root "scripts\repair-7zip-bin.ps1"
-    if (-not (Test-Path -LiteralPath $Repair7zipScript)) {
-        throw "Missing repair script: $Repair7zipScript"
-    }
-    & $Repair7zipScript
+    Write-Step "Checking native modules"
     Ensure-RolldownNativeModule -Root $Root
     Ensure-NodePtyElectronModule -Root $Root
 

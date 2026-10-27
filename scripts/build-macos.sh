@@ -36,22 +36,6 @@ ROOT_VERSION="$(node -p 'require("./package.json").version')"
 DESKTOP_VERSION="$(node -p 'require("./apps/desktop/package.json").version')"
 [[ "$ROOT_VERSION" == "$DESKTOP_VERSION" ]] || fail "Version mismatch: root=$ROOT_VERSION desktop=$DESKTOP_VERSION"
 
-# electron-builder reaches for 7zip-bin's own binary. A system 7za is preferred
-# where there is one, because npm has been seen to leave that file behind
-# incomplete; where there is not - a CI runner with no Homebrew - the packaged
-# binary is used as it comes, and only a missing pair is a failure.
-BUNDLED_SEVEN_ZA="$ROOT/node_modules/7zip-bin/mac/arm64/7za"
-SEVEN_ZA="$(command -v 7za || true)"
-if [[ -n "$SEVEN_ZA" && -x "$SEVEN_ZA" ]]; then
-  mkdir -p "$(dirname "$BUNDLED_SEVEN_ZA")"
-  ln -sf "$SEVEN_ZA" "$BUNDLED_SEVEN_ZA"
-  printf '7za: %s\n' "$SEVEN_ZA"
-elif [[ -x "$BUNDLED_SEVEN_ZA" ]]; then
-  printf '7za: %s (bundled)\n' "$BUNDLED_SEVEN_ZA"
-else
-  fail "7za is required and 7zip-bin did not provide one. Install it with: brew install p7zip"
-fi
-
 node -e "require('node-pty')" >/dev/null 2>&1 || fail "node-pty is not usable for darwin arm64. Reinstall npm dependencies on this Mac."
 
 printf 'Node: %s\n' "$(node -v)"
