@@ -127,7 +127,7 @@ Resource list responses могут сохраняться в `ResourceSnapshotCa
 
 ## Packaging
 
-- Desktop runtime: Electron 43.1.0, Chromium 150.0.7871.47, Node 24.18.0;
+- Desktop runtime: Electron 43.8.3, Chromium 150.0.7871.250, Node 24.22.0;
 - Windows: Electron portable x64;
 - macOS: unsigned arm64 DMG и ZIP;
 - main, preload и renderer компилируются из TypeScript;

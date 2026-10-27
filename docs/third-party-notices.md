@@ -16,7 +16,7 @@ added, removed or upgraded.
 
 | Component | Version | License |
 |---|---|---|
-| Electron | 43.1.0 | MIT |
+| Electron | 43.8.3 | MIT |
 
 Electron itself bundles Chromium and Node.js. Their license texts are shipped
 inside the packaged application in `LICENSE.electron.txt` and
@@ -28,7 +28,7 @@ modify those files.
 | Component | Version | License |
 |---|---|---|
 | `diff` | 9.0.0 | BSD-3-Clause |
-| `electron-updater` | 6.6.2 | MIT |
+| `electron-updater` | 6.8.12 | MIT |
 | `node-pty` | 1.1.0 | MIT |
 | `ssh2` | 1.17.0 | MIT |
 | `ws` | 8.21.0 | MIT |
@@ -42,7 +42,7 @@ modify those files.
 | `asn1` | 0.2.6 | MIT | `ssh2` |
 | `bcrypt-pbkdf` | 1.0.2 | BSD-3-Clause | `ssh2` |
 | `buildcheck` | 0.0.7 | MIT | `cpu-features` |
-| `builder-util-runtime` | 9.3.1 | MIT | `electron-updater` |
+| `builder-util-runtime` | 9.7.1 | MIT | `electron-updater` |
 | `cpu-features` | 0.0.10 | MIT | `ssh2` |
 | `debug` | 4.4.3 | MIT | `builder-util-runtime` |
 | `fs-extra` | 10.1.0 | MIT | `electron-updater` |
@@ -57,8 +57,8 @@ modify those files.
 | `node-addon-api` | 7.1.1 | MIT | `node-pty` |
 | `safer-buffer` | 2.1.2 | MIT | `asn1` |
 | `sax` | 1.6.0 | BlueOak-1.0.0 | `builder-util-runtime` |
-| `semver` | 7.8.5 | ISC | `electron-updater` |
-| `tiny-typed-emitter` | 2.1.0 | MIT | `builder-util-runtime` |
+| `semver` | 7.7.4 | ISC | `electron-updater` |
+| `tiny-typed-emitter` | 2.1.0 | MIT | `electron-updater` |
 | `tweetnacl` | 0.14.5 | Unlicense | `bcrypt-pbkdf` |
 | `universalify` | 2.0.1 | MIT | `fs-extra`, `jsonfile` |
 
