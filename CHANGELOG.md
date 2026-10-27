@@ -1,3 +1,45 @@
+## 2.32.4 - Review fixes, and Electron 43.8.3 for the Trivy findings
+
+No route changes. Node-only ownership stays at Node 60 / Python 0.
+
+**Runtime and dependencies.** Electron 43.1.0 -> 43.8.3 (Chromium
+150.0.7871.250, Node 24.22.0) fixes nine Electron CVEs; electron-updater
+6.6.2 -> 6.8.12 brings builder-util-runtime 9.7.1, which no longer forwards
+credentials across a cross-origin redirect. Build and development tools
+(concurrently, vite, axios, undici and others) are updated as well. All 71
+findings of the Trivy scan of package-lock.json are closed; npm audit reports 0.
+
+**Secrets.** The LLM context redacts the YAML structurally - env values with a
+sensitive name, Secret data under any key, last-applied-configuration. A
+Secret key `__proto__` survives a save and `constructor` no longer breaks
+the tab. YAML apply refuses `kind: List`. A refused settings save restores
+the previous API key and no longer reports success.
+
+**Crashes.** A malformed gateway request, a proxy password with a stray `%`,
+a kubectl command cancelled before spawning, a failed port-forward spawn, a
+socket message carrying an object and a terminal socket erroring during
+authorization no longer throw in the main process.
+
+**Statuses.** DaemonSets, Jobs (terminal conditions) and CronJobs are counted
+from their own fields; completed Job pods and cordoned Ready nodes are not
+problems; overlapping quotas are not summed; native sidecars count towards pod
+requests; a recreated object does not inherit its predecessor's events.
+
+**Leaks and races.** Idle kubectl watches are stopped, and a watch started
+during a disconnect does not survive it; slow log consumers are bounded; stale
+cache and usage samples are dropped after a clear; drawer, LLM and terminal
+answers for an object no longer selected are ignored; YAML undo does not reach
+into the previous resource; a namespace change asks before dropping a draft.
+Request timeouts cover the response body.
+
+**Also.** `auth can-i` with `--subresource` for exec and scale; imported
+kubeconfigs keep relative certificate paths working; discovery lists resources
+of non-preferred versions; search ranks before limiting; the SSH host-key
+prompt is not cut off by the connect timeout; related resources honour
+`matchExpressions` and projected volumes.
+
+Renderer tests: 340. Gateway tests: 245.
+
 ## 2.32.3 - Init containers are seen, and their logs read
 
 No route changes. Node-only ownership stays at Node 60 / Python 0.
