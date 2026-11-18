@@ -1,4 +1,4 @@
-# KubeDeck 2.32.6 release notes
+# KubeDeck 2.33.0 release notes
 
 ## Exclude namespaces
 
@@ -24,4 +24,4 @@ shown in the selected mode.
 
 The Node-only gateway provides 60 routes.
 
-[Regression checklist](https://github.com/maksimvpronin-byte/kubedeck/blob/v2.32.6/docs/releases/REGRESSION_CHECKLIST_2.32.6.md)
+[Regression checklist](https://github.com/maksimvpronin-byte/kubedeck/blob/v2.33.0/docs/releases/REGRESSION_CHECKLIST_2.33.0.md)

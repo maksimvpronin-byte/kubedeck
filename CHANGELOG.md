@@ -1,4 +1,4 @@
-## 2.32.6 - Namespace exclusions and log search with context
+## 2.33.0 - Namespace exclusions and log search with context
 
 - **Namespaces.** In All namespaces, exclude or restore individual namespaces
   from their rows. The selector remembers each cluster's scope. The exclusion

@@ -1,4 +1,4 @@
-# KubeDeck 2.32.6 regression checklist
+# KubeDeck 2.33.0 regression checklist
 
 The expected gateway ownership is **Node 60 / Python 0**.
 
@@ -25,7 +25,7 @@ The expected gateway ownership is **Node 60 / Python 0**.
 ## Build and update
 
 - [ ] Run the source and release checks with `npm run verify` and
-  `npm run verify:release -- --tag v2.32.6`.
+  `npm run verify:release -- --tag v2.33.0`.
 - [ ] Confirm that the lock contains Joi 17.13.9 and minimatch 11.0.1
   for the affected dependency chains.
 - [ ] Check the GitHub release for Windows, macOS and Linux downloads and
