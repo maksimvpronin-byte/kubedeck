@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { namespaceExclusions } from "../../../shared/namespaceScope";
 import { loadAggregateSource } from "../cache/aggregateSourceCache";
 import { ClusterNotFoundError, type ConfigStore } from "../config/configStore";
 import { writeError } from "../errors";
@@ -10,7 +11,7 @@ import { buildOverviewSnapshot } from "../overview/overviewEngine";
 import { applyNodeDiskMetrics, applyNodeMetricsSnapshot, fetchNodeMetrics } from "../resources/metrics";
 import { isRequestCancelled, requestAbortSignal } from "../requestCancellation";
 import { normalizeResourceItems } from "../resources/normalizers";
-import { RequestValidationError, validateIdentifier } from "../validation";
+import { RequestValidationError, parseNamespaceExclusions, validateIdentifier } from "../validation";
 
 const SOURCES = ["pods", "deployments", "statefulsets", "daemonsets", "jobs", "events", "nodes", "persistentvolumeclaims", "resourcequotas"] as const;
 const CLUSTER_SCOPED = new Set(["nodes"]);
@@ -32,6 +33,8 @@ function namespacesFromUrl(url: string | undefined): string[] {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+  const exclusions = parseNamespaceExclusions(values);
+  if (exclusions) return exclusions;
   if (!values.length || values.includes("all")) return ["all"];
   return [...new Set(values.map((value) => validateIdentifier(value, "namespace", 253)))];
 }
@@ -94,9 +97,12 @@ async function collectSources<T, R>(sources: readonly T[], load: (source: T) => 
 export async function buildOverviewResponse(configStore: ConfigStore, runner: KubectlRunner, clusterId: string, namespaces: string[], signal?: AbortSignal) {
   const config = configStore.load();
   configStore.getCluster(clusterId, config);
+  const excluded = new Set(namespaceExclusions(namespaces));
+  const sourceNamespaces = excluded.size ? ["all"] : namespaces;
   const results = await collectSources(SOURCES, async (resource) => {
     try {
-      return { resource, rows: await loadSource(configStore, runner, clusterId, resource, namespaces, signal), error: null };
+      const rows = await loadSource(configStore, runner, clusterId, resource, sourceNamespaces, signal);
+      return { resource, rows: excluded.size && !CLUSTER_SCOPED.has(resource) ? rows.filter((row) => !excluded.has(String(row.namespace ?? ""))) : rows, error: null };
     } catch (error) {
       if (!(error instanceof KubectlError)) throw error;
       return { resource, rows: [] as Array<Record<string, unknown>>, error: { ...error.info, resource } as Record<string, unknown> };

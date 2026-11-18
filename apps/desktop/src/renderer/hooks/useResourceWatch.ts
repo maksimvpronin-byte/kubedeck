@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { namespaceRequestScope } from "../../shared/namespaceScope";
 import type { ApiClient } from "../api";
 
 interface UseResourceWatchOptions {
@@ -331,7 +332,7 @@ export function useResourceWatch({ api, clusterId, resource, namespaces, cluster
   useEffect(() => {
     setWatchHealthy(false);
     if (!api || !clusterId || !enabled || resource === "port-forwards") return undefined;
-    const watchNamespace = clusterScoped ? "_cluster" : namespaces.length === 1 ? namespaces[0] : "all";
+    const watchNamespace = clusterScoped ? "_cluster" : namespaceRequestScope(namespaces);
     let socket: WebSocket | null = null;
     let closed = false;
 

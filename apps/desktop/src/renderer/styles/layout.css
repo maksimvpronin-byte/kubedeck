@@ -425,6 +425,36 @@ input {
   min-width: 14px;
 }
 
+.namespace-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.namespace-menu-row label {
+  flex: 1 0 auto;
+}
+
+.namespace-menu-row.is-excluded .namespace-menu-label {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.namespace-menu-row button.namespace-menu-exclusion {
+  min-height: 28px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--focus-ring);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.namespace-menu-row button.namespace-menu-exclusion:hover {
+  background: var(--surface-hover);
+}
+
 .global-search {
   display: flex;
   align-items: center;

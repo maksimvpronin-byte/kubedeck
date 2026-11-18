@@ -276,14 +276,10 @@ test("resource table columns, YAML match count, manifest diff and log filtering 
   assert.match(manifestCompare, /\}, \[currentYaml, targetYaml, raw, error\]\);/);
 
   const logsTab = fs.readFileSync(path.join(rendererRoot, "components/LogsTab.tsx"), "utf8");
-  assert.match(logsTab, /const \{ lines, visibleLines, visibleText \} = useMemo\(\(\) => \{/);
   assert.match(logsTab, /const parsedLines = useMemo\(\(\) => parseAnsiLines\(content \? content\.split\("\\n"\) : \[\]\), \[content\]\);/);
-  assert.match(logsTab, /\}, \[parsedLines, normalizedQuery\]\);/);
-  // Scanning every visible line for occurrences is the same size of work as the
-  // filter itself, so it is memoized on the same inputs rather than re-run per
-  // render, and the per-line grouping the renderer reads hangs off it.
-  assert.match(logsTab, /\[normalizedQuery, visibleLines\],/);
-  assert.match(logsTab, /const matchesByLine = useMemo\([\s\S]*?\}, \[matches\]\);/);
+  // Match navigation and display mode reuse the same scan of the log.
+  assert.match(logsTab, /const \{ lines, matchCount \} = useMemo\([\s\S]*?\}, \[parsedLines, normalizedQuery\]\);/);
+  assert.match(logsTab, /const visibleLines = useMemo\([^\n]+\[filtering, lines\]\);/);
 });
 
 // The cells' pure helpers moved into components/resourceTable/rowStatus.ts in

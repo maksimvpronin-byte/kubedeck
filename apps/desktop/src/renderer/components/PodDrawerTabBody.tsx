@@ -182,6 +182,8 @@ export function PodDrawerTabBody(props: Props) {
               loading={logs.logsLoading}
               query={logs.logsQuery}
               onQueryChange={logs.setLogsQuery}
+              filterMatches={logs.logsFilterMatches}
+              onFilterMatchesChange={logs.setLogsFilterMatches}
               tail={logs.logsTail}
               onTailChange={logs.setLogsTail}
               previous={logs.logsPrevious}

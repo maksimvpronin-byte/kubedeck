@@ -1,6 +1,6 @@
 {
   "name": "kubedeck",
-  "version": "2.32.5",
+  "version": "2.32.6",
   "private": true,
   "license": "Apache-2.0",
   "workspaces": [
@@ -34,5 +34,8 @@
     "cpu-features@0.0.10": true,
     "fsevents@2.3.3": true,
     "electron@43.8.3": true
+  },
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "11.0.1"
   }
 }

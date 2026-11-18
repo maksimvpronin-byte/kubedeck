@@ -28,6 +28,7 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
   const [logsTimestamps, setLogsTimestamps] = useState(false);
   const [logsFollow, setLogsFollow] = useState(false);
   const [logsQuery, setLogsQuery] = useState("");
+  const [logsFilterMatches, setLogsFilterMatches] = useState(false);
   const [logsRefreshToken, setLogsRefreshToken] = useState(0);
   const [logsContainer, setLogsContainer] = useState("");
   const [logsPodFilter, setLogsPodFilter] = useState("");
@@ -294,6 +295,8 @@ export function usePodDrawerLogs({ api, clusterId, pod, resource, tab, currentOb
     setLogsFollow,
     logsQuery,
     setLogsQuery,
+    logsFilterMatches,
+    setLogsFilterMatches,
     logsContainer,
     setLogsContainer,
     podLogsContainer: logsContainer || defaultContainer,

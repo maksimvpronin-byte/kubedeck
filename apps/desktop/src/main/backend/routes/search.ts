@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { namespaceExclusions } from "../../../shared/namespaceScope";
 import { type ConfigStore } from "../config/configStore";
 import { writeJson } from "../http";
 import { clusterCommand } from "../kubectl/clusterCommand";
@@ -16,7 +17,7 @@ import {
   type SearchResultRow,
 } from "../search/searchEngine";
 import { isRequestCancelled, requestAbortSignal } from "../requestCancellation";
-import { RequestValidationError, decodePathPart, validateIdentifier } from "../validation";
+import { RequestValidationError, decodePathPart, isRecord, parseNamespaceExclusions, validateIdentifier } from "../validation";
 import { writeRouteError } from "./routeErrors";
 
 const SEARCH_QUERY_MAX_CHARS = 128;
@@ -66,6 +67,8 @@ function normalizeSearchNamespaces(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+  const exclusions = parseNamespaceExclusions(raw);
+  if (exclusions) return exclusions;
   if (raw.length === 0 || raw.includes("all")) return ["all"];
   if (raw.includes("_cluster")) return ["_cluster"];
   return raw.slice(0, 20).map((item) => validateIdentifier(item, "namespace"));
@@ -134,13 +137,20 @@ async function searchSource(
   limitPerResource: number,
   signal?: AbortSignal,
 ): Promise<SearchSourceResult> {
-  const namespaceModes = spec.scope === "cluster" ? ["_cluster"] : namespaces;
+  const excluded = new Set(spec.scope === "namespaced" ? namespaceExclusions(namespaces) : []);
+  const namespaceModes = spec.scope === "cluster" ? ["_cluster"] : excluded.size ? ["all"] : namespaces;
   const collected: SearchResultRow[] = [];
   let rawCount = 0;
   try {
     for (const namespaceMode of namespaceModes) {
       const data = await runner.runJson(clusterCommand(configStore, clusterId, resourceArgs(spec, namespaceMode), SEARCH_KUBECTL_TIMEOUT_SECONDS, SEARCH_MAX_OUTPUT_BYTES), signal);
-      const items = asItems(data);
+      const rawItems = asItems(data);
+      const items = excluded.size
+        ? rawItems.filter((item) => {
+            const metadata = isRecord(item) && isRecord(item.metadata) ? item.metadata : null;
+            return !excluded.has(String(metadata?.namespace ?? ""));
+          })
+        : rawItems;
       rawCount += items.length;
       collected.push(...rankRawItems(spec, items, query, Math.max(0, limitPerResource - collected.length)));
       if (collected.length >= limitPerResource) break;

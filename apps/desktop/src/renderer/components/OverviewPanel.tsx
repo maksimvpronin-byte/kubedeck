@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Gauge, RefreshCw, Server, ShieldAlert } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { formatBytes, formatCpuMillicores } from "../../shared/formatQuantity";
+import { namespaceExclusions } from "../../shared/namespaceScope";
 import type { ApiClient } from "../api";
 import { useOwnedError } from "../hooks/useOwnedError";
 import type { Cluster, ClusterOverviewResponse, ErrorInfo, Settings } from "../types";
@@ -138,6 +139,7 @@ export function OverviewPanel({
   const title = t(`overview.verdict.${data.verdict.tone}`);
   const now = Date.now();
   const capacityView = data.capacity.views.find((view) => view.key === capacityViewKey) ?? data.capacity.views[0];
+  const excluded = namespaceExclusions(namespaces);
   return (
     <section className="overview-panel" aria-busy={loading}>
       <header className={`overview-pulse is-${data.verdict.tone}`}>
@@ -150,7 +152,9 @@ export function OverviewPanel({
         </div>
         <div className="overview-context">
           <span>{cluster.displayName}</span>
-          <span>{namespaces.includes("all") ? t("overview.allNamespaces") : namespaces.join(", ")}</span>
+          <span title={excluded.length ? excluded.join(", ") : undefined}>
+            {excluded.length ? t("resources.namespacesExcluded").replace("{count}", String(excluded.length)) : namespaces.includes("all") ? t("overview.allNamespaces") : namespaces.join(", ")}
+          </span>
           <span title={data.generatedAt}>{stale ? t("overview.stale") : formatElapsed(Math.max(0, now - Date.parse(data.generatedAt)))}</span>
           <button className="icon-button overview-refresh" onClick={() => void refresh()} disabled={loading} aria-label={t("resources.refresh")} title={t("resources.refresh")}>
             <RefreshCw size={14} className={loading ? "spin" : ""} />

@@ -227,12 +227,9 @@ test("a searched-for match is highlighted rather than selected, in the manifest 
   assert.match(yamlTab, /onFindNext=\{findNext\}/);
   assert.match(yamlTab, /onFindPrevious=\{findPrevious\}/);
 
-  // The log viewer searches the same way. Its query still filters the lines -
-  // "Current view" downloads what the filter left - and the arrows now step
-  // through every occurrence inside those lines.
-  assert.match(logsTab, /filteredLines = normalizedQuery \? parsedLines\.filter/);
+  // The log viewer searches the same way, with every occurrence in reading order.
   assert.match(logsTab, /matchRanges\(line\.text, normalizedQuery\)/);
-  assert.match(logsTab, /nextMatchIndex\(currentMatch, direction, matches\.length\)/);
+  assert.match(logsTab, /nextMatchIndex\(currentMatch, direction, matchCount\)/);
   assert.match(logsTab, /jumpMatch\(event\.shiftKey \? -1 : 1\)/);
   assert.match(logsTab, /aria-label=\{t\("logs\.previousMatch"\)\}/);
   assert.match(logsTab, /aria-label=\{t\("logs\.nextMatch"\)\}/);
@@ -244,7 +241,7 @@ test("a searched-for match is highlighted rather than selected, in the manifest 
   // Both surfaces run out of matches the same way: a step the reader had
   // reached can outlive the text that produced it.
   assert.match(yamlTab, /const currentMatch = matchIndex < matchCount \? matchIndex : -1;/);
-  assert.match(logsTab, /const currentMatch = matchIndex < matches\.length \? matchIndex : -1;/);
+  assert.match(logsTab, /const currentMatch = matchIndex < matchCount \? matchIndex : -1;/);
 });
 
 test("a log jump reveals the match across the pane as well as down it", () => {

@@ -1,3 +1,4 @@
+import { namespaceExclusions, namespaceRequestScope } from "../../shared/namespaceScope";
 import type { ApiClient } from "../api";
 import type { ResourceDefinition, ResourceRow } from "../types";
 
@@ -5,10 +6,17 @@ export const MAX_NAMESPACE_PARALLEL_REQUESTS = 2;
 
 export function normalizeNamespaceSelection(value: string | string[]) {
   const raw = Array.isArray(value) ? value : value.split(",");
-  const normalized = Array.from(new Set(raw.map((item) => item.trim()).filter(Boolean)));
+  const entries = raw.filter((item) => typeof item === "string").map((item) => item.trim());
+  const normalized = Array.from(new Set(entries.filter((item) => item && item !== "!")));
   if (normalized.includes("_cluster")) return ["_cluster"];
   if (normalized.includes("all") || normalized.length === 0) return ["all"];
-  return normalized;
+  const excluded = namespaceExclusions(normalized);
+  return excluded.length ? excluded.sort().map((name) => "!" + name) : normalized;
+}
+
+export function namespaceInScope(selection: readonly string[], namespace: string) {
+  const excluded = namespaceExclusions(selection);
+  return excluded.length ? !excluded.includes(namespace) : selection.includes("all") || selection.includes(namespace);
 }
 
 // Rows of a resource table belong to the scope they were loaded for. The key
@@ -91,8 +99,12 @@ export async function loadNamespaceResourceBatches(
   // main resource tables must be live. Silent auto-refresh must still hit
   // kubectl, otherwise a disconnected cluster keeps showing stale rows.
   const liveOptions = { ...options, useCache: false, forceRefresh: true };
-  if (normalized.length <= 1) {
-    return [await api.resources(clusterId, resource, normalized[0] ?? "all", signal, liveOptions)];
+  const excluded = new Set(namespaceExclusions(normalized));
+  if (normalized.length <= 1 || excluded.size) {
+    const response = await api.resources(clusterId, resource, namespaceRequestScope(normalized), signal, liveOptions);
+    if (!excluded.size) return [response];
+    const items = response.items.filter((row) => !excluded.has(String(row.namespace ?? "")));
+    return [{ ...response, items, rawCount: items.length }];
   }
 
   const responses: Array<{ items: ResourceRow[]; rawCount: number; cached?: boolean; cacheTtlSeconds?: number }> = [];

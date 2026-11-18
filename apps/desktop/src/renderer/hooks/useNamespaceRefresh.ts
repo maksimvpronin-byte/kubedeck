@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { namespaceExclusions } from "../../shared/namespaceScope";
 import type { ApiClient } from "../api";
 import type { ErrorInfo, Settings } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
@@ -35,6 +36,7 @@ export function rememberedNamespacesForCluster(selections: ClusterNamespaceSelec
 export function reconcileClusterNamespaceSelection(selection: string[], availableNamespaces: string[]) {
   const normalized = normalizeNamespaceSelection(selection).filter((item) => item !== "_cluster");
   if (!normalized.length || normalized.includes("all")) return ["all"];
+  if (namespaceExclusions(normalized).length) return normalized;
   // An empty response can be transient while a cluster reconnects. Keep the
   // remembered scope until an authoritative non-empty list is available.
   if (!availableNamespaces.length) return normalized;

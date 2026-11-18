@@ -166,6 +166,30 @@ test("namespace selections are isolated and reconciled per cluster", () => {
 test("opening a resource keeps a scope that already covers it", () => {
   const navigation = fs.readFileSync(path.join(rendererRoot, "hooks/useResourceNavigation.ts"), "utf8");
   assert.match(navigation, /const needsNarrowerScope = /);
-  assert.match(navigation, /!activeSelection\.includes\("all"\) && !activeSelection\.includes\(target\.namespace\)/);
+  assert.match(navigation, /!namespaceInScope\(activeSelection, target\.namespace\)/);
   assert.match(navigation, /if \(target\.clusterScoped \|\| lookupCoversSelection\) setRows\(/);
+});
+
+test("an exclusion scope reads all namespaces once and filters every refresh", async () => {
+  const { loadNamespaceResourceBatches, namespaceInScope, resourceScopeKey } = loadTypeScript("utils/kubeResources.ts");
+  const requested = [];
+  const items = [{ namespace: "default" }, { namespace: "tools" }, { namespace: "kube-system" }];
+  const api = {
+    async resources(_cluster, _resource, namespace) {
+      requested.push(namespace);
+      return { items, rawCount: items.length };
+    },
+  };
+  const scope = ["!tools", "!kube-system"];
+  assert.deepEqual(await loadNamespaceResourceBatches(api, "cluster-a", "pods", scope), [{ items: [{ namespace: "default" }], rawCount: 1 }]);
+  items.push({ namespace: "new" });
+  assert.deepEqual(
+    (await loadNamespaceResourceBatches(api, "cluster-a", "pods", scope))[0].items.map((row) => row.namespace),
+    ["default", "new"],
+  );
+  assert.deepEqual(requested, ["all", "all"]);
+  assert.equal(namespaceInScope(scope, "new"), true);
+  assert.equal(namespaceInScope(scope, "tools"), false);
+  assert.equal(resourceScopeKey("cluster-a", "pods", scope), resourceScopeKey("cluster-a", "pods", [...scope].reverse()));
+  assert.notEqual(resourceScopeKey("cluster-a", "pods", scope), resourceScopeKey("cluster-a", "pods", ["all"]));
 });

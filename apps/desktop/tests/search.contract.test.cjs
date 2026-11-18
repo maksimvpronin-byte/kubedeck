@@ -287,6 +287,48 @@ test("Global Search supports namespace lists and cluster-only mode", async () =>
   assert.ok(commands.some((args) => args[1] === "nodes" && !args.includes("-n")));
 });
 
+test("Global Search excludes namespaces before ranking and keeps cluster resources", async (t) => {
+  const commands = [];
+  const runner = {
+    async runJson(command) {
+      commands.push(command.args);
+      if (command.args[1] === "nodes") {
+        return { items: [{ kind: "Node", metadata: { name: "api-node" } }] };
+      }
+      if (command.args[1] !== "pods") return { items: [] };
+      const {
+        items: [pod],
+      } = rawForResource("pods");
+      return {
+        items: [
+          ...Array.from({ length: 12 }, (_, index) => ({ ...pod, metadata: { name: "api", uid: "hidden-" + index, namespace: "tools" } })),
+          { ...pod, metadata: { name: "visible-api", namespace: "new" } },
+        ],
+      };
+    },
+  };
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    handleSearchRequest(request, response, pathname, fakeConfigStore(), runner, () => {});
+  });
+  const baseUrl = await listen(server);
+  t.after(() => close(server));
+  const searchUrl = baseUrl + "/clusters/cluster-1/search?q=api&limit=10&includeCrdInstances=false";
+  const response = await fetch(searchUrl + "&namespace=%21tools,%21kube-system");
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(
+    body.items.filter((item) => item.resource === "pods").map((item) => item.namespace),
+    ["new"],
+  );
+  assert.ok(body.items.some((item) => item.resource === "nodes"));
+  assert.equal(commands.filter((args) => args[1] === "pods").length, 1);
+  assert.ok(commands.some((args) => args[1] === "pods" && args.includes("-A")));
+  const mixed = await fetch(searchUrl + "&namespace=%21tools,default");
+  assert.equal(mixed.status, 400);
+  assert.equal((await mixed.json()).detail.code, "INVALID_NAMESPACE_SCOPE");
+});
+
 test("Global Search validates query, limit, route, and missing cluster", async (t) => {
   assert.equal(matchSearchRoute("POST", "/clusters/cluster-1/search"), null);
   assert.equal(matchSearchRoute("GET", "/clusters/cluster-1/search").clusterId, "cluster-1");

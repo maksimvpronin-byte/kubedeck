@@ -13,13 +13,17 @@ const { LogsTab } = loadComponent("components/LogsTab.tsx");
 
 const ESC = "\x1b";
 
-function logs(t, content, extra = {}) {
-  const view = mount(
-    React.createElement(LogsTab, {
+function logs(t, content, { query: initialQuery = "", ...extra } = {}) {
+  function Probe() {
+    const [query, setQuery] = React.useState(initialQuery);
+    const [filterMatches, setFilterMatches] = React.useState(false);
+    return React.createElement(LogsTab, {
       content,
       loading: false,
-      query: "",
-      onQueryChange: () => {},
+      query,
+      onQueryChange: setQuery,
+      filterMatches,
+      onFilterMatchesChange: setFilterMatches,
       tail: 100,
       onTailChange: () => {},
       previous: false,
@@ -39,8 +43,9 @@ function logs(t, content, extra = {}) {
       onDownloadVisible: () => {},
       onDownloadFull: () => {},
       ...extra,
-    }),
-  );
+    });
+  }
+  const view = mount(React.createElement(Probe));
   t.after(() => view.unmount());
   return view;
 }
@@ -62,11 +67,57 @@ test("escape sequences are shown as colours, not as characters", (t) => {
 test("the filter and the search read the text on screen, not the escapes", (t) => {
   // "32mready" is in the raw text but not on screen; "ready" spans a colour change.
   const view = logs(t, `${ESC}[32mrea${ESC}[33mdy${ESC}[0m\nother line`, { query: "ready" });
-  assert.equal(view.text(".logs-search span"), "1/2");
+  assert.equal(view.text(".logs-output"), "ready\nother line");
   const marks = view.all(".log-line mark");
   assert.equal(marks.length, 1, "one occurrence is one mark, even across two colours");
   assert.equal(marks[0].textContent, "ready");
   assert.equal(marks[0].querySelectorAll("span[style]").length, 2);
+
+  view.toggle(view.first(".logs-search-row input[type=checkbox]"));
+  assert.equal(view.text(".logs-search span"), "1/2");
+  assert.equal(view.text(".logs-output"), "ready");
+  view.type(view.first(".logs-search input"), "32m");
+  assert.equal(view.text(".logs-output"), "logs.noMatches");
+});
+
+test("search keeps the surrounding log lines unless Matches only is enabled", (t) => {
+  const content = "startup\nERROR opening file\nretrying\nerror again: error\nshutdown";
+  const downloads = [];
+  const view = logs(t, content, { onDownloadVisible: (text) => downloads.push(text) });
+  const search = view.first(".logs-search input");
+  const filter = view.first(".logs-search-row input[type=checkbox]");
+  view.type(search, "  error  ");
+  assert.equal(filter.checked, false);
+  assert.equal(view.text(".logs-output"), content);
+  assert.equal(view.text(".match-counter"), "0/3");
+  assert.equal(view.all(".logs-output mark").length, 3);
+
+  React.act(() => search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, shiftKey: true })));
+  assert.equal(view.text(".match-counter"), "3/3");
+  view.toggle(filter);
+  assert.equal(view.text(".logs-output"), "ERROR opening file\nerror again: error");
+  assert.equal(view.text(".logs-search span"), "2/5");
+  assert.equal(view.text(".match-counter"), "3/3");
+  assert.equal(view.text(".logs-output mark.is-current"), "error");
+  view.click(view.first('[aria-label="logs.nextMatch"]'));
+  assert.equal(view.text(".logs-output mark.is-current"), "ERROR");
+
+  view.click(view.first('[aria-label="logs.download"]'));
+  view.click(view.first(".logs-download-choice-actions button"));
+  assert.deepEqual(downloads, ["ERROR opening file\nerror again: error"]);
+
+  view.type(search, "missing");
+  assert.equal(view.text(".logs-output"), "logs.noMatches");
+  view.toggle(filter);
+  assert.equal(view.text(".logs-output"), content);
+  assert.equal(view.text(".match-counter"), "0/0");
+  view.click(view.first('[aria-label="logs.download"]'));
+  view.click(view.first(".logs-download-choice-actions button"));
+  assert.equal(downloads[1], content);
+
+  view.toggle(filter);
+  view.type(search, "");
+  assert.equal(view.text(".logs-output"), content);
 });
 
 test("a colour carries into the next line until it is reset", () => {

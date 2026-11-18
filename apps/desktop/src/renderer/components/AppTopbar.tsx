@@ -40,6 +40,9 @@ export function AppTopbar({
         allLabel={t("resources.allNamespaces")}
         clusterScopedLabel={t("resources.clusterScoped")}
         selectedCountLabel={t("resources.namespacesSelected")}
+        excludedCountLabel={t("resources.namespacesExcluded")}
+        excludeLabel={t("resources.excludeNamespace")}
+        restoreLabel={t("resources.restoreNamespace")}
         searchLabel={t("resources.namespaceSearch")}
         emptySearchLabel={t("resources.namespaceSearchEmpty")}
         recentUsage={namespaceUsage}

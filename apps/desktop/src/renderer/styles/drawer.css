@@ -675,7 +675,8 @@ dd {
   gap: 10px;
 }
 
-.logs-toolbar label {
+.logs-toolbar label,
+.logs-search-row .logs-checkbox {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -691,15 +692,21 @@ dd {
   margin: 0;
 }
 
-.logs-search-row {
+.logs-search-row,
+.logs-search-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
+.logs-search-row .logs-checkbox {
+  white-space: nowrap;
+}
+
 .logs-search {
-  flex: 1 1 auto;
+  flex: 1 1 160px;
   min-width: 0;
   display: flex;
   align-items: center;

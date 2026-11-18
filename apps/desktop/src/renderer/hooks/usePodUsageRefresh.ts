@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { namespaceRequestScope } from "../../shared/namespaceScope";
 import type { ApiClient } from "../api";
 import type { Cluster, ResourceRow } from "../types";
 import { setAlignedInterval } from "../utils/alignedInterval";
@@ -42,12 +43,12 @@ export function usePodUsageRefresh({ api, activeCluster, connectedClusterIds, re
     // A disconnected cluster has no samples left to read, so this would poll
     // the store for an empty answer every tick.
     if (!api || !activeCluster || !isPodResourceTab(resourceTab) || !connectedClusterIds.includes(activeCluster.id)) return;
-    const namespace = normalizeNamespaceSelection(selectedNamespaces).join(",") || "all";
+    const namespace = namespaceRequestScope(normalizeNamespaceSelection(selectedNamespaces));
     let cancelled = false;
 
     const refresh = async () => {
       try {
-        const response = await api.podUsage(activeCluster.id, namespace.includes(",") ? "all" : namespace);
+        const response = await api.podUsage(activeCluster.id, namespace);
         if (cancelled) return;
         setRows((current) => {
           const rows = current[resourceTab];

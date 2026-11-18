@@ -37,6 +37,14 @@ export function validateIdentifier(value: string, field: string, maxLength = 253
   return text;
 }
 
+export function parseNamespaceExclusions(selection: string[]): string[] | null {
+  if (!selection.some((entry) => entry.startsWith("!"))) return null;
+  if (!selection.every((entry) => entry.startsWith("!"))) {
+    throw new RequestValidationError(400, "INVALID_NAMESPACE_SCOPE", "Namespace exclusions cannot be combined with inclusions");
+  }
+  return [...new Set(selection.map((entry) => "!" + validateIdentifier(entry.slice(1), "namespace")))];
+}
+
 export function normalizeTailLines(value: string | null): number {
   if (value === null || value.trim() === "") return 500;
   if (!/^-?\d+$/.test(value.trim())) {

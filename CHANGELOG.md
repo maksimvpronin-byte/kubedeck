@@ -1,3 +1,15 @@
+## 2.32.6 - Namespace exclusions and log search with context
+
+- **Namespaces.** In All namespaces, exclude or restore individual namespaces
+  from their rows. The selector remembers each cluster's scope. The exclusion
+  applies to resource lists, Global Search and Overview, and new namespaces
+  are included automatically.
+- **Logs.** Search highlights text in the full log by default. Enable Matches
+  only to show matching lines. Navigation keeps the current match when the
+  view changes.
+- **Build tooling.** Update Joi to 17.13.9 and the affected minimatch
+  dependencies to 11.0.1.
+
 ## 2.32.5 - 7zip-bin is gone
 
 No route changes. Node-only ownership stays at Node 60 / Python 0. The app is

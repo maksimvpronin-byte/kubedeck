@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { namespaceExclusions, namespaceRequestScope } from "../../shared/namespaceScope";
 import type { ApiClient } from "../api";
 import { resourceTree, sectionForResource } from "../navigation";
 import type { Cluster, ErrorInfo, NavigationGuard, ResourceDefinition, ResourceRow, Section } from "../types";
 import { asErrorInfo, isAbortError } from "../utils/errors";
-import { findResourceDefinition, sameResourceIdentity } from "../utils/kubeResources";
+import { findResourceDefinition, namespaceInScope, sameResourceIdentity } from "../utils/kubeResources";
 
 export interface ResourceNavigationTarget {
   resource: string;
@@ -41,10 +42,10 @@ export function resolveResourceNavigationTarget(
     : locatorNamespace && locatorNamespace !== "_cluster"
       ? locatorNamespace
       : namespace === "_cluster"
-        ? rememberedNamespaces.length === 1
-          ? rememberedNamespaces[0]
-          : "all"
-        : namespace || "all";
+        ? namespaceRequestScope(rememberedNamespaces)
+        : namespace.startsWith("!")
+          ? "all"
+          : namespace || "all";
   return {
     resource,
     section: sectionForResource(resource) ?? (locator.crdInstance ? "crd" : "workloads"),
@@ -144,7 +145,7 @@ export function useResourceNavigation(options: Options) {
       // only when the current scope cannot show the target. Narrowing on every
       // jump silently replaced an "All namespaces" or multi-namespace selection
       // with a single namespace, and that replacement was then remembered.
-      const needsNarrowerScope = !target.clusterScoped && target.namespace !== "all" && !activeSelection.includes("all") && !activeSelection.includes(target.namespace);
+      const needsNarrowerScope = !target.clusterScoped && target.namespace !== "all" && !namespaceInScope(activeSelection, target.namespace);
       const nextSelection = needsNarrowerScope ? [target.namespace] : activeSelection;
       if (target.clusterScoped) setNamespaceSelection("_cluster");
       else if (needsNarrowerScope || selectedNamespaces.includes("_cluster")) setNamespaceSelection(nextSelection);
@@ -152,8 +153,9 @@ export function useResourceNavigation(options: Options) {
       // The lookup only has to find the target row. Its rows may replace the
       // table when they cover the same scope the selector ends up showing;
       // otherwise the scope-aware loader fills the table for the full selection.
-      const lookupNamespace = nextSelection.includes("all") ? "all" : nextSelection.length === 1 ? nextSelection[0] : target.namespace;
-      const lookupCoversSelection = nextSelection.includes("all") || (nextSelection.length === 1 && nextSelection[0] === lookupNamespace);
+      const isExcluding = namespaceExclusions(nextSelection).length > 0;
+      const lookupNamespace = nextSelection.includes("all") ? "all" : nextSelection.length === 1 && !isExcluding ? nextSelection[0] : target.namespace;
+      const lookupCoversSelection = !isExcluding && (nextSelection.includes("all") || (nextSelection.length === 1 && nextSelection[0] === lookupNamespace));
 
       try {
         const response = await api.resources(activeCluster.id, target.resource, target.clusterScoped ? target.namespace : lookupNamespace, controller.signal);

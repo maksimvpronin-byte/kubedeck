@@ -116,7 +116,7 @@ export function useCommandPaletteItems({
             cancelResourceNavigation();
             keepCurrentSelection();
             if (activeCluster) setSelectedTarget({ clusterId: activeCluster.id, resource: resourceTab, row });
-            if (rowNamespace && rowNamespace !== "_cluster" && namespace !== "_cluster") setNamespaceSelection(rowNamespace);
+            if (rowNamespace && rowNamespace !== "_cluster" && namespace !== "_cluster" && !namespace.startsWith("!")) setNamespaceSelection(rowNamespace);
           });
         },
       });

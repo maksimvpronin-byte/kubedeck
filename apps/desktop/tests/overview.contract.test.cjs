@@ -164,3 +164,33 @@ test("overview bounds how many lists it starts at once, filters events, and shar
   await buildProblemsResponse(configStore, runner, "cluster-1");
   assert.equal(commands.length, 9, "Problems reuses the lists Overview just fetched");
 });
+
+test("overview aggregates only the namespaces left in an exclusion scope", async () => {
+  clearAggregateSourceCache();
+  const commands = [];
+  const configStore = {
+    load: () => ({ settings: { kubectlPath: "kubectl" }, clusters: [{ id: "cluster-1" }] }),
+    getCluster: () => ({ id: "cluster-1" }),
+  };
+  const runner = {
+    async runJson(command) {
+      commands.push(command.args);
+      if (command.args[1] === "pods") {
+        return {
+          items: ["tools", "default", "new"].map((namespace) => ({ metadata: { name: "api", namespace }, status: { phase: "Running" } })),
+        };
+      }
+      if (command.args[1] === "nodes") return { items: [{ metadata: { name: "node" } }] };
+      return { items: [] };
+    },
+  };
+  const response = await buildOverviewResponse(configStore, runner, "cluster-1", ["!tools", "!default"]);
+  assert.equal(response.summary.podsTotal, 1);
+  assert.equal(response.summary.nodesTotal, 1);
+  assert.equal(response.clusterProfile.namespaces, 1);
+  const podCalls = commands.filter((args) => args[1] === "pods");
+  assert.equal(podCalls.length, 1);
+  assert.ok(podCalls[0].includes("-A"));
+  const all = await buildOverviewResponse(configStore, runner, "cluster-1", ["all"]);
+  assert.equal(all.summary.podsTotal, 3, "the shared source stays unfiltered");
+});

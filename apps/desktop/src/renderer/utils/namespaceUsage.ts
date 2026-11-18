@@ -18,7 +18,8 @@ export function rememberNamespaceUsage(usage: NamespaceUsage, touched: string[],
   for (const [namespace, stamp] of Object.entries(usage)) {
     if (at - stamp < NAMESPACE_USAGE_TTL_MS) next[namespace] = stamp;
   }
-  for (const namespace of touched) {
+  for (const entry of touched) {
+    const namespace = entry.startsWith("!") ? entry.slice(1) : entry;
     if (!namespace || namespace === "all" || namespace === "_cluster") continue;
     next[namespace] = at;
   }

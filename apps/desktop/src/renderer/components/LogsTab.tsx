@@ -4,15 +4,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useControlledAsyncActionFeedback } from "../hooks/useAsyncActionFeedback";
 import { type AnsiLine, parseAnsiLines } from "../utils/ansi";
 import { horizontalShift, verticalShift } from "../utils/revealMatch";
-import { matchRanges, nextMatchIndex } from "../utils/searchMatches";
+import { type SearchMatch, matchRanges, nextMatchIndex } from "../utils/searchMatches";
 import { AsyncActionButton, refreshActionLabels } from "./AsyncActionButton";
 
-// Where one occurrence sits: which of the lines on screen holds it, and the
-// span inside that line.
-interface LogMatch {
-  line: number;
-  from: number;
-  to: number;
+interface LogMatch extends SearchMatch {
+  index: number;
 }
 
 interface LogsTabProps {
@@ -20,6 +16,8 @@ interface LogsTabProps {
   loading: boolean;
   query: string;
   onQueryChange: (value: string) => void;
+  filterMatches: boolean;
+  onFilterMatchesChange: (value: boolean) => void;
   tail: number;
   onTailChange: (value: number) => void;
   previous: boolean;
@@ -53,6 +51,8 @@ export function LogsTab({
   loading,
   query,
   onQueryChange,
+  filterMatches,
+  onFilterMatchesChange,
   tail,
   onTailChange,
   previous,
@@ -90,35 +90,26 @@ export function LogsTab({
   // They are read for their colours and taken out of the text, so the filter,
   // the search and the visible download all work on what is on screen.
   const parsedLines = useMemo(() => parseAnsiLines(content ? content.split("\n") : []), [content]);
-  const { lines, visibleLines, visibleText } = useMemo(() => {
-    const filteredLines = normalizedQuery ? parsedLines.filter((line) => line.text.toLowerCase().includes(normalizedQuery)) : parsedLines;
-    return { lines: parsedLines, visibleLines: filteredLines, visibleText: filteredLines.map((line) => line.text).join("\n") };
+  const { lines, matchCount } = useMemo(() => {
+    let matchCount = 0;
+    const lines = parsedLines.map((line, index) => ({
+      line,
+      index,
+      matches: matchRanges(line.text, normalizedQuery).map((range) => ({ ...range, index: matchCount++ })),
+    }));
+    return { lines, matchCount };
   }, [parsedLines, normalizedQuery]);
-
-  // The query still filters the lines; these are the occurrences inside what
-  // survived the filter, in reading order, so the arrows step through a log the
-  // way they step through a manifest.
-  const matches = useMemo<LogMatch[]>(
-    () => visibleLines.flatMap((line, index) => matchRanges(line.text, normalizedQuery).map((range) => ({ line: index, from: range.from, to: range.to }))),
-    [normalizedQuery, visibleLines],
-  );
-  const matchesByLine = useMemo(() => {
-    const byLine = new Map<number, Array<LogMatch & { index: number }>>();
-    matches.forEach((match, index) => {
-      const bucket = byLine.get(match.line) ?? [];
-      bucket.push({ ...match, index });
-      byLine.set(match.line, bucket);
-    });
-    return byLine;
-  }, [matches]);
+  const filtering = filterMatches && Boolean(normalizedQuery);
+  const visibleLines = useMemo(() => (filtering ? lines.filter(({ matches }) => matches.length > 0) : lines), [filtering, lines]);
+  const visibleText = useMemo(() => visibleLines.map(({ line }) => line.text).join("\n"), [visibleLines]);
   // Following logs keeps adding lines under the reader, so the step reached can
   // outlive the occurrence it counted; neither the counter nor the accent may
   // point past the end.
-  const currentMatch = matchIndex < matches.length ? matchIndex : -1;
+  const currentMatch = matchIndex < matchCount ? matchIndex : -1;
 
   function jumpMatch(direction: 1 | -1) {
-    if (matches.length === 0) return;
-    setMatchIndex(nextMatchIndex(currentMatch, direction, matches.length));
+    if (matchCount === 0) return;
+    setMatchIndex(nextMatchIndex(currentMatch, direction, matchCount));
   }
 
   // Only the log pane is scrolled, by hand rather than through scrollIntoView,
@@ -134,7 +125,7 @@ export function LogsTab({
     const markBox = mark.getBoundingClientRect();
     output.scrollTop += verticalShift(markBox.top - outputBox.top, markBox.height, output.clientHeight);
     output.scrollLeft += horizontalShift(markBox.left - outputBox.left, markBox.width, output.clientWidth);
-  }, [currentMatch]);
+  }, [currentMatch, filtering]);
 
   useLayoutEffect(() => {
     const output = outputRef.current;
@@ -272,32 +263,39 @@ export function LogsTab({
               }
             }}
             placeholder={t("logs.search")}
+            aria-label={t("logs.search")}
           />
-          <span>{loading ? t("common.refreshing") : normalizedQuery ? `${visibleLines.length}/${lines.length}` : `${lines.length} ${t("logs.lines")}`}</span>
+          <span>{loading ? t("common.refreshing") : filtering ? `${visibleLines.length}/${lines.length}` : `${lines.length} ${t("logs.lines")}`}</span>
         </label>
-        <span className="match-counter">{normalizedQuery ? `${currentMatch >= 0 ? currentMatch + 1 : 0}/${matches.length}` : ""}</span>
-        <span className="logs-action-tooltip" data-tooltip={`${t("logs.previousMatch")} (Shift+Enter)`}>
-          <button className="icon-button logs-icon-action" disabled={matches.length === 0} onClick={() => jumpMatch(-1)} aria-label={t("logs.previousMatch")}>
-            <ChevronUp size={18} />
-          </button>
-        </span>
-        <span className="logs-action-tooltip" data-tooltip={`${t("logs.nextMatch")} (Enter)`}>
-          <button className="icon-button logs-icon-action" disabled={matches.length === 0} onClick={() => jumpMatch(1)} aria-label={t("logs.nextMatch")}>
-            <ChevronDown size={18} />
-          </button>
-        </span>
+        <div className="logs-search-actions">
+          <label className="logs-checkbox">
+            <input type="checkbox" checked={filterMatches} onChange={(event) => onFilterMatchesChange(event.target.checked)} />
+            {t("logs.matchesOnly")}
+          </label>
+          <span className="match-counter">{normalizedQuery ? `${currentMatch >= 0 ? currentMatch + 1 : 0}/${matchCount}` : ""}</span>
+          <span className="logs-action-tooltip" data-tooltip={`${t("logs.previousMatch")} (Shift+Enter)`}>
+            <button className="icon-button logs-icon-action" disabled={matchCount === 0} onClick={() => jumpMatch(-1)} aria-label={t("logs.previousMatch")}>
+              <ChevronUp size={18} />
+            </button>
+          </span>
+          <span className="logs-action-tooltip" data-tooltip={`${t("logs.nextMatch")} (Enter)`}>
+            <button className="icon-button logs-icon-action" disabled={matchCount === 0} onClick={() => jumpMatch(1)} aria-label={t("logs.nextMatch")}>
+              <ChevronDown size={18} />
+            </button>
+          </span>
+        </div>
       </div>
       {follow ? <p className="terminal-muted">{t("logs.followHint")}</p> : null}
       <pre className="logs-output" ref={outputRef} onScroll={updateScrollStickiness}>
         {visibleLines.length === 0 ? (
-          <span className="terminal-muted">{t("logs.empty")}</span>
+          <span className="terminal-muted">{t(filtering && lines.length > 0 ? "logs.noMatches" : "logs.empty")}</span>
         ) : (
-          visibleLines.map((line, index) => (
+          visibleLines.map(({ line, index, matches }, visibleIndex) => (
             <span className="log-line" key={`${index}-${line.text.slice(0, 24)}`}>
-              {renderLogLine(line, matchesByLine.get(index), currentMatch, (node) => {
+              {renderLogLine(line, matches, currentMatch, (node) => {
                 currentMarkRef.current = node;
               })}
-              {index < visibleLines.length - 1 ? "\n" : ""}
+              {visibleIndex < visibleLines.length - 1 ? "\n" : ""}
             </span>
           ))
         )}
@@ -311,8 +309,8 @@ export function LogsTab({
 // only - the log pane is not editable, and nothing here is selected. A mark is
 // one element even when it spans two colours, so the arrows land on the whole
 // occurrence.
-function renderLogLine(line: AnsiLine, lineMatches: Array<LogMatch & { index: number }> | undefined, current: number, currentRef: RefCallback<HTMLElement>): ReactNode {
-  if (!lineMatches?.length) return renderColored(line, 0, line.text.length, "t");
+function renderLogLine(line: AnsiLine, lineMatches: LogMatch[], current: number, currentRef: RefCallback<HTMLElement>): ReactNode {
+  if (!lineMatches.length) return renderColored(line, 0, line.text.length, "t");
   const parts: ReactNode[] = [];
   let cursor = 0;
   for (const match of lineMatches) {

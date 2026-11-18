@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { namespaceRequestScope } from "../../shared/namespaceScope";
 import type { ApiClient } from "../api";
 import type { Cluster, ErrorInfo, WatchSession, WatchStatus } from "../types";
 import { asErrorInfo } from "../utils/errors";
@@ -41,7 +42,7 @@ export function WatchDiagnostics({
     return watches.filter((watch) => watch.clusterId === activeCluster.id);
   }, [watches, activeCluster?.id]);
   const runningVisible = visibleWatches.filter((watch) => watch.status === "running").length;
-  const currentNamespaceHint = selectedNamespaces.length === 1 ? selectedNamespaces[0] : "all";
+  const currentNamespaceHint = namespaceRequestScope(selectedNamespaces);
 
   // Polled while Settings is open: a success takes down only an error this
   // panel raised; a failed settings save shown in the same banner stays.

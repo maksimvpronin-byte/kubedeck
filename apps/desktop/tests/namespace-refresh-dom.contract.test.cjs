@@ -21,6 +21,7 @@ const { loadComponent, mount, React } = require("./helpers/dom.cjs");
 const { useNamespaceRefresh } = loadComponent("hooks/useNamespaceRefresh.ts", {
   "../api": { ApiClient: class {}, ApiError: class ApiError extends Error {} },
 });
+const { NamespaceSelector } = loadComponent("components/NamespaceSelector.tsx");
 
 const namespaceList = (...names) => ({ items: names.map((name) => ({ metadata: { name } })) });
 
@@ -52,7 +53,18 @@ async function refresher(t, options = {}) {
       initialSelectedNamespacesByClusterId: options.initialSelectedNamespacesByClusterId,
       onError,
     });
-    return null;
+    return options.renderSelector
+      ? React.createElement(NamespaceSelector, {
+          namespaces: hook.namespaces,
+          selected: hook.selectedNamespaces,
+          recentUsage: hook.namespaceUsage,
+          disabled: false,
+          allLabel: "All namespaces",
+          searchLabel: "Search namespace",
+          emptySearchLabel: "No namespaces",
+          onChange: hook.setNamespaceSelection,
+        })
+      : null;
   }
 
   let view;
@@ -66,6 +78,7 @@ async function refresher(t, options = {}) {
   t.after(() => view.unmount());
 
   return {
+    view,
     state,
     errors,
     hook: () => hook,
@@ -79,6 +92,49 @@ async function refresher(t, options = {}) {
     },
   };
 }
+
+test("namespace row actions exclude and restore without changing how the checkboxes select", async (t) => {
+  const r = await refresher(t, { initialSelectedNamespaces: ["all"], renderSelector: true });
+  const { view } = r;
+  const trigger = view.first(".namespace-selector-button");
+  view.click(trigger);
+  view.click(view.first('[aria-label="Exclude tools"]'));
+  view.click(view.first('[aria-label="Exclude kube-system"]'));
+  assert.equal(trigger.textContent, "All except 2");
+  assert.equal(view.first(".namespace-menu > label input").indeterminate, true);
+  assert.deepEqual(r.hook().selectedNamespacesByClusterId["cluster-a"], ["!kube-system", "!tools"]);
+  assert.equal(view.all(".namespace-menu-row.is-excluded").length, 2);
+
+  view.click(view.first('[aria-label="Restore kube-system"]'));
+  assert.equal(trigger.textContent, "All except 1");
+  view.toggle(view.first('.namespace-menu-row label[title="default"] input'));
+  assert.deepEqual(r.hook().selectedNamespaces, ["default"]);
+  assert.equal(view.all(".namespace-menu-exclusion").length, 0);
+
+  view.toggle(view.first(".namespace-menu > label input"));
+  view.click(view.first('[aria-label="Exclude tools"]'));
+  view.click(view.first('[aria-label="Restore tools"]'));
+  assert.deepEqual(r.hook().selectedNamespaces, ["all"]);
+  assert.equal(view.first(".namespace-menu > label input").indeterminate, false);
+});
+
+test("stored exclusions survive cluster switches, scope changes and namespace refreshes", async (t) => {
+  const r = await refresher(t, { activeClusterId: undefined, initialSelectedNamespacesByClusterId: { "cluster-a": ["!tools"], "cluster-b": ["b-only"] } });
+  await r.act(() => r.hook().activateClusterNamespaces("cluster-a", ["default", "tools"]));
+  r.state.activeClusterId = "cluster-a";
+  await r.rerender();
+  assert.deepEqual(r.hook().selectedNamespaces, ["!tools"]);
+  await r.act(() => r.hook().setNamespaceSelection("_cluster"));
+  r.state.answer = async () => namespaceList("new", "default");
+  await r.act(() => r.hook().loadNamespaces("cluster-a"));
+  await r.act(() => r.hook().restoreNamespacedSelection());
+  assert.deepEqual(r.hook().namespaces, ["default", "new"]);
+  assert.deepEqual(r.hook().selectedNamespaces, ["!tools"]);
+  await r.act(() => r.hook().activateClusterNamespaces("cluster-b", ["b-only", "tools"]));
+  assert.deepEqual(r.hook().selectedNamespaces, ["b-only"]);
+  await r.act(() => r.hook().activateClusterNamespaces("cluster-a", ["default", "new", "tools"]));
+  assert.deepEqual(r.hook().selectedNamespaces, ["!tools"]);
+});
 
 test("a poll that finds the namespaces still there leaves the selection alone", async (t) => {
   const r = await refresher(t);
